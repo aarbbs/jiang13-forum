@@ -355,14 +355,20 @@ a:hover { text-decoration: underline; }
   transition: box-shadow 0.15s, transform 0.1s;
 }
 
-.header-user-btn:hover,
+@media (hover: hover) {
+  .header-user-btn:hover {
+    box-shadow: 0 0 0 2px var(--j13-green-bg), 0 0 0 3px var(--j13-green);
+  }
+}
+
 .header-user-btn:focus-visible {
   box-shadow: 0 0 0 2px var(--j13-green-bg), 0 0 0 3px var(--j13-green);
 }
 
-/* 鼠标点击打开/关闭下拉后 focus 会回到按钮，隐藏默认黑色 outline */
-.header-user-btn:focus {
+/* 鼠标点击打开/关闭下拉后 focus 会回到按钮，隐藏默认 outline 与 hover 同款高亮 */
+.header-user-btn:focus:not(:focus-visible) {
   outline: none;
+  box-shadow: none;
 }
 
 .header-user-avatar {

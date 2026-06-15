@@ -175,7 +175,11 @@ export default function MainLayout() {
                         : <span className="header-user-initial">{userInitial}</span>}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-40"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
                     <DropdownMenuItem onClick={() => nav('/profile')}>个人中心</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/favorites')}>我的收藏</DropdownMenuItem>
                     {user.role === 'admin' && (
