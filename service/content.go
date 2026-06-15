@@ -35,3 +35,13 @@ func membersContentLength(html string) int {
 	}
 	return utf8.RuneCountInString(text)
 }
+
+// StripHTMLForSearch 剥离 HTML 标签，生成用于全文搜索的纯文本
+func StripHTMLForSearch(html string) string {
+	if html == "" {
+		return ""
+	}
+	text := htmlTagRe.ReplaceAllString(html, " ")
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	return strings.Join(strings.Fields(text), " ")
+}

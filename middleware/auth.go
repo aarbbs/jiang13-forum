@@ -142,11 +142,11 @@ func respondBanned(c *gin.Context) {
 // RateLimitMiddleware 限流中间件
 func RateLimitMiddleware(limiter *service.RateLimiter, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := c.ClientIP() + ":" + action
+		key := c.ClientIP()
 		if uid, ok := c.Get(CtxUserID); ok {
-			key = fmt.Sprintf("%s:%d", action, uid.(uint))
+			key = fmt.Sprintf("%d", uid.(uint))
 		}
-		if !limiter.Allow(key) {
+		if !limiter.Allow(action, key) {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "操作过于频繁，请稍后再试"})
 			c.Abort()
 			return

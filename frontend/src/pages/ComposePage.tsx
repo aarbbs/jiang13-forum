@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { Board } from '../api/types';
 import { isHtmlEmpty } from '../utils/postContent';
+import { useForumLimits } from '../hooks/useForumLimits';
 import ArticleEditor from '../components/ArticleEditor';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -17,6 +18,7 @@ export default function ComposePage() {
   const [params] = useSearchParams();
   const defaultBoard = params.get('board') || '';
   const { user, loading: authLoading } = useAuth();
+  const { limits } = useForumLimits();
 
   const [boards, setBoards] = useState<Board[]>([]);
   const [boardId, setBoardId] = useState(defaultBoard);
@@ -32,7 +34,7 @@ export default function ComposePage() {
 
     if (isEdit) {
       setLoading(true);
-      Promise.all([api.boards(), api.post(editId!)])
+      Promise.all([api.boards(), api.post(editId!, { skipView: true })])
         .then(([boardsData, postData]) => {
           const list = boardsData.boards ?? [];
           setBoards(list);
@@ -187,7 +189,7 @@ export default function ComposePage() {
               placeholder="添加标签，逗号分隔"
               value={tags}
               onChange={e => setTags(e.target.value)}
-              maxLength={128}
+              maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
             />
           </div>
         </div>
@@ -199,7 +201,7 @@ export default function ComposePage() {
             placeholder="输入文章标题…"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            maxLength={256}
+            maxLength={limits.post_title_max > 0 ? limits.post_title_max : undefined}
           />
           {currentBoard && (
             <div className="compose-subtitle">

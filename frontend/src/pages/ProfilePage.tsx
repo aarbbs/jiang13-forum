@@ -12,14 +12,15 @@ import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../api/client';
+import { useForumLimits } from '../hooks/useForumLimits';
 
 const nickSchema = z.object({
   nickname: z.string().min(1, '请输入昵称').max(64),
 });
 
-const pwdSchema = z.object({
+const pwdSchema = (minLen: number) => z.object({
   old_password: z.string().min(1, '请输入当前密码'),
-  new_password: z.string().min(6, '新密码至少 6 位'),
+  new_password: z.string().min(minLen, `新密码至少 ${minLen} 位`),
   confirm_password: z.string().min(1, '请确认新密码'),
 }).refine(d => d.new_password === d.confirm_password, {
   message: '两次输入的新密码不一致',
@@ -27,7 +28,7 @@ const pwdSchema = z.object({
 });
 
 type NickValues = z.infer<typeof nickSchema>;
-type PwdValues = z.infer<typeof pwdSchema>;
+type PwdValues = z.infer<ReturnType<typeof pwdSchema>>;
 
 export default function ProfilePage() {
   const nav = useNavigate();
@@ -37,13 +38,15 @@ export default function ProfilePage() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const { limits } = useForumLimits();
+
   const nickForm = useForm<NickValues>({
     resolver: zodResolver(nickSchema),
     values: { nickname: user?.nickname ?? '' },
   });
 
   const pwdForm = useForm<PwdValues>({
-    resolver: zodResolver(pwdSchema),
+    resolver: zodResolver(pwdSchema(limits.password_min_len)),
     defaultValues: { old_password: '', new_password: '', confirm_password: '' },
   });
 
@@ -90,8 +93,8 @@ export default function ProfilePage() {
   const onAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      notify.error('头像不能超过 2MB');
+    if (file.size > limits.avatar_max_mb * 1024 * 1024) {
+      notify.error(`头像不能超过 ${limits.avatar_max_mb}MB`);
       return;
     }
     setAvatarLoading(true);

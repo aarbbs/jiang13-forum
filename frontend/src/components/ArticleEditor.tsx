@@ -13,7 +13,9 @@ import {
   List, ListOrdered, Image as ImageIcon, Minus, LockKeyhole,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
-import { countWords } from '../utils/markdown';
+import { countWords } from '../utils/text';
+import { api } from '../api/client';
+import { notify } from '@/lib/notify';
 import { MembersOnly } from './editor/MembersOnlyExtension';
 
 export interface ArticleEditorHandle {
@@ -134,9 +136,20 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
 
   const setImage = useCallback(() => {
     if (!editor) return;
-    const url = window.prompt('图片地址');
-    if (!url?.trim()) return;
-    editor.chain().focus().setImage({ src: url.trim() }).run();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const { url } = await api.uploadPostImage(file);
+        editor.chain().focus().setImage({ src: url }).run();
+      } catch (e: unknown) {
+        notify.error(e instanceof Error ? e.message : '图片上传失败');
+      }
+    };
+    input.click();
   }, [editor]);
 
   const wrapMembersOnly = useCallback(() => {
@@ -213,7 +226,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       },
       {
         icon: <ImageIcon size={15} />,
-        title: '图片',
+        title: '上传图片',
         action: setImage,
       },
       {

@@ -20,10 +20,11 @@ type Claims struct {
 type AuthService struct {
 	jwtSecret string
 	filter    *SensitiveFilter
+	settings  *ForumSettingsService
 }
 
-func NewAuthService(jwtSecret string, filter *SensitiveFilter) *AuthService {
-	return &AuthService{jwtSecret: jwtSecret, filter: filter}
+func NewAuthService(jwtSecret string, filter *SensitiveFilter, settings *ForumSettingsService) *AuthService {
+	return &AuthService{jwtSecret: jwtSecret, filter: filter, settings: settings}
 }
 
 // Register 用户注册
@@ -31,7 +32,7 @@ func (s *AuthService) Register(username, password, nickname string) (*model.User
 	if err := ValidateUsername(username); err != nil {
 		return nil, err
 	}
-	if err := ValidatePassword(password); err != nil {
+	if err := ValidatePassword(password, s.settings.PasswordMinLen()); err != nil {
 		return nil, err
 	}
 	var exist model.User

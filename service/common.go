@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -23,7 +24,13 @@ var (
 	ErrPostEditLocked   = errors.New("帖子已被管理员锁定，无法编辑")
 	ErrPostEditExpired  = errors.New("已超过可编辑时限")
 	ErrRevisionNotFound = errors.New("历史版本不存在")
-	ErrInvalidSetting   = errors.New("无效的设置值")
+	ErrInvalidSetting       = errors.New("无效的设置值")
+	ErrSearchKeywordTooShort = errors.New("搜索关键词过短")
+	ErrSearchKeywordTooLong  = errors.New("搜索关键词过长")
+	ErrPostTitleTooLong      = errors.New("标题过长")
+	ErrPostTagsTooLong       = errors.New("标签过长")
+	ErrPostContentTooLong    = errors.New("正文过长")
+	ErrCommentTooLong        = errors.New("评论内容过长")
 )
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
@@ -48,9 +55,12 @@ func ValidateUsername(username string) error {
 }
 
 // ValidatePassword 校验密码强度
-func ValidatePassword(password string) error {
-	if utf8.RuneCountInString(password) < 6 {
-		return ErrWeakPassword
+func ValidatePassword(password string, minLen int) error {
+	if minLen <= 0 {
+		minLen = 6
+	}
+	if utf8.RuneCountInString(password) < minLen {
+		return fmt.Errorf("密码至少 %d 位", minLen)
 	}
 	return nil
 }

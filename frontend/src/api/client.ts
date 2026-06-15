@@ -1,4 +1,4 @@
-import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings, PostDetailResponse, PostRevision } from './types';
+import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision } from './types';
 
 const BASE = '';
 
@@ -24,13 +24,17 @@ async function request<T>(url: string, opts: RequestInit = {}): Promise<T> {
 export const api = {
   me: () => request<{ user: User | null }>('/api/me'),
   stats: () => request<ForumStats>('/api/stats'),
+  forumLimits: () => request<ForumLimitsPublic>('/api/forum-limits'),
   boards: () => request<{ boards: Board[] }>('/api/boards'),
   posts: (params: Record<string, string | number>) => {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return request<{ posts: PostItem[]; total: number; page: number; has_more: boolean }>(`/api/posts?${q}`);
   },
   hotPosts: () => request<{ posts: PostItem[] }>('/api/posts/hot'),
-  post: (id: number) => request<PostDetailResponse>(`/api/posts/${id}`),
+  post: (id: number, opts?: { skipView?: boolean }) => {
+    const q = opts?.skipView ? '?skip_view=1' : '';
+    return request<PostDetailResponse>(`/api/posts/${id}${q}`);
+  },
   comments: (id: number, myIds?: number[]) => {
     const q = myIds?.length ? `?my_ids=${myIds.join(',')}` : '';
     return request<{ comments: Comment[]; total: number }>(`/api/posts/${id}/comments${q}`);
@@ -64,9 +68,13 @@ export const api = {
     request<{ message: string; edit_locked: boolean }>(`/api/admin/posts/${id}/lock`, {
       method: 'POST', body: JSON.stringify({ locked }),
     }),
-  adminUpdateForumSettings: (body: { post_edit_window_hours: number }) =>
-    request<{ message: string; post_edit_window_hours: number }>('/api/admin/settings/forum', {
+  adminUpdateForumSettings: (body: ForumLimits) =>
+    request<{ message: string; limits: ForumLimits }>('/api/admin/settings/forum', {
       method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminUpdateFilterWords: (content: string) =>
+    request<{ message: string; word_count: number }>('/api/admin/settings/filter-words', {
+      method: 'PUT', body: JSON.stringify({ content }),
     }),
   postRevisions: (id: number) =>
     request<{ revisions: PostRevision[] }>(`/api/posts/${id}/revisions`),
@@ -103,6 +111,11 @@ export const api = {
     const fd = new FormData();
     fd.append('avatar', file);
     return request<{ avatar: string }>('/api/profile/avatar', { method: 'POST', body: fd, headers: {} });
+  },
+  uploadPostImage: (file: File) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return request<{ url: string }>('/api/uploads/image', { method: 'POST', body: fd, headers: {} });
   },
   createPost: (data: { board_id: string; title: string; content: string; tags?: string }) => {
     const fd = new FormData();

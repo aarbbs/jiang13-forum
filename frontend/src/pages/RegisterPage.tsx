@@ -8,22 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
+import { useForumLimits } from '../hooks/useForumLimits';
 import { useAuth } from '../hooks/useAuth';
 
-const schema = z.object({
+const schema = (minLen: number) => z.object({
   username: z.string().min(1, '请输入用户名'),
   nickname: z.string().optional(),
-  password: z.string().min(6, '密码至少 6 位'),
+  password: z.string().min(minLen, `密码至少 ${minLen} 位`),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof schema>>;
 
 export default function RegisterPage() {
+  const { limits } = useForumLimits();
   const nav = useNavigate();
   const { refresh } = useAuth();
   const [loading, setLoading] = useState(false);
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(limits.password_min_len)),
     defaultValues: { username: '', nickname: '', password: '' },
   });
 
@@ -82,7 +84,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>密码</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="至少 6 位" autoComplete="new-password" {...field} />
+                    <Input type="password" placeholder={`至少 ${limits.password_min_len} 位`} autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

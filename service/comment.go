@@ -10,11 +10,12 @@ import (
 )
 
 type CommentService struct {
-	filter *SensitiveFilter
+	filter   *SensitiveFilter
+	settings *ForumSettingsService
 }
 
-func NewCommentService(filter *SensitiveFilter) *CommentService {
-	return &CommentService{filter: filter}
+func NewCommentService(filter *SensitiveFilter, settings *ForumSettingsService) *CommentService {
+	return &CommentService{filter: filter, settings: settings}
 }
 
 type CommentCreateInput struct {
@@ -97,6 +98,9 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 	content := s.filter.Filter(strings.TrimSpace(in.Content))
 	if content == "" {
 		return nil, errors.New("评论内容不能为空")
+	}
+	if err := s.settings.ValidateTextLength(content, s.settings.CommentMax(), ErrCommentTooLong); err != nil {
+		return nil, err
 	}
 
 	var post model.Post

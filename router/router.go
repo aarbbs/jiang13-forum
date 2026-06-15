@@ -3,7 +3,6 @@ package router
 import (
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/config"
@@ -27,15 +26,15 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	_ = service.WriteDefaultFilterWords(cfg.FilterWordsPath())
 	filter.LoadFromFile(cfg.FilterWordsPath())
 
-	authSvc := service.NewAuthService(cfg.JWTSecret, filter)
-	userSvc := service.NewUserService(filter)
-	boardSvc := service.NewBoardService()
 	settingsSvc := service.NewForumSettingsService()
+	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
+	userSvc := service.NewUserService(filter, settingsSvc)
+	boardSvc := service.NewBoardService()
 	postSvc := service.NewPostService(filter, settingsSvc)
-	commentSvc := service.NewCommentService(filter)
+	commentSvc := service.NewCommentService(filter, settingsSvc)
 	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
 	onlineSvc := service.NewOnlineService()
-	limiter := service.NewRateLimiter(10, time.Minute)
+	limiter := service.NewRateLimiter(settingsSvc)
 
 	h := &handler.Handlers{
 		Cfg: cfg, Auth: authSvc, User: userSvc, Board: boardSvc,
@@ -53,6 +52,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/me", h.APIMe)
 		pubAPI.GET("/boards", h.APIBoards)
 		pubAPI.GET("/stats", h.APIStats)
+		pubAPI.GET("/forum-limits", h.APIForumLimits)
 		pubAPI.GET("/posts", h.APIPosts)
 		pubAPI.GET("/posts/hot", h.APIHotPosts)
 		pubAPI.GET("/notifications", h.APINotifications)
@@ -74,6 +74,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/profile/nickname", h.APIUpdateProfile)
 		api.POST("/profile/password", h.APIUpdatePassword)
 		api.POST("/profile/avatar", h.APIUploadAvatar)
+		api.POST("/uploads/image", h.APIUploadPostImage)
 		api.POST("/posts", middleware.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
 		api.PUT("/posts/:id", h.APIUpdatePost)
 		api.DELETE("/posts/:id", h.APIDeletePost)
@@ -90,6 +91,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/dashboard", h.APIAdminDashboard)
 		adminAPI.GET("/settings", h.APIAdminSettings)
 		adminAPI.PUT("/settings/forum", h.APIAdminUpdateForumSettings)
+		adminAPI.GET("/settings/filter-words", h.APIAdminFilterWords)
+		adminAPI.PUT("/settings/filter-words", h.APIAdminUpdateFilterWords)
 		adminAPI.POST("/boards", h.APIAdminCreateBoard)
 		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
 		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)

@@ -21,7 +21,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (id.includes('marked') || id.includes('dompurify')) return 'markdown-vendor';
+          if (id.includes('dompurify')) return 'purify-vendor';
           if (id.includes('@tanstack/react-virtual')) return 'virtual-vendor';
           if (id.includes('@radix-ui') || id.includes('lucide-react')) return 'ui-vendor';
           if (

@@ -46,8 +46,9 @@ type Post struct {
 	BoardID    uint           `gorm:"index;not null" json:"board_id"`
 	UserID     uint           `gorm:"index;not null" json:"user_id"`
 	Title      string         `gorm:"size:256;not null" json:"title"`
-	Content    string         `gorm:"type:text;not null" json:"content"`
-	Tags       string         `gorm:"size:256" json:"tags"`
+	Content      string         `gorm:"type:text;not null" json:"content"`
+	ContentPlain string         `gorm:"type:text" json:"-"` // 正文纯文本，供搜索索引
+	Tags         string         `gorm:"size:256" json:"tags"`
 	Pinned     bool           `gorm:"default:false" json:"pinned"`
 	EditLocked bool           `gorm:"default:false" json:"edit_locked"`
 	LikeCount  int            `gorm:"default:0" json:"like_count"`

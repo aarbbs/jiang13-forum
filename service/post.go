@@ -143,8 +143,13 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
-	if q.Size < 1 {
-		q.Size = 20
+	q.Size = s.settings.NormalizePageSize(q.Size)
+	if q.Keyword != "" {
+		kw, err := s.settings.NormalizeSearchKeyword(q.Keyword)
+		if err != nil {
+			return nil, 0, err
+		}
+		q.Keyword = kw
 	}
 	db := model.DB.Model(&model.Post{}).Preload("User").Preload("Board")
 	if q.BoardID > 0 {
@@ -152,7 +157,7 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	}
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"
-		db = db.Where("title LIKE ? OR content LIKE ? OR tags LIKE ?", kw, kw, kw)
+		db = db.Where("title LIKE ? OR content_plain LIKE ? OR tags LIKE ?", kw, kw, kw)
 	}
 	var total int64
 	db.Count(&total)
@@ -188,14 +193,27 @@ func normalizePostSort(sort string) string {
 	}
 }
 
-func (s *PostService) GetByID(id uint) (*model.Post, error) {
+func (s *PostService) FindByID(id uint) (*model.Post, error) {
 	var post model.Post
 	err := model.DB.Preload("User").Preload("Board").First(&post, id).Error
 	if err != nil {
 		return nil, ErrPostNotFound
 	}
-	model.DB.Model(&post).UpdateColumn("view_count", gorm.Expr("view_count + 1"))
 	return &post, nil
+}
+
+func (s *PostService) RecordView(id uint) {
+	model.DB.Model(&model.Post{}).Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + 1"))
+}
+
+func (s *PostService) GetByID(id uint) (*model.Post, error) {
+	post, err := s.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	s.RecordView(id)
+	return post, nil
 }
 
 func (s *PostService) Create(userID, boardID uint, title, content, tags string) (*model.Post, error) {
@@ -205,12 +223,25 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags string) 
 	if title == "" || content == "" {
 		return nil, errors.New("标题和内容不能为空")
 	}
+	if err := s.settings.ValidateTextLength(title, s.settings.PostTitleMax(), ErrPostTitleTooLong); err != nil {
+		return nil, err
+	}
+	if err := s.settings.ValidateTextLength(tags, s.settings.PostTagsMax(), ErrPostTagsTooLong); err != nil {
+		return nil, err
+	}
+	if err := s.settings.ValidateTextLength(content, s.settings.PostContentMax(), ErrPostContentTooLong); err != nil {
+		return nil, err
+	}
 	if _, err := NewBoardService().GetByID(boardID); err != nil {
 		return nil, err
 	}
 	post := &model.Post{
-		BoardID: boardID, UserID: userID,
-		Title: title, Content: content, Tags: tags,
+		BoardID:      boardID,
+		UserID:       userID,
+		Title:        title,
+		Content:      content,
+		ContentPlain: StripHTMLForSearch(content),
+		Tags:         tags,
 	}
 	return post, model.DB.Create(post).Error
 }
@@ -229,6 +260,15 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 	title = s.filter.Filter(strings.TrimSpace(title))
 	content = s.filter.Filter(content)
 	tags = s.filter.Filter(strings.TrimSpace(tags))
+	if err := s.settings.ValidateTextLength(title, s.settings.PostTitleMax(), ErrPostTitleTooLong); err != nil {
+		return err
+	}
+	if err := s.settings.ValidateTextLength(tags, s.settings.PostTagsMax(), ErrPostTagsTooLong); err != nil {
+		return err
+	}
+	if err := s.settings.ValidateTextLength(content, s.settings.PostContentMax(), ErrPostContentTooLong); err != nil {
+		return err
+	}
 	return model.DB.Transaction(func(tx *gorm.DB) error {
 		rev := model.PostRevision{
 			PostID: postID, EditorID: userID,
@@ -238,7 +278,10 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 			return err
 		}
 		return tx.Model(&post).Updates(map[string]interface{}{
-			"title": title, "content": content, "tags": tags,
+			"title":         title,
+			"content":       content,
+			"content_plain": StripHTMLForSearch(content),
+			"tags":          tags,
 		}).Error
 	})
 }

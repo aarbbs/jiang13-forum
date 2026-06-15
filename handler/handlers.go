@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -136,7 +137,7 @@ func (h *Handlers) PostNewPage(c *gin.Context) {
 
 func (h *Handlers) PostEditPage(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
+	post, err := h.Post.FindByID(uint(id))
 	if err != nil || (!h.isAdmin(c) && post.UserID != h.currentUserID(c)) {
 		c.Redirect(http.StatusFound, "/")
 		return
@@ -238,12 +239,37 @@ func (h *Handlers) APIUploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择头像文件"})
 		return
 	}
+	maxBytes := int64(h.Settings.AvatarMaxMB()) * 1024 * 1024
+	if file.Size > maxBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件过大"})
+		return
+	}
 	url, err := h.User.UploadAvatar(h.currentUserID(c), file, h.Cfg.UploadDir())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "头像已更新", "avatar": url})
+}
+
+func (h *Handlers) APIUploadPostImage(c *gin.Context) {
+	file, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择图片文件"})
+		return
+	}
+	uid := h.currentUserID(c)
+	url, err := service.SaveUploadedImage(
+		file,
+		h.Cfg.PostImageUploadDir(),
+		"/uploads/posts",
+		fmt.Sprintf("%d", uid),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "图片已上传", "url": url})
 }
 
 func (h *Handlers) APICreatePost(c *gin.Context) {

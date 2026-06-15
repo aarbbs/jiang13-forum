@@ -34,6 +34,10 @@ func Parse() (*Config, error) {
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建上传目录失败: %w", err)
 	}
+	postImgDir := filepath.Join(*dataDir, "uploads", "posts")
+	if err := os.MkdirAll(postImgDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建帖子图片目录失败: %w", err)
+	}
 
 	cfg := &Config{
 		Port:      *port,
@@ -61,9 +65,19 @@ func (c *Config) DBPath() string {
 	return filepath.Join(c.DataDir, "jiang13.db")
 }
 
-// UploadDir 返回头像上传目录
-func (c *Config) UploadDir() string {
+// AvatarUploadDir 返回头像上传目录
+func (c *Config) AvatarUploadDir() string {
 	return filepath.Join(c.DataDir, "uploads", "avatars")
+}
+
+// PostImageUploadDir 返回帖子正文图片上传目录
+func (c *Config) PostImageUploadDir() string {
+	return filepath.Join(c.DataDir, "uploads", "posts")
+}
+
+// UploadDir 返回头像上传目录（兼容旧调用）
+func (c *Config) UploadDir() string {
+	return c.AvatarUploadDir()
 }
 
 // FilterWordsPath 返回敏感词配置文件路径

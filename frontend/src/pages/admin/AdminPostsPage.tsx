@@ -15,6 +15,16 @@ import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { PostItem } from '../../api/types';
 import { clearAllFeedCache } from '../../utils/feedCache';
+import { isTimeDiffSignificant } from '../../utils/content';
+
+function formatAdminTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
 
 export default function AdminPostsPage() {
   const nav = useNavigate();
@@ -80,7 +90,7 @@ export default function AdminPostsPage() {
     <div className="admin-page">
       <div className="admin-page-head">
         <h1>帖子管理</h1>
-        <p>置顶、删除帖子，搜索标题关键词</p>
+        <p>置顶、锁定编辑、删除帖子；支持按标题、标签或正文关键词搜索</p>
       </div>
 
       <form
@@ -90,7 +100,7 @@ export default function AdminPostsPage() {
         <Input
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
-          placeholder="搜索帖子标题…"
+          placeholder="搜索标题、标签或正文…"
         />
         <Button type="submit"><Search size={16} />搜索</Button>
         {search && (
@@ -112,6 +122,8 @@ export default function AdminPostsPage() {
                   <th>标题</th>
                   <th>板块</th>
                   <th>作者</th>
+                  <th>标签</th>
+                  <th>评论</th>
                   <th>置顶</th>
                   <th>锁定</th>
                   <th>点赞</th>
@@ -121,21 +133,33 @@ export default function AdminPostsPage() {
                 </tr>
               </thead>
               <tbody>
-                {posts.map(p => (
+                {posts.map(p => {
+                  const edited = p.updated_at && isTimeDiffSignificant(p.created_at, p.updated_at);
+                  return (
                   <tr key={p.id}>
                     <td>{p.id}</td>
-                    <td className="max-w-[220px] truncate">
+                    <td className="max-w-[200px] truncate">
                       <button type="button" className="admin-text-link" onClick={() => nav(`/post/${p.id}`)}>
                         {p.title}
                       </button>
+                      {edited && <Badge variant="secondary" className="ml-1">已编辑</Badge>}
                     </td>
                     <td>{p.board?.name ?? '—'}</td>
                     <td>{p.user?.nickname ?? '—'}</td>
+                    <td className="max-w-[120px] truncate text-muted-foreground">{p.tags || '—'}</td>
+                    <td>{p.comment_count ?? 0}</td>
                     <td>{p.pinned ? <Badge variant="orange">是</Badge> : '—'}</td>
                     <td>{p.edit_locked ? <Badge variant="destructive">是</Badge> : '—'}</td>
                     <td>{p.like_count}</td>
                     <td>{p.view_count}</td>
-                    <td>{new Date(p.created_at).toLocaleString('zh-CN')}</td>
+                    <td className="text-sm whitespace-nowrap">
+                      <span>{formatAdminTime(p.created_at)}</span>
+                      {edited && p.updated_at && (
+                        <span className="block text-muted-foreground text-xs">
+                          改于 {formatAdminTime(p.updated_at)}
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <div className="flex gap-1">
                         <Button size="sm" variant="outline" onClick={() => togglePin(p)}>
@@ -162,7 +186,8 @@ export default function AdminPostsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {posts.length === 0 && <div className="admin-empty">没有找到帖子</div>}

@@ -66,8 +66,8 @@
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/compose.png" alt="登录页" width="360">
-  <br><b>登录 / 注册</b> — 居中卡片式表单，简洁无干扰
+  <img src="docs/screenshots/compose.png" alt="发帖页" width="360">
+  <br><b>发帖</b> — TipTap 富文本编辑器，支持本地上传图片
 </p>
 
 ---
@@ -80,7 +80,7 @@
 |------|------|
 | **三栏布局** | 左栏板块菜单（可折叠）+ 中间虚拟滚动帖列表 + 右栏热门/通知/在线 |
 | **虚拟滚动** | `@tanstack/react-virtual` 驱动帖列表与楼层回复，长列表依然流畅 |
-| **已读 / 未读** | 未读高亮、角标提醒、批量标记已读 |
+| **帖子排序** | 最新发帖 / 最新回复 / 热门讨论，一键切换 Feed 排序 |
 | **主题切换** | 浅色 / 暗色一键切换，跟随 `prefers-color-scheme` 与本地记忆 |
 | **响应式** | 平板 / 手机自动收起侧栏，搜索、发帖、登录触手可及 |
 | **高密度排版** | V2EX / NGA 风格信息密度，一屏浏览更多内容 |
@@ -89,11 +89,13 @@
 
 - 用户注册 / 登录（bcrypt + JWT Cookie）
 - 普通用户 / 管理员两级权限，**首个注册用户自动成为管理员**
-- 板块管理、发帖、Markdown / 富文本、标签、置顶
+- 板块管理、发帖、TipTap 富文本编辑、正文图片本地上传、标签、置顶
+- 帖子修订历史：编辑后保留版本记录，支持 diff 对比查看
+- 可配置编辑时限：管理员设定普通用户修改帖子的有效窗口
 - 楼层式评论，支持回复指定楼层、@ 高亮、引用回复
 - 点赞、收藏、热门帖、最新动态
-- 管理员后台：删帖、删评论、禁言、SQLite 一键备份
-- 内置敏感词过滤、发帖 / 评论限流
+- 管理员后台：删帖、删评论、禁言、论坛参数配置、敏感词管理、SQLite 一键备份
+- 内置敏感词过滤、发帖 / 评论 / 注册 / 登录限流（后台可配）
 
 ### 部署体验
 
@@ -168,7 +170,7 @@ cd .. && go build -trimpath -ldflags "-s -w" -o dist/jiang13 ./cmd/jiang13
 | 层级 | 技术 |
 |------|------|
 | **后端** | Go 1.26 · Gin · GORM · SQLite |
-| **前端** | React 18 · Radix UI · Tailwind CSS · TanStack Virtual |
+| **前端** | React 18 · TipTap · Radix UI · Tailwind CSS · TanStack Virtual |
 | **构建** | Vite → `go:embed` 内嵌 SPA，单二进制发布 |
 | **认证** | bcrypt · JWT Cookie |
 
@@ -224,6 +226,7 @@ data/
 ├── filter_words.txt        # 敏感词配置
 ├── .jwt_secret             # JWT 密钥（自动生成）
 ├── uploads/avatars/        # 用户头像
+├── uploads/posts/          # 帖子正文图片
 └── jiang13_backup_*.db     # 后台导出的备份
 ```
 
@@ -235,9 +238,10 @@ data/
 
 | 类型 | 示例 |
 |------|------|
-| ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、楼层评论 |
-| ✅ 管理后台 | React SPA：`/admin/dashboard` 仪表盘、帖子置顶、用户禁言等 |
-| 📋 计划中 | 通知已读优化、邮件提醒 |
+| ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、Feed 排序、楼层评论 |
+| ✅ 发帖体验 | TipTap 富文本、正文图片上传、修订历史、可配置编辑时限 |
+| ✅ 管理后台 | React SPA：仪表盘、帖子置顶、用户禁言、论坛参数与敏感词配置 |
+| 📋 计划中 | 通知动态优化、邮件提醒 |
 
 完整列表见 **[路线图 ROADMAP.md](ROADMAP.md)**。发现问题请提交 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues)，认领任务请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

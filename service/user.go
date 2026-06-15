@@ -3,10 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
-	"io"
 	"mime/multipart"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,11 +11,12 @@ import (
 )
 
 type UserService struct {
-	filter *SensitiveFilter
+	filter   *SensitiveFilter
+	settings *ForumSettingsService
 }
 
-func NewUserService(filter *SensitiveFilter) *UserService {
-	return &UserService{filter: filter}
+func NewUserService(filter *SensitiveFilter, settings *ForumSettingsService) *UserService {
+	return &UserService{filter: filter, settings: settings}
 }
 
 // GetByID 获取用户信息
@@ -51,7 +49,7 @@ func (s *UserService) UpdateNickname(userID uint, nickname string) error {
 
 // UpdatePassword 修改密码
 func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error {
-	if err := ValidatePassword(newPass); err != nil {
+	if err := ValidatePassword(newPass, s.settings.PasswordMinLen()); err != nil {
 		return err
 	}
 	var user model.User
@@ -70,32 +68,11 @@ func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error
 
 // UploadAvatar 上传头像到本地目录
 func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, uploadDir string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
-	if !allowed[ext] {
-		return "", errors.New("仅支持 jpg/png/gif/webp 格式")
-	}
-	filename := fmt.Sprintf("%d%s", userID, ext)
-	destPath := filepath.Join(uploadDir, filename)
-
-	src, err := file.Open()
+	url, err := SaveUploadedImage(file, uploadDir, "/uploads/avatars", fmt.Sprintf("%d", userID))
 	if err != nil {
 		return "", err
 	}
-	defer src.Close()
-
-	dst, err := os.Create(destPath)
-	if err != nil {
-		return "", err
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, src); err != nil {
-		return "", err
-	}
-
-	avatarURL := "/uploads/avatars/" + filename
-	return avatarURL, model.DB.Model(&model.User{}).Where("id = ?", userID).Update("avatar", avatarURL).Error
+	return url, model.DB.Model(&model.User{}).Where("id = ?", userID).Update("avatar", url).Error
 }
 
 // ListUsers 管理员列出用户

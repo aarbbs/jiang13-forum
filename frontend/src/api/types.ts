@@ -90,12 +90,44 @@ export interface AdminDashboard {
   recent_posts: PostItem[];
 }
 
+export interface ForumLimits {
+  post_edit_window_hours: number;
+  rate_limit_post: number;
+  rate_limit_comment: number;
+  rate_limit_register: number;
+  rate_limit_login: number;
+  rate_limit_window_sec: number;
+  post_title_max: number;
+  post_tags_max: number;
+  post_content_max: number;
+  comment_max: number;
+  search_keyword_min: number;
+  search_keyword_max: number;
+  page_size_default: number;
+  page_size_max: number;
+  password_min_len: number;
+  avatar_max_mb: number;
+}
+
+export interface ForumLimitsPublic {
+  post_title_max: number;
+  post_tags_max: number;
+  post_content_max: number;
+  comment_max: number;
+  search_keyword_min: number;
+  search_keyword_max: number;
+  password_min_len: number;
+  avatar_max_mb: number;
+}
+
 export interface AdminSettings {
   filter_path: string;
   data_dir: string;
   db_path: string;
   port: number;
-  post_edit_window_hours: number;
+  limits: ForumLimits;
+  filter_words: string;
+  filter_word_count: number;
 }
 
 export interface Paginated<T> {

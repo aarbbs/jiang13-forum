@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -51,6 +52,11 @@ func (h *Handlers) APIStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
 	})
+}
+
+// APIForumLimits 前台可见的论坛限制配置
+func (h *Handlers) APIForumLimits(c *gin.Context) {
+	c.JSON(http.StatusOK, h.Settings.PublicLimits())
 }
 
 // APIAdminCreateBoard 管理员创建板块（JSON）
@@ -125,13 +131,13 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	keyword := strings.TrimSpace(c.Query("keyword"))
-	posts, total, err := h.Post.List(service.PostListQuery{Page: page, Size: size, Keyword: keyword})
+	posts, total, err := h.Post.ListItems(service.PostListQuery{Page: page, Size: size, Keyword: keyword})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if posts == nil {
-		posts = []model.Post{}
+		posts = []service.PostListItem{}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"posts": posts, "total": total, "page": page,
@@ -286,39 +292,73 @@ func (h *Handlers) APIAdminDownloadBackup(c *gin.Context) {
 
 // APIAdminSettings 系统设置信息
 func (h *Handlers) APIAdminSettings(c *gin.Context) {
-	forum := h.Settings.ForumSettings()
+	limits := h.Settings.Limits()
+	filterContent, _ := service.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
 	c.JSON(http.StatusOK, gin.H{
-		"filter_path":            h.Cfg.FilterWordsPath(),
-		"data_dir":               h.Cfg.DataDir,
-		"db_path":                h.Cfg.DBPath(),
-		"port":                   h.Cfg.Port,
-		"post_edit_window_hours": forum["post_edit_window_hours"],
+		"filter_path":  h.Cfg.FilterWordsPath(),
+		"data_dir":     h.Cfg.DataDir,
+		"db_path":      h.Cfg.DBPath(),
+		"port":         h.Cfg.Port,
+		"limits":       limits,
+		"filter_words": filterContent,
+		"filter_word_count": service.CountFilterWords(filterContent),
 	})
 }
 
 // APIAdminUpdateForumSettings 更新论坛设置
 func (h *Handlers) APIAdminUpdateForumSettings(c *gin.Context) {
+	var req service.ForumLimits
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateLimits(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "设置已保存",
+		"limits":  h.Settings.Limits(),
+	})
+}
+
+// APIAdminFilterWords 读取敏感词配置
+func (h *Handlers) APIAdminFilterWords(c *gin.Context) {
+	content, err := service.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取敏感词配置失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"content":    content,
+		"word_count": service.CountFilterWords(content),
+		"path":       h.Cfg.FilterWordsPath(),
+	})
+}
+
+// APIAdminUpdateFilterWords 更新敏感词配置
+func (h *Handlers) APIAdminUpdateFilterWords(c *gin.Context) {
 	var req struct {
-		PostEditWindowHours int `json:"post_edit_window_hours"`
+		Content string `json:"content"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := h.Settings.SetPostEditWindowHours(req.PostEditWindowHours); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := service.WriteFilterWordsFile(h.Cfg.FilterWordsPath(), req.Content, h.Filter); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存敏感词配置失败"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"message":                "设置已保存",
-		"post_edit_window_hours": req.PostEditWindowHours,
+		"message":    "敏感词已保存并生效",
+		"word_count": service.CountFilterWords(req.Content),
 	})
 }
 
 // APIPosts 帖子列表（分页）
 func (h *Handlers) APIPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "30"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", strconv.Itoa(h.Settings.PageSizeDefault())))
 	boardID, _ := strconv.ParseUint(c.Query("board_id"), 10, 64)
 	keyword := c.Query("keyword")
 
@@ -331,6 +371,10 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	}
 	items, total, err := h.Post.ListItems(q)
 	if err != nil {
+		if isClientLimitError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -349,10 +393,13 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 // APIPostDetail 帖子详情
 func (h *Handlers) APIPostDetail(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
+	post, err := h.Post.FindByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
+	}
+	if c.Query("skip_view") != "1" {
+		h.Post.RecordView(uint(id))
 	}
 	uid := h.currentUserID(c)
 	if uid == 0 {
@@ -381,7 +428,7 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 // APIPostComments 楼层列表
 func (h *Handlers) APIPostComments(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
+	post, err := h.Post.FindByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
@@ -463,7 +510,7 @@ func (h *Handlers) APIFavorites(c *gin.Context) {
 // APIPostRevisions 帖子编辑历史列表（作者或管理员）
 func (h *Handlers) APIPostRevisions(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
+	post, err := h.Post.FindByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
@@ -486,7 +533,7 @@ func (h *Handlers) APIPostRevisions(c *gin.Context) {
 func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	revID, _ := strconv.ParseUint(c.Param("revId"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
+	post, err := h.Post.FindByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
@@ -507,4 +554,9 @@ func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
 
 func (h *Handlers) APIPing(c *gin.Context) {
 	h.APIPresence(c)
+}
+
+func isClientLimitError(err error) bool {
+	return errors.Is(err, service.ErrSearchKeywordTooShort) ||
+		errors.Is(err, service.ErrSearchKeywordTooLong)
 }

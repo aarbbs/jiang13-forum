@@ -16,7 +16,9 @@ import type { Board, PostItem, Notification, OnlineStats, ForumStats } from '../
 import { getCachedBoards, getCachedStats, setCachedBoards, setCachedStats } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
+import { useForumLimits } from '../hooks/useForumLimits';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
+import { notify } from '@/lib/notify';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -36,6 +38,7 @@ export default function MainLayout() {
   const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
   const feedSort = parseFeedSort(params.get('sort'));
+  const { limits: forumLimits } = useForumLimits();
 
   useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
   useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
@@ -85,8 +88,21 @@ export default function MainLayout() {
   }, [refreshBoards, refreshOnline]);
 
   const doSearch = () => {
-    if (keyword.trim()) nav(`/?keyword=${encodeURIComponent(keyword.trim())}`);
-    else nav('/');
+    const kw = keyword.trim();
+    if (!kw) {
+      nav('/');
+      return;
+    }
+    const len = [...kw].length;
+    if (forumLimits.search_keyword_min > 0 && len < forumLimits.search_keyword_min) {
+      notify.warning(`搜索关键词至少 ${forumLimits.search_keyword_min} 个字`);
+      return;
+    }
+    if (forumLimits.search_keyword_max > 0 && len > forumLimits.search_keyword_max) {
+      notify.warning(`搜索关键词最多 ${forumLimits.search_keyword_max} 个字`);
+      return;
+    }
+    nav(`/?keyword=${encodeURIComponent(kw)}`);
   };
 
   const userInitial = user?.nickname?.charAt(0) || '?';
@@ -111,6 +127,7 @@ export default function MainLayout() {
               placeholder="搜索帖子..."
               value={keyword}
               onChange={e => setKeyword(e.target.value)}
+              maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
               onKeyDown={e => e.key === 'Enter' && doSearch()}
             />
             {keyword && (
