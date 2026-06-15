@@ -23,7 +23,7 @@
 
 <img src="docs/screenshots/home-light.png" alt="姜十三论坛首页 - 浅色主题三栏布局" width="92%">
 
-<sub>浅色主题 · V2EX/NGA 风格三栏布局 · 虚拟滚动帖列表</sub>
+<sub>浅色主题 · 三栏布局 · Feed 排序 · 虚拟滚动帖列表</sub>
 
 <br>
 
@@ -43,7 +43,7 @@
     <td width="50%" align="center">
       <img src="docs/screenshots/home-light.png" alt="浅色主题首页" width="100%">
       <br><b>浅色主题</b><br>
-      <sub>左栏板块导航 · 中间帖列表 · 右栏热门/动态/在线</sub>
+      <sub>左栏板块导航 · Feed 排序切换 · 右栏热门/动态/在线</sub>
     </td>
     <td width="50%" align="center">
       <img src="docs/screenshots/home-dark.png" alt="暗色主题首页" width="100%">
@@ -55,19 +55,19 @@
     <td width="50%" align="center">
       <img src="docs/screenshots/post-detail.png" alt="帖子详情页" width="100%">
       <br><b>帖子详情</b><br>
-      <sub>楼层式回复 · 引用回复 · 登录可见内容</sub>
+      <sub>TipTap 富文本渲染 · 标签展示 · 点赞收藏互动</sub>
     </td>
     <td width="50%" align="center">
       <img src="docs/screenshots/mobile-home.png" alt="移动端首页" width="280">
       <br><b>移动端适配</b><br>
-      <sub>侧栏自动收起 · 触控友好 · 板块快捷筛选</sub>
+      <sub>板块快捷筛选 · Feed 排序 · 触控友好列表</sub>
     </td>
   </tr>
 </table>
 
 <p align="center">
   <img src="docs/screenshots/compose.png" alt="发帖页" width="360">
-  <br><b>发帖</b> — TipTap 富文本编辑器，支持本地上传图片
+  <br><b>发帖</b> — 板块胶囊选择 · TipTap 工具栏 · 本地上传图片
 </p>
 
 ---
@@ -191,6 +191,7 @@ make dev                   # Linux / macOS
 
 - 修改 Go 代码、HTML 模板、embed 静态资源 → `go build` / `make build`
 - 发布单二进制前 → `npm run build` + `make build`
+- 更新 README 界面截图 → 启动服务后执行 `node scripts/capture-screenshots.mjs`
 
 > 直接访问 `:3000` 看到的是上次 build 嵌入的前端；开发时请用 `:5173`。
 
