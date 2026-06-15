@@ -35,6 +35,9 @@ export function useGlobalWheelScroll(scrollRef: RefObject<HTMLElement | null>, e
     if (!root) return;
 
     const onWheel = (e: WheelEvent) => {
+      // Ctrl/⌘ + 滚轮用于浏览器缩放，不拦截
+      if (e.ctrlKey || e.metaKey) return;
+
       const target = e.target instanceof HTMLElement ? e.target : null;
       if (!target) return;
 

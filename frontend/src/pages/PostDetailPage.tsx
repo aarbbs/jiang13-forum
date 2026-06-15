@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock } from 'lucide-react';
+import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -10,9 +11,11 @@ import type { PostItem, Comment } from '../api/types';
 import CommentThreadList from '../components/CommentThreadList';
 import CommentBox, { type CommentSubmitData } from '../components/CommentBox';
 import PostContent from '../components/PostContent';
+import PostRevisionPanel from '../components/PostRevisionPanel';
 import { useAuth } from '../hooks/useAuth';
-import { formatTime } from '../utils/content';
+import { formatDateTime, isTimeDiffSignificant } from '../utils/content';
 import { loadMyCommentIds, addMyCommentId } from '../utils/guest';
+import { clearAllFeedCache } from '../utils/feedCache';
 import { useGlobalWheelScroll } from '../hooks/useGlobalWheelScroll';
 
 export default function PostDetailPage() {
@@ -30,6 +33,10 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [highlightFloor, setHighlightFloor] = useState<number | null>(null);
   const [submitCount, setSubmitCount] = useState(0);
+  const [canEdit, setCanEdit] = useState(false);
+  const [isEdited, setIsEdited] = useState(false);
+  const [editBlockReason, setEditBlockReason] = useState('');
+  const [showRevisions, setShowRevisions] = useState(false);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -55,6 +62,9 @@ export default function PostDetailPage() {
       setPost(detail.post);
       setLiked(detail.liked);
       setFavorited(detail.favorited);
+      setCanEdit(detail.can_edit ?? false);
+      setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
+      setEditBlockReason(detail.edit_block_reason ?? '');
       setComments(commList);
       await refresh();
     } catch (e: unknown) {
@@ -161,14 +171,34 @@ export default function PostDetailPage() {
 
   const authorInitial = post.user?.nickname?.[0] || '?';
   const tags = post.tags?.split(/[,，]/).map(t => t.trim()).filter(Boolean) ?? [];
-  const canEdit = user && (user.role === 'admin' || user.id === post.user_id);
+  const isOwnerOrAdmin = user && (user.role === 'admin' || user.id === post.user_id);
   const isAdmin = user?.role === 'admin';
+  const showEdited = isEdited && post.updated_at;
 
   const handlePin = async () => {
     if (!post) return;
     try {
       const r = await api.adminPinPost(postId, !post.pinned);
       setPost(p => p ? { ...p, pinned: r.pinned } : p);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
+  const handleLock = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminLockPost(postId, !post.edit_locked);
+      setPost(p => p ? { ...p, edit_locked: r.edit_locked } : p);
+      if (user?.role === 'admin') {
+        setCanEdit(true);
+      } else if (user?.id === post.user_id && r.edit_locked) {
+        setCanEdit(false);
+        setEditBlockReason('帖子已被管理员锁定，无法编辑');
+      }
       notify.success(r.message);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '操作失败');
@@ -190,7 +220,7 @@ export default function PostDetailPage() {
 
         <div className="post-detail-head">
           <h1 className="post-detail-title">
-            {post.pinned && <Badge variant="orange" className="mr-2 align-middle">置顶</Badge>}
+            {post.pinned && <PinnedIcon className="mr-2" size={18} />}
             {post.title}
           </h1>
           <div className="post-detail-author-row">
@@ -200,7 +230,16 @@ export default function PostDetailPage() {
             <div className="post-detail-author-info">
               <span className="post-detail-author-name">{post.user?.nickname}</span>
               <span className="post-detail-meta-line">
-                {formatTime(post.created_at)} · {post.view_count} 次浏览
+                发布于 {formatDateTime(post.created_at)}
+                {showEdited && (
+                  <> · 编辑于 {formatDateTime(post.updated_at!)}</>
+                )}
+                {' · '}{post.view_count} 次浏览
+                {post.edit_locked && (
+                  <span className="post-detail-locked-tag" title="管理员已锁定编辑">
+                    <Lock size={12} /> 已锁定
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -229,14 +268,39 @@ export default function PostDetailPage() {
               编辑
             </Button>
           )}
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={handlePin}>
-              <Pin />
-              {post.pinned ? '取消置顶' : '置顶'}
+          {isOwnerOrAdmin && isEdited && (
+            <Button variant="outline" size="sm" onClick={() => setShowRevisions(true)}>
+              <History />
+              编辑历史
             </Button>
+          )}
+          {isOwnerOrAdmin && !canEdit && editBlockReason && (
+            <span className="post-detail-edit-hint" title={editBlockReason}>
+              {editBlockReason}
+            </span>
+          )}
+          {isAdmin && (
+            <>
+              <Button variant="outline" size="sm" onClick={handlePin}>
+                <Pin />
+                {post.pinned ? '取消置顶' : '置顶'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLock}>
+                <Lock />
+                {post.edit_locked ? '解锁编辑' : '锁定编辑'}
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      <PostRevisionPanel
+        postId={postId}
+        currentPost={{ title: post.title, content: post.content ?? '', tags: post.tags ?? '' }}
+        open={showRevisions}
+        onClose={() => setShowRevisions(false)}
+        isLoggedIn={!!user}
+      />
 
       <div className="comment-section" ref={commentSectionRef}>
         <div className="comment-section-bar">

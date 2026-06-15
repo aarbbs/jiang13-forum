@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Lock, LockOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { notify } from '@/lib/notify';
 import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { PostItem } from '../../api/types';
+import { clearAllFeedCache } from '../../utils/feedCache';
 
 export default function AdminPostsPage() {
   const nav = useNavigate();
@@ -44,6 +45,18 @@ export default function AdminPostsPage() {
   const togglePin = async (post: PostItem) => {
     try {
       const r = await api.adminPinPost(post.id, !post.pinned);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+      load();
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
+  const toggleLock = async (post: PostItem) => {
+    try {
+      const r = await api.adminLockPost(post.id, !post.edit_locked);
       notify.success(r.message);
       load();
     } catch (e: unknown) {
@@ -100,6 +113,7 @@ export default function AdminPostsPage() {
                   <th>板块</th>
                   <th>作者</th>
                   <th>置顶</th>
+                  <th>锁定</th>
                   <th>点赞</th>
                   <th>浏览</th>
                   <th>时间</th>
@@ -118,6 +132,7 @@ export default function AdminPostsPage() {
                     <td>{p.board?.name ?? '—'}</td>
                     <td>{p.user?.nickname ?? '—'}</td>
                     <td>{p.pinned ? <Badge variant="orange">是</Badge> : '—'}</td>
+                    <td>{p.edit_locked ? <Badge variant="destructive">是</Badge> : '—'}</td>
                     <td>{p.like_count}</td>
                     <td>{p.view_count}</td>
                     <td>{new Date(p.created_at).toLocaleString('zh-CN')}</td>
@@ -125,6 +140,9 @@ export default function AdminPostsPage() {
                       <div className="flex gap-1">
                         <Button size="sm" variant="outline" onClick={() => togglePin(p)}>
                           {p.pinned ? '取消置顶' : '置顶'}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => toggleLock(p)}>
+                          {p.edit_locked ? <><LockOpen size={14} /> 解锁</> : <><Lock size={14} /> 锁定</>}
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

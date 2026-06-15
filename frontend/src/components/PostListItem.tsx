@@ -1,14 +1,22 @@
 import { Badge } from '@/components/ui/badge';
+import PinnedIcon from '@/components/PinnedIcon';
 import type { PostItem } from '../api/types';
+import type { FeedSort } from './FeedSortBar';
 import { formatTime } from '../utils/content';
 
 interface Props {
   post: PostItem;
+  sort?: FeedSort;
   onClick: () => void;
 }
 
-export default function PostListItem({ post, onClick }: Props) {
+export default function PostListItem({ post, sort = 'latest', onClick }: Props) {
   const initial = post.user?.nickname?.[0] || '?';
+  const timeLabel = sort === 'reply'
+    ? (post.last_reply_at
+      ? `${formatTime(post.last_reply_at)} 回复`
+      : '暂无回复')
+    : formatTime(post.created_at);
 
   return (
     <div className="post-row" onClick={onClick}>
@@ -17,13 +25,13 @@ export default function PostListItem({ post, onClick }: Props) {
       </div>
       <div className="post-body">
         <div className="post-title">
-          {post.pinned && <Badge variant="orange" className="mr-1.5">置顶</Badge>}
+          {post.pinned && <PinnedIcon className="mr-1.5" />}
           {post.title}
         </div>
         <div className="post-meta">
           {post.board && <Badge variant="green">{post.board.name}</Badge>}
           <span>{post.user?.nickname || '匿名'}</span>
-          <span>{formatTime(post.created_at)}</span>
+          <span>{timeLabel}</span>
         </div>
       </div>
       <div className="post-stats">

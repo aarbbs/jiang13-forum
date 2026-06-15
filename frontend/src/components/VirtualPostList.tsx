@@ -1,19 +1,36 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Spinner } from '@/components/ui/spinner';
 import PostListItem from './PostListItem';
 import type { PostItem } from '../api/types';
+import type { FeedSort } from './FeedSortBar';
 
 interface Props {
   posts: PostItem[];
+  sort?: FeedSort;
   loading: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
   onSelect: (id: number) => void;
+  /** 返回列表时恢复的滚动位置 */
+  restoreScrollTop?: number | null;
+  onScrollTopChange?: (top: number) => void;
+  onScrollRestored?: () => void;
 }
 
-export default function VirtualPostList({ posts, loading, hasMore, onLoadMore, onSelect }: Props) {
+export default function VirtualPostList({
+  posts,
+  sort = 'latest',
+  loading,
+  hasMore,
+  onLoadMore,
+  onSelect,
+  restoreScrollTop,
+  onScrollTopChange,
+  onScrollRestored,
+}: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const restoredRef = useRef(false);
 
   const virtualizer = useVirtualizer({
     count: posts.length,
@@ -22,17 +39,29 @@ export default function VirtualPostList({ posts, loading, hasMore, onLoadMore, o
     overscan: 8,
   });
 
+  useLayoutEffect(() => {
+    if (restoreScrollTop == null || restoredRef.current || posts.length === 0) return;
+    virtualizer.scrollToOffset(restoreScrollTop);
+    restoredRef.current = true;
+    onScrollRestored?.();
+  }, [restoreScrollTop, posts.length, virtualizer, onScrollRestored]);
+
+  useEffect(() => {
+    restoredRef.current = false;
+  }, [restoreScrollTop]);
+
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
     const onScroll = () => {
+      onScrollTopChange?.(el.scrollTop);
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120 && hasMore && !loading) {
         onLoadMore();
       }
     };
     el.addEventListener('scroll', onScroll);
     return () => el.removeEventListener('scroll', onScroll);
-  }, [hasMore, loading, onLoadMore]);
+  }, [hasMore, loading, onLoadMore, onScrollTopChange]);
 
   return (
     <div className="post-list-scroll" ref={parentRef}>
@@ -50,7 +79,7 @@ export default function VirtualPostList({ posts, loading, hasMore, onLoadMore, o
                 transform: `translateY(${vi.start}px)`,
               }}
             >
-              <PostListItem post={post} onClick={() => onSelect(post.id)} />
+              <PostListItem post={post} sort={sort} onClick={() => onSelect(post.id)} />
             </div>
           );
         })}

@@ -24,6 +24,7 @@ type Handlers struct {
 	Filter   *service.SensitiveFilter
 	Limiter  *service.RateLimiter
 	Online   *service.OnlineService
+	Settings *service.ForumSettingsService
 }
 
 func (h *Handlers) setAuthCookie(c *gin.Context, token string) {

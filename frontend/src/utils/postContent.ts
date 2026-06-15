@@ -51,6 +51,16 @@ function buildLockedGateHtml(charLength: number): string {
 </div>`;
 }
 
+/** 判断 HTML 正文是否为空（忽略空段落等） */
+export function isHtmlEmpty(html: string): boolean {
+  if (!html.trim()) return true;
+  const doc = new DOMParser().parseFromString(
+    DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG),
+    'text/html',
+  );
+  return (doc.body.textContent ?? '').trim().length === 0;
+}
+
 /** 根据登录状态渲染帖子正文 HTML */
 export function renderPostContentHtml(html: string, isLoggedIn: boolean): string {
   if (!html.trim()) return '';

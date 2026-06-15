@@ -5,9 +5,9 @@ import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { Board } from '../api/types';
+import { isHtmlEmpty } from '../utils/postContent';
 import ArticleEditor from '../components/ArticleEditor';
 import { Spinner } from '@/components/ui/spinner';
-import { markdownToHtml, htmlToMarkdown } from '../utils/markdown';
 
 export default function ComposePage() {
   const nav = useNavigate();
@@ -37,16 +37,21 @@ export default function ComposePage() {
           const list = boardsData.boards ?? [];
           setBoards(list);
           const post = postData.post;
-          const canEdit = user.role === 'admin' || post.user_id === user.id;
-          if (!canEdit) {
+          const isOwnerOrAdmin = user.role === 'admin' || post.user_id === user.id;
+          if (!isOwnerOrAdmin) {
             notify.error('无权编辑此帖子');
+            nav(`/post/${editId}`);
+            return;
+          }
+          if (!postData.can_edit) {
+            notify.error(postData.edit_block_reason || '当前无法编辑此帖子');
             nav(`/post/${editId}`);
             return;
           }
           setBoardId(String(post.board_id));
           setTitle(post.title);
           setTags(post.tags ?? '');
-          setContent(htmlToMarkdown(post.content ?? ''));
+          setContent(post.content ?? '');
         })
         .catch((e: unknown) => {
           notify.error(e instanceof Error ? e.message : '加载帖子失败');
@@ -108,13 +113,13 @@ export default function ComposePage() {
     const trimmedTitle = title.trim();
     if (!isEdit && !boardId) { notify.warning('请选择板块'); return; }
     if (!trimmedTitle) { notify.warning('请输入标题'); return; }
-    if (!content.trim()) { notify.warning('请输入正文内容'); return; }
+    if (isHtmlEmpty(content)) { notify.warning('请输入正文内容'); return; }
 
     setPublishing(true);
     try {
       const payload = {
         title: trimmedTitle,
-        content: markdownToHtml(content),
+        content: content.trim(),
         tags: tags.trim(),
       };
       if (isEdit) {
@@ -204,7 +209,7 @@ export default function ComposePage() {
           <ArticleEditor
             value={content}
             onChange={setContent}
-            placeholder="开始写作。支持 Markdown 语法，右侧可实时预览渲染效果。"
+            placeholder="开始写作。所见即所得，选中文字后使用工具栏设置格式。"
           />
         </div>
       </div>

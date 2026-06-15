@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/model"
@@ -138,6 +139,27 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 	})
 }
 
+// APIAdminLockPost 锁定/解锁帖子编辑
+func (h *Handlers) APIAdminLockPost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Locked bool `json:"locked"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Post.SetEditLocked(uint(id), req.Locked); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已解锁编辑"
+	if req.Locked {
+		msg = "已锁定编辑"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "edit_locked": req.Locked})
+}
+
 // APIAdminPinPost 置顶/取消置顶（JSON）
 func (h *Handlers) APIAdminPinPost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -264,11 +286,32 @@ func (h *Handlers) APIAdminDownloadBackup(c *gin.Context) {
 
 // APIAdminSettings 系统设置信息
 func (h *Handlers) APIAdminSettings(c *gin.Context) {
+	forum := h.Settings.ForumSettings()
 	c.JSON(http.StatusOK, gin.H{
-		"filter_path": h.Cfg.FilterWordsPath(),
-		"data_dir":    h.Cfg.DataDir,
-		"db_path":     h.Cfg.DBPath(),
-		"port":        h.Cfg.Port,
+		"filter_path":            h.Cfg.FilterWordsPath(),
+		"data_dir":               h.Cfg.DataDir,
+		"db_path":                h.Cfg.DBPath(),
+		"port":                   h.Cfg.Port,
+		"post_edit_window_hours": forum["post_edit_window_hours"],
+	})
+}
+
+// APIAdminUpdateForumSettings 更新论坛设置
+func (h *Handlers) APIAdminUpdateForumSettings(c *gin.Context) {
+	var req struct {
+		PostEditWindowHours int `json:"post_edit_window_hours"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.SetPostEditWindowHours(req.PostEditWindowHours); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":                "设置已保存",
+		"post_edit_window_hours": req.PostEditWindowHours,
 	})
 }
 
@@ -284,6 +327,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		Page:    page,
 		Size:    size,
 		Keyword: keyword,
+		Sort:    c.DefaultQuery("sort", "latest"),
 	}
 	items, total, err := h.Post.ListItems(q)
 	if err != nil {
@@ -315,11 +359,22 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		post.Content = service.RedactMembersOnlyHTML(post.Content)
 	}
 	comments, _ := h.Comment.ListByPost(uint(id), uid, h.isAdmin(c), post.UserID, h.parseGuestCommentIDs(c))
+	isAdmin := h.isAdmin(c)
+	canEdit := h.Post.CanUserEdit(post, uid, isAdmin)
+	editReason := ""
+	if !canEdit && uid > 0 {
+		editReason = h.Post.UserEditBlockReason(post, uid, isAdmin)
+	}
+	isEdited := post.UpdatedAt.Sub(post.CreatedAt) > time.Minute
 	c.JSON(http.StatusOK, gin.H{
-		"post": post,
-		"comment_count": len(comments),
-		"liked": h.Post.IsLiked(uid, uint(id)),
-		"favorited": h.Post.IsFavorited(uid, uint(id)),
+		"post":               post,
+		"comment_count":      len(comments),
+		"liked":              h.Post.IsLiked(uid, uint(id)),
+		"favorited":          h.Post.IsFavorited(uid, uint(id)),
+		"can_edit":           canEdit,
+		"edit_block_reason":  editReason,
+		"is_edited":          isEdited,
+		"post_edit_window_hours": h.Settings.PostEditWindowHours(),
 	})
 }
 
@@ -403,6 +458,51 @@ func (h *Handlers) APIFavorites(c *gin.Context) {
 		favs = []model.PostFavorite{}
 	}
 	c.JSON(http.StatusOK, gin.H{"favorites": favs, "total": total, "page": page})
+}
+
+// APIPostRevisions 帖子编辑历史列表（作者或管理员）
+func (h *Handlers) APIPostRevisions(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	post, err := h.Post.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
+		return
+	}
+	uid := h.currentUserID(c)
+	isAdmin := h.isAdmin(c)
+	if !isAdmin && post.UserID != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权查看编辑历史"})
+		return
+	}
+	revs, err := h.Post.ListRevisions(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"revisions": revs})
+}
+
+// APIPostRevisionDetail 查看某个历史版本
+func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	revID, _ := strconv.ParseUint(c.Param("revId"), 10, 64)
+	post, err := h.Post.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
+		return
+	}
+	uid := h.currentUserID(c)
+	isAdmin := h.isAdmin(c)
+	if !isAdmin && post.UserID != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权查看编辑历史"})
+		return
+	}
+	rev, err := h.Post.GetRevision(uint(id), uint(revID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"revision": rev})
 }
 
 func (h *Handlers) APIPing(c *gin.Context) {

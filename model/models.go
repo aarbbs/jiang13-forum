@@ -42,22 +42,42 @@ type Board struct {
 
 // Post 帖子
 type Post struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	BoardID   uint           `gorm:"index;not null" json:"board_id"`
-	UserID    uint           `gorm:"index;not null" json:"user_id"`
-	Title     string         `gorm:"size:256;not null" json:"title"`
-	Content   string         `gorm:"type:text;not null" json:"content"`
-	Tags      string         `gorm:"size:256" json:"tags"`
-	Pinned    bool           `gorm:"default:false" json:"pinned"`
-	LikeCount int            `gorm:"default:0" json:"like_count"`
-	ViewCount int            `gorm:"default:0" json:"view_count"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID         uint           `gorm:"primaryKey" json:"id"`
+	BoardID    uint           `gorm:"index;not null" json:"board_id"`
+	UserID     uint           `gorm:"index;not null" json:"user_id"`
+	Title      string         `gorm:"size:256;not null" json:"title"`
+	Content    string         `gorm:"type:text;not null" json:"content"`
+	Tags       string         `gorm:"size:256" json:"tags"`
+	Pinned     bool           `gorm:"default:false" json:"pinned"`
+	EditLocked bool           `gorm:"default:false" json:"edit_locked"`
+	LikeCount  int            `gorm:"default:0" json:"like_count"`
+	ViewCount  int            `gorm:"default:0" json:"view_count"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 
 	Board    Board     `gorm:"foreignKey:BoardID" json:"board,omitempty"`
 	User     User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Comments []Comment `gorm:"foreignKey:PostID" json:"comments,omitempty"`
+}
+
+// PostRevision 帖子编辑历史（每次修改前保存旧版本）
+type PostRevision struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	PostID    uint      `gorm:"index;not null" json:"post_id"`
+	EditorID  uint      `gorm:"index;not null" json:"editor_id"`
+	Title     string    `gorm:"size:256;not null" json:"title"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	Tags      string    `gorm:"size:256" json:"tags"`
+	CreatedAt time.Time `json:"created_at"`
+
+	Editor User `gorm:"foreignKey:EditorID" json:"editor,omitempty"`
+}
+
+// ForumSetting 论坛全局设置（键值对）
+type ForumSetting struct {
+	Key   string `gorm:"primaryKey;size:64" json:"key"`
+	Value string `gorm:"size:256" json:"value"`
 }
 
 // Comment 楼层评论

@@ -30,12 +30,37 @@ export interface PostItem {
   content?: string;
   tags: string;
   pinned: boolean;
+  edit_locked?: boolean;
   like_count: number;
   view_count: number;
   comment_count: number;
+  last_reply_at?: string;
   created_at: string;
+  updated_at?: string;
   board?: Board;
   user?: User;
+}
+
+export interface PostRevision {
+  id: number;
+  post_id: number;
+  editor_id: number;
+  title: string;
+  content: string;
+  tags: string;
+  created_at: string;
+  editor?: User;
+}
+
+export interface PostDetailResponse {
+  post: PostItem;
+  comment_count: number;
+  liked: boolean;
+  favorited: boolean;
+  can_edit?: boolean;
+  edit_block_reason?: string;
+  is_edited?: boolean;
+  post_edit_window_hours?: number;
 }
 
 export interface Comment {
@@ -70,6 +95,7 @@ export interface AdminSettings {
   data_dir: string;
   db_path: string;
   port: number;
+  post_edit_window_hours: number;
 }
 
 export interface Paginated<T> {

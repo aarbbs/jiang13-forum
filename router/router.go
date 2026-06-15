@@ -30,7 +30,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter)
 	userSvc := service.NewUserService(filter)
 	boardSvc := service.NewBoardService()
-	postSvc := service.NewPostService(filter)
+	settingsSvc := service.NewForumSettingsService()
+	postSvc := service.NewPostService(filter, settingsSvc)
 	commentSvc := service.NewCommentService(filter)
 	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
 	onlineSvc := service.NewOnlineService()
@@ -40,6 +41,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Cfg: cfg, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Backup: backupSvc,
 		Filter: filter, Limiter: limiter, Online: onlineSvc,
+		Settings: settingsSvc,
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
@@ -75,6 +77,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/posts", middleware.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
 		api.PUT("/posts/:id", h.APIUpdatePost)
 		api.DELETE("/posts/:id", h.APIDeletePost)
+		api.GET("/posts/:id/revisions", h.APIPostRevisions)
+		api.GET("/posts/:id/revisions/:revId", h.APIPostRevisionDetail)
 		api.POST("/posts/:id/like", h.APIToggleLike)
 		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
@@ -85,11 +89,13 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	{
 		adminAPI.GET("/dashboard", h.APIAdminDashboard)
 		adminAPI.GET("/settings", h.APIAdminSettings)
+		adminAPI.PUT("/settings/forum", h.APIAdminUpdateForumSettings)
 		adminAPI.POST("/boards", h.APIAdminCreateBoard)
 		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
 		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)
 		adminAPI.GET("/posts", h.APIAdminPosts)
 		adminAPI.POST("/posts/:id/pin", h.APIAdminPinPost)
+		adminAPI.POST("/posts/:id/lock", h.APIAdminLockPost)
 		adminAPI.DELETE("/posts/:id", h.APIAdminDeletePost)
 		adminAPI.GET("/comments", h.APIAdminComments)
 		adminAPI.DELETE("/comments/:id", h.APIAdminDeleteComment)

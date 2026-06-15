@@ -35,7 +35,7 @@ func InitDB(dbPath string) error {
 
 	if err := db.AutoMigrate(
 		&User{}, &Board{}, &Post{}, &Comment{},
-		&PostLike{}, &PostFavorite{},
+		&PostLike{}, &PostFavorite{}, &PostRevision{}, &ForumSetting{},
 	); err != nil {
 		return fmt.Errorf("自动迁移失败: %w", err)
 	}

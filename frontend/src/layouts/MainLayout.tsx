@@ -16,6 +16,7 @@ import type { Board, PostItem, Notification, OnlineStats, ForumStats } from '../
 import { getCachedBoards, getCachedStats, setCachedBoards, setCachedStats } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
+import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -34,6 +35,7 @@ export default function MainLayout() {
   const [online, setOnline] = useState<OnlineStats | null>(null);
   const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
+  const feedSort = parseFeedSort(params.get('sort'));
 
   useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
   useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
@@ -195,13 +197,13 @@ export default function MainLayout() {
             <div className="mobile-board-bar">
               <span
                 className={`board-chip ${mobileActiveBoard === 0 ? 'active' : ''}`}
-                onClick={() => { setBoardId(0); nav('/'); }}
+                onClick={() => { setBoardId(0); nav(buildHomeUrl(0, feedSort)); }}
               >全部</span>
               {boards.map(b => (
                 <span
                   key={b.id}
                   className={`board-chip ${mobileActiveBoard === b.id ? 'active' : ''}`}
-                  onClick={() => { setBoardId(b.id); nav(`/?board=${b.id}`); }}
+                  onClick={() => { setBoardId(b.id); nav(buildHomeUrl(b.id, feedSort)); }}
                 >{b.name}</span>
               ))}
             </div>

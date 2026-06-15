@@ -1,4 +1,4 @@
-import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings } from './types';
+import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings, PostDetailResponse, PostRevision } from './types';
 
 const BASE = '';
 
@@ -30,7 +30,7 @@ export const api = {
     return request<{ posts: PostItem[]; total: number; page: number; has_more: boolean }>(`/api/posts?${q}`);
   },
   hotPosts: () => request<{ posts: PostItem[] }>('/api/posts/hot'),
-  post: (id: number) => request<{ post: PostItem; comment_count: number; liked: boolean; favorited: boolean }>(`/api/posts/${id}`),
+  post: (id: number) => request<PostDetailResponse>(`/api/posts/${id}`),
   comments: (id: number, myIds?: number[]) => {
     const q = myIds?.length ? `?my_ids=${myIds.join(',')}` : '';
     return request<{ comments: Comment[]; total: number }>(`/api/posts/${id}/comments${q}`);
@@ -60,6 +60,18 @@ export const api = {
     request<{ message: string; pinned: boolean }>(`/api/admin/posts/${id}/pin`, {
       method: 'POST', body: JSON.stringify({ pinned }),
     }),
+  adminLockPost: (id: number, locked: boolean) =>
+    request<{ message: string; edit_locked: boolean }>(`/api/admin/posts/${id}/lock`, {
+      method: 'POST', body: JSON.stringify({ locked }),
+    }),
+  adminUpdateForumSettings: (body: { post_edit_window_hours: number }) =>
+    request<{ message: string; post_edit_window_hours: number }>('/api/admin/settings/forum', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  postRevisions: (id: number) =>
+    request<{ revisions: PostRevision[] }>(`/api/posts/${id}/revisions`),
+  postRevision: (id: number, revId: number) =>
+    request<{ revision: PostRevision }>(`/api/posts/${id}/revisions/${revId}`),
   adminDeletePost: (id: number) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
   adminComments: (page = 1) =>
     request<{ comments: Comment[]; total: number; page: number; total_pages: number }>(

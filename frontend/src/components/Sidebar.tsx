@@ -1,10 +1,11 @@
 import {
   Home, Star, LayoutDashboard,
 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { Board } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { buildHomeUrl, parseFeedSort } from './FeedSortBar';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
 const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile'];
@@ -29,6 +30,8 @@ interface Props {
 export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
   const nav = useNavigate();
   const loc = useLocation();
+  const [params] = useSearchParams();
+  const sort = parseFeedSort(params.get('sort'));
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -50,7 +53,7 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
     <aside className="sidebar">
       <div className="sidebar-section">浏览</div>
       <nav className="sidebar-nav">
-        {navItem('all', '全部帖子', <Home />, () => { onSelectBoard(0); nav('/'); })}
+        {navItem('all', '全部帖子', <Home />, () => { onSelectBoard(0); nav(buildHomeUrl(0, sort)); })}
         {user && navItem('favorites', '我的收藏', <Star />, () => nav('/favorites'))}
       </nav>
 
@@ -63,7 +66,7 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
                 type="button"
                 key={b.id}
                 className={cn('sidebar-nav-item', menuKey != null && menuKey === String(b.id) && 'active')}
-                onClick={() => { onSelectBoard(b.id); nav(`/?board=${b.id}`); }}
+                onClick={() => { onSelectBoard(b.id); nav(buildHomeUrl(b.id, sort)); }}
               >
                 <span className="flex-1 truncate">{b.name}</span>
               </button>
