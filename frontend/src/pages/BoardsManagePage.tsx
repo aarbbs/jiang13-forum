@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/form';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
-import { useAuth } from '../hooks/useAuth';
+import { useAdminGuard } from '../layouts/AdminLayout';
 import type { Board } from '../api/types';
 
 const boardSchema = z.object({
@@ -38,7 +38,7 @@ type BoardFormValues = z.infer<typeof boardSchema>;
 
 export default function BoardsManagePage() {
   const nav = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { ready } = useAdminGuard();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -59,11 +59,8 @@ export default function BoardsManagePage() {
   };
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) { nav('/login'); return; }
-    if (user.role !== 'admin') { nav('/'); notify.warning('需要管理员权限'); return; }
-    load();
-  }, [user, authLoading, nav]);
+    if (ready) load();
+  }, [ready]);
 
   const openCreate = () => {
     setEditing(null);
@@ -112,31 +109,26 @@ export default function BoardsManagePage() {
     }
   };
 
-  if (authLoading) {
+  if (!ready) {
     return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
   }
 
-  if (!user || user.role !== 'admin') return null;
-
   return (
-    <div className="page-wrap">
-      <div className="page-inner-wide">
-        <Button variant="ghost" className="mb-3" onClick={() => nav('/')}>
-          <ArrowLeft />
-          返回
-        </Button>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+    <div className="admin-page">
+      <div className="admin-page-head">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1 className="page-title">板块管理</h1>
-            <p className="page-desc">创建、编辑或删除论坛板块，用户发帖前需先有板块</p>
+            <h1>板块管理</h1>
+            <p>创建、编辑或删除论坛板块，用户发帖前需先有板块</p>
           </div>
           <Button onClick={openCreate}>
             <Plus />
             新建板块
           </Button>
         </div>
+      </div>
 
-        <div className="section-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="admin-card">
           {loading ? (
             <div className="flex justify-center py-12"><Spinner size="lg" /></div>
           ) : (
@@ -197,7 +189,6 @@ export default function BoardsManagePage() {
               )}
             </>
           )}
-        </div>
       </div>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

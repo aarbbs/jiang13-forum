@@ -1,10 +1,9 @@
 import {
-  Home, Settings, Star, LayoutDashboard,
+  Home, Star, LayoutDashboard,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { Board } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
-import { openAdminDashboard } from '../utils/admin';
 import { cn } from '@/lib/utils';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
@@ -17,7 +16,7 @@ export function isNeutralSidebarRoute(pathname: string): boolean {
 function resolveMenuKey(pathname: string, activeBoard: number): string | null {
   if (isNeutralSidebarRoute(pathname)) return null;
   if (pathname.startsWith('/favorites')) return 'favorites';
-  if (pathname.startsWith('/boards')) return 'boards';
+  if (pathname.startsWith('/admin')) return 'admin';
   return activeBoard === 0 ? 'all' : String(activeBoard);
 }
 
@@ -77,8 +76,7 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
         <>
           <div className="sidebar-section" style={{ marginTop: 8 }}>管理</div>
           <nav className="sidebar-nav">
-            {navItem('boards', '管理板块', <Settings />, () => nav('/boards'))}
-            {navItem('admin', '系统后台', <LayoutDashboard />, openAdminDashboard)}
+            {navItem('admin', '管理后台', <LayoutDashboard />, () => nav('/admin/dashboard'))}
           </nav>
         </>
       )}

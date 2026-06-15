@@ -4,6 +4,8 @@ export interface User {
   nickname: string;
   avatar: string;
   role: 'user' | 'admin';
+  banned?: boolean;
+  created_at?: string;
 }
 
 export interface Board {
@@ -50,7 +52,31 @@ export interface Comment {
   content_hidden?: boolean;
   created_at: string;
   user?: User;
+  post?: PostItem;
   reply_target?: Comment;
+}
+
+export interface AdminDashboard {
+  users: number;
+  posts: number;
+  boards: number;
+  comments: number;
+  online: number;
+  recent_posts: PostItem[];
+}
+
+export interface AdminSettings {
+  filter_path: string;
+  data_dir: string;
+  db_path: string;
+  port: number;
+}
+
+export interface Paginated<T> {
+  total: number;
+  page: number;
+  total_pages: number;
+  items: T;
 }
 
 export interface Notification {

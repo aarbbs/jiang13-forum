@@ -2,7 +2,9 @@ package handler
 
 import (
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/model"
@@ -97,6 +99,177 @@ func (h *Handlers) APIAdminDeleteBoard(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "板块已删除"})
+}
+
+// APIAdminDashboard 管理后台概览
+func (h *Handlers) APIAdminDashboard(c *gin.Context) {
+	var userCount, postCount, boardCount, commentCount int64
+	model.DB.Model(&model.User{}).Count(&userCount)
+	model.DB.Model(&model.Post{}).Count(&postCount)
+	model.DB.Model(&model.Board{}).Count(&boardCount)
+	model.DB.Model(&model.Comment{}).Count(&commentCount)
+	recentPosts, _, _ := h.Post.List(service.PostListQuery{Page: 1, Size: 8})
+	if recentPosts == nil {
+		recentPosts = []model.Post{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"users": userCount, "posts": postCount, "boards": boardCount,
+		"comments": commentCount, "online": h.Online.Count(),
+		"recent_posts": recentPosts,
+	})
+}
+
+// APIAdminPosts 管理员帖子列表
+func (h *Handlers) APIAdminPosts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	posts, total, err := h.Post.List(service.PostListQuery{Page: page, Size: size, Keyword: keyword})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if posts == nil {
+		posts = []model.Post{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"posts": posts, "total": total, "page": page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminPinPost 置顶/取消置顶（JSON）
+func (h *Handlers) APIAdminPinPost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Pinned bool `json:"pinned"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Post.SetPinned(uint(id), req.Pinned); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已取消置顶"
+	if req.Pinned {
+		msg = "已置顶"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "pinned": req.Pinned})
+}
+
+// APIAdminDeletePost 管理员删除帖子
+func (h *Handlers) APIAdminDeletePost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Post.Delete(0, uint(id), true); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已删除"})
+}
+
+// APIAdminComments 管理员评论列表
+func (h *Handlers) APIAdminComments(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	comments, total, err := h.Comment.ListRecent(page, size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if comments == nil {
+		comments = []model.Comment{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"comments": comments, "total": total, "page": page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminDeleteComment 管理员删除评论
+func (h *Handlers) APIAdminDeleteComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Comment.AdminDelete(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "评论已删除"})
+}
+
+// APIAdminUsers 管理员用户列表
+func (h *Handlers) APIAdminUsers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	users, total, err := h.User.ListUsers(page, size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if users == nil {
+		users = []model.User{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"users": users, "total": total, "page": page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminBanUser 禁言/解除禁言（JSON）
+func (h *Handlers) APIAdminBanUser(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Banned bool `json:"banned"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.User.BanUser(uint(id), req.Banned); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已解除禁言"
+	if req.Banned {
+		msg = "已禁言"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "banned": req.Banned})
+}
+
+// APIAdminBackup 导出 SQLite 备份
+func (h *Handlers) APIAdminBackup(c *gin.Context) {
+	path, err := h.Backup.ExportSQLite()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	filename := filepath.Base(path)
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "备份成功",
+		"filename": filename,
+		"download": "/api/admin/backup/download/" + filename,
+	})
+}
+
+// APIAdminDownloadBackup 下载备份文件
+func (h *Handlers) APIAdminDownloadBackup(c *gin.Context) {
+	name := c.Param("name")
+	if !strings.HasPrefix(name, "jiang13_backup_") || !strings.HasSuffix(name, ".db") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的备份文件名"})
+		return
+	}
+	path := filepath.Join(h.Cfg.DataDir, name)
+	c.FileAttachment(path, name)
+}
+
+// APIAdminSettings 系统设置信息
+func (h *Handlers) APIAdminSettings(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"filter_path": h.Cfg.FilterWordsPath(),
+		"data_dir":    h.Cfg.DataDir,
+		"db_path":     h.Cfg.DBPath(),
+		"port":        h.Cfg.Port,
+	})
 }
 
 // APIPosts 帖子列表（分页）

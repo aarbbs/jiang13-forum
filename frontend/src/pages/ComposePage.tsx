@@ -91,7 +91,7 @@ export default function ComposePage() {
           <h2>暂无可发帖板块</h2>
           <p>需要管理员先创建板块后才能发布内容</p>
           {user.role === 'admin' ? (
-            <button type="button" className="compose-primary-btn" onClick={() => nav('/boards')}>
+            <button type="button" className="compose-primary-btn" onClick={() => nav('/admin/boards')}>
               去创建板块
             </button>
           ) : (

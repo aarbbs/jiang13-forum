@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -162,6 +162,18 @@ export default function PostDetailPage() {
   const authorInitial = post.user?.nickname?.[0] || '?';
   const tags = post.tags?.split(/[,，]/).map(t => t.trim()).filter(Boolean) ?? [];
   const canEdit = user && (user.role === 'admin' || user.id === post.user_id);
+  const isAdmin = user?.role === 'admin';
+
+  const handlePin = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminPinPost(postId, !post.pinned);
+      setPost(p => p ? { ...p, pinned: r.pinned } : p);
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
 
   return (
     <div className="page-wrap post-detail-page" ref={pageRef}>
@@ -215,6 +227,12 @@ export default function PostDetailPage() {
             <Button variant="outline" size="sm" onClick={() => nav(`/post/${postId}/edit`)}>
               <Pencil />
               编辑
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={handlePin}>
+              <Pin />
+              {post.pinned ? '取消置顶' : '置顶'}
             </Button>
           )}
         </div>

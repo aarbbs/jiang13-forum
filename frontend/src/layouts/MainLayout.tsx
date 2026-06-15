@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { openAdminDashboard } from '../utils/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
 import { api } from '../api/client';
@@ -162,8 +161,7 @@ export default function MainLayout() {
                     {user.role === 'admin' && (
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => nav('/boards')}>管理板块</DropdownMenuItem>
-                        <DropdownMenuItem onClick={openAdminDashboard}>系统后台</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => nav('/admin/dashboard')}>管理后台</DropdownMenuItem>
                       </>
                     )}
                     <DropdownMenuSeparator />

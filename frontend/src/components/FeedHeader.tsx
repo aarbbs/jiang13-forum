@@ -50,7 +50,7 @@ export default function FeedHeader({ boardId, keyword, boards, stats, postTotal 
               <Button size="sm" onClick={() => nav('/login')}>登录参与</Button>
             )}
             {!authLoading && user?.role === 'admin' && (
-              <Button size="sm" variant="outline" onClick={() => nav('/boards')}>
+              <Button size="sm" variant="outline" onClick={() => nav('/admin/boards')}>
                 <Settings />
                 管理板块
               </Button>

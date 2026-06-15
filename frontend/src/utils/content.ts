@@ -1,11 +1,17 @@
-/** @用户名 高亮（仅用于评论正文中用户主动输入的 @） */
-export function highlightMentions(text: string, _onClick?: (name: string) => void): string {
+/** 转义 HTML 并保留换行 */
+function escapeWithBreaks(text: string): string {
   return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    // innerHTML 解析会吞掉换行，需转为 <br>
-    .replace(/\n/g, '<br>')
+    .replace(/\n/g, '<br>');
+}
+
+/** @用户名 高亮（仅用于评论正文中用户主动输入的 @） */
+export function highlightMentions(text: string, _onClick?: (name: string) => void): string {
+  return escapeWithBreaks(text)
     .replace(/@([\w\u4e00-\u9fa5_-]+)/g, '<span class="mention">@$1</span>');
 }
 

@@ -12,7 +12,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../api/client';
-import { openAdminDashboard } from '../utils/admin';
 
 const nickSchema = z.object({
   nickname: z.string().min(1, '请输入昵称').max(64),
@@ -134,11 +133,11 @@ export default function ProfilePage() {
               管理板块、用户、帖子及系统设置
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => nav('/boards')}>
+              <Button variant="outline" onClick={() => nav('/admin/boards')}>
                 <Settings />
                 管理板块
               </Button>
-              <Button onClick={openAdminDashboard}>
+              <Button onClick={() => nav('/admin/dashboard')}>
                 <LayoutDashboard />
                 进入系统后台
               </Button>

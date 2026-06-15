@@ -33,7 +33,7 @@ export default function BoardGrid({ boards, loading = false, selectedId = 0, onS
         </p>
         {user?.role === 'admin' && (
           <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Button onClick={() => nav('/boards')}>
+            <Button onClick={() => nav('/admin/boards')}>
               <Plus />
               创建板块
             </Button>

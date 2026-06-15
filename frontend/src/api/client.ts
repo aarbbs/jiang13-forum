@@ -1,4 +1,4 @@
-import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats } from './types';
+import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings } from './types';
 
 const BASE = '';
 
@@ -44,6 +44,38 @@ export const api = {
   updateBoard: (id: number, body: { name: string; description: string; sort_order: number }) =>
     request<{ board: Board }>(`/api/admin/boards/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteBoard: (id: number) => request(`/api/admin/boards/${id}`, { method: 'DELETE' }),
+  // 管理后台 API
+  adminDashboard: () => request<AdminDashboard>('/api/admin/dashboard'),
+  adminSettings: () => request<AdminSettings>('/api/admin/settings'),
+  adminPosts: (params: { page?: number; keyword?: string }) => {
+    const q = new URLSearchParams();
+    if (params.page) q.set('page', String(params.page));
+    if (params.keyword) q.set('keyword', params.keyword);
+    const qs = q.toString();
+    return request<{ posts: PostItem[]; total: number; page: number; total_pages: number }>(
+      `/api/admin/posts${qs ? `?${qs}` : ''}`,
+    );
+  },
+  adminPinPost: (id: number, pinned: boolean) =>
+    request<{ message: string; pinned: boolean }>(`/api/admin/posts/${id}/pin`, {
+      method: 'POST', body: JSON.stringify({ pinned }),
+    }),
+  adminDeletePost: (id: number) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
+  adminComments: (page = 1) =>
+    request<{ comments: Comment[]; total: number; page: number; total_pages: number }>(
+      `/api/admin/comments?page=${page}`,
+    ),
+  adminDeleteComment: (id: number) => request(`/api/admin/comments/${id}`, { method: 'DELETE' }),
+  adminUsers: (page = 1) =>
+    request<{ users: User[]; total: number; page: number; total_pages: number }>(
+      `/api/admin/users?page=${page}`,
+    ),
+  adminBanUser: (id: number, banned: boolean) =>
+    request<{ message: string; banned: boolean }>(`/api/admin/users/${id}/ban`, {
+      method: 'POST', body: JSON.stringify({ banned }),
+    }),
+  adminBackup: () =>
+    request<{ message: string; filename: string; download: string }>('/api/admin/backup', { method: 'POST' }),
   updateNickname: (nickname: string) => {
     const fd = new FormData();
     fd.append('nickname', nickname);

@@ -27,7 +27,7 @@
 
 <br>
 
-> **开发状态：** 项目积极开发中，部分功能尚未完善（如评论换行显示、React 前台置顶等）。  
+> **开发状态：** 项目积极开发中。管理后台已统一为 React SPA（`/admin`），欢迎参与共建。  
 > 查看 [路线图 ROADMAP.md](ROADMAP.md) · [Issues 反馈](https://git.iioio.com/freefire/jiang13-forum/issues)
 
 </div>
@@ -235,9 +235,9 @@ data/
 
 | 类型 | 示例 |
 |------|------|
-| 🐛 已知缺陷 | 评论回复换行不显示 |
-| 📋 计划中 | React 前台帖子置顶（API 已有，缺 UI） |
 | ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、楼层评论 |
+| ✅ 管理后台 | React SPA：`/admin/dashboard` 仪表盘、帖子置顶、用户禁言等 |
+| 📋 计划中 | 通知已读优化、邮件提醒 |
 
 完整列表见 **[路线图 ROADMAP.md](ROADMAP.md)**。发现问题请提交 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues)，认领任务请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

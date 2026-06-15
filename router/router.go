@@ -80,30 +80,37 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 	}
 
-	// 管理员 API（前台板块管理等）
+	// 管理员 API（React SPA 后台统一使用 JSON）
 	adminAPI := r.Group("/api/admin", authMW.RequireAuth(), authMW.RequireAdmin())
 	{
+		adminAPI.GET("/dashboard", h.APIAdminDashboard)
+		adminAPI.GET("/settings", h.APIAdminSettings)
 		adminAPI.POST("/boards", h.APIAdminCreateBoard)
 		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
 		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)
+		adminAPI.GET("/posts", h.APIAdminPosts)
+		adminAPI.POST("/posts/:id/pin", h.APIAdminPinPost)
+		adminAPI.DELETE("/posts/:id", h.APIAdminDeletePost)
+		adminAPI.GET("/comments", h.APIAdminComments)
+		adminAPI.DELETE("/comments/:id", h.APIAdminDeleteComment)
+		adminAPI.GET("/users", h.APIAdminUsers)
+		adminAPI.POST("/users/:id/ban", h.APIAdminBanUser)
+		adminAPI.POST("/backup", h.APIAdminBackup)
+		adminAPI.GET("/backup/download/:name", h.APIAdminDownloadBackup)
 	}
 
-	// 后台管理（保留服务端模板）
+	// 后台管理：API 保留兼容，页面统一由 React SPA 渲染
 	admin := r.Group("/admin")
 	{
-		admin.GET("/login", h.AdminLoginPage)
+		admin.GET("/login", func(c *gin.Context) {
+			c.Redirect(http.StatusFound, "/login")
+		})
 		admin.POST("/api/login", middleware.RateLimitMiddleware(limiter, "admin_login"), h.AdminAPILogin)
 
 		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 		{
-			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-			adminAuth.GET("/dashboard", h.AdminDashboard)
-			adminAuth.GET("/boards", h.AdminBoardsPage)
-			adminAuth.GET("/posts", h.AdminPostsPage)
-			adminAuth.GET("/comments", h.AdminCommentsPage)
-			adminAuth.GET("/users", h.AdminUsersPage)
-			adminAuth.GET("/settings", h.AdminSettingsPage)
 			adminAuth.POST("/api/logout", h.AdminAPILogout)
+			// 遗留 form API（旧模板脚本仍可能调用）
 			adminAuth.POST("/api/boards", h.AdminAPICreateBoard)
 			adminAuth.PUT("/api/boards/:id", h.AdminAPIUpdateBoard)
 			adminAuth.DELETE("/api/boards/:id", h.AdminAPIDeleteBoard)
@@ -113,6 +120,12 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 			adminAuth.POST("/api/users/:id/ban", h.AdminAPIBanUser)
 			adminAuth.POST("/api/backup", h.AdminAPIBackup)
 			adminAuth.GET("/api/backup/download/:name", h.AdminDownloadBackup)
+
+			// React SPA 管理页面
+			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
+			for _, page := range []string{"dashboard", "boards", "posts", "comments", "users", "settings"} {
+				adminAuth.GET("/"+page, embed_static.ServeSPA)
+			}
 		}
 	}
 
