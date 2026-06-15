@@ -1,0 +1,130 @@
+package router
+
+import (
+	"net/http"
+	"path/filepath"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jiang13/forum/config"
+	"github.com/jiang13/forum/embed_static"
+	"github.com/jiang13/forum/handler"
+	"github.com/jiang13/forum/middleware"
+	"github.com/jiang13/forum/service"
+)
+
+func Setup(cfg *config.Config) (*gin.Engine, error) {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.Logger())
+
+	if err := embed_static.SetupEmbed(r); err != nil {
+		return nil, err
+	}
+
+	filter := service.NewSensitiveFilter()
+	_ = service.WriteDefaultFilterWords(cfg.FilterWordsPath())
+	filter.LoadFromFile(cfg.FilterWordsPath())
+
+	authSvc := service.NewAuthService(cfg.JWTSecret, filter)
+	userSvc := service.NewUserService(filter)
+	boardSvc := service.NewBoardService()
+	postSvc := service.NewPostService(filter)
+	commentSvc := service.NewCommentService(filter)
+	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
+	onlineSvc := service.NewOnlineService()
+	limiter := service.NewRateLimiter(10, time.Minute)
+
+	h := &handler.Handlers{
+		Cfg: cfg, Auth: authSvc, User: userSvc, Board: boardSvc,
+		Post: postSvc, Comment: commentSvc, Backup: backupSvc,
+		Filter: filter, Limiter: limiter, Online: onlineSvc,
+	}
+	authMW := middleware.NewAuthMiddleware(authSvc)
+
+	r.Static("/uploads", filepath.Join(cfg.DataDir, "uploads"))
+
+	// 公开 JSON API（可选登录）
+	pubAPI := r.Group("/api", authMW.OptionalAuth(), middleware.PresenceMiddleware(onlineSvc))
+	{
+		pubAPI.GET("/me", h.APIMe)
+		pubAPI.GET("/boards", h.APIBoards)
+		pubAPI.GET("/stats", h.APIStats)
+		pubAPI.GET("/posts", h.APIPosts)
+		pubAPI.GET("/posts/hot", h.APIHotPosts)
+		pubAPI.GET("/notifications", h.APINotifications)
+		pubAPI.GET("/online", h.APIOnline)
+		pubAPI.POST("/presence", h.APIPresence)
+		pubAPI.GET("/posts/:id", h.APIPostDetail)
+		pubAPI.GET("/posts/:id/comments", h.APIPostComments)
+		pubAPI.POST("/posts/:id/comments", middleware.RateLimitMiddleware(limiter, "comment"), h.APICreateComment)
+		pubAPI.POST("/register", middleware.RateLimitMiddleware(limiter, "register"), h.APIRegister)
+		pubAPI.POST("/login", middleware.RateLimitMiddleware(limiter, "login"), h.APILogin)
+	}
+
+	// 需登录 API
+	api := r.Group("/api", authMW.RequireAuth(), middleware.PresenceMiddleware(onlineSvc))
+	{
+		api.POST("/logout", h.APILogout)
+		api.POST("/ping", h.APIPing)
+		api.GET("/favorites", h.APIFavorites)
+		api.POST("/profile/nickname", h.APIUpdateProfile)
+		api.POST("/profile/password", h.APIUpdatePassword)
+		api.POST("/profile/avatar", h.APIUploadAvatar)
+		api.POST("/posts", middleware.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
+		api.PUT("/posts/:id", h.APIUpdatePost)
+		api.DELETE("/posts/:id", h.APIDeletePost)
+		api.POST("/posts/:id/like", h.APIToggleLike)
+		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
+		api.DELETE("/comments/:id", h.APIDeleteComment)
+	}
+
+	// 管理员 API（前台板块管理等）
+	adminAPI := r.Group("/api/admin", authMW.RequireAuth(), authMW.RequireAdmin())
+	{
+		adminAPI.POST("/boards", h.APIAdminCreateBoard)
+		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
+		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)
+	}
+
+	// 后台管理（保留服务端模板）
+	admin := r.Group("/admin")
+	{
+		admin.GET("/login", h.AdminLoginPage)
+		admin.POST("/api/login", middleware.RateLimitMiddleware(limiter, "admin_login"), h.AdminAPILogin)
+
+		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
+		{
+			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
+			adminAuth.GET("/dashboard", h.AdminDashboard)
+			adminAuth.GET("/boards", h.AdminBoardsPage)
+			adminAuth.GET("/posts", h.AdminPostsPage)
+			adminAuth.GET("/comments", h.AdminCommentsPage)
+			adminAuth.GET("/users", h.AdminUsersPage)
+			adminAuth.GET("/settings", h.AdminSettingsPage)
+			adminAuth.POST("/api/logout", h.AdminAPILogout)
+			adminAuth.POST("/api/boards", h.AdminAPICreateBoard)
+			adminAuth.PUT("/api/boards/:id", h.AdminAPIUpdateBoard)
+			adminAuth.DELETE("/api/boards/:id", h.AdminAPIDeleteBoard)
+			adminAuth.POST("/api/posts/:id/pin", h.AdminAPIPinPost)
+			adminAuth.DELETE("/api/posts/:id", h.AdminAPIDeletePost)
+			adminAuth.DELETE("/api/comments/:id", h.AdminAPIDeleteComment)
+			adminAuth.POST("/api/users/:id/ban", h.AdminAPIBanUser)
+			adminAuth.POST("/api/backup", h.AdminAPIBackup)
+			adminAuth.GET("/api/backup/download/:name", h.AdminDownloadBackup)
+		}
+	}
+
+	// React SPA 入口
+	r.GET("/", embed_static.ServeSPA)
+	r.NoRoute(func(c *gin.Context) {
+		if embed_static.IsSPARoute(c.Request.URL.Path) {
+			embed_static.ServeSPA(c)
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	})
+
+	return r, nil
+}

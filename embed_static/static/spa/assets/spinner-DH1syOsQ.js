@@ -1,0 +1,1 @@
+import{j as e}from"./react-vendor-CgzNJrV9.js";import{c as s}from"./index-474mTIgd.js";import{p as m}from"./ui-vendor-CdH1UOKW.js";const t={sm:"h-4 w-4",md:"h-5 w-5",lg:"h-8 w-8"};function p({className:r,size:a="md"}){return e.jsx(m,{className:s("animate-spin text-[var(--j13-green)]",t[a],r),"aria-label":"加载中"})}export{p as S};

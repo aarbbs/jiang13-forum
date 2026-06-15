@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>姜十三论坛 Jiang13 Forum</title>
+    <style>
+      /* 关键布局样式：在 JS/CSS 包加载前即固定三栏结构，避免刷新时组件错位 */
+      html { scrollbar-gutter: stable; }
+      html, body, #root { height: 100%; margin: 0; }
+      body { overflow: hidden; font-size: 14px; line-height: 1.5; }
+      .app-shell { height: 100%; max-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+      .app-frame { flex: 1; min-height: 0; height: 100%; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; }
+      .app-header { height: 56px; flex-shrink: 0; }
+      .app-body { flex: 1; display: flex; min-height: 0; width: 100%; overflow: hidden; }
+      .content-workspace { flex: 1; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+      .sidebar { width: 210px; flex-shrink: 0; }
+      .main-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+      .aside-panel { width: 280px; flex-shrink: 0; }
+      @media (max-width: 1100px) { .aside-panel { display: none; } }
+      @media (max-width: 768px) { .sidebar { display: none; } }
+    </style>
+    <script>
+      (function () {
+        var theme = localStorage.getItem('j13-theme') || 'light';
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-474mTIgd.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-CgzNJrV9.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-vendor-CdH1UOKW.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-JNN-o0YU.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

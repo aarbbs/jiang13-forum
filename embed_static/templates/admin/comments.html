@@ -1,0 +1,58 @@
+{{define "admin/comments.html"}}{{template "admin/layout" .}}{{end}}
+{{define "admin_content_comments"}}
+<div class="admin-page-head">
+  <div>
+    <h1>评论管理</h1>
+    <p>查看和删除评论，共 {{.Total}} 条</p>
+  </div>
+</div>
+
+<div class="admin-card">
+  <div class="table-responsive">
+    <table class="table admin-table mb-0">
+      <thead>
+        <tr><th>ID</th><th>楼层</th><th>帖子</th><th>作者</th><th>回复</th><th>内容</th><th>时间</th><th width="100">操作</th></tr>
+      </thead>
+      <tbody>
+      {{range .Comments}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>#{{.Floor}}</td>
+        <td class="text-truncate-cell">
+          {{if .Post}}
+          <a href="/post/{{.PostID}}" target="_blank">{{.Post.Title}}</a>
+          {{else}}帖子 #{{.PostID}}{{end}}
+        </td>
+        <td>{{if .UserID}}{{if .User}}{{.User.Nickname}}{{else}}-{{end}}{{else}}{{.GuestNick}}{{end}}</td>
+        <td>
+          {{if .ReplyTarget}}
+          @{{if .ReplyTarget.UserID}}{{if .ReplyTarget.User}}{{.ReplyTarget.User.Nickname}}{{else}}-{{end}}{{else}}{{.ReplyTarget.GuestNick}}{{end}}
+          {{else}}-{{end}}
+        </td>
+        <td class="text-truncate-cell">{{.Content}}</td>
+        <td>{{.CreatedAt.Format "01-02 15:04"}}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteComment({{.ID}})">删除</button>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="8" class="admin-empty">暂无评论</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{template "admin_pagination" .}}
+</div>
+{{end}}
+
+{{define "admin_scripts_comments"}}
+<script>
+function deleteComment(id) {
+  adminConfirm('确定删除该评论？', function() {
+    adminFetch('/admin/api/comments/' + id, { method: 'DELETE' })
+      .then(function(d) { showToast(d.message); reloadSoon(); })
+      .catch(function(e) { showToast(e.message, 'danger'); });
+  });
+}
+</script>
+{{end}}

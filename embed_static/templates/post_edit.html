@@ -1,0 +1,31 @@
+{{define "post_edit.html"}}{{template "layout" .}}{{end}}
+{{define "content"}}
+<h3>编辑帖子</h3>
+<form id="editForm">
+  <div class="mb-3">
+    <label class="form-label">标题</label>
+    <input type="text" name="title" class="form-control" value="{{.Post.Title}}" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">标签</label>
+    <input type="text" name="tags" class="form-control" value="{{.Post.Tags}}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">内容</label>
+    <textarea name="content" class="form-control" rows="12" required>{{.Post.Content}}</textarea>
+  </div>
+  <button type="submit" class="btn btn-success">保存</button>
+  <a href="/post/{{.Post.ID}}" class="btn btn-secondary">取消</a>
+</form>
+{{end}}
+{{define "scripts"}}
+<script>
+document.getElementById('editForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  fetch('/api/posts/{{.Post.ID}}',{method:'PUT',credentials:'same-origin',body:new FormData(this)}).then(r=>r.json()).then(d=>{
+    if(d.error){showToast(d.error,'danger');return;}
+    location.href='/post/{{.Post.ID}}';
+  });
+});
+</script>
+{{end}}

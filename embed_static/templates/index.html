@@ -1,0 +1,34 @@
+{{define "index.html"}}{{template "layout" .}}{{end}}
+{{define "content"}}
+<div class="row">
+  <div class="col-lg-8">
+    <h4 class="mb-3">最新帖子</h4>
+    {{range .Posts}}
+    <div class="card mb-2">
+      <div class="card-body py-2">
+        {{if .Pinned}}<span class="badge badge-pin me-1">置顶</span>{{end}}
+        <a href="/post/{{.ID}}" class="text-decoration-none fw-semibold">{{.Title}}</a>
+        <div class="small text-muted mt-1">
+          {{.Board.Name}} · {{.User.Nickname}} · {{.CreatedAt.Format "2006-01-02 15:04"}} · 👍 {{.LikeCount}} · 👁 {{.ViewCount}}
+        </div>
+      </div>
+    </div>
+    {{else}}
+    <p class="text-muted">暂无帖子，快来发帖吧！</p>
+    {{end}}
+  </div>
+  <div class="col-lg-4">
+    <h5>板块列表</h5>
+    <div class="list-group">
+      {{range .Boards}}
+      <a href="/board/{{.ID}}" class="list-group-item list-group-item-action">
+        <strong>{{.Name}}</strong>
+        <small class="d-block text-muted">{{.Description}}</small>
+      </a>
+      {{else}}
+      <p class="text-muted small">管理员尚未创建板块</p>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}

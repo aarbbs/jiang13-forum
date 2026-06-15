@@ -1,0 +1,20 @@
+# 运行时数据（数据库、JWT 密钥、日志、头像）
+/data/
+
+# 前端依赖与构建缓存
+/frontend/node_modules/
+/frontend/dist/
+
+# Go 编译产物
+/dist/
+*.exe
+
+# 临时文件
+tmp-cookie.txt
+
+# 编辑器 / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

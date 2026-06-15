@@ -1,0 +1,76 @@
+{{define "admin/dashboard.html"}}{{template "admin/layout" .}}{{end}}
+{{define "admin_content_dashboard"}}
+<div class="admin-page-head">
+  <div>
+    <h1>仪表盘</h1>
+    <p>欢迎回来{{if .CurrentUser}}，{{.CurrentUser.Nickname}}{{end}} · 论坛运行概况</p>
+  </div>
+</div>
+
+<div class="admin-stat-grid">
+  <div class="admin-stat-card admin-stat-users">
+    <div class="admin-stat-icon">用</div>
+    <div class="admin-stat-info">
+      <div class="value">{{.UserCount}}</div>
+      <div class="label">注册用户</div>
+    </div>
+  </div>
+  <div class="admin-stat-card admin-stat-posts">
+    <div class="admin-stat-icon">帖</div>
+    <div class="admin-stat-info">
+      <div class="value">{{.PostCount}}</div>
+      <div class="label">帖子总数</div>
+    </div>
+  </div>
+  <div class="admin-stat-card admin-stat-boards">
+    <div class="admin-stat-icon">板</div>
+    <div class="admin-stat-info">
+      <div class="value">{{.BoardCount}}</div>
+      <div class="label">板块数量</div>
+    </div>
+  </div>
+  <div class="admin-stat-card admin-stat-comments">
+    <div class="admin-stat-icon">评</div>
+    <div class="admin-stat-info">
+      <div class="value">{{.CommentCount}}</div>
+      <div class="label">评论总数</div>
+    </div>
+  </div>
+  <div class="admin-stat-card admin-stat-online">
+    <div class="admin-stat-icon">线</div>
+    <div class="admin-stat-info">
+      <div class="value">{{.OnlineCount}}</div>
+      <div class="label">当前浏览</div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-card">
+  <div class="admin-card-head">
+    <span>最近帖子</span>
+    <a href="/admin/posts" class="admin-card-link">查看全部 →</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table admin-table mb-0">
+      <thead><tr><th>标题</th><th>板块</th><th>作者</th><th>时间</th><th width="80"></th></tr></thead>
+      <tbody>
+      {{range .RecentPosts}}
+      <tr>
+        <td class="text-truncate-cell">
+          {{if .Pinned}}<span class="badge badge-pin me-1">置顶</span>{{end}}{{.Title}}
+        </td>
+        <td>{{if .Board}}{{.Board.Name}}{{else}}-{{end}}</td>
+        <td>{{if .User}}{{.User.Nickname}}{{else}}-{{end}}</td>
+        <td class="text-muted">{{.CreatedAt.Format "01-02 15:04"}}</td>
+        <td><a href="/post/{{.ID}}" target="_blank" class="btn btn-sm btn-link px-0">查看</a></td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5" class="admin-empty">暂无帖子</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+
+{{define "admin_scripts_dashboard"}}{{end}}
