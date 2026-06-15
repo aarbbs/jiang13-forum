@@ -48,13 +48,12 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
           <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 8 }}>
             会员 {online?.members ?? 0} · 游客 {online?.guests ?? 0}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div className="widget-online-list">
             {members.map(u => (
-              <span key={u.id} title={u.nickname} style={{
-                width: 28, height: 28, borderRadius: '50%', background: 'var(--j13-green)',
-                color: '#fff', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {u.nickname?.[0] || '?'}
+              <span key={u.id} className="widget-online-avatar" title={u.nickname}>
+                {u.avatar
+                  ? <img src={u.avatar} alt="" />
+                  : (u.nickname?.[0] || '?')}
               </span>
             ))}
             {members.length === 0 && (

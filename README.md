@@ -1,4 +1,4 @@
-<div align="center">
+
 
 # 姜十三论坛 Jiang13 Forum
 
@@ -6,12 +6,13 @@
 
 面向小圈子内部交流，编译为单个 Go 二进制，前端 SPA 内嵌，内置 SQLite，开箱即用。
 
-<br>
+  
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-18a058?style=flat-square)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)](go.mod)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](frontend/package.json)
-[![SQLite](https://img.shields.io/badge/SQLite-内置-003B57?style=flat-square&logo=sqlite&logoColor=white)](#)
+
+[License: MIT](LICENSE)
+[Go](go.mod)
+[React](frontend/package.json)
+[SQLite](#)
 
 [快速开始](#-快速开始) ·
 [界面预览](#-界面预览) ·
@@ -19,18 +20,20 @@
 [路线图](ROADMAP.md) ·
 [参与贡献](CONTRIBUTING.md)
 
-<br>
+  
 
-<img src="docs/screenshots/home-light.png" alt="姜十三论坛首页 - 浅色主题三栏布局" width="92%">
 
-<sub>浅色主题 · 三栏布局 · Feed 排序 · 虚拟滚动帖列表</sub>
 
-<br>
+
+浅色主题 · 三栏布局 · Feed 排序 · 虚拟滚动帖列表
+
+  
+
 
 > **开发状态：** 项目积极开发中。管理后台已统一为 React SPA（`/admin`），欢迎参与共建。  
 > 查看 [路线图 ROADMAP.md](ROADMAP.md) · [Issues 反馈](https://git.iioio.com/freefire/jiang13-forum/issues)
 
-</div>
+
 
 ---
 
@@ -38,37 +41,15 @@
 
 > 论坛用户第一眼看到的是界面。姜十三论坛采用清新绿色主题、高密度信息布局，兼顾桌面与移动端体验。
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <img src="docs/screenshots/home-light.png" alt="浅色主题首页" width="100%">
-      <br><b>浅色主题</b><br>
-      <sub>左栏板块导航 · Feed 排序切换 · 右栏热门/动态/在线</sub>
-    </td>
-    <td width="50%" align="center">
-      <img src="docs/screenshots/home-dark.png" alt="暗色主题首页" width="100%">
-      <br><b>暗色主题</b><br>
-      <sub>一键切换 · 护眼阅读 · 全局色彩自适应</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <img src="docs/screenshots/post-detail.png" alt="帖子详情页" width="100%">
-      <br><b>帖子详情</b><br>
-      <sub>TipTap 富文本渲染 · 标签展示 · 点赞收藏互动</sub>
-    </td>
-    <td width="50%" align="center">
-      <img src="docs/screenshots/mobile-home.png" alt="移动端首页" width="280">
-      <br><b>移动端适配</b><br>
-      <sub>板块快捷筛选 · Feed 排序 · 触控友好列表</sub>
-    </td>
-  </tr>
-</table>
 
-<p align="center">
-  <img src="docs/screenshots/compose.png" alt="发帖页" width="360">
-  <br><b>发帖</b> — 板块胶囊选择 · TipTap 工具栏 · 本地上传图片
-</p>
+|                                          |                                     |
+| ---------------------------------------- | ----------------------------------- |
+| **浅色主题** 左栏板块导航 · Feed 排序切换 · 右栏热门/动态/在线 | **暗色主题** 一键切换 · 护眼阅读 · 全局色彩自适应      |
+| **帖子详情** TipTap 富文本渲染 · 标签展示 · 点赞收藏互动    | **移动端适配** 板块快捷筛选 · Feed 排序 · 触控友好列表 |
+
+
+  
+**发帖** — 板块胶囊选择 · TipTap 工具栏 · 本地上传图片
 
 ---
 
@@ -76,14 +57,16 @@
 
 ### 界面与交互
 
-| 特性 | 说明 |
-|------|------|
-| **三栏布局** | 左栏板块菜单（可折叠）+ 中间虚拟滚动帖列表 + 右栏热门/通知/在线 |
-| **虚拟滚动** | `@tanstack/react-virtual` 驱动帖列表与楼层回复，长列表依然流畅 |
-| **帖子排序** | 最新发帖 / 最新回复 / 热门讨论，一键切换 Feed 排序 |
-| **主题切换** | 浅色 / 暗色一键切换，跟随 `prefers-color-scheme` 与本地记忆 |
-| **响应式** | 平板 / 手机自动收起侧栏，搜索、发帖、登录触手可及 |
-| **高密度排版** | V2EX / NGA 风格信息密度，一屏浏览更多内容 |
+
+| 特性        | 说明                                           |
+| --------- | -------------------------------------------- |
+| **三栏布局**  | 左栏板块菜单（可折叠）+ 中间虚拟滚动帖列表 + 右栏热门/通知/在线          |
+| **虚拟滚动**  | `@tanstack/react-virtual` 驱动帖列表与楼层回复，长列表依然流畅 |
+| **帖子排序**  | 最新发帖 / 最新回复 / 热门讨论，一键切换 Feed 排序              |
+| **主题切换**  | 浅色 / 暗色一键切换，跟随 `prefers-color-scheme` 与本地记忆  |
+| **响应式**   | 平板 / 手机自动收起侧栏，搜索、发帖、登录触手可及                   |
+| **高密度排版** | V2EX / NGA 风格信息密度，一屏浏览更多内容                   |
+
 
 ### 社区功能
 
@@ -157,22 +140,26 @@ cd .. && go build -trimpath -ldflags "-s -w" -o dist/jiang13 ./cmd/jiang13
 
 ### 启动参数
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--port` | `3000` | HTTP 监听端口 |
-| `--data` | `./data` | 数据目录（SQLite、上传、日志） |
-| `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
+
+| 参数             | 默认值      | 说明                                   |
+| -------------- | -------- | ------------------------------------ |
+| `--port`       | `3000`   | HTTP 监听端口                            |
+| `--data`       | `./data` | 数据目录（SQLite、上传、日志）                   |
+| `--jwt-secret` | 自动生成     | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
+
 
 ---
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| **后端** | Go 1.26 · Gin · GORM · SQLite |
+
+| 层级     | 技术                                                             |
+| ------ | -------------------------------------------------------------- |
+| **后端** | Go 1.26 · Gin · GORM · SQLite                                  |
 | **前端** | React 18 · TipTap · Radix UI · Tailwind CSS · TanStack Virtual |
-| **构建** | Vite → `go:embed` 内嵌 SPA，单二进制发布 |
-| **认证** | bcrypt · JWT Cookie |
+| **构建** | Vite → `go:embed` 内嵌 SPA，单二进制发布                                |
+| **认证** | bcrypt · JWT Cookie                                            |
+
 
 ---
 
@@ -237,12 +224,14 @@ data/
 
 项目**积极开发中**，作为论坛产品功能尚未完善，欢迎参与共建。
 
-| 类型 | 示例 |
-|------|------|
-| ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、Feed 排序、楼层评论 |
-| ✅ 发帖体验 | TipTap 富文本、正文图片上传、修订历史、可配置编辑时限 |
+
+| 类型     | 示例                                 |
+| ------ | ---------------------------------- |
+| ✅ 已可用  | 三栏布局、暗色主题、虚拟滚动、Feed 排序、楼层评论        |
+| ✅ 发帖体验 | TipTap 富文本、正文图片上传、修订历史、可配置编辑时限     |
 | ✅ 管理后台 | React SPA：仪表盘、帖子置顶、用户禁言、论坛参数与敏感词配置 |
-| 📋 计划中 | 通知动态优化、邮件提醒 |
+| 📋 计划中 | 通知动态优化、邮件提醒                        |
+
 
 完整列表见 **[路线图 ROADMAP.md](ROADMAP.md)**。发现问题请提交 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues)，认领任务请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

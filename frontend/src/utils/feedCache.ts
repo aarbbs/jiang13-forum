@@ -1,6 +1,9 @@
+import type { NavigateFunction } from 'react-router-dom';
 import type { PostItem } from '../api/types';
-
 import type { FeedSort } from '../components/FeedSortBar';
+
+/** 导航到帖子列表时附带的状态，用于同 URL 重复点击时强制刷新 */
+export type FeedNavState = { refreshFeed?: boolean };
 
 
 
@@ -89,7 +92,6 @@ export function clearFeedCache(boardId: number, keyword: string, sort: FeedSort)
 
 
 /** 清除所有帖子列表缓存（置顶等操作后列表需全量刷新） */
-
 export function clearAllFeedCache() {
 
   try {
@@ -110,3 +112,12 @@ export function clearAllFeedCache() {
 
 }
 
+/** 主动刷新帖子列表时派发，用于同页内立即回到顶部 */
+export const FEED_RESET_EVENT = 'feed-reset';
+
+/** 清除缓存并导航到帖子列表（重复点击同一入口时也会刷新） */
+export function navigateFeed(nav: NavigateFunction, url: string) {
+  clearAllFeedCache();
+  window.dispatchEvent(new Event(FEED_RESET_EVENT));
+  nav(url, { state: { refreshFeed: true } satisfies FeedNavState });
+}

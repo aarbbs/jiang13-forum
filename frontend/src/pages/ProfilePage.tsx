@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, LayoutDashboard, Settings } from 'lucide-react';
+import { ArrowLeft, Camera, LayoutDashboard, Settings, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,8 @@ import { notify } from '@/lib/notify';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../api/client';
 import { useForumLimits } from '../hooks/useForumLimits';
+import AvatarCropDialog from '../components/AvatarCropDialog';
+import { AVATAR_ACCEPT, validateAvatarFile } from '../utils/avatarCrop';
 
 const nickSchema = z.object({
   nickname: z.string().min(1, '请输入昵称').max(64),
@@ -36,7 +38,14 @@ export default function ProfilePage() {
   const [nickLoading, setNickLoading] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   const { limits } = useForumLimits();
 
@@ -55,6 +64,30 @@ export default function ProfilePage() {
       nav('/login');
     }
   }, [authLoading, user, nav]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    };
+  }, [cropImageSrc]);
+
+  const closeCropDialog = useCallback((open: boolean) => {
+    if (!open) {
+      setCropOpen(false);
+      setCropImageSrc(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setCropFileName('');
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }, []);
 
   if (authLoading) {
     return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
@@ -90,25 +123,87 @@ export default function ProfilePage() {
     }
   };
 
-  const onAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > limits.avatar_max_mb * 1024 * 1024) {
-      notify.error(`头像不能超过 ${limits.avatar_max_mb}MB`);
+  const clearPendingAvatar = () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setPendingAvatar(null);
+    setAvatarPreview(null);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const openCropForFile = (file: File) => {
+    const err = validateAvatarFile(file, limits.avatar_max_mb);
+    if (err) {
+      notify.error(err);
+      if (fileRef.current) fileRef.current.value = '';
       return;
     }
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropFileName(file.name);
+    setCropImageSrc(URL.createObjectURL(file));
+    setCropOpen(true);
+  };
+
+  const onAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) openCropForFile(file);
+  };
+
+  const onCropConfirm = (file: File) => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setPendingAvatar(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const onSaveAvatar = async () => {
+    if (!pendingAvatar) return;
     setAvatarLoading(true);
     try {
-      await api.uploadAvatar(file);
+      await api.uploadAvatar(pendingAvatar);
       await refresh();
+      clearPendingAvatar();
       notify.success('头像已更新');
     } catch (err: unknown) {
       notify.error(err instanceof Error ? err.message : '上传失败');
     } finally {
       setAvatarLoading(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
   };
+
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragOver(true);
+    }
+  };
+
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setDragOver(false);
+    if (avatarLoading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) openCropForFile(file);
+  };
+
+  const displayAvatar = avatarPreview ?? user.avatar;
 
   return (
     <div className="page-wrap">
@@ -117,17 +212,81 @@ export default function ProfilePage() {
           <ArrowLeft />
           返回
         </Button>
+        <h1 className="page-title mb-4">个人中心</h1>
 
-        <div className="profile-header">
-          <div className="profile-avatar-lg">
-            {user.avatar ? <img src={user.avatar} alt="" /> : user.nickname[0]}
-          </div>
-          <div>
-            <h1 className="page-title" style={{ marginBottom: 4 }}>{user.nickname}</h1>
-            <div style={{ fontSize: 13, color: 'var(--color-text-3)' }}>@{user.username}</div>
-            {user.role === 'admin' && <Badge variant="green" className="mt-1.5">管理员</Badge>}
+        <div
+          className={`profile-header-card${dragOver ? ' profile-header-card--dragover' : ''}`}
+          onDragEnter={onDragEnter}
+          onDragLeave={onDragLeave}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+        >
+          {dragOver && (
+            <div className="profile-drop-overlay">
+              <Upload size={28} strokeWidth={1.5} />
+              <span>松开以上传头像</span>
+            </div>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept={AVATAR_ACCEPT}
+            className="sr-only"
+            onChange={onAvatarSelect}
+          />
+          <button
+            type="button"
+            className="profile-avatar-btn"
+            title="点击或拖拽图片到此处更换头像"
+            disabled={avatarLoading}
+            onClick={() => fileRef.current?.click()}
+          >
+            <div className={`profile-avatar-lg${pendingAvatar ? ' profile-avatar-lg--pending' : ''}`}>
+              {displayAvatar
+                ? <img src={displayAvatar} alt="" />
+                : user.nickname[0]}
+              <span className="profile-avatar-overlay">
+                {avatarLoading
+                  ? <Spinner size="sm" className="text-white" />
+                  : <Camera size={22} strokeWidth={1.75} />}
+              </span>
+            </div>
+          </button>
+          <div className="profile-header-info">
+            <div className="profile-header-main">
+              <h1 className="profile-display-name">{user.nickname}</h1>
+              <div className="profile-username">@{user.username}</div>
+              <p className="profile-avatar-tip">点击头像选择图片，或拖拽到此处</p>
+              {user.role === 'admin' && <Badge variant="green" className="mt-1.5">管理员</Badge>}
+            </div>
+            {pendingAvatar && (
+              <div className="profile-avatar-actions">
+                <span className="profile-avatar-hint">已裁剪，待保存</span>
+                <Button size="sm" loading={avatarLoading} onClick={onSaveAvatar}>
+                  保存头像
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={avatarLoading}
+                  onClick={clearPendingAvatar}
+                  aria-label="取消"
+                >
+                  <X size={16} />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+
+        <AvatarCropDialog
+          open={cropOpen}
+          imageSrc={cropImageSrc}
+          fileName={cropFileName}
+          onOpenChange={closeCropDialog}
+          onConfirm={onCropConfirm}
+        />
 
         {user.role === 'admin' && (
           <div className="section-card admin-entry-card">
@@ -151,7 +310,7 @@ export default function ProfilePage() {
         <div className="section-card">
           <div className="section-card-title">基本资料</div>
           <Form {...nickForm}>
-            <form onSubmit={nickForm.handleSubmit(onUpdateNick)} className="space-y-4">
+            <form onSubmit={nickForm.handleSubmit(onUpdateNick)} className="profile-form">
               <FormItem>
                 <FormLabel>用户名</FormLabel>
                 <FormControl>
@@ -171,32 +330,20 @@ export default function ProfilePage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" loading={nickLoading}>保存昵称</Button>
+              <div className="profile-form-footer">
+                <span className="profile-form-hint">
+                  支持 JPG、PNG、GIF、WebP，头像不超过 {limits.avatar_max_mb}MB
+                </span>
+                <Button type="submit" loading={nickLoading}>保存</Button>
+              </div>
             </form>
           </Form>
         </div>
 
         <div className="section-card">
-          <div className="section-card-title">头像</div>
-          <p style={{ fontSize: 13, color: 'var(--color-text-3)', margin: '0 0 12px' }}>
-            支持 JPG、PNG、GIF、WebP，不超过 2MB
-          </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            style={{ display: 'none' }}
-            onChange={onAvatarChange}
-          />
-          <Button variant="outline" loading={avatarLoading} onClick={() => fileRef.current?.click()}>
-            选择图片上传
-          </Button>
-        </div>
-
-        <div className="section-card">
           <div className="section-card-title">修改密码</div>
           <Form {...pwdForm}>
-            <form onSubmit={pwdForm.handleSubmit(onUpdatePwd)} className="space-y-4">
+            <form onSubmit={pwdForm.handleSubmit(onUpdatePwd)} className="profile-form">
               <FormField
                 control={pwdForm.control}
                 name="old_password"
@@ -236,9 +383,11 @@ export default function ProfilePage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" variant="destructive" loading={pwdLoading}>
-                修改密码
-              </Button>
+              <div className="profile-form-footer profile-form-footer--end">
+                <Button type="submit" variant="destructive" loading={pwdLoading}>
+                  修改密码
+                </Button>
+              </div>
             </form>
           </Form>
         </div>

@@ -6,6 +6,7 @@ import type { Board } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { buildHomeUrl, parseFeedSort } from './FeedSortBar';
+import { navigateFeed } from '../utils/feedCache';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
 const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile'];
@@ -53,7 +54,7 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
     <aside className="sidebar">
       <div className="sidebar-section">浏览</div>
       <nav className="sidebar-nav">
-        {navItem('all', '全部帖子', <Home />, () => { onSelectBoard(0); nav(buildHomeUrl(0, sort)); })}
+        {navItem('all', '全部帖子', <Home />, () => { onSelectBoard(0); navigateFeed(nav, buildHomeUrl(0, sort)); })}
         {user && navItem('favorites', '我的收藏', <Star />, () => nav('/favorites'))}
       </nav>
 
@@ -66,7 +67,7 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
                 type="button"
                 key={b.id}
                 className={cn('sidebar-nav-item', menuKey != null && menuKey === String(b.id) && 'active')}
-                onClick={() => { onSelectBoard(b.id); nav(buildHomeUrl(b.id, sort)); }}
+                onClick={() => { onSelectBoard(b.id); navigateFeed(nav, buildHomeUrl(b.id, sort)); }}
               >
                 <span className="flex-1 truncate">{b.name}</span>
               </button>

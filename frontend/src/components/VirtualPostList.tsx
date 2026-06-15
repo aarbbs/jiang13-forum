@@ -14,6 +14,8 @@ interface Props {
   onSelect: (id: number) => void;
   /** 返回列表时恢复的滚动位置 */
   restoreScrollTop?: number | null;
+  /** 递增时强制回到列表顶部（主动刷新导航） */
+  resetScrollKey?: number;
   onScrollTopChange?: (top: number) => void;
   onScrollRestored?: () => void;
 }
@@ -26,6 +28,7 @@ export default function VirtualPostList({
   onLoadMore,
   onSelect,
   restoreScrollTop,
+  resetScrollKey = 0,
   onScrollTopChange,
   onScrollRestored,
 }: Props) {
@@ -38,6 +41,17 @@ export default function VirtualPostList({
     estimateSize: () => 72,
     overscan: 8,
   });
+
+  useLayoutEffect(() => {
+    if (resetScrollKey <= 0) return;
+    const el = parentRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      virtualizer.scrollToOffset(0);
+    }
+    restoredRef.current = true;
+    onScrollTopChange?.(0);
+  }, [resetScrollKey, virtualizer, onScrollTopChange]);
 
   useLayoutEffect(() => {
     if (restoreScrollTop == null || restoredRef.current || posts.length === 0) return;

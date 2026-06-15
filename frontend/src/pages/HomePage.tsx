@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import type { PostItem } from '../api/types';
@@ -7,10 +7,18 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
 import FeedHeader from '../components/FeedHeader';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
-import { getFeedCache, setFeedCache, clearAllFeedCache } from '../utils/feedCache';
+import {
+  getFeedCache,
+  setFeedCache,
+  clearAllFeedCache,
+  navigateFeed,
+  FEED_RESET_EVENT,
+  type FeedNavState,
+} from '../utils/feedCache';
 
 export default function HomePage() {
   const nav = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const ctx = useOutletContext<LayoutCtx>();
   const boardId = Number(params.get('board')) || ctx?.boardId || 0;
@@ -24,7 +32,24 @@ export default function HomePage() {
   const [hasMore, setHasMore] = useState(() => initialCache?.hasMore ?? true);
   const [loading, setLoading] = useState(() => !initialCache);
   const [restoreScrollTop, setRestoreScrollTop] = useState<number | null>(() => initialCache?.scrollTop ?? null);
+  const [listResetKey, setListResetKey] = useState(0);
   const scrollTopRef = useRef(initialCache?.scrollTop ?? 0);
+  const pageWrapRef = useRef<HTMLDivElement>(null);
+  /** 主动刷新时不把旧列表/滚动位置写回 cache */
+  const skipCacheSaveRef = useRef(false);
+
+  const resetFeedView = useCallback(() => {
+    setRestoreScrollTop(null);
+    scrollTopRef.current = 0;
+    setListResetKey(k => k + 1);
+    pageWrapRef.current?.scrollTo(0);
+  }, []);
+
+  const beginFeedRefresh = useCallback(() => {
+    skipCacheSaveRef.current = true;
+    clearAllFeedCache();
+    resetFeedView();
+  }, [resetFeedView]);
 
   const load = useCallback(async (p: number, reset = false) => {
     setLoading(true);
@@ -37,7 +62,6 @@ export default function HomePage() {
         sort: sort === 'latest' ? '' : sort,
       });
       const batch = Array.isArray(data.posts) ? data.posts : [];
-      // 切换筛选时保留旧列表，避免中间区域瞬间空白
       setPosts(prev => (reset ? batch : [...prev, ...batch]));
       setPostTotal(data.total ?? 0);
       setHasMore(!!data.has_more);
@@ -80,6 +104,12 @@ export default function HomePage() {
   }, [boardId, keyword, sort]);
 
   useEffect(() => {
+    const forceRefresh = (location.state as FeedNavState | null)?.refreshFeed;
+    if (forceRefresh) {
+      beginFeedRefresh();
+      load(1, true);
+      return;
+    }
     const cached = getFeedCache(boardId, keyword, sort);
     if (cached) {
       setPosts(cached.posts);
@@ -95,11 +125,11 @@ export default function HomePage() {
     setRestoreScrollTop(null);
     scrollTopRef.current = 0;
     load(1, true);
-  }, [boardId, keyword, sort, load, revalidate]);
+  }, [boardId, keyword, sort, location.key, location.state, load, revalidate, beginFeedRefresh]);
 
   useEffect(() => {
     return () => {
-      if (posts.length === 0) return;
+      if (skipCacheSaveRef.current || posts.length === 0) return;
       setFeedCache(boardId, keyword, sort, {
         posts,
         postTotal,
@@ -111,28 +141,41 @@ export default function HomePage() {
   }, [boardId, keyword, sort, posts, postTotal, page, hasMore]);
 
   useEffect(() => {
+    if (!loading && posts.length > 0) {
+      skipCacheSaveRef.current = false;
+    }
+  }, [loading, posts.length]);
+
+  useEffect(() => {
+    const onFeedReset = () => {
+      beginFeedRefresh();
+    };
+    window.addEventListener(FEED_RESET_EVENT, onFeedReset);
+    return () => window.removeEventListener(FEED_RESET_EVENT, onFeedReset);
+  }, [beginFeedRefresh]);
+
+  useEffect(() => {
     const fn = () => {
-      clearAllFeedCache();
-      setRestoreScrollTop(null);
-      scrollTopRef.current = 0;
+      beginFeedRefresh();
       load(1, true);
     };
     window.addEventListener('posts-refresh', fn);
     return () => window.removeEventListener('posts-refresh', fn);
-  }, [boardId, keyword, sort, load]);
+  }, [beginFeedRefresh, load]);
 
   const handleSortChange = (next: FeedSort) => {
-    if (next === sort) return;
-    clearAllFeedCache();
-    setRestoreScrollTop(null);
-    scrollTopRef.current = 0;
-    nav(buildHomeUrl(boardId, next));
+    if (next === sort) {
+      beginFeedRefresh();
+      load(1, true);
+      return;
+    }
+    navigateFeed(nav, buildHomeUrl(boardId, next));
   };
 
   const showSortBar = !keyword;
 
   return (
-    <div className="page-wrap">
+    <div className="page-wrap" ref={pageWrapRef}>
       <div className="feed-top">
         <FeedHeader
           boardId={boardId}
@@ -153,6 +196,7 @@ export default function HomePage() {
         onLoadMore={() => !loading && hasMore && load(page + 1)}
         onSelect={(id) => nav(`/post/${id}`)}
         restoreScrollTop={restoreScrollTop}
+        resetScrollKey={listResetKey}
         onScrollTopChange={(top) => { scrollTopRef.current = top; }}
         onScrollRestored={() => setRestoreScrollTop(null)}
       />

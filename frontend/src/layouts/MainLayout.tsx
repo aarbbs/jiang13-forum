@@ -18,6 +18,7 @@ import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
+import { navigateFeed } from '../utils/feedCache';
 import { notify } from '@/lib/notify';
 
 export default function MainLayout() {
@@ -113,7 +114,7 @@ export default function MainLayout() {
       <div className="app-frame">
       <header className="app-header">
         <div className="header-inner">
-          <button type="button" className="header-brand" onClick={() => nav('/')}>
+          <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
             <span className="header-logo-mark">姜</span>
             {!isMobile && <span className="header-logo-text">姜十三论坛</span>}
           </button>
@@ -214,13 +215,13 @@ export default function MainLayout() {
             <div className="mobile-board-bar">
               <span
                 className={`board-chip ${mobileActiveBoard === 0 ? 'active' : ''}`}
-                onClick={() => { setBoardId(0); nav(buildHomeUrl(0, feedSort)); }}
+                onClick={() => { setBoardId(0); navigateFeed(nav, buildHomeUrl(0, feedSort)); }}
               >全部</span>
               {boards.map(b => (
                 <span
                   key={b.id}
                   className={`board-chip ${mobileActiveBoard === b.id ? 'active' : ''}`}
-                  onClick={() => { setBoardId(b.id); nav(buildHomeUrl(b.id, feedSort)); }}
+                  onClick={() => { setBoardId(b.id); navigateFeed(nav, buildHomeUrl(b.id, feedSort)); }}
                 >{b.name}</span>
               ))}
             </div>
