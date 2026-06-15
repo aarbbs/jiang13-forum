@@ -553,6 +553,31 @@ a:hover { text-decoration: underline; }
 .post-list-scroll::-webkit-scrollbar {
   display: none;
 }
+
+.feed-list-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 12px;
+}
+
+.feed-list-footer--end {
+  font-size: 12px;
+  color: var(--color-text-3);
+  padding: 10px 12px;
+}
+
+.feed-list-footer--history {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feed-list-footer__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
 .page-inner { padding: 20px 24px; max-width: 720px; }
 .page-inner-wide { padding: 20px 24px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0 0 4px; }

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Spinner } from '@/components/ui/spinner';
+import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
@@ -10,6 +11,9 @@ interface Props {
   sort?: FeedSort;
   loading: boolean;
   hasMore: boolean;
+  /** 是否允许滚动触底自动加载（达到上限后为 false） */
+  canAutoLoad: boolean;
+  postTotal: number;
   onLoadMore: () => void;
   onSelect: (id: number) => void;
   /** 返回列表时恢复的滚动位置 */
@@ -25,6 +29,8 @@ export default function VirtualPostList({
   sort = 'latest',
   loading,
   hasMore,
+  canAutoLoad,
+  postTotal,
   onLoadMore,
   onSelect,
   restoreScrollTop,
@@ -41,6 +47,9 @@ export default function VirtualPostList({
     estimateSize: () => 72,
     overscan: 8,
   });
+
+  const showHistoryPrompt = hasMore && !canAutoLoad && !loading;
+  const showEnd = !hasMore && posts.length > 0 && !loading;
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
@@ -69,13 +78,13 @@ export default function VirtualPostList({
     if (!el) return;
     const onScroll = () => {
       onScrollTopChange?.(el.scrollTop);
-      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120 && hasMore && !loading) {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120 && canAutoLoad && hasMore && !loading) {
         onLoadMore();
       }
     };
     el.addEventListener('scroll', onScroll);
     return () => el.removeEventListener('scroll', onScroll);
-  }, [hasMore, loading, onLoadMore, onScrollTopChange]);
+  }, [canAutoLoad, hasMore, loading, onLoadMore, onScrollTopChange]);
 
   return (
     <div className="post-list-scroll" ref={parentRef}>
@@ -99,12 +108,22 @@ export default function VirtualPostList({
         })}
       </div>
       {loading && (
-        <div className="flex justify-center py-4">
+        <div className="feed-list-footer">
           <Spinner />
         </div>
       )}
-      {!loading && !hasMore && posts.length > 0 && (
-        <div style={{ textAlign: 'center', padding: 6, fontSize: 12, color: 'var(--color-text-3)' }}>— 已加载全部 —</div>
+      {showHistoryPrompt && (
+        <div className="feed-list-footer feed-list-footer--history">
+          <p className="feed-list-footer__hint">
+            已显示 {posts.length} / {postTotal} 条
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={onLoadMore}>
+            加载更多历史
+          </Button>
+        </div>
+      )}
+      {showEnd && (
+        <div className="feed-list-footer feed-list-footer--end">— 已加载全部 —</div>
       )}
     </div>
   );

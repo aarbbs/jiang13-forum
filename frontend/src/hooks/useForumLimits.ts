@@ -9,6 +9,9 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   comment_max: 5000,
   search_keyword_min: 1,
   search_keyword_max: 50,
+  page_size_default: 30,
+  feed_max_pages: 10,
+  feed_max_items: 300,
   password_min_len: 6,
   avatar_max_mb: 2,
 };

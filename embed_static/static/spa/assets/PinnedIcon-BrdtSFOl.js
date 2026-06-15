@@ -1,0 +1,1 @@
+import{j as n}from"./react-vendor-1fwFMt02.js";import{f as i}from"./index-BCHo3nLu.js";import{N as s}from"./ui-vendor-Gb6mai95.js";function m({className:o,size:r=16}){return n.jsx(s,{className:i("post-pinned-icon",o),size:r,fill:"currentColor","aria-label":"置顶",role:"img"})}export{m as P};

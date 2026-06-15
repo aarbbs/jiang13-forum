@@ -29,6 +29,9 @@ const (
 	SettingPageSizeDefault = "page_size_default"
 	SettingPageSizeMax     = "page_size_max"
 
+	SettingFeedMaxPages = "feed_max_pages"
+	SettingFeedMaxItems = "feed_max_items"
+
 	SettingPasswordMinLen = "password_min_len"
 	SettingAvatarMaxMB    = "avatar_max_mb"
 )
@@ -55,6 +58,9 @@ type ForumLimits struct {
 	PageSizeDefault int `json:"page_size_default"`
 	PageSizeMax     int `json:"page_size_max"`
 
+	FeedMaxPages int `json:"feed_max_pages"`
+	FeedMaxItems int `json:"feed_max_items"`
+
 	PasswordMinLen int `json:"password_min_len"`
 	AvatarMaxMB    int `json:"avatar_max_mb"`
 }
@@ -67,6 +73,9 @@ type ForumLimitsPublic struct {
 	CommentMax     int `json:"comment_max"`
 	SearchKeywordMin int `json:"search_keyword_min"`
 	SearchKeywordMax int `json:"search_keyword_max"`
+	PageSizeDefault  int `json:"page_size_default"`
+	FeedMaxPages     int `json:"feed_max_pages"`
+	FeedMaxItems     int `json:"feed_max_items"`
 	PasswordMinLen int `json:"password_min_len"`
 	AvatarMaxMB    int `json:"avatar_max_mb"`
 }
@@ -98,6 +107,9 @@ var forumSettingDefs = []settingDef{
 
 	{SettingPageSizeDefault, "30", 1, 200},
 	{SettingPageSizeMax, "50", 1, 200},
+
+	{SettingFeedMaxPages, "10", 1, 100},
+	{SettingFeedMaxItems, "300", 1, 5000},
 
 	{SettingPasswordMinLen, "6", 4, 128},
 	{SettingAvatarMaxMB, "2", 1, 20},
@@ -176,6 +188,9 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		PageSizeDefault: s.PageSizeDefault(),
 		PageSizeMax:     s.PageSizeMax(),
 
+		FeedMaxPages: s.FeedMaxPages(),
+		FeedMaxItems: s.FeedMaxItems(),
+
 		PasswordMinLen: s.PasswordMinLen(),
 		AvatarMaxMB:    s.AvatarMaxMB(),
 	}
@@ -190,6 +205,9 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		CommentMax:       limits.CommentMax,
 		SearchKeywordMin: limits.SearchKeywordMin,
 		SearchKeywordMax: limits.SearchKeywordMax,
+		PageSizeDefault:  limits.PageSizeDefault,
+		FeedMaxPages:     limits.FeedMaxPages,
+		FeedMaxItems:     limits.FeedMaxItems,
 		PasswordMinLen:   limits.PasswordMinLen,
 		AvatarMaxMB:      limits.AvatarMaxMB,
 	}
@@ -211,6 +229,8 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		SettingSearchKeywordMax:    in.SearchKeywordMax,
 		SettingPageSizeDefault:     in.PageSizeDefault,
 		SettingPageSizeMax:         in.PageSizeMax,
+		SettingFeedMaxPages:        in.FeedMaxPages,
+		SettingFeedMaxItems:        in.FeedMaxItems,
 		SettingPasswordMinLen:      in.PasswordMinLen,
 		SettingAvatarMaxMB:         in.AvatarMaxMB,
 	}
@@ -261,6 +281,9 @@ func (s *ForumSettingsService) SearchKeywordMax() int { return s.getInt(SettingS
 
 func (s *ForumSettingsService) PageSizeDefault() int { return s.getInt(SettingPageSizeDefault, 30) }
 func (s *ForumSettingsService) PageSizeMax() int     { return s.getInt(SettingPageSizeMax, 50) }
+
+func (s *ForumSettingsService) FeedMaxPages() int { return s.getInt(SettingFeedMaxPages, 10) }
+func (s *ForumSettingsService) FeedMaxItems() int { return s.getInt(SettingFeedMaxItems, 300) }
 
 func (s *ForumSettingsService) PasswordMinLen() int { return s.getInt(SettingPasswordMinLen, 6) }
 func (s *ForumSettingsService) AvatarMaxMB() int    { return s.getInt(SettingAvatarMaxMB, 2) }

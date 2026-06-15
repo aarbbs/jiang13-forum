@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
@@ -7,6 +7,7 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
 import FeedHeader from '../components/FeedHeader';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
+import { useForumLimits } from '../hooks/useForumLimits';
 import {
   getFeedCache,
   setFeedCache,
@@ -21,6 +22,11 @@ export default function HomePage() {
   const location = useLocation();
   const [params] = useSearchParams();
   const ctx = useOutletContext<LayoutCtx>();
+  const { limits } = useForumLimits();
+  const pageSize = limits.page_size_default;
+  const feedMaxPages = limits.feed_max_pages;
+  const feedMaxItems = limits.feed_max_items;
+
   const boardId = Number(params.get('board')) || ctx?.boardId || 0;
   const keyword = params.get('keyword') || '';
   const sort = parseFeedSort(params.get('sort'));
@@ -37,6 +43,11 @@ export default function HomePage() {
   const pageWrapRef = useRef<HTMLDivElement>(null);
   /** 主动刷新时不把旧列表/滚动位置写回 cache */
   const skipCacheSaveRef = useRef(false);
+
+  const canAutoLoad = useMemo(
+    () => hasMore && page < feedMaxPages && posts.length < feedMaxItems,
+    [hasMore, page, feedMaxPages, posts.length, feedMaxItems],
+  );
 
   const resetFeedView = useCallback(() => {
     setRestoreScrollTop(null);
@@ -56,7 +67,7 @@ export default function HomePage() {
     try {
       const data = await api.posts({
         page: p,
-        size: 30,
+        size: pageSize,
         board_id: boardId || '',
         keyword,
         sort: sort === 'latest' ? '' : sort,
@@ -72,36 +83,32 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [boardId, keyword, sort]);
+  }, [boardId, keyword, sort, pageSize]);
 
-  /** 有缓存时静默拉取已加载页，更新置顶等状态同时保留滚动位置 */
-  const revalidate = useCallback(async (maxPage: number) => {
+  /** 有缓存时静默刷新第 1 页，合并置顶等变化同时保留已加载的历史 */
+  const revalidate = useCallback(async () => {
     try {
-      const all: PostItem[] = [];
-      let total = 0;
-      let hasMore = true;
-      for (let p = 1; p <= maxPage; p++) {
-        const data = await api.posts({
-          page: p,
-          size: 30,
-          board_id: boardId || '',
-          keyword,
-          sort: sort === 'latest' ? '' : sort,
-        });
-        const batch = Array.isArray(data.posts) ? data.posts : [];
-        all.push(...batch);
-        total = data.total ?? 0;
-        hasMore = !!data.has_more;
-        if (!data.has_more) break;
-      }
-      setPosts(all);
-      setPostTotal(total);
-      setHasMore(hasMore);
-      setPage(maxPage);
+      const data = await api.posts({
+        page: 1,
+        size: pageSize,
+        board_id: boardId || '',
+        keyword,
+        sort: sort === 'latest' ? '' : sort,
+      });
+      const fresh = Array.isArray(data.posts) ? data.posts : [];
+      const freshIds = new Set(fresh.map(p => p.id));
+      setPosts(prev => [...fresh, ...prev.filter(p => !freshIds.has(p.id))]);
+      setPostTotal(data.total ?? 0);
+      setHasMore(!!data.has_more);
     } catch {
       // 静默失败，保留缓存数据
     }
-  }, [boardId, keyword, sort]);
+  }, [boardId, keyword, sort, pageSize]);
+
+  const loadNextPage = useCallback(() => {
+    if (loading || !hasMore) return;
+    load(page + 1);
+  }, [loading, hasMore, page, load]);
 
   useEffect(() => {
     const forceRefresh = (location.state as FeedNavState | null)?.refreshFeed;
@@ -119,7 +126,7 @@ export default function HomePage() {
       setRestoreScrollTop(cached.scrollTop);
       scrollTopRef.current = cached.scrollTop;
       setLoading(false);
-      revalidate(cached.page);
+      revalidate();
       return;
     }
     setRestoreScrollTop(null);
@@ -193,7 +200,9 @@ export default function HomePage() {
         sort={sort}
         loading={loading}
         hasMore={hasMore}
-        onLoadMore={() => !loading && hasMore && load(page + 1)}
+        canAutoLoad={canAutoLoad}
+        postTotal={postTotal}
+        onLoadMore={loadNextPage}
         onSelect={(id) => nav(`/post/${id}`)}
         restoreScrollTop={restoreScrollTop}
         resetScrollKey={listResetKey}

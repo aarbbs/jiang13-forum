@@ -68,6 +68,8 @@ const SETTING_SECTIONS: SettingSection[] = [
       { key: 'search_keyword_max', label: '关键词最长', unit: '字', min: 1 },
       { key: 'page_size_default', label: '默认每页', unit: '条', min: 1 },
       { key: 'page_size_max', label: '最大每页', unit: '条', min: 1 },
+      { key: 'feed_max_pages', label: '首页自动加载页数', unit: '页', hint: '超出后需手动加载', min: 1 },
+      { key: 'feed_max_items', label: '首页自动加载条数', unit: '条', hint: '与页数取先到上限', min: 1 },
     ],
   },
   {

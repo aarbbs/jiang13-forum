@@ -105,6 +105,8 @@ export interface ForumLimits {
   search_keyword_max: number;
   page_size_default: number;
   page_size_max: number;
+  feed_max_pages: number;
+  feed_max_items: number;
   password_min_len: number;
   avatar_max_mb: number;
 }
@@ -116,6 +118,9 @@ export interface ForumLimitsPublic {
   comment_max: number;
   search_keyword_min: number;
   search_keyword_max: number;
+  page_size_default: number;
+  feed_max_pages: number;
+  feed_max_items: number;
   password_min_len: number;
   avatar_max_mb: number;
 }
