@@ -34,12 +34,14 @@ make build           # Linux / macOS
 
 ## 报告问题
 
-在 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues) 中描述：
+在 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues) 中描述（也可使用仓库自带的 Issue 模板）：
 
 1. 复现步骤
 2. 期望行为 vs 实际行为
 3. 环境信息（系统、浏览器、Go/Node 版本）
 4. 截图或日志（如有）
+
+已知问题与计划功能见 [ROADMAP.md](../ROADMAP.md)。
 
 ## 行为准则
 

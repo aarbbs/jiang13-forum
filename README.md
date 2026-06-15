@@ -16,6 +16,7 @@
 [快速开始](#-快速开始) ·
 [界面预览](#-界面预览) ·
 [功能亮点](#-功能亮点) ·
+[路线图](ROADMAP.md) ·
 [参与贡献](CONTRIBUTING.md)
 
 <br>
@@ -23,6 +24,11 @@
 <img src="docs/screenshots/home-light.png" alt="姜十三论坛首页 - 浅色主题三栏布局" width="92%">
 
 <sub>浅色主题 · V2EX/NGA 风格三栏布局 · 虚拟滚动帖列表</sub>
+
+<br>
+
+> **开发状态：** 项目积极开发中，部分功能尚未完善（如评论换行显示、React 前台置顶等）。  
+> 查看 [路线图 ROADMAP.md](ROADMAP.md) · [Issues 反馈](https://git.iioio.com/freefire/jiang13-forum/issues)
 
 </div>
 
@@ -202,6 +208,8 @@ jiang13-forum/
 ├── embed_static/          # go:embed 内嵌的 SPA 与模板
 ├── frontend/              # React 源码（Vite 构建）
 ├── docs/screenshots/      # README 界面截图
+├── docs/issue-templates.md # Issue 预填模板
+├── ROADMAP.md             # 路线图与已知问题
 └── scripts/               # 开发辅助脚本
 ```
 
@@ -218,6 +226,20 @@ data/
 ├── uploads/avatars/        # 用户头像
 └── jiang13_backup_*.db     # 后台导出的备份
 ```
+
+---
+
+## 开发状态
+
+项目**积极开发中**，作为论坛产品功能尚未完善，欢迎参与共建。
+
+| 类型 | 示例 |
+|------|------|
+| 🐛 已知缺陷 | 评论回复换行不显示 |
+| 📋 计划中 | React 前台帖子置顶（API 已有，缺 UI） |
+| ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、楼层评论 |
+
+完整列表见 **[路线图 ROADMAP.md](ROADMAP.md)**。发现问题请提交 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues)，认领任务请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 

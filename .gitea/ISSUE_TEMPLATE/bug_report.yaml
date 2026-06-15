@@ -1,0 +1,56 @@
+name: 缺陷报告
+about: 报告一个可复现的问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量提供复现步骤，方便我们定位问题。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要说明发生了什么
+      placeholder: 评论回复换行后，页面上显示为一行…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开帖子详情页
+        2. 在评论框输入多行文字
+        3. 点击发送
+        4. 观察到换行丢失
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      placeholder: main @ abc1234 或 v1.0.0
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: Windows 11 / Chrome 125 / Go 1.26
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图或日志
+      description: 可粘贴图片或相关日志
