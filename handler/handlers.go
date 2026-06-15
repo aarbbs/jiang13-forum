@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jiang13/forum/config"
-	"github.com/jiang13/forum/middleware"
-	"github.com/jiang13/forum/model"
-	"github.com/jiang13/forum/service"
+	"git.iioio.com/freefire/jiang13-forum/config"
+	"git.iioio.com/freefire/jiang13-forum/middleware"
+	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/service"
 )
 
 // Handlers 聚合所有 HTTP 处理器

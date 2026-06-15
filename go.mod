@@ -1,4 +1,4 @@
-module github.com/jiang13/forum
+module git.iioio.com/freefire/jiang13-forum
 
 go 1.26
 

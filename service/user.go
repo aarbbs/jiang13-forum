@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jiang13/forum/model"
+	"git.iioio.com/freefire/jiang13-forum/model"
 )
 
 type UserService struct {

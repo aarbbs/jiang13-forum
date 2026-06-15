@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jiang13/forum/config"
-	"github.com/jiang13/forum/model"
-	"github.com/jiang13/forum/router"
+	"git.iioio.com/freefire/jiang13-forum/config"
+	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/router"
 )
 
 func main() {

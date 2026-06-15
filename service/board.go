@@ -3,7 +3,7 @@ package service
 import (
 	"errors"
 
-	"github.com/jiang13/forum/model"
+	"git.iioio.com/freefire/jiang13-forum/model"
 )
 
 type BoardService struct{}

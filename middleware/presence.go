@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jiang13/forum/service"
+	"git.iioio.com/freefire/jiang13-forum/service"
 )
 
 const VisitorCookieName = "j13_vid"

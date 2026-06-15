@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jiang13/forum/model"
-	"github.com/jiang13/forum/service"
+	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/service"
 )
 
 const (

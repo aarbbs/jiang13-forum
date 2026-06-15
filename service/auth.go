@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jiang13/forum/model"
+	"git.iioio.com/freefire/jiang13-forum/model"
 )
 
 const TokenExpire = 7 * 24 * time.Hour

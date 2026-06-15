@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jiang13/forum/config"
-	"github.com/jiang13/forum/embed_static"
-	"github.com/jiang13/forum/handler"
-	"github.com/jiang13/forum/middleware"
-	"github.com/jiang13/forum/service"
+	"git.iioio.com/freefire/jiang13-forum/config"
+	"git.iioio.com/freefire/jiang13-forum/embed_static"
+	"git.iioio.com/freefire/jiang13-forum/handler"
+	"git.iioio.com/freefire/jiang13-forum/middleware"
+	"git.iioio.com/freefire/jiang13-forum/service"
 )
 
 func Setup(cfg *config.Config) (*gin.Engine, error) {

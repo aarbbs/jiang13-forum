@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jiang13/forum/model"
-	"github.com/jiang13/forum/service"
+	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/service"
 )
 
 // APIMe 当前登录用户

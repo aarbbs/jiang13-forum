@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/jiang13/forum/model"
+	"git.iioio.com/freefire/jiang13-forum/model"
 	"gorm.io/gorm"
 )
 

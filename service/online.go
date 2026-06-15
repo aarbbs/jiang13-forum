@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jiang13/forum/model"
+	"git.iioio.com/freefire/jiang13-forum/model"
 )
 
 const onlineTTL = 5 * time.Minute
