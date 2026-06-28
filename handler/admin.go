@@ -114,7 +114,8 @@ func calcTotalPages(total int64, size int) int {
 
 func (h *Handlers) AdminAPICreateBoard(c *gin.Context) {
 	sortOrder, _ := strconv.Atoi(c.PostForm("sort_order"))
-	board, err := h.Board.Create(c.PostForm("name"), c.PostForm("description"), sortOrder)
+	colorIndex, _ := strconv.Atoi(c.PostForm("color_index"))
+	board, err := h.Board.Create(c.PostForm("name"), c.PostForm("description"), c.PostForm("icon"), colorIndex, sortOrder)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -125,7 +126,8 @@ func (h *Handlers) AdminAPICreateBoard(c *gin.Context) {
 func (h *Handlers) AdminAPIUpdateBoard(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	sortOrder, _ := strconv.Atoi(c.PostForm("sort_order"))
-	if err := h.Board.Update(uint(id), c.PostForm("name"), c.PostForm("description"), sortOrder); err != nil {
+	colorIndex, _ := strconv.Atoi(c.PostForm("color_index"))
+	if err := h.Board.Update(uint(id), c.PostForm("name"), c.PostForm("description"), c.PostForm("icon"), colorIndex, sortOrder); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

@@ -4,6 +4,7 @@ import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock } from 'lucide-re
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import BoardBadge from '@/components/BoardBadge';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
@@ -214,7 +215,7 @@ export default function PostDetailPage() {
             返回
           </Button>
           {post.board && (
-            <Badge variant="green" className="post-detail-board-tag">{post.board.name}</Badge>
+            <BoardBadge board={post.board} className="post-detail-board-tag" />
           )}
         </div>
 

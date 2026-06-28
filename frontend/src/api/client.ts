@@ -43,9 +43,9 @@ export const api = {
   online: () => request<OnlineStats>('/api/online'),
   presence: () => request<Pick<OnlineStats, 'count' | 'members' | 'guests'>>('/api/presence', { method: 'POST' }),
   favorites: () => request<{ favorites: unknown[]; total: number }>('/api/favorites'),
-  createBoard: (body: { name: string; description: string; sort_order: number }) =>
+  createBoard: (body: { name: string; description: string; sort_order: number; icon?: string; color_index?: number }) =>
     request<{ board: Board }>('/api/admin/boards', { method: 'POST', body: JSON.stringify(body) }),
-  updateBoard: (id: number, body: { name: string; description: string; sort_order: number }) =>
+  updateBoard: (id: number, body: { name: string; description: string; sort_order: number; icon?: string; color_index?: number }) =>
     request<{ board: Board }>(`/api/admin/boards/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteBoard: (id: number) => request(`/api/admin/boards/${id}`, { method: 'DELETE' }),
   // 管理后台 API

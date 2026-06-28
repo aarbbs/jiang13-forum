@@ -1,4 +1,5 @@
-import { Badge } from '@/components/ui/badge';
+import { MessageCircle, ThumbsUp } from 'lucide-react';
+import BoardBadge from '@/components/BoardBadge';
 import PinnedIcon from '@/components/PinnedIcon';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
@@ -17,6 +18,8 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
       ? `${formatTime(post.last_reply_at)} 回复`
       : '暂无回复')
     : formatTime(post.created_at);
+  const commentCount = post.comment_count ?? 0;
+  const likeCount = post.like_count ?? 0;
 
   return (
     <div className="post-row" onClick={onClick}>
@@ -29,14 +32,20 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
           {post.title}
         </div>
         <div className="post-meta">
-          {post.board && <Badge variant="green">{post.board.name}</Badge>}
+          {post.board && <BoardBadge board={post.board} />}
           <span>{post.user?.nickname || '匿名'}</span>
           <span>{timeLabel}</span>
         </div>
       </div>
       <div className="post-stats">
-        <span>💬 {post.comment_count ?? 0}</span>
-        <span>👍 {post.like_count ?? 0}</span>
+        <span className={`post-stat${commentCount === 0 ? ' post-stat--zero' : ''}`}>
+          <MessageCircle aria-hidden />
+          {commentCount}
+        </span>
+        <span className={`post-stat${likeCount === 0 ? ' post-stat--zero' : ''}`}>
+          <ThumbsUp aria-hidden />
+          {likeCount}
+        </span>
       </div>
     </div>
   );

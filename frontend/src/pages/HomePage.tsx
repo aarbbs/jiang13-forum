@@ -183,19 +183,20 @@ export default function HomePage() {
 
   return (
     <div className="page-wrap" ref={pageWrapRef}>
-      <div className="feed-top">
-        <FeedHeader
-          boardId={boardId}
-          keyword={keyword}
-          boards={ctx?.boards ?? []}
-          stats={ctx?.stats ?? null}
-          postTotal={postTotal}
-        />
-        {showSortBar && (
-          <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
-        )}
-      </div>
-      <VirtualPostList
+      <div className="feed-panel">
+        <div className="feed-top">
+          <FeedHeader
+            boardId={boardId}
+            keyword={keyword}
+            boards={ctx?.boards ?? []}
+            stats={ctx?.stats ?? null}
+            postTotal={postTotal}
+          />
+          {showSortBar && (
+            <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
+          )}
+        </div>
+        <VirtualPostList
         posts={posts}
         sort={sort}
         loading={loading}
@@ -209,6 +210,7 @@ export default function HomePage() {
         onScrollTopChange={(top) => { scrollTopRef.current = top; }}
         onScrollRestored={() => setRestoreScrollTop(null)}
       />
+      </div>
     </div>
   );
 }

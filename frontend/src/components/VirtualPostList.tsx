@@ -1,8 +1,8 @@
 import { useRef, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
+import PostListSkeleton from './PostListSkeleton';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
 
@@ -50,6 +50,8 @@ export default function VirtualPostList({
 
   const showHistoryPrompt = hasMore && !canAutoLoad && !loading;
   const showEnd = !hasMore && posts.length > 0 && !loading;
+  const isInitialLoad = loading && posts.length === 0;
+  const isLoadingMore = loading && posts.length > 0;
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
@@ -88,42 +90,44 @@ export default function VirtualPostList({
 
   return (
     <div className="post-list-scroll" ref={parentRef}>
-      <div className="content-surface" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-        {virtualizer.getVirtualItems().map(vi => {
-          const post = posts[vi.index];
-          return (
-            <div
-              key={post.id}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${vi.start}px)`,
-              }}
-            >
-              <PostListItem post={post} sort={sort} onClick={() => onSelect(post.id)} />
+      {isInitialLoad ? (
+        <PostListSkeleton />
+      ) : (
+        <>
+          <div className="content-surface" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(vi => {
+              const post = posts[vi.index];
+              return (
+                <div
+                  key={post.id}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${vi.start}px)`,
+                  }}
+                >
+                  <PostListItem post={post} sort={sort} onClick={() => onSelect(post.id)} />
+                </div>
+              );
+            })}
+          </div>
+          {isLoadingMore && <PostListSkeleton count={2} />}
+          {showHistoryPrompt && (
+            <div className="feed-list-footer feed-list-footer--history">
+              <p className="feed-list-footer__hint">
+                已显示 {posts.length} / {postTotal} 条
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={onLoadMore}>
+                加载更多历史
+              </Button>
             </div>
-          );
-        })}
-      </div>
-      {loading && (
-        <div className="feed-list-footer">
-          <Spinner />
-        </div>
-      )}
-      {showHistoryPrompt && (
-        <div className="feed-list-footer feed-list-footer--history">
-          <p className="feed-list-footer__hint">
-            已显示 {posts.length} / {postTotal} 条
-          </p>
-          <Button type="button" variant="outline" size="sm" onClick={onLoadMore}>
-            加载更多历史
-          </Button>
-        </div>
-      )}
-      {showEnd && (
-        <div className="feed-list-footer feed-list-footer--end">— 已加载全部 —</div>
+          )}
+          {showEnd && (
+            <div className="feed-list-footer feed-list-footer--end">— 已加载全部 —</div>
+          )}
+        </>
       )}
     </div>
   );

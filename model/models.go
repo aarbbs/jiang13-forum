@@ -34,6 +34,8 @@ type Board struct {
 	ID          uint           `gorm:"primaryKey" json:"id"`
 	Name        string         `gorm:"size:64;not null" json:"name"`
 	Description string         `gorm:"size:512" json:"description"`
+	Icon        string         `gorm:"size:64;default:''" json:"icon"`
+	ColorIndex  int            `gorm:"default:-1" json:"color_index"` // -1 表示按 id 自动取色
 	SortOrder   int            `gorm:"default:0" json:"sort_order"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { ArrowLeft, Send, Tag } from 'lucide-react';
 import { notify } from '@/lib/notify';
@@ -7,8 +7,17 @@ import { useAuth } from '../hooks/useAuth';
 import type { Board } from '../api/types';
 import { isHtmlEmpty } from '../utils/postContent';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import ArticleEditor from '../components/ArticleEditor';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import { Spinner } from '@/components/ui/spinner';
+
+interface ComposeBaseline {
+  title: string;
+  tags: string;
+  content: string;
+  boardId: string;
+}
 
 export default function ComposePage() {
   const nav = useNavigate();
@@ -27,6 +36,7 @@ export default function ComposePage() {
   const [content, setContent] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  const [baseline, setBaseline] = useState<ComposeBaseline | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -50,10 +60,17 @@ export default function ComposePage() {
             nav(`/post/${editId}`);
             return;
           }
-          setBoardId(String(post.board_id));
+          const loadedBoardId = String(post.board_id);
+          setBoardId(loadedBoardId);
           setTitle(post.title);
           setTags(post.tags ?? '');
           setContent(post.content ?? '');
+          setBaseline({
+            title: post.title,
+            tags: post.tags ?? '',
+            content: post.content ?? '',
+            boardId: loadedBoardId,
+          });
         })
         .catch((e: unknown) => {
           notify.error(e instanceof Error ? e.message : '加载帖子失败');
@@ -66,11 +83,36 @@ export default function ComposePage() {
     api.boards().then(d => {
       const list = d.boards ?? [];
       setBoards(list);
+      const initialBoardId = defaultBoard || (list.length > 0 ? String(list[0].id) : '');
       if (!defaultBoard && list.length > 0) {
-        setBoardId(String(list[0].id));
+        setBoardId(initialBoardId);
       }
+      setBaseline({
+        title: '',
+        tags: '',
+        content: '',
+        boardId: initialBoardId,
+      });
     }).catch(() => {});
   }, [user, authLoading, nav, defaultBoard, isEdit, editId]);
+
+  const isDirty = useMemo(() => {
+    if (!baseline) return false;
+    return (
+      title !== baseline.title
+      || tags !== baseline.tags
+      || content !== baseline.content
+      || (!isEdit && boardId !== baseline.boardId)
+    );
+  }, [baseline, title, tags, content, boardId, isEdit]);
+
+  const {
+    dialogOpen,
+    stayOnPage,
+    discardAndLeave,
+    requestLeave,
+    markSaved,
+  } = useUnsavedChangesGuard({ isDirty });
 
   if (authLoading) {
     return (
@@ -127,10 +169,12 @@ export default function ComposePage() {
       if (isEdit) {
         await api.updatePost(editId!, payload);
         notify.success('帖子已更新');
+        markSaved();
         nav(`/post/${editId}`);
       } else {
         const res = await api.createPost({ board_id: boardId, ...payload });
         notify.success('发帖成功');
+        markSaved();
         nav(`/post/${res.post_id}`);
       }
     } catch (e: unknown) {
@@ -146,7 +190,11 @@ export default function ComposePage() {
     <div className="compose-page">
       <div className="compose-canvas">
         <header className="compose-header">
-          <button type="button" className="compose-back" onClick={() => nav(isEdit ? `/post/${editId}` : -1)}>
+          <button
+            type="button"
+            className="compose-back"
+            onClick={() => requestLeave(() => nav(isEdit ? `/post/${editId}` : -1))}
+          >
             <ArrowLeft size={16} />
             <span>返回</span>
           </button>
@@ -215,6 +263,12 @@ export default function ComposePage() {
           />
         </div>
       </div>
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onStay={stayOnPage}
+        onLeave={discardAndLeave}
+        isEdit={isEdit}
+      />
     </div>
   );
 }

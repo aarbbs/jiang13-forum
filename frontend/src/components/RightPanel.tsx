@@ -1,3 +1,4 @@
+import { Flame, Megaphone, Users } from 'lucide-react';
 import type { PostItem, Notification, OnlineStats } from '../api/types';
 
 interface Props {
@@ -7,45 +8,61 @@ interface Props {
   onPostClick: (id: number) => void;
 }
 
+function hotRankClass(index: number): string {
+  if (index === 0) return 'widget-rank widget-rank--1';
+  if (index === 1) return 'widget-rank widget-rank--2';
+  if (index === 2) return 'widget-rank widget-rank--3';
+  return 'widget-rank';
+}
+
 export default function RightPanel({ hot, notifications, online, onPostClick }: Props) {
   const hotList = hot?.slice(0, 8) ?? [];
   const noticeList = notifications?.slice(0, 6) ?? [];
   const members = online?.users ?? [];
 
   return (
-    <>
+    <div className="aside-panel-inner">
       <div className="widget-card">
-        <div className="widget-card-head">🔥 热门帖子</div>
+        <div className="widget-card-head">
+          <Flame className="widget-card-icon widget-card-icon--hot" aria-hidden />
+          热门帖子
+        </div>
         <div className="widget-card-body">
           {hotList.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-3)', padding: '8px 0' }}>暂无数据</div>
+            <div className="widget-empty">暂无数据</div>
           ) : hotList.map((item, i) => (
             <div key={item.id} className="widget-item" onClick={() => onPostClick(item.id)}>
-              <span style={{ color: i < 3 ? '#e74c3c' : 'var(--color-text-3)', fontWeight: 600, minWidth: 18 }}>{i + 1}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+              <span className={hotRankClass(i)}>{i + 1}</span>
+              <span className="widget-item-title">{item.title}</span>
             </div>
           ))}
         </div>
       </div>
 
       <div className="widget-card">
-        <div className="widget-card-head">📢 最新动态</div>
+        <div className="widget-card-head">
+          <Megaphone className="widget-card-icon widget-card-icon--notice" aria-hidden />
+          最新动态
+        </div>
         <div className="widget-card-body">
           {noticeList.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-3)', padding: '8px 0' }}>暂无动态</div>
+            <div className="widget-empty">暂无动态</div>
           ) : noticeList.map(item => (
-            <div key={item.id} className="widget-item" onClick={() => onPostClick(item.id)}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-              <span style={{ fontSize: 11, color: 'var(--color-text-4)', flexShrink: 0 }}>{item.created_at}</span>
+            <div key={item.id} className="widget-item widget-item--notice" onClick={() => onPostClick(item.id)}>
+              <span className="widget-item-title">{item.title}</span>
+              <span className="widget-item-time">{item.created_at}</span>
             </div>
           ))}
         </div>
       </div>
 
       <div className="widget-card">
-        <div className="widget-card-head">👀 当前浏览 {online?.count ?? '—'} 人</div>
+        <div className="widget-card-head">
+          <Users className="widget-card-icon widget-card-icon--online" aria-hidden />
+          当前浏览 <span className="widget-head-count">{online?.count ?? '—'}</span> 人
+        </div>
         <div className="widget-card-body">
-          <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginBottom: 8 }}>
+          <div className="widget-online-meta">
             会员 {online?.members ?? 0} · 游客 {online?.guests ?? 0}
           </div>
           <div className="widget-online-list">
@@ -57,7 +74,7 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
               </span>
             ))}
             {members.length === 0 && (
-              <span style={{ fontSize: 13, color: 'var(--color-text-3)' }}>暂无会员在线</span>
+              <span className="widget-empty widget-empty--inline">暂无会员在线</span>
             )}
           </div>
         </div>
@@ -71,6 +88,6 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
           </p>
         </div>
       </div>
-    </>
+    </div>
   );
 }

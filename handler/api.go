@@ -64,13 +64,15 @@ func (h *Handlers) APIAdminCreateBoard(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
+		Icon        string `json:"icon"`
+		ColorIndex  int    `json:"color_index"`
 		SortOrder   int    `json:"sort_order"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	board, err := h.Board.Create(req.Name, req.Description, req.SortOrder)
+	board, err := h.Board.Create(req.Name, req.Description, req.Icon, req.ColorIndex, req.SortOrder)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -84,13 +86,15 @@ func (h *Handlers) APIAdminUpdateBoard(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
+		Icon        string `json:"icon"`
+		ColorIndex  int    `json:"color_index"`
 		SortOrder   int    `json:"sort_order"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := h.Board.Update(uint(id), req.Name, req.Description, req.SortOrder); err != nil {
+	if err := h.Board.Update(uint(id), req.Name, req.Description, req.Icon, req.ColorIndex, req.SortOrder); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

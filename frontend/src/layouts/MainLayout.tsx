@@ -20,6 +20,8 @@ import { useForumLimits } from '../hooks/useForumLimits';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
 import { notify } from '@/lib/notify';
+import { cn } from '@/lib/utils';
+import { getBoardThemeIndex } from '../utils/boardTheme';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -221,13 +223,21 @@ export default function MainLayout() {
                 className={`board-chip ${mobileActiveBoard === 0 ? 'active' : ''}`}
                 onClick={() => { setBoardId(0); navigateFeed(nav, buildHomeUrl(0, feedSort)); }}
               >全部</span>
-              {boards.map(b => (
-                <span
-                  key={b.id}
-                  className={`board-chip ${mobileActiveBoard === b.id ? 'active' : ''}`}
-                  onClick={() => { setBoardId(b.id); navigateFeed(nav, buildHomeUrl(b.id, feedSort)); }}
-                >{b.name}</span>
-              ))}
+              {boards.map(b => {
+                const themeIdx = getBoardThemeIndex(b);
+                const isActive = mobileActiveBoard === b.id;
+                return (
+                  <span
+                    key={b.id}
+                    className={cn(
+                      'board-chip',
+                      isActive && 'active',
+                      isActive && `board-chip--${themeIdx}`,
+                    )}
+                    onClick={() => { setBoardId(b.id); navigateFeed(nav, buildHomeUrl(b.id, feedSort)); }}
+                  >{b.name}</span>
+                );
+              })}
             </div>
           )}
           <Suspense fallback={<PageLoader />}>

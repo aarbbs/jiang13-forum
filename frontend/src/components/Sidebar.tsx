@@ -7,6 +7,8 @@ import { useAuth } from '../hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { buildHomeUrl, parseFeedSort } from './FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
+import BoardIconDisplay from './BoardIconDisplay';
+import { getBoardThemeIndex } from '../utils/boardTheme';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
 const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile'];
@@ -60,18 +62,34 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
 
       {boards.length > 0 && (
         <>
-          <div className="sidebar-section" style={{ marginTop: 8 }}>板块</div>
+          <div className="sidebar-section sidebar-section--boards">板块</div>
           <nav className="sidebar-nav">
-            {boards.map(b => (
-              <button
-                type="button"
-                key={b.id}
-                className={cn('sidebar-nav-item', menuKey != null && menuKey === String(b.id) && 'active')}
-                onClick={() => { onSelectBoard(b.id); navigateFeed(nav, buildHomeUrl(b.id, sort)); }}
-              >
-                <span className="flex-1 truncate">{b.name}</span>
-              </button>
-            ))}
+            {boards.map(b => {
+              const isActive = menuKey != null && menuKey === String(b.id);
+              const themeIdx = getBoardThemeIndex(b);
+              return (
+                <button
+                  type="button"
+                  key={b.id}
+                  className={cn(
+                    'sidebar-nav-item',
+                    'sidebar-nav-item--board',
+                    isActive && 'active',
+                    isActive && `sidebar-nav-item--board-${themeIdx}`,
+                  )}
+                  onClick={() => { onSelectBoard(b.id); navigateFeed(nav, buildHomeUrl(b.id, sort)); }}
+                >
+                  <BoardIconDisplay
+                    board={b}
+                    className={cn('sidebar-board-icon', `sidebar-board-icon--${themeIdx}`)}
+                  />
+                  <span className="flex-1 truncate">{b.name}</span>
+                  {(b.post_count ?? 0) > 0 && (
+                    <span className="sidebar-nav-item__meta">{b.post_count}</span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </>
       )}

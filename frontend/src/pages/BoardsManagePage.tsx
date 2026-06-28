@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -24,20 +23,25 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form';
 import { notify } from '@/lib/notify';
+import { cn } from '@/lib/utils';
 import { api } from '../api/client';
 import { useAdminGuard } from '../layouts/AdminLayout';
 import type { Board } from '../api/types';
+import { BoardColorPicker, BoardIconPicker } from '../components/BoardAppearancePicker';
+import BoardIconDisplay from '../components/BoardIconDisplay';
+import { getBoardThemeIndex } from '../utils/boardTheme';
 
 const boardSchema = z.object({
   name: z.string().min(1, '请输入名称').max(64),
   description: z.string().max(500).optional(),
   sort_order: z.coerce.number().min(0),
+  icon: z.string().max(64).optional(),
+  color_index: z.coerce.number().min(-1).max(7),
 });
 
 type BoardFormValues = z.infer<typeof boardSchema>;
 
 export default function BoardsManagePage() {
-  const nav = useNavigate();
   const { ready } = useAdminGuard();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,8 +51,11 @@ export default function BoardsManagePage() {
 
   const form = useForm<BoardFormValues>({
     resolver: zodResolver(boardSchema),
-    defaultValues: { name: '', description: '', sort_order: 1 },
+    defaultValues: { name: '', description: '', sort_order: 1, icon: '', color_index: -1 },
   });
+
+  const watchColorIndex = form.watch('color_index');
+  const editingPreviewId = editing?.id ?? boards.length + 1;
 
   const load = () => {
     setLoading(true);
@@ -64,7 +71,7 @@ export default function BoardsManagePage() {
 
   const openCreate = () => {
     setEditing(null);
-    form.reset({ name: '', description: '', sort_order: boards.length + 1 });
+    form.reset({ name: '', description: '', sort_order: boards.length + 1, icon: '', color_index: -1 });
     setModalOpen(true);
   };
 
@@ -74,6 +81,8 @@ export default function BoardsManagePage() {
       name: board.name,
       description: board.description ?? '',
       sort_order: board.sort_order,
+      icon: board.icon ?? '',
+      color_index: board.color_index ?? -1,
     });
     setModalOpen(true);
   };
@@ -81,11 +90,18 @@ export default function BoardsManagePage() {
   const handleSubmit = async (values: BoardFormValues) => {
     setSubmitting(true);
     try {
+      const body = {
+        name: values.name,
+        description: values.description ?? '',
+        sort_order: values.sort_order,
+        icon: values.icon ?? '',
+        color_index: values.color_index ?? -1,
+      };
       if (editing) {
-        await api.updateBoard(editing.id, values);
+        await api.updateBoard(editing.id, body);
         notify.success('板块已更新');
       } else {
-        await api.createBoard(values);
+        await api.createBoard(body);
         notify.success('板块已创建');
       }
       setModalOpen(false);
@@ -119,7 +135,7 @@ export default function BoardsManagePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h1>板块管理</h1>
-            <p>创建、编辑或删除论坛板块，用户发帖前需先有板块</p>
+            <p>创建、编辑或删除论坛板块；可为每个板块自定义图标与色标</p>
           </div>
           <Button onClick={openCreate}>
             <Plus />
@@ -137,6 +153,7 @@ export default function BoardsManagePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[60px]">ID</TableHead>
+                    <TableHead className="w-[52px]">图标</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>简介</TableHead>
                     <TableHead className="w-[70px]">排序</TableHead>
@@ -145,9 +162,16 @@ export default function BoardsManagePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {boards.map(board => (
+                  {boards.map(board => {
+                    const themeIdx = getBoardThemeIndex(board);
+                    return (
                     <TableRow key={board.id}>
                       <TableCell>{board.id}</TableCell>
+                      <TableCell>
+                        <span className={cn('board-table-icon', `sidebar-board-icon--${themeIdx}`)}>
+                          <BoardIconDisplay board={board} />
+                        </span>
+                      </TableCell>
                       <TableCell><strong>{board.name}</strong></TableCell>
                       <TableCell className="max-w-[200px] truncate">{board.description}</TableCell>
                       <TableCell>{board.sort_order}</TableCell>
@@ -179,7 +203,8 @@ export default function BoardsManagePage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
               {boards.length === 0 && (
@@ -192,7 +217,7 @@ export default function BoardsManagePage() {
       </div>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
+        <DialogContent className="board-manage-dialog">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑板块' : '新建板块'}</DialogTitle>
           </DialogHeader>
@@ -219,6 +244,40 @@ export default function BoardsManagePage() {
                     <FormLabel>简介</FormLabel>
                     <FormControl>
                       <Textarea rows={3} maxLength={500} placeholder="板块说明（可选）" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="icon"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>板块图标</FormLabel>
+                    <FormControl>
+                      <BoardIconPicker
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        board={{ id: editingPreviewId, color_index: watchColorIndex }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="color_index"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>色标颜色</FormLabel>
+                    <FormControl>
+                      <BoardColorPicker
+                        value={field.value ?? -1}
+                        onChange={field.onChange}
+                        boardId={editingPreviewId}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

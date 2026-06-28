@@ -45,14 +45,24 @@ func (s *BoardService) GetByID(id uint) (*model.Board, error) {
 	return &board, nil
 }
 
-func (s *BoardService) Create(name, desc string, sortOrder int) (*model.Board, error) {
-	board := &model.Board{Name: name, Description: desc, SortOrder: sortOrder}
+func (s *BoardService) Create(name, desc, icon string, colorIndex, sortOrder int) (*model.Board, error) {
+	board := &model.Board{
+		Name:        name,
+		Description: desc,
+		Icon:        NormalizeBoardIcon(icon),
+		ColorIndex:  NormalizeBoardColorIndex(colorIndex),
+		SortOrder:   sortOrder,
+	}
 	return board, model.DB.Create(board).Error
 }
 
-func (s *BoardService) Update(id uint, name, desc string, sortOrder int) error {
+func (s *BoardService) Update(id uint, name, desc, icon string, colorIndex, sortOrder int) error {
 	return model.DB.Model(&model.Board{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"name": name, "description": desc, "sort_order": sortOrder,
+		"name":         name,
+		"description":  desc,
+		"icon":         NormalizeBoardIcon(icon),
+		"color_index":  NormalizeBoardColorIndex(colorIndex),
+		"sort_order":   sortOrder,
 	}).Error
 }
 

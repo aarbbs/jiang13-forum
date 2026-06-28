@@ -12,6 +12,8 @@ export interface Board {
   id: number;
   name: string;
   description: string;
+  icon?: string;
+  color_index?: number;
   sort_order: number;
   post_count?: number;
 }
