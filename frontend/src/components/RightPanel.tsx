@@ -6,6 +6,8 @@ interface Props {
   notifications: Notification[];
   online: OnlineStats | null;
   onPostClick: (id: number) => void;
+  /** 首次拉取中，避免空态闪烁 */
+  loading?: boolean;
 }
 
 function hotRankClass(index: number): string {
@@ -15,7 +17,13 @@ function hotRankClass(index: number): string {
   return 'widget-rank';
 }
 
-export default function RightPanel({ hot, notifications, online, onPostClick }: Props) {
+export default function RightPanel({
+  hot,
+  notifications,
+  online,
+  onPostClick,
+  loading = false,
+}: Props) {
   const hotList = hot?.slice(0, 8) ?? [];
   const noticeList = notifications?.slice(0, 6) ?? [];
   const members = online?.users ?? [];
@@ -28,13 +36,20 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
           热门帖子
         </div>
         <div className="widget-card-body">
-          {hotList.length === 0 ? (
+          {loading && hotList.length === 0 ? (
+            <div className="widget-empty">加载中…</div>
+          ) : hotList.length === 0 ? (
             <div className="widget-empty">暂无数据</div>
           ) : hotList.map((item, i) => (
-            <div key={item.id} className="widget-item" onClick={() => onPostClick(item.id)}>
+            <button
+              key={item.id}
+              type="button"
+              className="widget-item"
+              onClick={() => onPostClick(item.id)}
+            >
               <span className={hotRankClass(i)}>{i + 1}</span>
               <span className="widget-item-title">{item.title}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -45,13 +60,20 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
           最新动态
         </div>
         <div className="widget-card-body">
-          {noticeList.length === 0 ? (
+          {loading && noticeList.length === 0 ? (
+            <div className="widget-empty">加载中…</div>
+          ) : noticeList.length === 0 ? (
             <div className="widget-empty">暂无动态</div>
           ) : noticeList.map(item => (
-            <div key={item.id} className="widget-item widget-item--notice" onClick={() => onPostClick(item.id)}>
+            <button
+              key={item.id}
+              type="button"
+              className="widget-item widget-item--notice"
+              onClick={() => onPostClick(item.id)}
+            >
               <span className="widget-item-title">{item.title}</span>
               <span className="widget-item-time">{item.created_at}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -66,15 +88,21 @@ export default function RightPanel({ hot, notifications, online, onPostClick }: 
             会员 {online?.members ?? 0} · 游客 {online?.guests ?? 0}
           </div>
           <div className="widget-online-list">
-            {members.map(u => (
-              <span key={u.id} className="widget-online-avatar" title={u.nickname}>
-                {u.avatar
-                  ? <img src={u.avatar} alt="" />
-                  : (u.nickname?.[0] || '?')}
-              </span>
-            ))}
-            {members.length === 0 && (
-              <span className="widget-empty widget-empty--inline">暂无会员在线</span>
+            {loading && online == null ? (
+              <span className="widget-empty widget-empty--inline">加载中…</span>
+            ) : (
+              <>
+                {members.map(u => (
+                  <span key={u.id} className="widget-online-avatar" title={u.nickname}>
+                    {u.avatar
+                      ? <img src={u.avatar} alt="" loading="lazy" decoding="async" />
+                      : (u.nickname?.[0] || '?')}
+                  </span>
+                ))}
+                {members.length === 0 && (
+                  <span className="widget-empty widget-empty--inline">暂无会员在线</span>
+                )}
+              </>
             )}
           </div>
         </div>

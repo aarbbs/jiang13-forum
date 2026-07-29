@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import { Clock, MessageCircle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { moveTabIndex } from '../hooks/useOverlayA11y';
 
 export type FeedSort = 'latest' | 'reply' | 'hot';
 
@@ -38,14 +40,35 @@ export function feedSortLabel(sort: FeedSort): string {
 }
 
 export default function FeedSortBar({ value, onChange, postTotal }: Props) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const activeIndex = Math.max(0, SORT_OPTIONS.findIndex(o => o.key === value));
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const next = moveTabIndex(e.key, activeIndex, SORT_OPTIONS.length);
+    if (next == null) return;
+    e.preventDefault();
+    onChange(SORT_OPTIONS[next].key);
+    requestAnimationFrame(() => {
+      const tabs = listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+      tabs?.[next]?.focus();
+    });
+  };
+
   return (
     <div className="feed-toolbar">
-      <div className="feed-sort-bar" role="tablist" aria-label="帖子排序">
-        {SORT_OPTIONS.map(({ key, label, hint, icon: Icon }) => (
+      <div
+        ref={listRef}
+        className="feed-sort-bar"
+        role="tablist"
+        aria-label="帖子排序"
+        onKeyDown={onKeyDown}
+      >
+        {SORT_OPTIONS.map(({ key, label, hint, icon: Icon }, i) => (
         <button
           key={key}
           type="button"
           role="tab"
+          tabIndex={activeIndex === i ? 0 : -1}
           aria-selected={value === key}
           title={`${label} · ${hint}`}
           className={cn('feed-sort-tab', value === key && 'active')}

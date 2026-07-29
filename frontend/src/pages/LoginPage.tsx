@@ -79,7 +79,7 @@ export default function LoginPage() {
             </Button>
           </form>
         </Form>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--color-text-3)' }}>
+        <p className="auth-footer">
           没有账号？<Link to="/register">注册</Link>
         </p>
       </div>

@@ -1,6 +1,9 @@
 # 运行时数据（数据库、JWT 密钥、日志、头像）
 /data/
 
+# 本地配置（保留 app.ini.example）
+/app.ini
+
 # 前端依赖与构建缓存
 /node_modules/
 /frontend/node_modules/

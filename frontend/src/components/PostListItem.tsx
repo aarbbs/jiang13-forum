@@ -22,9 +22,11 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
   const likeCount = post.like_count ?? 0;
 
   return (
-    <div className="post-row" onClick={onClick}>
+    <button type="button" className="post-row" onClick={onClick}>
       <div className="post-avatar">
-        {post.user?.avatar ? <img src={post.user.avatar} alt="" /> : initial}
+        {post.user?.avatar
+          ? <img src={post.user.avatar} alt="" loading="lazy" decoding="async" />
+          : initial}
       </div>
       <div className="post-body">
         <div className="post-title">
@@ -47,6 +49,6 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
           {likeCount}
         </span>
       </div>
-    </div>
+    </button>
   );
 }

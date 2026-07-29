@@ -207,7 +207,7 @@ export default function ProfilePage() {
 
   return (
     <div className="page-wrap">
-      <div className="page-inner-wide" style={{ maxWidth: 640 }}>
+      <div className="page-inner-wide page-inner-wide--profile">
         <Button variant="ghost" className="mb-3" onClick={() => nav(-1)}>
           <ArrowLeft />
           返回
@@ -244,7 +244,7 @@ export default function ProfilePage() {
           >
             <div className={`profile-avatar-lg${pendingAvatar ? ' profile-avatar-lg--pending' : ''}`}>
               {displayAvatar
-                ? <img src={displayAvatar} alt="" />
+                ? <img src={displayAvatar} alt="" loading="lazy" decoding="async" />
                 : user.nickname[0]}
               <span className="profile-avatar-overlay">
                 {avatarLoading
@@ -291,7 +291,7 @@ export default function ProfilePage() {
         {user.role === 'admin' && (
           <div className="section-card admin-entry-card">
             <div className="section-card-title">管理员入口</div>
-            <p style={{ fontSize: 13, color: 'var(--color-text-3)', margin: '0 0 12px' }}>
+            <p className="admin-entry-desc">
               管理板块、用户、帖子及系统设置
             </p>
             <div className="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ export default function ProfilePage() {
                   <FormItem>
                     <FormLabel>新密码</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="至少 6 位" {...field} />
+                      <Input type="password" placeholder={`至少 ${limits.password_min_len} 位`} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

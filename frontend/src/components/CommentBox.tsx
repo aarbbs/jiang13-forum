@@ -35,6 +35,7 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
   const [showEmoji, setShowEmoji] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const owoRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (inline && replyTo) {
@@ -51,13 +52,24 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
 
   useEffect(() => {
     if (!showEmoji) return;
-    const handler = (e: MouseEvent) => {
+    const onPointer = (e: MouseEvent) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
         setShowEmoji(false);
+        owoRef.current?.focus();
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowEmoji(false);
+        owoRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [showEmoji]);
 
   const insertEmoji = (emoji: string) => {
@@ -108,7 +120,7 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
     <div className="comment-box" ref={boxRef}>
       <div className="comment-box-avatar">
         {user?.avatar ? (
-          <img src={user.avatar} alt="" className="comment-box-avatar-img" />
+          <img src={user.avatar} alt="" className="comment-box-avatar-img" loading="lazy" decoding="async" />
         ) : (
           <div className={`comment-box-avatar-placeholder ${user ? '' : 'guest'}`}>
             {user ? avatarInitial : (
@@ -145,6 +157,7 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
             className="comment-box-send"
             disabled={submitting || !content.trim() || (!user && !guestNick.trim())}
             onClick={handleSubmit}
+            aria-label="发送评论"
             title="发送"
           >
             <Send size={16} />
@@ -200,9 +213,13 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
 
         <div className="comment-box-toolbar">
           <button
+            ref={owoRef}
             type="button"
             className={`comment-box-owo ${showEmoji ? 'active' : ''}`}
             onClick={() => setShowEmoji((v) => !v)}
+            aria-label="插入表情"
+            aria-expanded={showEmoji}
+            aria-controls="comment-emoji-picker"
           >
             OwO
           </button>
@@ -212,7 +229,7 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
           </label>
         </div>
 
-        {showEmoji && <EmojiPicker onSelect={insertEmoji} />}
+        {showEmoji && <EmojiPicker id="comment-emoji-picker" onSelect={insertEmoji} />}
       </div>
     </div>
   );

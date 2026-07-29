@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   History, X, Maximize2, Minimize2, GitCompare, FileText, ArrowRight,
 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import type { PostRevision } from '../api/types';
 import PostContent from './PostContent';
 import { formatDateTime } from '../utils/content';
+import { moveTabIndex, useOverlayA11y } from '../hooks/useOverlayA11y';
 import {
   type PostSnapshot,
   htmlToDiffText,
@@ -26,6 +27,12 @@ interface Props {
 }
 
 type ViewMode = 'diff' | 'before' | 'after';
+
+const VIEW_MODES = [
+  ['diff', GitCompare, '变更对比'],
+  ['before', FileText, '编辑前'],
+  ['after', ArrowRight, '编辑后'],
+] as const;
 
 interface RevisionEntry {
   rev: PostRevision;
@@ -105,6 +112,12 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('diff');
   const [fullscreen, setFullscreen] = useState(false);
+  const viewTabsRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  const handleClose = useCallback(() => onClose(), [onClose]);
+  useOverlayA11y(open, handleClose, panelRef, { initialFocusRef: closeRef });
 
   useEffect(() => {
     if (!open) {
@@ -124,7 +137,6 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
       .finally(() => setLoading(false));
   }, [open, postId]);
 
-  // 阻止背景滚动
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -166,9 +178,10 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
   return (
     <div
       className={`post-revision-overlay${fullscreen ? ' post-revision-overlay--fullscreen' : ''}`}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
+        ref={panelRef}
         className={`post-revision-panel${fullscreen ? ' post-revision-panel--fullscreen' : ''}`}
         onClick={e => e.stopPropagation()}
         role="dialog"
@@ -177,7 +190,7 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
       >
         <header className="post-revision-head">
           <div className="post-revision-head-left">
-            <History size={18} />
+            <History size={18} aria-hidden />
             <h3>编辑历史</h3>
             {selected && (
               <span className="post-revision-head-sub">
@@ -186,21 +199,33 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
             )}
           </div>
           <div className="post-revision-head-actions">
-            <div className="post-revision-view-tabs" role="tablist">
-              {([
-                ['diff', GitCompare, '变更对比'],
-                ['before', FileText, '编辑前'],
-                ['after', ArrowRight, '编辑后'],
-              ] as const).map(([mode, Icon, label]) => (
+            <div
+              ref={viewTabsRef}
+              className="post-revision-view-tabs"
+              role="tablist"
+              aria-label="视图模式"
+              onKeyDown={(e) => {
+                const idx = VIEW_MODES.findIndex(([m]) => m === viewMode);
+                const next = moveTabIndex(e.key, Math.max(0, idx), VIEW_MODES.length);
+                if (next == null) return;
+                e.preventDefault();
+                setViewMode(VIEW_MODES[next][0]);
+                requestAnimationFrame(() => {
+                  viewTabsRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+                });
+              }}
+            >
+              {VIEW_MODES.map(([mode, Icon, label]) => (
                 <button
                   key={mode}
                   type="button"
                   role="tab"
+                  tabIndex={viewMode === mode ? 0 : -1}
                   aria-selected={viewMode === mode}
                   className={`post-revision-tab${viewMode === mode ? ' active' : ''}`}
                   onClick={() => setViewMode(mode)}
                 >
-                  <Icon size={14} />
+                  <Icon size={14} aria-hidden />
                   <span className="post-revision-tab-label">{label}</span>
                 </button>
               ))}
@@ -212,10 +237,16 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
               title={fullscreen ? '退出全屏' : '全屏显示'}
               aria-label={fullscreen ? '退出全屏' : '全屏显示'}
             >
-              {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              {fullscreen ? <Minimize2 size={18} aria-hidden /> : <Maximize2 size={18} aria-hidden />}
             </button>
-            <button type="button" className="post-revision-icon-btn" onClick={onClose} aria-label="关闭">
-              <X size={18} />
+            <button
+              ref={closeRef}
+              type="button"
+              className="post-revision-icon-btn"
+              onClick={handleClose}
+              aria-label="关闭"
+            >
+              <X size={18} aria-hidden />
             </button>
           </div>
         </header>

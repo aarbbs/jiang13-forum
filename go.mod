@@ -5,7 +5,9 @@ go 1.26
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/kardianos/service v1.2.2
 	golang.org/x/crypto v0.31.0
+	gopkg.in/ini.v1 v1.67.3
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.25.12
 )

@@ -45,7 +45,7 @@ function CommentItem({
     >
       <div className={`waline-comment-avatar ${guest && !c.user?.avatar ? 'guest' : ''}`}>
         {c.user?.avatar ? (
-          <img src={c.user.avatar} alt="" />
+          <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
         ) : (
           commentInitial(c)
         )}

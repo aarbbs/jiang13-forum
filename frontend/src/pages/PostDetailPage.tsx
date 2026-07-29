@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, FileQuestion } from 'lucide-react';
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,40 +46,51 @@ export default function PostDetailPage() {
 
   useGlobalWheelScroll(pageRef, !loading && !!post);
 
-  const fetchComments = useCallback(async () => {
-    const myIds = user ? [] : loadMyCommentIds();
-    const comm = await api.comments(postId, myIds);
-    return Array.isArray(comm.comments) ? comm.comments : [];
-  }, [postId, user]);
-
-  const load = async () => {
-    if (!postId) return;
-    setLoading(true);
-    try {
-      const [detail, commList] = await Promise.all([
-        api.post(postId),
-        fetchComments(),
-      ]);
-      setPost(detail.post);
-      setLiked(detail.liked);
-      setFavorited(detail.favorited);
-      setCanEdit(detail.can_edit ?? false);
-      setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
-      setEditBlockReason(detail.edit_block_reason ?? '');
-      setComments(commList);
-      await refresh();
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : '加载失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadSeq = useRef(0);
 
   useEffect(() => {
+    if (!postId) return;
     setReplyTo(null);
-    load();
+    const seq = ++loadSeq.current;
+    setLoading(true);
+    setPost(null);
+
+    (async () => {
+      try {
+        // 游客评论归属：仅在进入该帖时读取，不把 user 放进依赖以免 refresh 触发重载循环
+        const myIds = user ? [] : loadMyCommentIds();
+        const [detail, comm] = await Promise.all([
+          api.post(postId),
+          api.comments(postId, myIds),
+        ]);
+        if (seq !== loadSeq.current) return;
+        setPost(detail.post);
+        setLiked(detail.liked);
+        setFavorited(detail.favorited);
+        setCanEdit(detail.can_edit ?? false);
+        setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
+        setEditBlockReason(detail.edit_block_reason ?? '');
+        setComments(Array.isArray(comm.comments) ? comm.comments : []);
+        // 会话刷新与正文展示解耦；勿作为 effect 依赖
+        void refresh();
+      } catch (e: unknown) {
+        if (seq !== loadSeq.current) return;
+        setPost(null);
+        notify.error(e instanceof Error ? e.message : '加载失败');
+      } finally {
+        if (seq === loadSeq.current) setLoading(false);
+      }
+    })();
+    // 仅 postId 变化时加载；user/refresh 变化不得重跑
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 见上
   }, [postId]);
 
+  // 发评后局部刷新评论列表（不整页重载）
+  const reloadComments = useCallback(async () => {
+    const myIds = user ? [] : loadMyCommentIds();
+    const comm = await api.comments(postId, myIds);
+    setComments(Array.isArray(comm.comments) ? comm.comments : []);
+  }, [postId, user]);
   const jumpToFloor = useCallback((floor: number) => {
     const el = document.getElementById(`floor-${floor}`);
     if (!el) return;
@@ -145,7 +156,7 @@ export default function PostDetailPage() {
       setReplyTo(null);
       setSubmitCount(c => c + 1);
       notify.success('评论成功');
-      setComments(await fetchComments());
+      await reloadComments();
       setTimeout(() => jumpToFloor(r.floor), 100);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '评论失败');
@@ -165,6 +176,7 @@ export default function PostDetailPage() {
   if (loading) return <div className="post-detail-loading flex justify-center py-16"><Spinner size="lg" /></div>;
   if (!post) return (
     <div className="empty-state">
+      <FileQuestion className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
       <p>帖子不存在</p>
       <Button variant="outline" onClick={() => nav('/')}>返回首页</Button>
     </div>
@@ -226,7 +238,7 @@ export default function PostDetailPage() {
           </h1>
           <div className="post-detail-author-row">
             <div className="post-avatar post-avatar-lg">
-              {post.user?.avatar ? <img src={post.user.avatar} alt="" /> : authorInitial}
+              {post.user?.avatar ? <img src={post.user.avatar} alt="" loading="lazy" decoding="async" /> : authorInitial}
             </div>
             <div className="post-detail-author-info">
               <span className="post-detail-author-name">{post.user?.nickname}</span>
@@ -318,7 +330,7 @@ export default function PostDetailPage() {
         <div className="comment-list-area">
           {comments.length === 0 && !replyTo ? (
             <div className="comment-empty">
-              <div className="comment-empty-icon">💬</div>
+              <MessageSquare className="comment-empty-icon" aria-hidden size={32} strokeWidth={1.5} />
               <p>暂无评论，来抢沙发吧</p>
             </div>
           ) : (

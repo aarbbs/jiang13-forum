@@ -1,5 +1,6 @@
 import { useRef, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
 import PostListSkeleton from './PostListSkeleton';
@@ -46,12 +47,17 @@ export default function VirtualPostList({
     getScrollElement: () => parentRef.current,
     estimateSize: () => 72,
     overscan: 8,
+    measureElement:
+      typeof window !== 'undefined' && !navigator.userAgent.includes('Firefox')
+        ? (el) => el.getBoundingClientRect().height
+        : undefined,
   });
 
   const showHistoryPrompt = hasMore && !canAutoLoad && !loading;
   const showEnd = !hasMore && posts.length > 0 && !loading;
   const isInitialLoad = loading && posts.length === 0;
   const isLoadingMore = loading && posts.length > 0;
+  const isEmpty = !loading && posts.length === 0;
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
@@ -92,6 +98,12 @@ export default function VirtualPostList({
     <div className="post-list-scroll" ref={parentRef}>
       {isInitialLoad ? (
         <PostListSkeleton />
+      ) : isEmpty ? (
+        <div className="empty-feed">
+          <Inbox className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />
+          <p>暂无帖子</p>
+          <p className="empty-feed-hint">换个板块看看，或发第一篇内容</p>
+        </div>
       ) : (
         <>
           <div className="content-surface" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -100,6 +112,8 @@ export default function VirtualPostList({
               return (
                 <div
                   key={post.id}
+                  data-index={vi.index}
+                  ref={virtualizer.measureElement}
                   style={{
                     position: 'absolute',
                     top: 0,

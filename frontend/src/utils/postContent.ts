@@ -91,5 +91,10 @@ export function renderPostContentHtml(html: string, isLoggedIn: boolean): string
     el.innerHTML = `${VISIBLE_BADGE_HTML}<div class="post-members-only__body">${innerHtml}</div>`;
   });
 
+  doc.querySelectorAll('img').forEach(img => {
+    if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+    if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
+  });
+
   return doc.body.innerHTML;
 }

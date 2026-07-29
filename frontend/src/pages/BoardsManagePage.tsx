@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus } from 'lucide-react';
+import { Plus, FolderKanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -132,7 +132,7 @@ export default function BoardsManagePage() {
   return (
     <div className="admin-page">
       <div className="admin-page-head">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="admin-page-head-row">
           <div>
             <h1>板块管理</h1>
             <p>创建、编辑或删除论坛板块；可为每个板块自定义图标与色标</p>
@@ -209,6 +209,7 @@ export default function BoardsManagePage() {
               </Table>
               {boards.length === 0 && (
                 <div className="empty-state">
+                  <FolderKanban className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
                   <p>还没有板块，点击右上角创建第一个</p>
                 </div>
               )}

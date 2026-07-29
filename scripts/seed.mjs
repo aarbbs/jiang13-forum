@@ -386,6 +386,6 @@ function sleep(ms) {
 
 main().catch((err) => {
   console.error('\n种子失败：', err.message);
-  console.error('请确认服务已启动，例如：.\\dist\\jiang13.exe --port 3000 --data ./data');
+  console.error('请确认服务已启动，例如：.\\dist\\jiang13.exe');
   process.exit(1);
 });

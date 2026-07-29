@@ -100,8 +100,10 @@
 ### 部署体验
 
 - **单二进制部署** — 与 Gitea 同款 `go:embed` 打包，无需 Nginx 反代静态资源
-- **零依赖数据库** — SQLite 内建，数据目录 `--data` 一处管理
+- **零依赖数据库** — SQLite 内建，数据目录由 `app.ini` 统一管理
+- **配置文件** — 工作目录下 `app.ini`（类似 Gitea），启动可省略一长串参数
 - **跨平台** — Windows / Linux / macOS 一键编译
+- **系统服务** — 内置注册：Linux systemd / Windows Service，一条命令安装与启停
 
 ---
 
@@ -141,12 +143,22 @@ cd .. && go build -trimpath -ldflags "-s -w" -o dist/jiang13 ./cmd/jiang13
 
 ### 2. 启动
 
+把二进制放到目标目录后直接运行即可（首次会在同目录生成 `app.ini`）：
+
 ```bash
 # Windows
-.\dist\jiang13.exe --port 3000 --data ./data
+.\dist\jiang13.exe
 
 # Linux / macOS
-./dist/jiang13 --port 3000 --data ./data
+./dist/jiang13
+```
+
+也可先复制示例配置再改端口/数据目录：
+
+```bash
+cp app.ini.example /opt/jiang13/app.ini
+# 编辑 app.ini 后：
+./jiang13
 ```
 
 ### 3. 首次使用
@@ -155,13 +167,85 @@ cd .. && go build -trimpath -ldflags "-s -w" -o dist/jiang13 ./cmd/jiang13
 2. **第一个注册的用户自动成为管理员**
 3. 登录后访问 `http://localhost:3000/admin/dashboard` 进入后台
 
+### 配置文件（`app.ini`）
+
+默认读取**工作目录**下的 `app.ini`（工作目录默认可执行文件所在目录；`go run` 开发时回退为当前目录）。
+
+```ini
+[server]
+HTTP_PORT = 3000
+
+[paths]
+DATA = data
+
+[security]
+JWT_SECRET =
+```
+
+完整示例见仓库根目录 [`app.ini.example`](app.ini.example)。
+
+**优先级：** 命令行显式参数 > `app.ini` > 内置默认值。
+
 ### 启动参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--port` | `3000` | HTTP 监听端口 |
-| `--data` | `./data` | 数据目录（SQLite、上传、日志） |
+| `--work-path` | 可执行文件目录 | 工作目录（`app.ini` 与相对 `DATA` 的基准） |
+| `--config` | `{work-path}/app.ini` | 配置文件路径 |
+| `--port` | （读配置 / `3000`） | HTTP 监听端口，覆盖配置文件 |
+| `--data` | （读配置 / `data`） | 数据目录，覆盖配置文件 |
 | `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
+| `--service` | （空） | 系统服务控制：`install` / `uninstall` / `start` / `stop` / `restart` / `status` |
+
+### 4. 注册为系统服务（可选）
+
+将二进制与 `app.ini` 放到同一目录后注册即可。服务会绑定 `--work-path` 与 `--config`；之后改端口或数据目录只需编辑 `app.ini` 并重启服务，**不必重新安装**。
+
+**Ubuntu / Linux（systemd，需 root）：**
+
+```bash
+sudo mkdir -p /opt/jiang13
+sudo cp jiang13 /opt/jiang13/
+# 可选：先写好配置
+# sudo cp app.ini.example /opt/jiang13/app.ini
+sudo /opt/jiang13/jiang13 --service install
+sudo /opt/jiang13/jiang13 --service start
+sudo systemctl enable jiang13
+```
+
+常用管理：
+
+```bash
+sudo /opt/jiang13/jiang13 --service status
+sudo /opt/jiang13/jiang13 --service stop
+sudo /opt/jiang13/jiang13 --service restart
+sudo /opt/jiang13/jiang13 --service uninstall
+# 也可直接用 systemctl
+sudo systemctl status jiang13
+sudo journalctl -u jiang13 -f
+```
+
+**Windows（Windows Service，需管理员 PowerShell）：**
+
+```powershell
+New-Item -ItemType Directory -Force -Path C:\jiang13 | Out-Null
+Copy-Item .\jiang13.exe C:\jiang13\
+C:\jiang13\jiang13.exe --service install
+C:\jiang13\jiang13.exe --service start
+```
+
+常用管理：
+
+```powershell
+C:\jiang13\jiang13.exe --service status
+C:\jiang13\jiang13.exe --service stop
+C:\jiang13\jiang13.exe --service restart
+C:\jiang13\jiang13.exe --service uninstall
+Get-Service jiang13
+```
+
+> 改 `app.ini` 后执行 `--service restart`（或 `systemctl restart jiang13` / `Restart-Service jiang13`）。  
+> 运行日志写入数据目录下的 `jiang13.log`；Linux 上也可通过 `journalctl` 查看。
 
 ---
 
@@ -201,8 +285,9 @@ make dev                   # Linux / macOS
 
 ```
 jiang13-forum/
-├── cmd/jiang13/           # 程序入口
-├── config/                # 命令行参数与配置
+├── cmd/jiang13/           # 程序入口（含系统服务注册）
+├── config/                # app.ini 与命令行配置
+├── app.ini.example        # 配置文件示例
 ├── model/                 # GORM 模型与数据库迁移
 ├── service/               # 业务逻辑（认证、帖子、评论…）
 ├── handler/               # HTTP 处理器（前台 + 后台）

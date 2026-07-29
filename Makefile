@@ -51,14 +51,14 @@ tidy:
 
 ## 本地运行（仅后端，使用已 embed 的前端）
 run:
-	$(GO) run $(MAIN_PKG) --port 3000 --data ./data
+	$(GO) run $(MAIN_PKG)
 
 ## 前端热更新开发（后端 :3000 + Vite :5173，Ctrl+C 同时退出）
 dev:
 	@echo "前端热更新: http://localhost:5173"
 	@echo "后端 API  : http://localhost:3000"
 	@trap 'kill 0' INT; \
-	$(GO) run $(MAIN_PKG) --port 3000 --data ./data & \
+	$(GO) run $(MAIN_PKG) & \
 	cd frontend && (test -d node_modules || npm install) && npm run dev
 
 ## 清理编译产物

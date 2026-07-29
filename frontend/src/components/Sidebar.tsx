@@ -56,8 +56,8 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
     <aside className="sidebar">
       <div className="sidebar-section">浏览</div>
       <nav className="sidebar-nav">
-        {navItem('all', '全部帖子', <Home />, () => { onSelectBoard(0); navigateFeed(nav, buildHomeUrl(0, sort)); })}
-        {user && navItem('favorites', '我的收藏', <Star />, () => nav('/favorites'))}
+        {navItem('all', '全部帖子', <Home aria-hidden />, () => { onSelectBoard(0); navigateFeed(nav, buildHomeUrl(0, sort)); })}
+        {user && navItem('favorites', '我的收藏', <Star aria-hidden />, () => nav('/favorites'))}
       </nav>
 
       {boards.length > 0 && (
@@ -96,9 +96,9 @@ export default function Sidebar({ boards, activeBoard, onSelectBoard }: Props) {
 
       {isAdmin && (
         <>
-          <div className="sidebar-section" style={{ marginTop: 8 }}>管理</div>
+          <div className="sidebar-section sidebar-section--spaced">管理</div>
           <nav className="sidebar-nav">
-            {navItem('admin', '管理后台', <LayoutDashboard />, () => nav('/admin/dashboard'))}
+            {navItem('admin', '管理后台', <LayoutDashboard aria-hidden />, () => nav('/admin/dashboard'))}
           </nav>
         </>
       )}

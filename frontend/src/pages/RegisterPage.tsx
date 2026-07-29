@@ -95,7 +95,7 @@ export default function RegisterPage() {
             </Button>
           </form>
         </Form>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--color-text-3)' }}>
+        <p className="auth-footer">
           已有账号？<Link to="/login">登录</Link>
         </p>
       </div>

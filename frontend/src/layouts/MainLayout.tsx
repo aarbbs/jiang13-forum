@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import PageLoader from '../components/PageLoader';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Moon, Sun, Search, Plus } from 'lucide-react';
+import { Moon, Sun, Search, Plus, PanelRight, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
+import { useOverlayA11y, moveTabIndex } from '../hooks/useOverlayA11y';
 import { api } from '../api/client';
 import type { Board, PostItem, Notification, OnlineStats, ForumStats } from '../api/types';
 import { getCachedBoards, getCachedStats, setCachedBoards, setCachedStats } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
+import BackToTop from '../components/BackToTop';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
@@ -27,6 +29,7 @@ export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const hideAside = useMediaQuery('(max-width: 1100px)');
   const nav = useNavigate();
   const loc = useLocation();
   const [params] = useSearchParams();
@@ -34,17 +37,38 @@ export default function MainLayout() {
 
   const [boards, setBoards] = useState<Board[]>(() => getCachedBoards());
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
-  const [layoutReady, setLayoutReady] = useState(() => getCachedBoards().length > 0 || !!getCachedStats());
   const [hot, setHot] = useState<PostItem[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [online, setOnline] = useState<OnlineStats | null>(null);
+  const [asideOpen, setAsideOpen] = useState(false);
+  const [asideLoading, setAsideLoading] = useState(false);
+  const asideEverLoaded = useRef(false);
   const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
   const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
 
+  const asideDrawerRef = useRef<HTMLElement>(null);
+  const asideCloseRef = useRef<HTMLButtonElement>(null);
+  const boardBarRef = useRef<HTMLDivElement>(null);
+
+  const closeAside = useCallback(() => setAsideOpen(false), []);
+  useOverlayA11y(asideOpen && hideAside && !isCompose, closeAside, asideDrawerRef, {
+    initialFocusRef: asideCloseRef,
+  });
+
   useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
   useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
+  useEffect(() => { setAsideOpen(false); }, [loc.pathname, loc.search]);
+  useEffect(() => {
+    if (!hideAside) setAsideOpen(false);
+  }, [hideAside]);
+  useEffect(() => {
+    if (!asideOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [asideOpen]);
 
   const refreshBoards = useCallback(() => {
     Promise.all([
@@ -59,7 +83,7 @@ export default function MainLayout() {
         setCachedStats(next);
         return next;
       }).catch(() => null),
-    ]).finally(() => setLayoutReady(true));
+    ]);
   }, []);
 
   const refreshOnline = useCallback(() => {
@@ -75,20 +99,45 @@ export default function MainLayout() {
 
   useEffect(() => {
     refreshBoards();
-    api.hotPosts().then(d => setHot(Array.isArray(d.posts) ? d.posts : [])).catch(() => {});
-    api.notifications().then(d => setNotifications(Array.isArray(d.notifications) ? d.notifications : [])).catch(() => {});
-    refreshOnline();
-    api.presence().catch(() => {});
-    const onlineTimer = setInterval(refreshOnline, 30000);
-    const presenceTimer = setInterval(() => api.presence().catch(() => {}), 60000);
     const onRefresh = () => refreshBoards();
     window.addEventListener('boards-refresh', onRefresh);
+    return () => window.removeEventListener('boards-refresh', onRefresh);
+  }, [refreshBoards]);
+
+  useEffect(() => {
+    if (isCompose) return;
+    api.presence().catch(() => {});
+    const presenceTimer = setInterval(() => api.presence().catch(() => {}), 60000);
+    return () => clearInterval(presenceTimer);
+  }, [isCompose]);
+
+  const needAsideData = !isCompose && (!hideAside || asideOpen);
+  useEffect(() => {
+    if (!needAsideData) return;
+    let cancelled = false;
+    if (!asideEverLoaded.current) setAsideLoading(true);
+
+    Promise.all([
+      api.hotPosts().then(d => {
+        if (!cancelled) setHot(Array.isArray(d.posts) ? d.posts : []);
+      }).catch(() => {}),
+      api.notifications().then(d => {
+        if (!cancelled) setNotifications(Array.isArray(d.notifications) ? d.notifications : []);
+      }).catch(() => {}),
+    ]).finally(() => {
+      if (!cancelled) {
+        asideEverLoaded.current = true;
+        setAsideLoading(false);
+      }
+    });
+
+    refreshOnline();
+    const onlineTimer = setInterval(refreshOnline, 30000);
     return () => {
+      cancelled = true;
       clearInterval(onlineTimer);
-      clearInterval(presenceTimer);
-      window.removeEventListener('boards-refresh', onRefresh);
     };
-  }, [refreshBoards, refreshOnline]);
+  }, [needAsideData, refreshOnline]);
 
   const doSearch = () => {
     const kw = keyword.trim();
@@ -108,8 +157,33 @@ export default function MainLayout() {
     nav(`/?keyword=${encodeURIComponent(kw)}`);
   };
 
+  const openPost = (id: number) => {
+    setAsideOpen(false);
+    nav(`/post/${id}`);
+  };
+
   const userInitial = user?.nickname?.charAt(0) || '?';
+  const isFeedHome = loc.pathname === '/';
   const mobileActiveBoard = isNeutralSidebarRoute(loc.pathname) ? -1 : boardId;
+
+  const boardChipIds = useMemo(() => [0, ...boards.map(b => b.id)], [boards]);
+  const activeChipIndex = Math.max(0, boardChipIds.indexOf(mobileActiveBoard === -1 ? 0 : mobileActiveBoard));
+
+  const selectBoardChip = (id: number) => {
+    setBoardId(id);
+    navigateFeed(nav, buildHomeUrl(id, feedSort));
+  };
+
+  const onBoardBarKeyDown = (e: React.KeyboardEvent) => {
+    const next = moveTabIndex(e.key, activeChipIndex, boardChipIds.length);
+    if (next == null) return;
+    e.preventDefault();
+    selectBoardChip(boardChipIds[next]);
+    requestAnimationFrame(() => {
+      const tabs = boardBarRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
+      tabs?.[next]?.focus();
+    });
+  };
 
   return (
     <div className="app-shell">
@@ -123,11 +197,12 @@ export default function MainLayout() {
 
           {!isCompose && (
           <div className="header-search-wrap">
-            <Search className="header-search-icon" size={16} />
+            <Search className="header-search-icon" size={16} aria-hidden />
             <input
               className="header-search-input"
               type="search"
               placeholder="搜索帖子..."
+              aria-label="搜索帖子"
               value={keyword}
               onChange={e => setKeyword(e.target.value)}
               maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
@@ -150,20 +225,36 @@ export default function MainLayout() {
               type="button"
               className="header-compose-btn"
               onClick={() => user ? nav('/compose') : nav('/login')}
+              aria-label="发帖"
             >
-              <Plus size={16} />
+              <Plus size={16} aria-hidden />
               {!isMobile && <span>发帖</span>}
             </button>
             )}
 
             <div className="header-action-group">
+              {!isCompose && hideAside && (
+                <button
+                  type="button"
+                  className="header-icon-btn"
+                  onClick={() => setAsideOpen(true)}
+                  aria-label="打开社区动态"
+                  aria-expanded={asideOpen}
+                  aria-controls="aside-drawer"
+                  title="社区动态"
+                >
+                  <PanelRight size={18} aria-hidden />
+                </button>
+              )}
+
               <button
                 type="button"
                 className="header-icon-btn"
                 onClick={toggle}
+                aria-label={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
                 title={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
               >
-                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                {theme === 'light' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
               </button>
 
               {authLoading ? (
@@ -171,9 +262,9 @@ export default function MainLayout() {
               ) : user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="header-user-btn" title={user.nickname}>
+                    <button type="button" className="header-user-btn" title={user.nickname} aria-label={`用户菜单：${user.nickname}`}>
                       {user.avatar
-                        ? <img src={user.avatar} alt="" className="header-user-avatar" />
+                        ? <img src={user.avatar} alt="" className="header-user-avatar" loading="lazy" decoding="async" />
                         : <span className="header-user-initial">{userInitial}</span>}
                     </button>
                   </DropdownMenuTrigger>
@@ -217,25 +308,40 @@ export default function MainLayout() {
 
         <div className={`content-workspace${isCompose ? ' content-workspace--compose' : ''}`}>
         <main className={`main-content${isCompose ? ' main-content--compose' : ''}`}>
-          {isMobile && !isCompose && (
-            <div className="mobile-board-bar">
-              <span
+          {isMobile && !isCompose && isFeedHome && (
+            <div
+              ref={boardBarRef}
+              className="mobile-board-bar"
+              role="tablist"
+              aria-label="板块"
+              onKeyDown={onBoardBarKeyDown}
+            >
+              <button
+                type="button"
+                role="tab"
+                tabIndex={activeChipIndex === 0 ? 0 : -1}
+                aria-selected={mobileActiveBoard === 0}
                 className={`board-chip ${mobileActiveBoard === 0 ? 'active' : ''}`}
-                onClick={() => { setBoardId(0); navigateFeed(nav, buildHomeUrl(0, feedSort)); }}
-              >全部</span>
-              {boards.map(b => {
+                onClick={() => selectBoardChip(0)}
+              >全部</button>
+              {boards.map((b, i) => {
                 const themeIdx = getBoardThemeIndex(b);
                 const isActive = mobileActiveBoard === b.id;
+                const idx = i + 1;
                 return (
-                  <span
+                  <button
                     key={b.id}
+                    type="button"
+                    role="tab"
+                    tabIndex={activeChipIndex === idx ? 0 : -1}
+                    aria-selected={isActive}
                     className={cn(
                       'board-chip',
                       isActive && 'active',
                       isActive && `board-chip--${themeIdx}`,
                     )}
-                    onClick={() => { setBoardId(b.id); navigateFeed(nav, buildHomeUrl(b.id, feedSort)); }}
-                  >{b.name}</span>
+                    onClick={() => selectBoardChip(b.id)}
+                  >{b.name}</button>
                 );
               })}
             </div>
@@ -247,7 +353,6 @@ export default function MainLayout() {
               setBoardId,
               boards,
               stats,
-              layoutReady,
               refreshBoards,
               isMobile,
             } satisfies LayoutCtx} />
@@ -260,13 +365,58 @@ export default function MainLayout() {
             hot={hot}
             notifications={notifications}
             online={online}
-            onPostClick={(id) => nav(`/post/${id}`)}
+            loading={asideLoading}
+            onPostClick={openPost}
           />
         </aside>
         )}
         </div>
       </div>
       </div>
+
+      {asideOpen && hideAside && !isCompose && (
+        <div className="aside-drawer-root">
+          <button
+            type="button"
+            className="aside-drawer-backdrop"
+            aria-label="关闭社区动态"
+            tabIndex={-1}
+            onClick={closeAside}
+          />
+          <aside
+            id="aside-drawer"
+            ref={asideDrawerRef}
+            className="aside-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="社区动态"
+          >
+            <div className="aside-drawer-head">
+              <span>社区动态</span>
+              <button
+                ref={asideCloseRef}
+                type="button"
+                className="header-icon-btn"
+                aria-label="关闭"
+                onClick={closeAside}
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+            <div className="aside-drawer-body">
+              <RightPanel
+                hot={hot}
+                notifications={notifications}
+                online={online}
+                loading={asideLoading}
+                onPostClick={openPost}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <BackToTop />
     </div>
   );
 }
@@ -277,7 +427,6 @@ export type LayoutCtx = {
   setBoardId: (id: number) => void;
   boards: Board[];
   stats: ForumStats | null;
-  layoutReady: boolean;
   refreshBoards: () => void;
   isMobile: boolean;
 };

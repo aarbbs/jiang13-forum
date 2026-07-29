@@ -19,9 +19,9 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 24, textAlign: 'center' }}>
+        <div className="error-boundary">
           <h3>页面渲染出错</h3>
-          <p style={{ color: 'var(--color-text-3)', fontSize: 13 }}>{this.state.error.message}</p>
+          <p className="error-boundary-msg">{this.state.error.message}</p>
           <Button size="sm" onClick={() => { this.setState({ error: null }); window.location.reload(); }}>
             刷新页面
           </Button>

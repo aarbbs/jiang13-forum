@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
-import { ArrowLeft, Send, Tag } from 'lucide-react';
+import { useNavigate, useSearchParams, useParams, useOutletContext } from 'react-router-dom';
+import { ArrowLeft, Send, Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -10,13 +10,21 @@ import { useForumLimits } from '../hooks/useForumLimits';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import ArticleEditor from '../components/ArticleEditor';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import TagInput, { serializeTags, parseTags } from '../components/TagInput';
 import { Spinner } from '@/components/ui/spinner';
+import { getCachedBoards } from '../utils/layoutCache';
+import type { LayoutCtx } from '../layouts/MainLayout';
 
 interface ComposeBaseline {
   title: string;
   tags: string;
   content: string;
   boardId: string;
+}
+
+function resolveBoards(ctxBoards?: Board[]): Board[] {
+  if (ctxBoards && ctxBoards.length > 0) return ctxBoards;
+  return getCachedBoards();
 }
 
 export default function ComposePage() {
@@ -28,14 +36,19 @@ export default function ComposePage() {
   const defaultBoard = params.get('board') || '';
   const { user, loading: authLoading } = useAuth();
   const { limits } = useForumLimits();
+  const layoutCtx = useOutletContext<LayoutCtx | undefined>();
 
-  const [boards, setBoards] = useState<Board[]>([]);
+  const [boards, setBoards] = useState<Board[]>(() => resolveBoards(layoutCtx?.boards));
   const [boardId, setBoardId] = useState(defaultBoard);
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  /** 新建帖：板块列表是否已就绪（避免请求中误显空态） */
+  const [boardsReady, setBoardsReady] = useState(
+    () => isEdit || resolveBoards(layoutCtx?.boards).length > 0,
+  );
   const [baseline, setBaseline] = useState<ComposeBaseline | null>(null);
 
   useEffect(() => {
@@ -44,7 +57,11 @@ export default function ComposePage() {
 
     if (isEdit) {
       setLoading(true);
-      Promise.all([api.boards(), api.post(editId!, { skipView: true })])
+      const cached = resolveBoards(layoutCtx?.boards);
+      const boardsPromise = cached.length > 0
+        ? Promise.resolve({ boards: cached })
+        : api.boards();
+      Promise.all([boardsPromise, api.post(editId!, { skipView: true })])
         .then(([boardsData, postData]) => {
           const list = boardsData.boards ?? [];
           setBoards(list);
@@ -80,11 +97,27 @@ export default function ComposePage() {
       return;
     }
 
-    api.boards().then(d => {
-      const list = d.boards ?? [];
+    const list = resolveBoards(layoutCtx?.boards);
+    if (list.length > 0) {
       setBoards(list);
-      const initialBoardId = defaultBoard || (list.length > 0 ? String(list[0].id) : '');
-      if (!defaultBoard && list.length > 0) {
+      setBoardsReady(true);
+      const initialBoardId = defaultBoard || String(list[0].id);
+      if (!defaultBoard) setBoardId(initialBoardId);
+      setBaseline({
+        title: '',
+        tags: '',
+        content: '',
+        boardId: initialBoardId,
+      });
+      return;
+    }
+
+    setBoardsReady(false);
+    api.boards().then(d => {
+      const next = d.boards ?? [];
+      setBoards(next);
+      const initialBoardId = defaultBoard || (next.length > 0 ? String(next[0].id) : '');
+      if (!defaultBoard && next.length > 0) {
         setBoardId(initialBoardId);
       }
       setBaseline({
@@ -93,14 +126,16 @@ export default function ComposePage() {
         content: '',
         boardId: initialBoardId,
       });
-    }).catch(() => {});
-  }, [user, authLoading, nav, defaultBoard, isEdit, editId]);
+    }).catch(() => {
+      setBoards([]);
+    }).finally(() => setBoardsReady(true));
+  }, [user, authLoading, nav, defaultBoard, isEdit, editId, layoutCtx?.boards]);
 
   const isDirty = useMemo(() => {
     if (!baseline) return false;
     return (
       title !== baseline.title
-      || tags !== baseline.tags
+      || serializeTags(parseTags(tags)) !== serializeTags(parseTags(baseline.tags))
       || content !== baseline.content
       || (!isEdit && boardId !== baseline.boardId)
     );
@@ -124,7 +159,7 @@ export default function ComposePage() {
 
   if (!user) return null;
 
-  if (loading) {
+  if (loading || (!isEdit && !boardsReady)) {
     return (
       <div className="compose-page compose-page--empty">
         <Spinner size="lg" />
@@ -136,7 +171,9 @@ export default function ComposePage() {
     return (
       <div className="compose-page compose-page--empty">
         <div className="compose-empty-card">
-          <div className="compose-empty-icon">✎</div>
+          <div className="compose-empty-icon" aria-hidden>
+            <Pencil size={28} strokeWidth={1.5} />
+          </div>
           <h2>暂无可发帖板块</h2>
           <p>需要管理员先创建板块后才能发布内容</p>
           {user.role === 'admin' ? (
@@ -164,7 +201,7 @@ export default function ComposePage() {
       const payload = {
         title: trimmedTitle,
         content: content.trim(),
-        tags: tags.trim(),
+        tags: serializeTags(parseTags(tags)),
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
@@ -230,16 +267,12 @@ export default function ComposePage() {
               <span className="compose-board-pill active">{currentBoard.name}</span>
             </div>
           )}
-          <div className="compose-tags-field">
-            <Tag className="compose-tags-icon" size={16} />
-            <input
-              type="text"
-              placeholder="添加标签，逗号分隔"
-              value={tags}
-              onChange={e => setTags(e.target.value)}
-              maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
-            />
-          </div>
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            placeholder="输入标签后回车"
+            maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
+          />
         </div>
 
         <div className="compose-writing">

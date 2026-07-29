@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
+import type { PostItem } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
-import { formatTime } from '../utils/content';
+import PostListItem from '../components/PostListItem';
 
 interface FavItem {
   id: number;
   post_id: number;
   created_at: string;
-  post?: {
-    id: number;
-    title: string;
-    board?: { name: string };
-    user?: { nickname: string };
-  };
+  post?: PostItem;
 }
 
 export default function FavoritesPage() {
@@ -30,7 +26,7 @@ export default function FavoritesPage() {
     if (authLoading) return;
     if (!user) { nav('/login'); return; }
     api.favorites()
-      .then(d => setList(Array.isArray(d.favorites) ? d.favorites : []))
+      .then(d => setList(Array.isArray(d.favorites) ? d.favorites as FavItem[] : []))
       .catch(e => notify.error(e.message))
       .finally(() => setLoading(false));
   }, [user, authLoading, nav]);
@@ -51,26 +47,31 @@ export default function FavoritesPage() {
 
         {list.length === 0 ? (
           <div className="empty-state">
+            <Star className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
             <p>还没有收藏任何帖子</p>
             <Button onClick={() => nav('/')}>去逛逛</Button>
           </div>
         ) : (
           <div className="content-surface">
             {list.map(fav => (
-              <div
-                key={fav.id}
-                className="post-row"
-                onClick={() => nav(`/post/${fav.post_id}`)}
-              >
-                <div className="post-body">
-                  <div className="post-title">{fav.post?.title || '帖子已删除'}</div>
-                  <div className="post-meta">
-                    {fav.post?.board?.name && <span>{fav.post.board.name}</span>}
-                    {fav.post?.user?.nickname && <span>{fav.post.user.nickname}</span>}
-                    <span>收藏于 {formatTime(fav.created_at)}</span>
+              fav.post ? (
+                <PostListItem
+                  key={fav.id}
+                  post={fav.post}
+                  onClick={() => nav(`/post/${fav.post_id}`)}
+                />
+              ) : (
+                <button
+                  key={fav.id}
+                  type="button"
+                  className="post-row"
+                  onClick={() => nav(`/post/${fav.post_id}`)}
+                >
+                  <div className="post-body">
+                    <div className="post-title">帖子已删除</div>
                   </div>
-                </div>
-              </div>
+                </button>
+              )
             ))}
           </div>
         )}

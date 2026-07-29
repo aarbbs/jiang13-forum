@@ -1,19 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
+
+	"github.com/kardianos/service"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/router"
 )
 
 func main() {
@@ -22,55 +16,28 @@ func main() {
 		log.Fatalf("配置解析失败: %v", err)
 	}
 
-	// 日志同时输出到控制台和文件
-	logFile, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	svcCfg, err := buildServiceConfig(cfg)
 	if err != nil {
-		log.Fatalf("打开日志文件失败: %v", err)
-	}
-	defer logFile.Close()
-	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	log.Println("========================================")
-	log.Println("  姜十三论坛 Jiang13 Forum 启动中...")
-	log.Println("========================================")
-
-	// 初始化数据库
-	if err := model.InitDB(cfg.DBPath()); err != nil {
-		log.Fatalf("数据库初始化失败: %v", err)
+		log.Fatalf("构建服务配置失败: %v", err)
 	}
 
-	// 设置路由
-	engine, err := router.Setup(cfg)
+	prg := &program{cfg: cfg}
+	svc, err := service.New(prg, svcCfg)
 	if err != nil {
-		log.Fatalf("路由初始化失败: %v", err)
+		log.Fatalf("创建系统服务失败: %v", err)
 	}
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: engine,
-	}
-
-	// 优雅关机
-	go func() {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		<-sigCh
-		log.Println("收到关机信号，正在优雅关闭...")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(ctx); err != nil {
-			log.Printf("HTTP 服务关闭异常: %v", err)
+	if cfg.ServiceAction != "" {
+		if err := runServiceControl(svc, cfg.ServiceAction); err != nil {
+			fmt.Fprintf(os.Stderr, "服务操作失败 (%s): %v\n", cfg.ServiceAction, err)
+			os.Exit(1)
 		}
-	}()
-
-	log.Printf("姜十三论坛已启动: http://localhost%s", addr)
-	log.Printf("后台管理地址: http://localhost%s/admin/dashboard", addr)
-	log.Printf("数据目录: %s", cfg.DataDir)
-
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("HTTP 服务异常: %v", err)
+		return
 	}
-	log.Println("姜十三论坛已安全退出")
+
+	// 交互终端或由服务管理器拉起时均走 Run：
+	// Windows Service / systemd 负责生命周期；前台运行时仍响应 Ctrl+C / SIGTERM
+	if err := svc.Run(); err != nil {
+		log.Fatalf("运行失败: %v", err)
+	}
 }

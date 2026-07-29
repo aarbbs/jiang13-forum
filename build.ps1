@@ -72,7 +72,7 @@ switch ($Target) {
         Write-Host '[ok] cleaned dist' -ForegroundColor Green
     }
     'run' {
-        go run $MainPkg --port 3000 --data ./data
+        go run $MainPkg
     }
     'dev' {
         $root = (Get-Location).Path
@@ -83,11 +83,11 @@ switch ($Target) {
         Write-Host '[dev] 正在新窗口启动 Go 后端...' -ForegroundColor Cyan
         Start-Process powershell -ArgumentList @(
             '-NoExit', '-Command',
-            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg --port 3000 --data ./data"
+            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg"
         ) | Out-Null
         Start-Sleep -Seconds 2
         Push-Location frontend
-        try {
+    90|        try {
             if (-not (Test-Path node_modules)) { npm install }
             npm run dev
         } finally {
