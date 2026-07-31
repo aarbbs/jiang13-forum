@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,6 +9,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { resolveAuthRedirect, registerPath, navigateAfterAuth } from '../utils/authRedirect';
+import { useSiteBranding } from '../hooks/useSiteBranding';
+import SiteBrandMark from '../components/SiteBrandMark';
 
 const schema = z.object({
   username: z.string().min(1, '请输入用户名'),
@@ -19,8 +22,11 @@ type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refresh } = useAuth();
+  const { branding } = useSiteBranding();
   const [loading, setLoading] = useState(false);
+  const redirectTo = resolveAuthRedirect(searchParams);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { username: '', password: '' },
@@ -32,7 +38,7 @@ export default function LoginPage() {
       await api.login(values.username, values.password);
       await refresh();
       notify.success('登录成功');
-      nav('/', { replace: true });
+      navigateAfterAuth(nav, redirectTo);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '登录失败');
     } finally {
@@ -43,9 +49,9 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <div className="logo-mark">姜</div>
-        <h1>登录姜十三论坛</h1>
-        <p className="subtitle">拾三一隅，自在交流</p>
+        <SiteBrandMark branding={branding} className="logo-mark" />
+        <h1>登录{branding.name}</h1>
+        <p className="subtitle">{branding.slogan || '欢迎回来'}</p>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -80,7 +86,7 @@ export default function LoginPage() {
           </form>
         </Form>
         <p className="auth-footer">
-          没有账号？<Link to="/register">注册</Link>
+          没有账号？<Link to={registerPath(redirectTo === '/' ? undefined : redirectTo)}>注册</Link>
         </p>
       </div>
     </div>

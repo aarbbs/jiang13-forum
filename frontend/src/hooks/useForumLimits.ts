@@ -10,14 +10,16 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   search_keyword_min: 1,
   search_keyword_max: 50,
   page_size_default: 30,
-  feed_max_pages: 10,
-  feed_max_items: 300,
   password_min_len: 6,
   avatar_max_mb: 2,
+  open_posts_in_new_tab: true,
+  open_content_links_in_new_tab: true,
 };
 
 let cached: ForumLimitsPublic | null = null;
 let inflight: Promise<ForumLimitsPublic> | null = null;
+let cacheEpoch = 0;
+const listeners = new Set<() => void>();
 
 function fetchLimits(): Promise<ForumLimitsPublic> {
   if (cached) return Promise.resolve(cached);
@@ -27,7 +29,7 @@ function fetchLimits(): Promise<ForumLimitsPublic> {
       cached = limits;
       return limits;
     })
-    .catch(() => DEFAULT_LIMITS)
+    .catch(() => cached ?? DEFAULT_LIMITS)
     .finally(() => { inflight = null; });
   return inflight;
 }
@@ -36,14 +38,34 @@ function fetchLimits(): Promise<ForumLimitsPublic> {
 export function useForumLimits() {
   const [limits, setLimits] = useState<ForumLimitsPublic>(cached ?? DEFAULT_LIMITS);
   const [loading, setLoading] = useState(!cached);
+  const [epoch, setEpoch] = useState(cacheEpoch);
 
   useEffect(() => {
-    fetchLimits().then(setLimits).finally(() => setLoading(false));
+    const onInvalidate = () => setEpoch(cacheEpoch);
+    listeners.add(onInvalidate);
+    return () => { listeners.delete(onInvalidate); };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    // 无缓存时显示加载中，避免首页用默认 30/300 误拉全量
+    if (!cached) setLoading(true);
+    fetchLimits()
+      .then(next => {
+        if (!cancelled) setLimits(next);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [epoch]);
 
   return { limits, loading };
 }
 
+/** 清除缓存并通知已挂载的 hook 重新拉取 */
 export function invalidateForumLimitsCache() {
   cached = null;
+  cacheEpoch += 1;
+  listeners.forEach(fn => fn());
 }

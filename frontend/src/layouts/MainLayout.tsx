@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import PageLoader from '../components/PageLoader';
+import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Moon, Sun, Search, Plus, PanelRight, X } from 'lucide-react';
 import {
@@ -13,8 +14,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
 import { useOverlayA11y, moveTabIndex } from '../hooks/useOverlayA11y';
 import { api } from '../api/client';
-import type { Board, PostItem, Notification, OnlineStats, ForumStats } from '../api/types';
-import { getCachedBoards, getCachedStats, setCachedBoards, setCachedStats } from '../utils/layoutCache';
+import type { Board, PostItem, RecentComment, ForumStats, TagCount } from '../api/types';
+import type { PostHeading } from '../utils/postHeadings';
+import { getCachedBoards, getCachedStats, getCachedHot, getCachedRecentComments, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedHot, setCachedRecentComments, setCachedTags } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
 import BackToTop from '../components/BackToTop';
@@ -24,10 +26,15 @@ import { navigateFeed } from '../utils/feedCache';
 import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { getBoardThemeIndex } from '../utils/boardTheme';
+import { loginPath } from '../utils/authRedirect';
+import { openForumPost } from '../utils/openPost';
+import { useSiteBranding } from '../hooks/useSiteBranding';
+import SiteBrandMark from '../components/SiteBrandMark';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { branding } = useSiteBranding();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const hideAside = useMediaQuery('(max-width: 1100px)');
   const nav = useNavigate();
@@ -37,11 +44,18 @@ export default function MainLayout() {
 
   const [boards, setBoards] = useState<Board[]>(() => getCachedBoards());
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
-  const [hot, setHot] = useState<PostItem[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [online, setOnline] = useState<OnlineStats | null>(null);
+  const [hot, setHot] = useState<PostItem[]>(() => getCachedHot());
+  const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
+  const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
+  const [tagsLoading, setTagsLoading] = useState(() => getCachedTags().length === 0);
+  const [postOutline, setPostOutline] = useState<{
+    headings: PostHeading[];
+    scrollRoot: HTMLElement | null;
+    title?: string;
+  } | null>(null);
   const [asideOpen, setAsideOpen] = useState(false);
-  const [asideLoading, setAsideLoading] = useState(false);
+  const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
+  const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
   const asideEverLoaded = useRef(false);
   const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
@@ -61,6 +75,9 @@ export default function MainLayout() {
   useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
   useEffect(() => { setAsideOpen(false); }, [loc.pathname, loc.search]);
   useEffect(() => {
+    if (!/^\/post\/\d+/.test(loc.pathname)) setPostOutline(null);
+  }, [loc.pathname]);
+  useEffect(() => {
     if (!hideAside) setAsideOpen(false);
   }, [hideAside]);
   useEffect(() => {
@@ -71,7 +88,7 @@ export default function MainLayout() {
   }, [asideOpen]);
 
   const refreshBoards = useCallback(() => {
-    Promise.all([
+    return Promise.all([
       api.boards().then(d => {
         const next = d.boards ?? [];
         setBoards(next);
@@ -83,18 +100,9 @@ export default function MainLayout() {
         setCachedStats(next);
         return next;
       }).catch(() => null),
-    ]);
-  }, []);
-
-  const refreshOnline = useCallback(() => {
-    api.online().then(d => {
-      setOnline({
-        count: d.count ?? 0,
-        members: d.members ?? 0,
-        guests: d.guests ?? 0,
-        users: Array.isArray(d.users) ? d.users : [],
-      });
-    }).catch(() => {});
+    ]).finally(() => {
+      setBoardsLoading(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -104,25 +112,51 @@ export default function MainLayout() {
     return () => window.removeEventListener('boards-refresh', onRefresh);
   }, [refreshBoards]);
 
+  // 标签云：非编辑页拉取（左侧栏常显）
   useEffect(() => {
     if (isCompose) return;
-    api.presence().catch(() => {});
-    const presenceTimer = setInterval(() => api.presence().catch(() => {}), 60000);
-    return () => clearInterval(presenceTimer);
+    let cancelled = false;
+    const loadTags = () => {
+      if (getCachedTags().length === 0) setTagsLoading(true);
+      api.tags(40).then(d => {
+        if (cancelled) return;
+        const next = Array.isArray(d.tags) ? d.tags : [];
+        setTags(next);
+        setCachedTags(next);
+      }).catch(() => {}).finally(() => {
+        if (!cancelled) setTagsLoading(false);
+      });
+    };
+    loadTags();
+    const onRefresh = () => loadTags();
+    window.addEventListener('posts-refresh', onRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('posts-refresh', onRefresh);
+    };
   }, [isCompose]);
 
   const needAsideData = !isCompose && (!hideAside || asideOpen);
   useEffect(() => {
     if (!needAsideData) return;
     let cancelled = false;
-    if (!asideEverLoaded.current) setAsideLoading(true);
+    // 无缓存时才显示加载态，有缓存则静默刷新，避免抽屉高度跳动
+    if (!asideEverLoaded.current && !hasCachedAside()) {
+      setAsideLoading(true);
+    }
 
     Promise.all([
       api.hotPosts().then(d => {
-        if (!cancelled) setHot(Array.isArray(d.posts) ? d.posts : []);
+        if (cancelled) return;
+        const next = Array.isArray(d.posts) ? d.posts : [];
+        setHot(next);
+        setCachedHot(next);
       }).catch(() => {}),
-      api.notifications().then(d => {
-        if (!cancelled) setNotifications(Array.isArray(d.notifications) ? d.notifications : []);
+      api.recentComments().then(d => {
+        if (cancelled) return;
+        const next = Array.isArray(d.comments) ? d.comments : [];
+        setRecentComments(next);
+        setCachedRecentComments(next);
       }).catch(() => {}),
     ]).finally(() => {
       if (!cancelled) {
@@ -131,13 +165,10 @@ export default function MainLayout() {
       }
     });
 
-    refreshOnline();
-    const onlineTimer = setInterval(refreshOnline, 30000);
     return () => {
       cancelled = true;
-      clearInterval(onlineTimer);
     };
-  }, [needAsideData, refreshOnline]);
+  }, [needAsideData]);
 
   const doSearch = () => {
     const kw = keyword.trim();
@@ -157,10 +188,10 @@ export default function MainLayout() {
     nav(`/?keyword=${encodeURIComponent(kw)}`);
   };
 
-  const openPost = (id: number) => {
+  const openPost = useCallback((id: number) => {
     setAsideOpen(false);
-    nav(`/post/${id}`);
-  };
+    openForumPost(nav, id, forumLimits.open_posts_in_new_tab);
+  }, [nav, forumLimits.open_posts_in_new_tab]);
 
   const userInitial = user?.nickname?.charAt(0) || '?';
   const isFeedHome = loc.pathname === '/';
@@ -168,6 +199,22 @@ export default function MainLayout() {
 
   const boardChipIds = useMemo(() => [0, ...boards.map(b => b.id)], [boards]);
   const activeChipIndex = Math.max(0, boardChipIds.indexOf(mobileActiveBoard === -1 ? 0 : mobileActiveBoard));
+
+  const outletKeyword = params.get('keyword') || '';
+  const isPostDetail = /^\/post\/\d+\/?$/.test(loc.pathname);
+  const setPostOutlineSafe = useCallback((outline: LayoutCtx['postOutline']) => {
+    setPostOutline(outline);
+  }, []);
+  const layoutCtx = useMemo<LayoutCtx>(() => ({
+    boardId,
+    keyword: outletKeyword,
+    setBoardId,
+    boards,
+    stats,
+    refreshBoards,
+    isMobile,
+    setPostOutline: setPostOutlineSafe,
+  }), [boardId, outletKeyword, boards, stats, refreshBoards, isMobile, setPostOutlineSafe]);
 
   const selectBoardChip = (id: number) => {
     setBoardId(id);
@@ -191,8 +238,8 @@ export default function MainLayout() {
       <header className="app-header">
         <div className="header-inner">
           <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
-            <span className="header-logo-mark">姜</span>
-            {!isMobile && <span className="header-logo-text">姜十三论坛</span>}
+            <SiteBrandMark branding={branding} className="header-logo-mark" />
+            {!isMobile && <span className="header-logo-text">{branding.name}</span>}
           </button>
 
           {!isCompose && (
@@ -224,7 +271,7 @@ export default function MainLayout() {
             <button
               type="button"
               className="header-compose-btn"
-              onClick={() => user ? nav('/compose') : nav('/login')}
+              onClick={() => user ? nav('/compose') : nav(loginPath('/compose'))}
               aria-label="发帖"
             >
               <Plus size={16} aria-hidden />
@@ -288,7 +335,7 @@ export default function MainLayout() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <button type="button" className="header-login-btn" onClick={() => nav('/login')}>
+                <button type="button" className="header-login-btn" onClick={() => nav(loginPath())}>
                   登录
                 </button>
               )}
@@ -303,6 +350,11 @@ export default function MainLayout() {
             boards={boards}
             activeBoard={boardId}
             onSelectBoard={setBoardId}
+            boardsLoading={boardsLoading}
+            outlineMode={isPostDetail}
+            outlineHeadings={postOutline?.headings ?? []}
+            outlineScrollRoot={postOutline?.scrollRoot ?? null}
+            outlineTitle={postOutline?.title}
           />
         )}
 
@@ -346,16 +398,8 @@ export default function MainLayout() {
               })}
             </div>
           )}
-          <Suspense fallback={<PageLoader />}>
-            <Outlet context={{
-              boardId,
-              keyword: params.get('keyword') || '',
-              setBoardId,
-              boards,
-              stats,
-              refreshBoards,
-              isMobile,
-            } satisfies LayoutCtx} />
+          <Suspense fallback={isFeedHome ? <FeedPageSkeleton /> : <PageLoader />}>
+            <Outlet context={layoutCtx} />
           </Suspense>
         </main>
 
@@ -363,8 +407,9 @@ export default function MainLayout() {
         <aside className="aside-panel">
           <RightPanel
             hot={hot}
-            notifications={notifications}
-            online={online}
+            recentComments={recentComments}
+            tags={tags}
+            tagsLoading={tagsLoading}
             loading={asideLoading}
             onPostClick={openPost}
           />
@@ -406,8 +451,9 @@ export default function MainLayout() {
             <div className="aside-drawer-body">
               <RightPanel
                 hot={hot}
-                notifications={notifications}
-                online={online}
+                recentComments={recentComments}
+                tags={tags}
+                tagsLoading={tagsLoading}
                 loading={asideLoading}
                 onPostClick={openPost}
               />
@@ -429,4 +475,10 @@ export type LayoutCtx = {
   stats: ForumStats | null;
   refreshBoards: () => void;
   isMobile: boolean;
+  /** 详情页上报文章目录，供左侧栏展示 */
+  setPostOutline: (outline: {
+    headings: PostHeading[];
+    scrollRoot: HTMLElement | null;
+    title?: string;
+  } | null) => void;
 };

@@ -25,15 +25,21 @@ func NewAuthMiddleware(auth *service.AuthService) *AuthMiddleware {
 	return &AuthMiddleware{auth: auth}
 }
 
-// OptionalAuth 可选鉴权：有 token 则解析，无 token 不拦截
+// OptionalAuth 可选鉴权：有 token 则解析，无 token 不拦截。
+// 用户已删除或不存在时清除失效 cookie，避免前端误显示为已登录。
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractToken(c)
 		if token != "" {
 			if claims, err := m.auth.ParseToken(token); err == nil {
-				c.Set(CtxUserID, claims.UserID)
-				c.Set(CtxUsername, claims.Username)
-				c.Set(CtxRole, claims.Role)
+				var user model.User
+				if err := model.DB.Select("id", "username", "role").First(&user, claims.UserID).Error; err != nil {
+					c.SetCookie(CookieName, "", -1, "/", "", false, true)
+				} else {
+					c.Set(CtxUserID, user.ID)
+					c.Set(CtxUsername, user.Username)
+					c.Set(CtxRole, user.Role)
+				}
 			}
 		}
 		c.Next()

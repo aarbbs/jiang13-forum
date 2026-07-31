@@ -10,6 +10,9 @@ import { useOverlayA11y } from '../hooks/useOverlayA11y';
 import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import BackToTop from '../components/BackToTop';
+import { loginPath } from '../utils/authRedirect';
+import { useSiteBranding } from '../hooks/useSiteBranding';
+import SiteBrandMark from '../components/SiteBrandMark';
 
 const NAV = [
   { to: '/admin/dashboard', label: '仪表盘', icon: LayoutDashboard },
@@ -24,6 +27,7 @@ const NAV = [
 export default function AdminLayout() {
   const { user, loading } = useAuth();
   const { theme, toggle } = useTheme();
+  const { branding } = useSiteBranding();
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
   const nav = useNavigate();
@@ -38,7 +42,7 @@ export default function AdminLayout() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      nav('/login');
+      nav(loginPath('/admin/dashboard'));
       return;
     }
     if (user.role !== 'admin') {
@@ -91,9 +95,9 @@ export default function AdminLayout() {
               {navOpen ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
             </button>
           )}
-          <div className="admin-topbar-mark">姜</div>
+          <SiteBrandMark branding={branding} className="admin-topbar-mark" />
           <div>
-            <div className="admin-topbar-title">姜十三论坛</div>
+            <div className="admin-topbar-title">{branding.name}</div>
             <div className="admin-topbar-sub">管理后台</div>
           </div>
         </div>

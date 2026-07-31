@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Send, Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
@@ -14,6 +14,13 @@ import TagInput, { serializeTags, parseTags } from '../components/TagInput';
 import { Spinner } from '@/components/ui/spinner';
 import { getCachedBoards } from '../utils/layoutCache';
 import type { LayoutCtx } from '../layouts/MainLayout';
+import { loginPath } from '../utils/authRedirect';
+import {
+  loadComposeDraft,
+  saveComposeDraft,
+  clearComposeDraft,
+  draftHasContent,
+} from '../utils/composeDraft';
 
 interface ComposeBaseline {
   title: string;
@@ -25,6 +32,22 @@ interface ComposeBaseline {
 function resolveBoards(ctxBoards?: Board[]): Board[] {
   if (ctxBoards && ctxBoards.length > 0) return ctxBoards;
   return getCachedBoards();
+}
+
+/** 格式化剩余可编辑时间 */
+function formatEditRemaining(createdAt: string, windowHours: number): string {
+  if (windowHours <= 0) return '';
+  const deadline = new Date(createdAt).getTime() + windowHours * 3600_000;
+  const ms = deadline - Date.now();
+  if (ms <= 0) return '可编辑时限已到';
+  const hours = Math.floor(ms / 3600_000);
+  const mins = Math.floor((ms % 3600_000) / 60_000);
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    return `还可编辑约 ${days} 天`;
+  }
+  if (hours > 0) return `还可编辑约 ${hours} 小时 ${mins} 分`;
+  return `还可编辑约 ${mins} 分钟`;
 }
 
 export default function ComposePage() {
@@ -50,13 +73,21 @@ export default function ComposePage() {
     () => isEdit || resolveBoards(layoutCtx?.boards).length > 0,
   );
   const [baseline, setBaseline] = useState<ComposeBaseline | null>(null);
+  const [editWindowHint, setEditWindowHint] = useState('');
+  const [draftHint, setDraftHint] = useState('');
+  const draftReadyRef = useRef(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { nav('/login'); return; }
+    if (!user) {
+      nav(loginPath(isEdit ? `/post/${editId}/edit` : '/compose'));
+      return;
+    }
 
     if (isEdit) {
       setLoading(true);
+      draftReadyRef.current = false;
       const cached = resolveBoards(layoutCtx?.boards);
       const boardsPromise = cached.length > 0
         ? Promise.resolve({ boards: cached })
@@ -78,16 +109,43 @@ export default function ComposePage() {
             return;
           }
           const loadedBoardId = String(post.board_id);
-          setBoardId(loadedBoardId);
-          setTitle(post.title);
-          setTags(post.tags ?? '');
-          setContent(post.content ?? '');
-          setBaseline({
+          const serverBaseline: ComposeBaseline = {
             title: post.title,
             tags: post.tags ?? '',
             content: post.content ?? '',
             boardId: loadedBoardId,
-          });
+          };
+          setBoardId(loadedBoardId);
+          setBaseline(serverBaseline);
+
+          const windowHours = postData.post_edit_window_hours ?? 0;
+          if (user.role !== 'admin' && windowHours > 0) {
+            setEditWindowHint(formatEditRemaining(post.created_at, windowHours));
+          } else {
+            setEditWindowHint('');
+          }
+
+          const draft = loadComposeDraft(editId);
+          const useDraft = draft
+            && draftHasContent(draft)
+            && (
+              draft.title !== serverBaseline.title
+              || draft.tags !== serverBaseline.tags
+              || draft.content !== serverBaseline.content
+            );
+          if (useDraft && draft) {
+            setTitle(draft.title);
+            setTags(draft.tags);
+            setContent(draft.content);
+            setDraftHint('已恢复未保存的编辑草稿');
+            notify.success('已恢复未保存的编辑草稿');
+          } else {
+            setTitle(serverBaseline.title);
+            setTags(serverBaseline.tags);
+            setContent(serverBaseline.content);
+            setDraftHint('');
+          }
+          draftReadyRef.current = true;
         })
         .catch((e: unknown) => {
           notify.error(e instanceof Error ? e.message : '加载帖子失败');
@@ -97,39 +155,76 @@ export default function ComposePage() {
       return;
     }
 
+    draftReadyRef.current = false;
+    const applyNewBaseline = (list: Board[], initialBoardId: string) => {
+      setBoards(list);
+      if (!defaultBoard) setBoardId(initialBoardId);
+      const boardForBaseline = defaultBoard || initialBoardId;
+      setBoardId(prev => prev || boardForBaseline);
+
+      const draft = loadComposeDraft(null);
+      if (draft && draftHasContent(draft)) {
+        setTitle(draft.title);
+        setTags(draft.tags);
+        setContent(draft.content);
+        if (draft.boardId && list.some(b => String(b.id) === draft.boardId)) {
+          setBoardId(draft.boardId);
+        }
+        setBaseline({
+          title: '',
+          tags: '',
+          content: '',
+          boardId: draft.boardId || boardForBaseline,
+        });
+        setDraftHint('已恢复本地草稿');
+        notify.success('已恢复本地草稿');
+      } else {
+        setBaseline({
+          title: '',
+          tags: '',
+          content: '',
+          boardId: boardForBaseline,
+        });
+        setDraftHint('');
+      }
+      draftReadyRef.current = true;
+    };
+
     const list = resolveBoards(layoutCtx?.boards);
     if (list.length > 0) {
-      setBoards(list);
-      setBoardsReady(true);
       const initialBoardId = defaultBoard || String(list[0].id);
-      if (!defaultBoard) setBoardId(initialBoardId);
-      setBaseline({
-        title: '',
-        tags: '',
-        content: '',
-        boardId: initialBoardId,
-      });
+      applyNewBaseline(list, initialBoardId);
+      setBoardsReady(true);
       return;
     }
 
     setBoardsReady(false);
     api.boards().then(d => {
       const next = d.boards ?? [];
-      setBoards(next);
       const initialBoardId = defaultBoard || (next.length > 0 ? String(next[0].id) : '');
-      if (!defaultBoard && next.length > 0) {
-        setBoardId(initialBoardId);
-      }
-      setBaseline({
-        title: '',
-        tags: '',
-        content: '',
-        boardId: initialBoardId,
-      });
+      applyNewBaseline(next, initialBoardId);
     }).catch(() => {
       setBoards([]);
     }).finally(() => setBoardsReady(true));
   }, [user, authLoading, nav, defaultBoard, isEdit, editId, layoutCtx?.boards]);
+
+  // 防抖自动保存草稿
+  useEffect(() => {
+    if (!draftReadyRef.current || !user) return;
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      saveComposeDraft(isEdit ? editId : null, {
+        title,
+        tags,
+        content,
+        boardId,
+      });
+      if (title.trim() || tags.trim() || content.trim()) {
+        setDraftHint('草稿已自动保存');
+      }
+    }, 800);
+    return () => clearTimeout(draftTimerRef.current);
+  }, [title, tags, content, boardId, isEdit, editId, user]);
 
   const isDirty = useMemo(() => {
     if (!baseline) return false;
@@ -206,11 +301,13 @@ export default function ComposePage() {
       if (isEdit) {
         await api.updatePost(editId!, payload);
         notify.success('帖子已更新');
+        clearComposeDraft(editId);
         markSaved();
         nav(`/post/${editId}`);
       } else {
         const res = await api.createPost({ board_id: boardId, ...payload });
         notify.success('发帖成功');
+        clearComposeDraft(null);
         markSaved();
         nav(`/post/${res.post_id}`);
       }
@@ -230,12 +327,20 @@ export default function ComposePage() {
           <button
             type="button"
             className="compose-back"
-            onClick={() => requestLeave(() => nav(isEdit ? `/post/${editId}` : -1))}
+            onClick={() => requestLeave(() => {
+              if (isEdit) nav(`/post/${editId}`);
+              else nav(-1);
+            })}
           >
             <ArrowLeft size={16} />
             <span>返回</span>
           </button>
           <div className="compose-header-actions">
+            {(draftHint || editWindowHint) && (
+              <span className="compose-draft-hint" title={editWindowHint || draftHint}>
+                {editWindowHint || draftHint}
+              </span>
+            )}
             <button
               type="button"
               className="compose-publish-btn"
@@ -287,6 +392,9 @@ export default function ComposePage() {
           {currentBoard && (
             <div className="compose-subtitle">
               {isEdit ? '编辑于' : '发布至'} <strong>{currentBoard.name}</strong>
+              {editWindowHint && (
+                <span className="compose-edit-window"> · {editWindowHint}</span>
+              )}
             </div>
           )}
           <ArticleEditor

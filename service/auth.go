@@ -27,18 +27,34 @@ func NewAuthService(jwtSecret string, filter *SensitiveFilter, settings *ForumSe
 	return &AuthService{jwtSecret: jwtSecret, filter: filter, settings: settings}
 }
 
+// UserCount 当前用户数
+func (s *AuthService) UserCount() int64 {
+	var n int64
+	model.DB.Model(&model.User{}).Count(&n)
+	return n
+}
+
 // Register 用户注册
-func (s *AuthService) Register(username, password, nickname string) (*model.User, error) {
+func (s *AuthService) Register(username, password, nickname, email string) (*model.User, error) {
 	if err := ValidateUsername(username); err != nil {
 		return nil, err
 	}
 	if err := ValidatePassword(password, s.settings.PasswordMinLen()); err != nil {
 		return nil, err
 	}
+	email = NormalizeEmail(email)
+	if err := ValidateEmail(email); err != nil {
+		return nil, err
+	}
+
 	var exist model.User
 	if err := model.DB.Where("username = ?", username).First(&exist).Error; err == nil {
 		return nil, ErrUserExists
 	}
+	if err := model.DB.Where("email = ?", email).First(&exist).Error; err == nil {
+		return nil, ErrEmailExists
+	}
+
 	hash, err := HashPassword(password)
 	if err != nil {
 		return nil, err
@@ -50,14 +66,13 @@ func (s *AuthService) Register(username, password, nickname string) (*model.User
 
 	// 首个注册用户自动成为管理员
 	role := model.RoleUser
-	var userCount int64
-	model.DB.Model(&model.User{}).Count(&userCount)
-	if userCount == 0 {
+	if s.UserCount() == 0 {
 		role = model.RoleAdmin
 	}
 
 	user := &model.User{
 		Username: username,
+		Email:    email,
 		Password: hash,
 		Nickname: nickname,
 		Role:     role,
@@ -68,8 +83,8 @@ func (s *AuthService) Register(username, password, nickname string) (*model.User
 	return user, nil
 }
 
-// Login 用户登录，返回 JWT token
-func (s *AuthService) Login(username, password string) (string, *model.User, error) {
+// Login 用户登录，返回 JWT token；clientIP 写入上次登录记录
+func (s *AuthService) Login(username, password, clientIP string) (string, *model.User, error) {
 	var user model.User
 	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
 		return "", nil, ErrInvalidCred
@@ -80,8 +95,24 @@ func (s *AuthService) Login(username, password string) (string, *model.User, err
 	if !CheckPassword(user.Password, password) {
 		return "", nil, ErrInvalidCred
 	}
+	s.recordLogin(&user, clientIP)
 	token, err := s.GenerateToken(&user)
 	return token, &user, err
+}
+
+// recordLogin 记录上次登录时间与 IP（失败不影响登录）
+func (s *AuthService) recordLogin(user *model.User, clientIP string) {
+	now := time.Now()
+	ip := clientIP
+	if len(ip) > 45 {
+		ip = ip[:45]
+	}
+	_ = model.DB.Model(user).Updates(map[string]interface{}{
+		"last_login_at": now,
+		"last_login_ip": ip,
+	}).Error
+	user.LastLoginAt = &now
+	user.LastLoginIP = ip
 }
 
 // GenerateToken 生成 JWT

@@ -15,18 +15,23 @@ const (
 )
 
 // User 用户表
+// Email / Password / LastLogin* 默认不随帖子等嵌套 User 序列化；
+// 个人中心与后台列表请用 UserSelf / UserAdmin。
 type User struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	Username  string         `gorm:"uniqueIndex;size:64;not null" json:"username"`
-	Password  string         `gorm:"size:128;not null" json:"-"`
-	Nickname  string         `gorm:"size:64" json:"nickname"`
-	Avatar    string         `gorm:"size:256" json:"avatar"`
-	Role      Role           `gorm:"size:16;default:user" json:"role"`
-	Banned    bool           `gorm:"default:false" json:"banned"`
-	BannedAt  *time.Time     `json:"banned_at,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	Username    string         `gorm:"uniqueIndex;size:128;not null" json:"username"`
+	Email       string         `gorm:"index;size:128;default:''" json:"-"`
+	Password    string         `gorm:"size:128;not null" json:"-"`
+	Nickname    string         `gorm:"size:64" json:"nickname"`
+	Avatar      string         `gorm:"size:256" json:"avatar"`
+	Role        Role           `gorm:"size:16;default:user" json:"role"`
+	Banned      bool           `gorm:"default:false" json:"banned"`
+	BannedAt    *time.Time     `json:"banned_at,omitempty"`
+	LastLoginAt *time.Time     `json:"-"`
+	LastLoginIP string         `gorm:"size:45;default:''" json:"-"` // 兼容 IPv6
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // Board 论坛板块
@@ -80,7 +85,7 @@ type PostRevision struct {
 // ForumSetting 论坛全局设置（键值对）
 type ForumSetting struct {
 	Key   string `gorm:"primaryKey;size:64" json:"key"`
-	Value string `gorm:"size:256" json:"value"`
+	Value string `gorm:"size:2048" json:"value"`
 }
 
 // Comment 楼层评论

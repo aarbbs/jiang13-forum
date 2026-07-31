@@ -40,7 +40,6 @@ func (h *Handlers) AdminDashboard(c *gin.Context) {
 		"PostCount":    postCount,
 		"BoardCount":   boardCount,
 		"CommentCount": commentCount,
-		"OnlineCount":  h.Online.Count(),
 		"RecentPosts":  recentPosts,
 	}))
 }
@@ -223,7 +222,7 @@ func (h *Handlers) AdminAPILogin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	token, user, err := h.Auth.Login(req.Username, req.Password)
+	token, user, err := h.Auth.Login(req.Username, req.Password, c.ClientIP())
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return

@@ -53,7 +53,9 @@ func IsSPARoute(path string) bool {
 		strings.HasPrefix(path, "/admin") ||
 		strings.HasPrefix(path, "/uploads") ||
 		strings.HasPrefix(path, "/legacy") ||
-		strings.HasPrefix(path, "/assets") {
+		strings.HasPrefix(path, "/assets") ||
+		strings.HasPrefix(path, "/oauth") ||
+		strings.HasPrefix(path, "/.well-known") {
 		return false
 	}
 	return true

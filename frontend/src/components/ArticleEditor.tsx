@@ -15,8 +15,8 @@ import {
   FileCode, PenLine, Maximize2, Minimize2,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
-import { renderPostContentHtml } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
+import PostContent from './PostContent';
 import { handleMarkdownTabKey, insertAtCursor } from '../utils/markdownIndent';
 import {
   wrapMarkdownSelection,
@@ -362,7 +362,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   }, [markdownSource, handleMarkdownChange]);
 
   const markdownPreviewHtml = useMemo(
-    () => renderPostContentHtml(sanitizeHtml(markdownToHtml(markdownSource)), true),
+    () => sanitizeHtml(markdownToHtml(markdownSource)),
     [markdownSource],
   );
 
@@ -384,7 +384,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       {
         icon: <LockKeyhole size={15} />,
         title: '登录可见',
-        hint: '独立输入区；Ctrl+Enter 退出',
+        hint: '插入或包裹；区块内 Ctrl+Enter 退出',
         active: editor.isActive('membersOnly'),
         className: 'article-tool-btn--members',
         action: wrapMembersOnly,
@@ -451,9 +451,10 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
             </div>
             <div className="article-editor-markdown-preview">
               <div className="article-editor-markdown-preview-label">预览</div>
-              <div
+              <PostContent
+                html={markdownPreviewHtml}
+                isLoggedIn
                 className="article-editor-markdown-preview-body post-detail-content"
-                dangerouslySetInnerHTML={{ __html: markdownPreviewHtml }}
               />
             </div>
           </div>

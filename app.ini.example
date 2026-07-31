@@ -4,6 +4,9 @@
 
 [server]
 HTTP_PORT = 3000
+; 对外公网根地址（无尾斜杠）；也可在管理后台 OIDC 设置中填写
+; 例：https://bbs.iioio.com
+ROOT_URL = https://bbs.iioio.com
 
 [paths]
 ; 相对路径相对于工作目录（默认可执行文件所在目录）
@@ -12,3 +15,22 @@ DATA = data
 [security]
 ; 留空则自动生成并持久化到 data/.jwt_secret（勿把生产密钥提交到仓库）
 JWT_SECRET =
+
+[oauth]
+; 可选：启动时若管理后台尚未配置，会用此处种子写入数据库一次
+; 日常请优先在管理后台「系统设置 → OIDC / SSO」修改（保存即生效）
+; Gitea 认证源名称须与回调路径一致，例如名称 jiang13 对应：
+; https://git.iioio.com/user/oauth2/jiang13/callback
+CLIENT_ID = gitea
+CLIENT_SECRET = 请替换为足够长的随机字符串
+; 多个回调用逗号分隔
+REDIRECT_URIS = https://git.iioio.com/user/oauth2/jiang13/callback
+
+[gitea]
+; 可选：同步会员公开仓库到侧栏 /projects（优先在管理后台配置）
+; BASE_URL 例：https://git.iioio.com
+BASE_URL =
+; 只读 Access Token（需能列出用户公开仓库）
+TOKEN =
+; 首次种子时若 BASE_URL+TOKEN 齐全且此项为 true，则写入并启用同步
+SYNC_ENABLED = false

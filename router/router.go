@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/config"
@@ -27,49 +28,79 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	filter.LoadFromFile(cfg.FilterWordsPath())
 
 	settingsSvc := service.NewForumSettingsService()
+	settingsSvc.SeedOIDCFromINI(
+		cfg.RootURL,
+		cfg.OAuthClientID,
+		cfg.OAuthClientSecret,
+		strings.Join(cfg.OAuthRedirectURIs, ","),
+	)
+	settingsSvc.MigrateLegacyOIDCClient()
+	settingsSvc.SeedGiteaFromINI(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaSyncEnabled)
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
 	userSvc := service.NewUserService(filter, settingsSvc)
 	boardSvc := service.NewBoardService()
 	postSvc := service.NewPostService(filter, settingsSvc)
 	commentSvc := service.NewCommentService(filter, settingsSvc)
 	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
-	onlineSvc := service.NewOnlineService()
 	limiter := service.NewRateLimiter(settingsSvc)
+	captchaSvc := service.NewCaptchaService()
+	mailSvc := service.NewMailService(settingsSvc)
+	emailCodeSvc := service.NewEmailCodeService(mailSvc)
+	oidcSvc, err := service.NewOIDCService(cfg, settingsSvc)
+	if err != nil {
+		return nil, err
+	}
+	giteaSvc := service.NewGiteaService(settingsSvc)
+	giteaSvc.StartBackgroundSync()
 
 	h := &handler.Handlers{
 		Cfg: cfg, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Backup: backupSvc,
-		Filter: filter, Limiter: limiter, Online: onlineSvc,
-		Settings: settingsSvc,
+		Filter: filter, Limiter: limiter, Settings: settingsSvc,
+		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
+		OIDC: oidcSvc, Gitea: giteaSvc,
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
 	r.Static("/uploads", filepath.Join(cfg.DataDir, "uploads"))
 
+	// OIDC Provider（Gitea 等外部站点 SSO）
+	r.GET("/.well-known/openid-configuration", h.OIDCDiscovery)
+	r.GET("/oauth/jwks", h.OIDCJWKS)
+	r.GET("/oauth/authorize", authMW.OptionalAuth(), h.OIDCAuthorize)
+	r.POST("/oauth/token", h.OIDCToken)
+	r.GET("/oauth/userinfo", h.OIDCUserInfo)
+	r.POST("/oauth/userinfo", h.OIDCUserInfo)
+	r.GET("/oauth/logout", h.OIDCLogout)
+	r.POST("/oauth/logout", h.OIDCLogout)
+
 	// 公开 JSON API（可选登录）
-	pubAPI := r.Group("/api", authMW.OptionalAuth(), middleware.PresenceMiddleware(onlineSvc))
+	pubAPI := r.Group("/api", authMW.OptionalAuth())
 	{
 		pubAPI.GET("/me", h.APIMe)
 		pubAPI.GET("/boards", h.APIBoards)
 		pubAPI.GET("/stats", h.APIStats)
 		pubAPI.GET("/forum-limits", h.APIForumLimits)
+		pubAPI.GET("/site-branding", h.APISiteBranding)
+		pubAPI.GET("/captcha", h.APICaptcha)
+		pubAPI.GET("/register/config", h.APIRegisterConfig)
+		pubAPI.POST("/register/email-code", middleware.RateLimitMiddleware(limiter, "register"), h.APISendRegisterEmailCode)
 		pubAPI.GET("/posts", h.APIPosts)
 		pubAPI.GET("/posts/hot", h.APIHotPosts)
-		pubAPI.GET("/notifications", h.APINotifications)
-		pubAPI.GET("/online", h.APIOnline)
-		pubAPI.POST("/presence", h.APIPresence)
+		pubAPI.GET("/tags", h.APITags)
+		pubAPI.GET("/comments/recent", h.APIRecentComments)
 		pubAPI.GET("/posts/:id", h.APIPostDetail)
 		pubAPI.GET("/posts/:id/comments", h.APIPostComments)
 		pubAPI.POST("/posts/:id/comments", middleware.RateLimitMiddleware(limiter, "comment"), h.APICreateComment)
+		pubAPI.GET("/projects", h.APIProjects)
 		pubAPI.POST("/register", middleware.RateLimitMiddleware(limiter, "register"), h.APIRegister)
 		pubAPI.POST("/login", middleware.RateLimitMiddleware(limiter, "login"), h.APILogin)
 	}
 
 	// 需登录 API
-	api := r.Group("/api", authMW.RequireAuth(), middleware.PresenceMiddleware(onlineSvc))
+	api := r.Group("/api", authMW.RequireAuth())
 	{
 		api.POST("/logout", h.APILogout)
-		api.POST("/ping", h.APIPing)
 		api.GET("/favorites", h.APIFavorites)
 		api.POST("/profile/nickname", h.APIUpdateProfile)
 		api.POST("/profile/password", h.APIUpdatePassword)
@@ -83,6 +114,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/posts/:id/like", h.APIToggleLike)
 		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
+		api.PUT("/comments/:id", h.APIUpdateComment)
 	}
 
 	// 管理员 API（React SPA 后台统一使用 JSON）
@@ -91,6 +123,18 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/dashboard", h.APIAdminDashboard)
 		adminAPI.GET("/settings", h.APIAdminSettings)
 		adminAPI.PUT("/settings/forum", h.APIAdminUpdateForumSettings)
+		adminAPI.PUT("/settings/mail", h.APIAdminUpdateMailSettings)
+		adminAPI.POST("/settings/mail/test", h.APIAdminTestMail)
+		adminAPI.PUT("/settings/oidc", h.APIAdminUpdateOIDCSettings)
+		adminAPI.PUT("/settings/gitea", h.APIAdminUpdateGiteaSettings)
+		adminAPI.POST("/settings/gitea/sync", h.APIAdminSyncGitea)
+		adminAPI.PUT("/settings/branding", h.APIAdminUpdateBranding)
+		adminAPI.POST("/settings/branding/upload", h.APIAdminUploadBrandingAsset)
+		adminAPI.POST("/settings/branding/clear", h.APIAdminClearBrandingAsset)
+		adminAPI.GET("/oauth/clients", h.APIAdminListOAuthClients)
+		adminAPI.POST("/oauth/clients", h.APIAdminCreateOAuthClient)
+		adminAPI.PUT("/oauth/clients/:id", h.APIAdminUpdateOAuthClient)
+		adminAPI.DELETE("/oauth/clients/:id", h.APIAdminDeleteOAuthClient)
 		adminAPI.GET("/settings/filter-words", h.APIAdminFilterWords)
 		adminAPI.PUT("/settings/filter-words", h.APIAdminUpdateFilterWords)
 		adminAPI.POST("/boards", h.APIAdminCreateBoard)

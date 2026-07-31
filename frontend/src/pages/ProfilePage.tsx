@@ -15,6 +15,7 @@ import { api } from '../api/client';
 import { useForumLimits } from '../hooks/useForumLimits';
 import AvatarCropDialog from '../components/AvatarCropDialog';
 import { AVATAR_ACCEPT, validateAvatarFile } from '../utils/avatarCrop';
+import { loginPath } from '../utils/authRedirect';
 
 const nickSchema = z.object({
   nickname: z.string().min(1, '请输入昵称').max(64),
@@ -61,7 +62,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      nav('/login');
+      nav(loginPath('/profile'));
     }
   }, [authLoading, user, nav]);
 
@@ -315,6 +316,12 @@ export default function ProfilePage() {
                 <FormLabel>用户名</FormLabel>
                 <FormControl>
                   <Input value={user.username} disabled />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormLabel>邮箱</FormLabel>
+                <FormControl>
+                  <Input value={user.email || '未设置'} disabled />
                 </FormControl>
               </FormItem>
               <FormField

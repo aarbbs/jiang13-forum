@@ -23,6 +23,7 @@ const ComposePage = lazy(() => import('./pages/ComposePage'));
 const BoardsManagePage = lazy(() => import('./pages/BoardsManagePage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminPostsPage = lazy(() => import('./pages/admin/AdminPostsPage'));
 const AdminCommentsPage = lazy(() => import('./pages/admin/AdminCommentsPage'));
@@ -32,8 +33,8 @@ const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
-      <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
-      <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterPage /></Suspense>} />
+      <Route path="/login" element={<Suspense fallback={<PageLoader fullScreen />}><LoginPage /></Suspense>} />
+      <Route path="/register" element={<Suspense fallback={<PageLoader fullScreen />}><RegisterPage /></Suspense>} />
       <Route path="/boards" element={<Navigate to="/admin/boards" replace />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -51,6 +52,7 @@ const router = createBrowserRouter(
         <Route path="/compose" element={<ComposePage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
       </Route>
     </>,
   ),

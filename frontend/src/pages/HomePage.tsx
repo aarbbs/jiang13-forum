@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
@@ -6,6 +6,7 @@ import type { PostItem } from '../api/types';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
 import FeedHeader from '../components/FeedHeader';
+import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
 import { useForumLimits } from '../hooks/useForumLimits';
 import {
@@ -16,44 +17,41 @@ import {
   FEED_RESET_EVENT,
   type FeedNavState,
 } from '../utils/feedCache';
+import { openForumPost } from '../utils/openPost';
 
 export default function HomePage() {
   const nav = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const ctx = useOutletContext<LayoutCtx>();
-  const { limits } = useForumLimits();
-  const pageSize = limits.page_size_default;
-  const feedMaxPages = limits.feed_max_pages;
-  const feedMaxItems = limits.feed_max_items;
+  const { limits, loading: limitsLoading } = useForumLimits();
+  const pageSize = Math.max(1, limits.page_size_default);
 
   const boardId = Number(params.get('board')) || ctx?.boardId || 0;
   const keyword = params.get('keyword') || '';
   const sort = parseFeedSort(params.get('sort'));
-  const initialCache = getFeedCache(boardId, keyword, sort);
 
-  const [posts, setPosts] = useState<PostItem[]>(() => initialCache?.posts ?? []);
-  const [postTotal, setPostTotal] = useState(() => initialCache?.postTotal ?? 0);
-  const [page, setPage] = useState(() => initialCache?.page ?? 1);
-  const [hasMore, setHasMore] = useState(() => initialCache?.hasMore ?? true);
-  const [loading, setLoading] = useState(() => !initialCache);
-  const [restoreScrollTop, setRestoreScrollTop] = useState<number | null>(() => initialCache?.scrollTop ?? null);
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [postTotal, setPostTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [restoreScrollTop, setRestoreScrollTop] = useState<number | null>(null);
   const [listResetKey, setListResetKey] = useState(0);
-  const scrollTopRef = useRef(initialCache?.scrollTop ?? 0);
-  const pageWrapRef = useRef<HTMLDivElement>(null);
-  /** 主动刷新时不把旧列表/滚动位置写回 cache */
-  const skipCacheSaveRef = useRef(false);
 
-  const canAutoLoad = useMemo(
-    () => hasMore && page < feedMaxPages && posts.length < feedMaxItems,
-    [hasMore, page, feedMaxPages, posts.length, feedMaxItems],
-  );
+  const scrollTopRef = useRef(0);
+  const skipCacheSaveRef = useRef(false);
+  const loadingRef = useRef(false);
+  const pageRef = useRef(1);
+  pageRef.current = page;
+
+  const totalPages = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
+  const showPagination = totalPages > 1 && posts.length > 0;
+  const hasMore = page < totalPages;
 
   const resetFeedView = useCallback(() => {
     setRestoreScrollTop(null);
     scrollTopRef.current = 0;
     setListResetKey(k => k + 1);
-    pageWrapRef.current?.scrollTo(0);
   }, []);
 
   const beginFeedRefresh = useCallback(() => {
@@ -62,7 +60,9 @@ export default function HomePage() {
     resetFeedView();
   }, [resetFeedView]);
 
-  const load = useCallback(async (p: number, reset = false) => {
+  const fetchPage = useCallback(async (p: number) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     try {
       const data = await api.posts({
@@ -73,67 +73,77 @@ export default function HomePage() {
         sort: sort === 'latest' ? '' : sort,
       });
       const batch = Array.isArray(data.posts) ? data.posts : [];
-      setPosts(prev => (reset ? batch : [...prev, ...batch]));
-      setPostTotal(data.total ?? 0);
-      setHasMore(!!data.has_more);
+      const total = data.total ?? 0;
+      setPosts(batch);
+      setPostTotal(total);
       setPage(p);
+      pageRef.current = p;
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '加载失败');
-      if (reset) setPosts([]);
+      setPosts([]);
+      setPostTotal(0);
+      setPage(1);
+      pageRef.current = 1;
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [boardId, keyword, sort, pageSize]);
 
-  /** 有缓存时静默刷新第 1 页，合并置顶等变化同时保留已加载的历史 */
-  const revalidate = useCallback(async () => {
-    try {
-      const data = await api.posts({
-        page: 1,
-        size: pageSize,
-        board_id: boardId || '',
-        keyword,
-        sort: sort === 'latest' ? '' : sort,
-      });
-      const fresh = Array.isArray(data.posts) ? data.posts : [];
-      const freshIds = new Set(fresh.map(p => p.id));
-      setPosts(prev => [...fresh, ...prev.filter(p => !freshIds.has(p.id))]);
-      setPostTotal(data.total ?? 0);
-      setHasMore(!!data.has_more);
-    } catch {
-      // 静默失败，保留缓存数据
-    }
-  }, [boardId, keyword, sort, pageSize]);
+  const loadFirst = useCallback(() => fetchPage(1), [fetchPage]);
 
-  const loadNextPage = useCallback(() => {
-    if (loading || !hasMore) return;
-    load(page + 1);
-  }, [loading, hasMore, page, load]);
+  const goToPage = useCallback((p: number) => {
+    if (loadingRef.current) return;
+    const maxPage = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
+    if (p < 1 || p > maxPage) return;
+    if (p === pageRef.current) return;
+    resetFeedView();
+    fetchPage(p);
+  }, [fetchPage, postTotal, pageSize, resetFeedView]);
 
+  const handleSelectPost = useCallback((id: number) => {
+    openForumPost(nav, id, limits.open_posts_in_new_tab);
+  }, [nav, limits.open_posts_in_new_tab]);
+
+  // 等限制就绪后再拉列表；筛选变化时重载
   useEffect(() => {
+    if (limitsLoading) return;
+
     const forceRefresh = (location.state as FeedNavState | null)?.refreshFeed;
     if (forceRefresh) {
       beginFeedRefresh();
-      load(1, true);
+      loadFirst();
       return;
     }
+
     const cached = getFeedCache(boardId, keyword, sort);
-    if (cached) {
+    if (cached && cached.posts.length > 0) {
       setPosts(cached.posts);
       setPostTotal(cached.postTotal);
       setPage(cached.page);
-      setHasMore(cached.hasMore);
+      pageRef.current = cached.page;
       setRestoreScrollTop(cached.scrollTop);
       scrollTopRef.current = cached.scrollTop;
       setLoading(false);
-      revalidate();
       return;
     }
+
     setRestoreScrollTop(null);
     scrollTopRef.current = 0;
-    load(1, true);
-  }, [boardId, keyword, sort, location.key, location.state, load, revalidate, beginFeedRefresh]);
+    loadFirst();
+  }, [
+    limitsLoading,
+    pageSize,
+    boardId,
+    keyword,
+    sort,
+    location.key,
+    location.state,
+    loadFirst,
+    beginFeedRefresh,
+  ]);
 
+  // 离开当前筛选条件时写入内存缓存
   useEffect(() => {
     return () => {
       if (skipCacheSaveRef.current || posts.length === 0) return;
@@ -141,22 +151,17 @@ export default function HomePage() {
         posts,
         postTotal,
         page,
-        hasMore,
         scrollTop: scrollTopRef.current,
       });
     };
-  }, [boardId, keyword, sort, posts, postTotal, page, hasMore]);
+  }, [boardId, keyword, sort, posts, postTotal, page]);
 
   useEffect(() => {
-    if (!loading && posts.length > 0) {
-      skipCacheSaveRef.current = false;
-    }
+    if (!loading && posts.length > 0) skipCacheSaveRef.current = false;
   }, [loading, posts.length]);
 
   useEffect(() => {
-    const onFeedReset = () => {
-      beginFeedRefresh();
-    };
+    const onFeedReset = () => beginFeedRefresh();
     window.addEventListener(FEED_RESET_EVENT, onFeedReset);
     return () => window.removeEventListener(FEED_RESET_EVENT, onFeedReset);
   }, [beginFeedRefresh]);
@@ -164,16 +169,16 @@ export default function HomePage() {
   useEffect(() => {
     const fn = () => {
       beginFeedRefresh();
-      load(1, true);
+      loadFirst();
     };
     window.addEventListener('posts-refresh', fn);
     return () => window.removeEventListener('posts-refresh', fn);
-  }, [beginFeedRefresh, load]);
+  }, [beginFeedRefresh, loadFirst]);
 
   const handleSortChange = (next: FeedSort) => {
     if (next === sort) {
       beginFeedRefresh();
-      load(1, true);
+      loadFirst();
       return;
     }
     navigateFeed(nav, buildHomeUrl(boardId, next));
@@ -181,8 +186,13 @@ export default function HomePage() {
 
   const showSortBar = !keyword;
 
+  // 首屏用同构骨架，避免标题/列表分区先后出现造成闪动
+  if ((loading || limitsLoading) && posts.length === 0) {
+    return <FeedPageSkeleton />;
+  }
+
   return (
-    <div className="page-wrap" ref={pageWrapRef}>
+    <div className="page-wrap page-wrap--feed">
       <div className="feed-panel">
         <div className="feed-top">
           <FeedHeader
@@ -197,19 +207,21 @@ export default function HomePage() {
           )}
         </div>
         <VirtualPostList
-        posts={posts}
-        sort={sort}
-        loading={loading}
-        hasMore={hasMore}
-        canAutoLoad={canAutoLoad}
-        postTotal={postTotal}
-        onLoadMore={loadNextPage}
-        onSelect={(id) => nav(`/post/${id}`)}
-        restoreScrollTop={restoreScrollTop}
-        resetScrollKey={listResetKey}
-        onScrollTopChange={(top) => { scrollTopRef.current = top; }}
-        onScrollRestored={() => setRestoreScrollTop(null)}
-      />
+          posts={posts}
+          sort={sort}
+          loading={loading || limitsLoading}
+          hasMore={hasMore}
+          showPagination={showPagination}
+          page={page}
+          totalPages={totalPages}
+          postTotal={postTotal}
+          onPageChange={goToPage}
+          onSelect={handleSelectPost}
+          restoreScrollTop={restoreScrollTop}
+          resetScrollKey={listResetKey}
+          onScrollTopChange={(top) => { scrollTopRef.current = top; }}
+          onScrollRestored={() => setRestoreScrollTop(null)}
+        />
       </div>
     </div>
   );

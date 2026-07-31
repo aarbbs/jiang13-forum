@@ -8,6 +8,9 @@ import { api } from '../api/client';
 import type { PostItem } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import PostListItem from '../components/PostListItem';
+import { loginPath } from '../utils/authRedirect';
+import { useForumLimits } from '../hooks/useForumLimits';
+import { openForumPost } from '../utils/openPost';
 
 interface FavItem {
   id: number;
@@ -19,12 +22,13 @@ interface FavItem {
 export default function FavoritesPage() {
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { limits } = useForumLimits();
   const [list, setList] = useState<FavItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { nav('/login'); return; }
+    if (!user) { nav(loginPath('/favorites')); return; }
     api.favorites()
       .then(d => setList(Array.isArray(d.favorites) ? d.favorites as FavItem[] : []))
       .catch(e => notify.error(e.message))
@@ -58,14 +62,14 @@ export default function FavoritesPage() {
                 <PostListItem
                   key={fav.id}
                   post={fav.post}
-                  onClick={() => nav(`/post/${fav.post_id}`)}
+                  onSelect={(id) => openForumPost(nav, id, limits.open_posts_in_new_tab)}
                 />
               ) : (
                 <button
                   key={fav.id}
                   type="button"
                   className="post-row"
-                  onClick={() => nav(`/post/${fav.post_id}`)}
+                  onClick={() => openForumPost(nav, fav.post_id, limits.open_posts_in_new_tab)}
                 >
                   <div className="post-body">
                     <div className="post-title">帖子已删除</div>

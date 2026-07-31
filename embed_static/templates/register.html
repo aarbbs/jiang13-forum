@@ -5,10 +5,10 @@
     <div class="card shadow-sm">
       <div class="card-body p-4">
         <h3 class="text-center mb-4">注册账号</h3>
-        <p class="text-center text-muted small mb-3">本站首个注册用户将自动成为管理员</p>
+        <p id="regTip" class="text-center text-muted small mb-3"></p>
         <form id="regForm">
           <div class="mb-3">
-            <label class="form-label">用户名（3-32位字母数字下划线）</label>
+            <label class="form-label">用户名（2-32位，支持中文）</label>
             <input type="text" name="username" class="form-control" required>
           </div>
           <div class="mb-3">
@@ -16,8 +16,19 @@
             <input type="text" name="nickname" class="form-control">
           </div>
           <div class="mb-3">
+            <label class="form-label">邮箱</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="mb-3">
             <label class="form-label">密码（至少6位）</label>
             <input type="password" name="password" class="form-control" required>
+          </div>
+          <div class="mb-3" id="emailCodeWrap" hidden>
+            <label class="form-label">邮箱验证码</label>
+            <div class="d-flex gap-2">
+              <input type="text" name="email_code" class="form-control" autocomplete="one-time-code">
+              <button type="button" class="btn btn-outline-secondary text-nowrap" id="sendCodeBtn">发送验证码</button>
+            </div>
           </div>
           <button type="submit" class="btn btn-success w-100">注册</button>
         </form>
@@ -29,6 +40,26 @@
 {{end}}
 {{define "scripts"}}
 <script>
+var regCfg = { require_email_code: false, register_open: true, is_first_user: false };
+fetch('/api/register/config').then(r=>r.json()).then(d=>{
+  regCfg = d;
+  var tip = document.getElementById('regTip');
+  if (d.is_first_user) tip.textContent = '本站首个注册用户将自动成为管理员';
+  else if (!d.register_open) tip.textContent = '注册暂未开放，请等待管理员配置邮件服务';
+  document.getElementById('emailCodeWrap').hidden = !d.require_email_code;
+  if (!d.register_open) document.getElementById('regForm').hidden = true;
+});
+document.getElementById('sendCodeBtn').addEventListener('click', function(){
+  var email = document.querySelector('[name=email]').value;
+  fetch('/api/register/email-code', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({email: email})
+  }).then(r=>r.json()).then(d=>{
+    if(d.error){ showToast(d.error,'danger'); return; }
+    showToast(d.message || '已发送');
+  });
+});
 document.getElementById('regForm').addEventListener('submit', function(e){
   e.preventDefault();
   apiPost('/api/register', this, true).then(d=>{

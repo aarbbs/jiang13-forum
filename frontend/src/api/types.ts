@@ -1,11 +1,16 @@
 export interface User {
   id: number;
   username: string;
+  email?: string;
   nickname: string;
   avatar: string;
   role: 'user' | 'admin';
   banned?: boolean;
+  banned_at?: string;
+  last_login_at?: string;
+  last_login_ip?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Board {
@@ -22,6 +27,12 @@ export interface ForumStats {
   users: number;
   posts: number;
   boards: number;
+}
+
+/** 标签云单项 */
+export interface TagCount {
+  name: string;
+  count: number;
 }
 
 export interface PostItem {
@@ -78,6 +89,7 @@ export interface Comment {
   is_private?: boolean;
   content_hidden?: boolean;
   created_at: string;
+  updated_at?: string;
   user?: User;
   post?: PostItem;
   reply_target?: Comment;
@@ -88,7 +100,6 @@ export interface AdminDashboard {
   posts: number;
   boards: number;
   comments: number;
-  online: number;
   recent_posts: PostItem[];
 }
 
@@ -106,11 +117,10 @@ export interface ForumLimits {
   search_keyword_min: number;
   search_keyword_max: number;
   page_size_default: number;
-  page_size_max: number;
-  feed_max_pages: number;
-  feed_max_items: number;
   password_min_len: number;
   avatar_max_mb: number;
+  open_posts_in_new_tab: boolean;
+  open_content_links_in_new_tab: boolean;
 }
 
 export interface ForumLimitsPublic {
@@ -121,10 +131,19 @@ export interface ForumLimitsPublic {
   search_keyword_min: number;
   search_keyword_max: number;
   page_size_default: number;
-  feed_max_pages: number;
-  feed_max_items: number;
   password_min_len: number;
   avatar_max_mb: number;
+  open_posts_in_new_tab: boolean;
+  open_content_links_in_new_tab: boolean;
+}
+
+export interface SiteBranding {
+  name: string;
+  name_en: string;
+  slogan: string;
+  logo_mark: string;
+  logo: string;
+  favicon: string;
 }
 
 export interface AdminSettings {
@@ -133,8 +152,89 @@ export interface AdminSettings {
   db_path: string;
   port: number;
   limits: ForumLimits;
+  mail: MailConfig;
+  oidc: OIDCConfig;
+  oauth_clients: OAuthClient[];
+  gitea?: GiteaSyncConfig;
+  branding?: SiteBranding;
   filter_words: string;
   filter_word_count: number;
+}
+
+export interface MailConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  from: string;
+  from_name: string;
+  encryption: 'none' | 'starttls' | 'ssl';
+  has_password: boolean;
+}
+
+export interface OIDCConfig {
+  enabled: boolean;
+  root_url: string;
+  ready: boolean;
+  discovery_url?: string;
+  authorize_url?: string;
+  logout_url?: string;
+  group_claim: string;
+  admin_group: string;
+  user_group: string;
+  client_count: number;
+}
+
+export interface OAuthClient {
+  id: number;
+  client_id: string;
+  name: string;
+  redirect_uris: string;
+  enabled: boolean;
+  has_secret: boolean;
+  created_at: string;
+  updated_at: string;
+  client_secret?: string;
+}
+
+export interface OAuthClientInput {
+  client_id?: string;
+  name: string;
+  redirect_uris: string;
+  enabled?: boolean;
+  client_secret?: string;
+  rotate_secret?: boolean;
+}
+
+export interface GiteaProject {
+  id: number;
+  gitea_id: number;
+  owner_login: string;
+  name: string;
+  full_name: string;
+  description: string;
+  html_url: string;
+  updated_at_remote?: string | null;
+  forum_user_id?: number;
+  synced_at: string;
+}
+
+export interface GiteaSyncConfig {
+  enabled: boolean;
+  base_url: string;
+  token?: string;
+  has_token: boolean;
+  sync_interval_min: number;
+  ready: boolean;
+  repo_count: number;
+}
+
+export interface RegisterConfig {
+  is_first_user: boolean;
+  mail_ready: boolean;
+  require_email_code: boolean;
+  register_open: boolean;
 }
 
 export interface Paginated<T> {
@@ -144,22 +244,12 @@ export interface Paginated<T> {
   items: T;
 }
 
-export interface Notification {
+export interface RecentComment {
   id: number;
-  title: string;
-  type: string;
-  created_at: string;
-}
-
-export interface OnlineUser {
-  id: number;
-  nickname: string;
+  post_id: number;
+  author: string;
   avatar: string;
-}
-
-export interface OnlineStats {
-  count: number;
-  members: number;
-  guests: number;
-  users: OnlineUser[];
+  excerpt: string;
+  post_title: string;
+  created_at: string;
 }

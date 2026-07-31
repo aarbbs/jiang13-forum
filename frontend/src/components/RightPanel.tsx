@@ -1,12 +1,17 @@
-import { Flame, Megaphone, Users } from 'lucide-react';
-import type { PostItem, Notification, OnlineStats } from '../api/types';
+import { Flame, MessageCircle, Tags } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { PostItem, RecentComment, TagCount } from '../api/types';
+import { useSiteBranding } from '../hooks/useSiteBranding';
+import TagCloud from './TagCloud';
 
 interface Props {
   hot: PostItem[];
-  notifications: Notification[];
-  online: OnlineStats | null;
+  recentComments: RecentComment[];
+  tags?: TagCount[];
+  tagsLoading?: boolean;
   onPostClick: (id: number) => void;
-  /** 首次拉取中，避免空态闪烁 */
+  /** 首次拉取中，显示骨架避免空态闪烁 */
   loading?: boolean;
 }
 
@@ -17,16 +22,46 @@ function hotRankClass(index: number): string {
   return 'widget-rank';
 }
 
+function HotSkeleton() {
+  return (
+    <div className="widget-skeleton" aria-busy="true" aria-label="热门加载中">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="widget-item widget-item--skeleton">
+          <Skeleton className="skeleton--widget-rank" />
+          <Skeleton className="skeleton--widget-title" style={{ width: `${62 + (i % 4) * 8}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CommentSkeleton() {
+  return (
+    <div className="widget-skeleton" aria-busy="true" aria-label="评论加载中">
+      {Array.from({ length: 5 }, (_, i) => (
+        <div key={i} className="widget-item widget-item--comment widget-item--skeleton">
+          <Skeleton className="skeleton--widget-avatar" />
+          <Skeleton className="skeleton--widget-title" style={{ width: `${55 + (i % 3) * 12}%` }} />
+          <Skeleton className="skeleton--widget-time" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function RightPanel({
   hot,
-  notifications,
-  online,
+  recentComments,
+  tags = [],
+  tagsLoading = false,
   onPostClick,
   loading = false,
 }: Props) {
+  const { branding } = useSiteBranding();
+  const [params] = useSearchParams();
+  const activeTag = params.get('keyword') || '';
   const hotList = hot?.slice(0, 8) ?? [];
-  const noticeList = notifications?.slice(0, 6) ?? [];
-  const members = online?.users ?? [];
+  const commentList = recentComments?.slice(0, 6) ?? [];
 
   return (
     <div className="aside-panel-inner">
@@ -37,7 +72,7 @@ export default function RightPanel({
         </div>
         <div className="widget-card-body">
           {loading && hotList.length === 0 ? (
-            <div className="widget-empty">加载中…</div>
+            <HotSkeleton />
           ) : hotList.length === 0 ? (
             <div className="widget-empty">暂无数据</div>
           ) : hotList.map((item, i) => (
@@ -54,65 +89,53 @@ export default function RightPanel({
         </div>
       </div>
 
+      <div className="widget-card widget-card--tags">
+        <div className="widget-card-head">
+          <Tags className="widget-card-icon widget-card-icon--tags" aria-hidden />
+          标签云
+        </div>
+        <div className="widget-card-body widget-card-body--tags">
+          <TagCloud tags={tags} loading={tagsLoading} activeTag={activeTag} />
+        </div>
+      </div>
+
       <div className="widget-card">
         <div className="widget-card-head">
-          <Megaphone className="widget-card-icon widget-card-icon--notice" aria-hidden />
-          最新动态
+          <MessageCircle className="widget-card-icon widget-card-icon--notice" aria-hidden />
+          最新评论
         </div>
         <div className="widget-card-body">
-          {loading && noticeList.length === 0 ? (
-            <div className="widget-empty">加载中…</div>
-          ) : noticeList.length === 0 ? (
-            <div className="widget-empty">暂无动态</div>
-          ) : noticeList.map(item => (
+          {loading && commentList.length === 0 ? (
+            <CommentSkeleton />
+          ) : commentList.length === 0 ? (
+            <div className="widget-empty">暂无评论</div>
+          ) : commentList.map(item => (
             <button
               key={item.id}
               type="button"
-              className="widget-item widget-item--notice"
-              onClick={() => onPostClick(item.id)}
+              className="widget-item widget-item--comment"
+              title={item.post_title ? `${item.author} · ${item.post_title}` : item.author}
+              onClick={() => onPostClick(item.post_id)}
             >
-              <span className="widget-item-title">{item.title}</span>
+              <span className="widget-item-avatar" aria-hidden>
+                {item.avatar
+                  ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                  : (item.author?.[0] || '?')}
+              </span>
+              <span className="widget-item-title">{item.excerpt}</span>
               <span className="widget-item-time">{item.created_at}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="widget-card">
-        <div className="widget-card-head">
-          <Users className="widget-card-icon widget-card-icon--online" aria-hidden />
-          当前浏览 <span className="widget-head-count">{online?.count ?? '—'}</span> 人
-        </div>
-        <div className="widget-card-body">
-          <div className="widget-online-meta">
-            会员 {online?.members ?? 0} · 游客 {online?.guests ?? 0}
-          </div>
-          <div className="widget-online-list">
-            {loading && online == null ? (
-              <span className="widget-empty widget-empty--inline">加载中…</span>
-            ) : (
-              <>
-                {members.map(u => (
-                  <span key={u.id} className="widget-online-avatar" title={u.nickname}>
-                    {u.avatar
-                      ? <img src={u.avatar} alt="" loading="lazy" decoding="async" />
-                      : (u.nickname?.[0] || '?')}
-                  </span>
-                ))}
-                {members.length === 0 && (
-                  <span className="widget-empty widget-empty--inline">暂无会员在线</span>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
       <div className="widget-card widget-card--about">
         <div className="widget-card-body">
           <p className="widget-about-text">
-            <strong>姜十三论坛</strong>
-            拾三一隅，自在交流。轻量社区，专为小圈子打造。
+            <strong>{branding.name}</strong>
+            {branding.slogan
+              ? `${branding.slogan}${branding.name_en ? ` · ${branding.name_en}` : ''}`
+              : (branding.name_en || '轻量社区')}
           </p>
         </div>
       </div>

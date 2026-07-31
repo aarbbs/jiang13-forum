@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -15,17 +16,21 @@ import (
 
 // Handlers 聚合所有 HTTP 处理器
 type Handlers struct {
-	Cfg      *config.Config
-	Auth     *service.AuthService
-	User     *service.UserService
-	Board    *service.BoardService
-	Post     *service.PostService
-	Comment  *service.CommentService
-	Backup   *service.BackupService
-	Filter   *service.SensitiveFilter
-	Limiter  *service.RateLimiter
-	Online   *service.OnlineService
-	Settings *service.ForumSettingsService
+	Cfg       *config.Config
+	Auth      *service.AuthService
+	User      *service.UserService
+	Board     *service.BoardService
+	Post      *service.PostService
+	Comment   *service.CommentService
+	Backup    *service.BackupService
+	Filter    *service.SensitiveFilter
+	Limiter   *service.RateLimiter
+	Settings  *service.ForumSettingsService
+	Captcha   *service.CaptchaService
+	Mail      *service.MailService
+	EmailCode *service.EmailCodeService
+	OIDC      *service.OIDCService
+	Gitea     *service.GiteaService
 }
 
 func (h *Handlers) setAuthCookie(c *gin.Context, token string) {
@@ -70,8 +75,9 @@ func (h *Handlers) pageData(c *gin.Context, title string, data gin.H) gin.H {
 		data = gin.H{}
 	}
 	data["Title"] = title
-	data["SiteName"] = "姜十三论坛"
-	data["SiteEN"] = "Jiang13 Forum"
+	brand := h.Settings.SiteBranding()
+	data["SiteName"] = brand.Name
+	data["SiteEN"] = brand.NameEN
 	if uid := h.currentUserID(c); uid > 0 {
 		data["CurrentUserID"] = uid
 		if u, err := h.User.GetByID(uid); err == nil {
@@ -170,22 +176,82 @@ func (h *Handlers) FavoritesPage(c *gin.Context) {
 
 // --- API ---
 
-func (h *Handlers) APIRegister(c *gin.Context) {
+func (h *Handlers) APICaptcha(c *gin.Context) {
+	id, svg, err := h.Captcha.Generate()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "验证码生成失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":    id,
+		"image": "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg)),
+	})
+}
+
+// APIRegisterConfig 注册页所需公开配置
+func (h *Handlers) APIRegisterConfig(c *gin.Context) {
+	userCount := h.Auth.UserCount()
+	mailReady := h.Settings.MailReady()
+	c.JSON(http.StatusOK, gin.H{
+		"is_first_user":      userCount == 0,
+		"mail_ready":         mailReady,
+		"require_email_code": mailReady,
+		"register_open":      userCount == 0 || mailReady,
+	})
+}
+
+// APISendRegisterEmailCode 发送注册邮箱验证码
+func (h *Handlers) APISendRegisterEmailCode(c *gin.Context) {
 	var req struct {
-		Username string `json:"username" form:"username" binding:"required"`
-		Password string `json:"password" form:"password" binding:"required"`
-		Nickname string `json:"nickname" form:"nickname"`
+		Email string `json:"email" form:"email" binding:"required"`
 	}
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	user, err := h.Auth.Register(req.Username, req.Password, req.Nickname)
+	if !h.Settings.MailReady() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrMailNotConfigured.Error()})
+		return
+	}
+	if err := h.EmailCode.SendRegisterCode(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "验证码已发送"})
+}
+
+func (h *Handlers) APIRegister(c *gin.Context) {
+	var req struct {
+		Username  string `json:"username" form:"username" binding:"required"`
+		Password  string `json:"password" form:"password" binding:"required"`
+		Nickname  string `json:"nickname" form:"nickname"`
+		Email     string `json:"email" form:"email" binding:"required"`
+		EmailCode string `json:"email_code" form:"email_code"`
+	}
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	userCount := h.Auth.UserCount()
+	mailReady := h.Settings.MailReady()
+	if userCount > 0 && !mailReady {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrRegisterClosed.Error()})
+		return
+	}
+	if mailReady {
+		if !h.EmailCode.Verify(req.Email, req.EmailCode) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrEmailCodeInvalid.Error()})
+			return
+		}
+	}
+
+	user, err := h.Auth.Register(req.Username, req.Password, req.Nickname, req.Email)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	token, _, _ := h.Auth.Login(req.Username, req.Password)
+	token, _, _ := h.Auth.Login(req.Username, req.Password, c.ClientIP())
 	h.setAuthCookie(c, token)
 	c.JSON(http.StatusOK, gin.H{"message": "注册成功", "user_id": user.ID})
 }
@@ -199,7 +265,7 @@ func (h *Handlers) APILogin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	token, user, err := h.Auth.Login(req.Username, req.Password)
+	token, user, err := h.Auth.Login(req.Username, req.Password, c.ClientIP())
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -220,7 +286,11 @@ func (h *Handlers) APIUpdateProfile(c *gin.Context) {
 		return
 	}
 	user, _ := h.User.GetByID(h.currentUserID(c))
-	c.JSON(http.StatusOK, gin.H{"message": "昵称已更新", "user": user})
+	var userView any
+	if user != nil {
+		userView = user.ToSelf()
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "昵称已更新", "user": userView})
 }
 
 func (h *Handlers) APIUpdatePassword(c *gin.Context) {
@@ -367,4 +437,15 @@ func (h *Handlers) APIDeleteComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "评论已删除"})
+}
+
+func (h *Handlers) APIUpdateComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	content := c.PostForm("content")
+	saved, err := h.Comment.Update(h.currentUserID(c), uint(id), h.isAdmin(c), content)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "评论已更新", "content": saved})
 }

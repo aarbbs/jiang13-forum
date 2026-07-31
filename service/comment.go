@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"time"
 
 	"git.iioio.com/freefire/jiang13-forum/model"
 )
@@ -166,14 +167,112 @@ func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
 	if err := model.DB.First(&comment, commentID).Error; err != nil {
 		return ErrCommentNotFound
 	}
-	if !isAdmin && comment.UserID != userID {
+	if !isAdmin && (comment.UserID == 0 || comment.UserID != userID) {
 		return ErrPermissionDenied
 	}
 	return model.DB.Delete(&comment).Error
 }
 
+func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content string) (string, error) {
+	var comment model.Comment
+	if err := model.DB.First(&comment, commentID).Error; err != nil {
+		return "", ErrCommentNotFound
+	}
+	if !isAdmin && (comment.UserID == 0 || comment.UserID != userID) {
+		return "", ErrPermissionDenied
+	}
+	if !isAdmin {
+		window := s.settings.PostEditWindowHours()
+		if window > 0 && time.Since(comment.CreatedAt) > time.Duration(window)*time.Hour {
+			return "", errors.New("已超过可编辑时限")
+		}
+	}
+
+	content = s.filter.Filter(strings.TrimSpace(content))
+	if content == "" {
+		return "", errors.New("评论内容不能为空")
+	}
+	if err := s.settings.ValidateTextLength(content, s.settings.CommentMax(), ErrCommentTooLong); err != nil {
+		return "", err
+	}
+	if err := model.DB.Model(&comment).Update("content", content).Error; err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
 func (s *CommentService) AdminDelete(commentID uint) error {
 	return model.DB.Delete(&model.Comment{}, commentID).Error
+}
+
+// RecentCommentItem 右栏「最新评论」条目
+type RecentCommentItem struct {
+	ID        uint   `json:"id"`
+	PostID    uint   `json:"post_id"`
+	Author    string `json:"author"`
+	Avatar    string `json:"avatar"`
+	Excerpt   string `json:"excerpt"`
+	PostTitle string `json:"post_title"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ListRecentPublic 前台最新公开评论（排除私密、已删帖）
+func (s *CommentService) ListRecentPublic(limit int) ([]RecentCommentItem, error) {
+	if limit < 1 {
+		limit = 8
+	}
+	var comments []model.Comment
+	err := model.DB.Preload("User").Preload("Post").
+		Where("is_private = ?", false).
+		Order("id desc").Limit(limit * 2). // 多取一些以跳过已删帖
+		Find(&comments).Error
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]RecentCommentItem, 0, limit)
+	for _, c := range comments {
+		if c.Post.ID == 0 {
+			continue
+		}
+		author := "游客"
+		avatar := ""
+		if c.UserID > 0 && c.User.Nickname != "" {
+			author = c.User.Nickname
+			avatar = c.User.Avatar
+		} else if c.GuestNick != "" {
+			author = c.GuestNick
+		}
+		excerpt := StripHTMLForSearch(c.Content)
+		excerpt = truncateRunes(excerpt, 64)
+		if excerpt == "" {
+			excerpt = "发表了评论"
+		}
+		out = append(out, RecentCommentItem{
+			ID:        c.ID,
+			PostID:    c.PostID,
+			Author:    author,
+			Avatar:    avatar,
+			Excerpt:   excerpt,
+			PostTitle: c.Post.Title,
+			CreatedAt: c.CreatedAt.Format("01-02 15:04"),
+		})
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func truncateRunes(s string, n int) string {
+	if n <= 0 || s == "" {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "…"
 }
 
 // ListRecent 管理员查看最近评论

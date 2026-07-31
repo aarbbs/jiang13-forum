@@ -2,13 +2,16 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"git.iioio.com/freefire/jiang13-forum/middleware"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/service"
 )
@@ -22,11 +25,13 @@ func (h *Handlers) APIMe(c *gin.Context) {
 	}
 	user, err := h.User.GetByID(uid)
 	if err != nil {
+		// 账号已删或不存在：清掉失效 cookie，与未登录态一致
+		c.SetCookie(middleware.CookieName, "", -1, "/", "", false, true)
 		c.JSON(http.StatusOK, gin.H{"user": nil})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"user": user,
+		"user": user.ToSelf(),
 	})
 }
 
@@ -125,7 +130,7 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
-		"comments": commentCount, "online": h.Online.Count(),
+		"comments": commentCount,
 		"recent_posts": recentPosts,
 	})
 }
@@ -242,7 +247,7 @@ func (h *Handlers) APIAdminUsers(c *gin.Context) {
 		users = []model.User{}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"users": users, "total": total, "page": page,
+		"users": model.UsersToAdmin(users), "total": total, "page": page,
 		"total_pages": calcTotalPages(total, size),
 	})
 }
@@ -298,14 +303,107 @@ func (h *Handlers) APIAdminDownloadBackup(c *gin.Context) {
 func (h *Handlers) APIAdminSettings(c *gin.Context) {
 	limits := h.Settings.Limits()
 	filterContent, _ := service.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
+	clients, _ := h.Settings.ListOAuthClients()
 	c.JSON(http.StatusOK, gin.H{
-		"filter_path":  h.Cfg.FilterWordsPath(),
-		"data_dir":     h.Cfg.DataDir,
-		"db_path":      h.Cfg.DBPath(),
-		"port":         h.Cfg.Port,
-		"limits":       limits,
-		"filter_words": filterContent,
+		"filter_path":       h.Cfg.FilterWordsPath(),
+		"data_dir":          h.Cfg.DataDir,
+		"db_path":           h.Cfg.DBPath(),
+		"port":              h.Cfg.Port,
+		"limits":            limits,
+		"mail":              h.Settings.MailConfigPublic(),
+		"oidc":              h.Settings.OIDCConfigPublic(),
+		"oauth_clients":     clients,
+		"gitea":             h.Settings.GiteaSyncConfigPublic(),
+		"branding":          h.Settings.SiteBranding(),
+		"filter_words":      filterContent,
 		"filter_word_count": service.CountFilterWords(filterContent),
+	})
+}
+
+// APISiteBranding 前台公开的站点品牌配置
+func (h *Handlers) APISiteBranding(c *gin.Context) {
+	c.JSON(http.StatusOK, h.Settings.SiteBranding())
+}
+
+// APIAdminUpdateBranding 更新站点品牌文案
+func (h *Handlers) APIAdminUpdateBranding(c *gin.Context) {
+	var req service.SiteBranding
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateSiteBranding(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "站点品牌已保存",
+		"branding": h.Settings.SiteBranding(),
+	})
+}
+
+// APIAdminUploadBrandingAsset 上传 Logo 或 Favicon（form: file + kind=logo|favicon）
+func (h *Handlers) APIAdminUploadBrandingAsset(c *gin.Context) {
+	kind := strings.TrimSpace(c.PostForm("kind"))
+	if kind != "logo" && kind != "favicon" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo 或 favicon"})
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择图片文件"})
+		return
+	}
+	const maxBytes = 2 * 1024 * 1024
+	if file.Size > maxBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "图片不能超过 2MB"})
+		return
+	}
+	url, err := service.SaveUploadedImage(file, h.Cfg.SiteUploadDir(), "/uploads/site", kind)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	prev := h.Settings.SiteBranding()
+	if kind == "logo" {
+		_ = h.Settings.SetSiteLogo(url)
+		h.removeSiteUploadIfLocal(prev.Logo)
+	} else {
+		_ = h.Settings.SetSiteFavicon(url)
+		h.removeSiteUploadIfLocal(prev.Favicon)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "上传成功",
+		"url":      url,
+		"branding": h.Settings.SiteBranding(),
+	})
+}
+
+// APIAdminClearBrandingAsset 清除 Logo 或 Favicon
+func (h *Handlers) APIAdminClearBrandingAsset(c *gin.Context) {
+	var req struct {
+		Kind string `json:"kind"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	kind := strings.TrimSpace(req.Kind)
+	brand := h.Settings.SiteBranding()
+	switch kind {
+	case "logo":
+		_ = h.Settings.SetSiteLogo("")
+		h.removeSiteUploadIfLocal(brand.Logo)
+	case "favicon":
+		_ = h.Settings.SetSiteFavicon("")
+		h.removeSiteUploadIfLocal(brand.Favicon)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo 或 favicon"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "已清除",
+		"branding": h.Settings.SiteBranding(),
 	})
 }
 
@@ -324,6 +422,206 @@ func (h *Handlers) APIAdminUpdateForumSettings(c *gin.Context) {
 		"message": "设置已保存",
 		"limits":  h.Settings.Limits(),
 	})
+}
+
+// APIAdminUpdateMailSettings 更新邮件 SMTP 配置
+func (h *Handlers) APIAdminUpdateMailSettings(c *gin.Context) {
+	var req service.MailConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateMailConfig(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "邮件设置已保存",
+		"mail":    h.Settings.MailConfigPublic(),
+	})
+}
+
+// APIAdminUpdateOIDCSettings 更新 OIDC Provider 全局配置
+func (h *Handlers) APIAdminUpdateOIDCSettings(c *gin.Context) {
+	var req service.OIDCConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateOIDCConfig(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "OIDC 设置已保存",
+		"oidc":    h.Settings.OIDCConfigPublic(),
+	})
+}
+
+// APIProjects 会员公开 Gitea 项目列表（本地缓存）
+func (h *Handlers) APIProjects(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("limit", c.DefaultQuery("size", "30")))
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 30
+	}
+	if size > 100 {
+		size = 100
+	}
+	if h.Gitea == nil {
+		c.JSON(http.StatusOK, gin.H{"projects": []any{}, "total": 0, "page": page, "total_pages": 0})
+		return
+	}
+	list, total, err := h.Gitea.ListPublic(page, size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"projects":    list,
+		"total":       total,
+		"page":        page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminUpdateGiteaSettings 更新 Gitea 同步配置
+func (h *Handlers) APIAdminUpdateGiteaSettings(c *gin.Context) {
+	var req service.GiteaSyncConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateGiteaSyncConfig(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Gitea 同步设置已保存",
+		"gitea":   h.Settings.GiteaSyncConfigPublic(),
+	})
+}
+
+// APIAdminSyncGitea 立即同步 Gitea 公开仓库
+func (h *Handlers) APIAdminSyncGitea(c *gin.Context) {
+	if h.Gitea == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrGiteaNotConfigured.Error()})
+		return
+	}
+	n, err := h.Gitea.SyncRepos()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("同步完成，共更新 %d 个仓库", n),
+		"count":   n,
+		"gitea":   h.Settings.GiteaSyncConfigPublic(),
+	})
+}
+
+// APIAdminListOAuthClients 列出 OAuth 应用
+func (h *Handlers) APIAdminListOAuthClients(c *gin.Context) {
+	list, err := h.Settings.ListOAuthClients()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"clients": list})
+}
+
+// APIAdminCreateOAuthClient 创建 OAuth 应用
+func (h *Handlers) APIAdminCreateOAuthClient(c *gin.Context) {
+	var req service.OAuthClientInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	view, err := h.Settings.CreateOAuthClient(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "应用已创建，请立即保存客户端密钥（仅显示一次）",
+		"client":  view,
+		"oidc":    h.Settings.OIDCConfigPublic(),
+	})
+}
+
+// APIAdminUpdateOAuthClient 更新 OAuth 应用
+func (h *Handlers) APIAdminUpdateOAuthClient(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效 ID"})
+		return
+	}
+	var req service.OAuthClientInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	view, err := h.Settings.UpdateOAuthClient(uint(id), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "应用已更新"
+	if view.ClientSecret != "" {
+		msg = "应用已更新，新密钥仅显示一次，请立即保存"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": msg,
+		"client":  view,
+		"oidc":    h.Settings.OIDCConfigPublic(),
+	})
+}
+
+// APIAdminDeleteOAuthClient 删除 OAuth 应用
+func (h *Handlers) APIAdminDeleteOAuthClient(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效 ID"})
+		return
+	}
+	if err := h.Settings.DeleteOAuthClient(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "应用已删除",
+		"oidc":    h.Settings.OIDCConfigPublic(),
+	})
+}
+
+// APIAdminTestMail 发送测试邮件
+func (h *Handlers) APIAdminTestMail(c *gin.Context) {
+	var req struct {
+		To string `json:"to" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写收件邮箱"})
+		return
+	}
+	if err := service.ValidateEmail(req.To); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.Settings.MailReady() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrMailNotConfigured.Error()})
+		return
+	}
+	siteName := h.Settings.SiteBranding().Name
+	err := h.Mail.Send(service.NormalizeEmail(req.To), "邮件配置测试",
+		fmt.Sprintf("这是一封来自%s的测试邮件，说明 SMTP 配置正常。", siteName))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "测试邮件已发送"})
 }
 
 // APIAdminFilterWords 读取敏感词配置
@@ -458,42 +756,28 @@ func (h *Handlers) APIHotPosts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"posts": items})
 }
 
-// APINotifications 最新动态通知
-func (h *Handlers) APINotifications(c *gin.Context) {
-	posts, _, _ := h.Post.List(service.PostListQuery{Page: 1, Size: 8})
-	type notice struct {
-		ID        uint   `json:"id"`
-		Title     string `json:"title"`
-		Type      string `json:"type"`
-		CreatedAt string `json:"created_at"`
+// APITags 标签云（按使用次数聚合）
+func (h *Handlers) APITags(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "40"))
+	tags, err := h.Post.PopularTags(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	list := make([]notice, 0, len(posts))
-	for _, p := range posts {
-		list = append(list, notice{
-			ID: p.ID, Title: p.Title, Type: "post",
-			CreatedAt: p.CreatedAt.Format("01-02 15:04"),
-		})
-	}
-	c.JSON(http.StatusOK, gin.H{"notifications": list})
+	c.JSON(http.StatusOK, gin.H{"tags": tags})
 }
 
-// APIOnline 当前浏览统计
-func (h *Handlers) APIOnline(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"count":   h.Online.Count(),
-		"members": h.Online.CountMembers(),
-		"guests":  h.Online.CountGuests(),
-		"users":   h.Online.List(20),
-	})
-}
-
-// APIPresence 上报浏览心跳（会员与游客均可）
-func (h *Handlers) APIPresence(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"count":   h.Online.Count(),
-		"members": h.Online.CountMembers(),
-		"guests":  h.Online.CountGuests(),
-	})
+// APIRecentComments 最新公开评论
+func (h *Handlers) APIRecentComments(c *gin.Context) {
+	list, err := h.Comment.ListRecentPublic(8)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if list == nil {
+		list = []service.RecentCommentItem{}
+	}
+	c.JSON(http.StatusOK, gin.H{"comments": list})
 }
 
 // APIFavorites 我的收藏
@@ -556,8 +840,18 @@ func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"revision": rev})
 }
 
-func (h *Handlers) APIPing(c *gin.Context) {
-	h.APIPresence(c)
+// removeSiteUploadIfLocal 删除本站 uploads/site 下的旧资源文件
+func (h *Handlers) removeSiteUploadIfLocal(urlPath string) {
+	urlPath = strings.TrimSpace(urlPath)
+	const prefix = "/uploads/site/"
+	if !strings.HasPrefix(urlPath, prefix) {
+		return
+	}
+	name := filepath.Base(urlPath)
+	if name == "" || name == "." || name == ".." {
+		return
+	}
+	_ = os.Remove(filepath.Join(h.Cfg.SiteUploadDir(), name))
 }
 
 func isClientLimitError(err error) bool {

@@ -16,10 +16,20 @@ type Config struct {
 	ConfigFile string
 	// 监听端口
 	Port int
+	// 对外公网根地址（无尾斜杠），OIDC Issuer 使用
+	RootURL string
 	// 数据目录：SQLite、上传、日志（绝对路径）
 	DataDir string
 	// JWT 签名密钥
 	JWTSecret string
+	// OIDC 客户端（P0：写死在 app.ini，供 Gitea 对接）
+	OAuthClientID     string
+	OAuthClientSecret string
+	OAuthRedirectURIs []string
+	// Gitea API 同步种子（可选，运行时以管理后台为准）
+	GiteaBaseURL     string
+	GiteaToken       string
+	GiteaSyncEnabled bool
 	// 日志文件路径
 	LogFile string
 	// 系统服务控制动作：install|uninstall|start|stop|restart|status，空表示正常运行
@@ -83,13 +93,20 @@ func Parse() (*Config, error) {
 	}
 
 	cfg := &Config{
-		WorkPath:      workPath,
-		ConfigFile:    configFile,
-		Port:          port,
-		DataDir:       absData,
-		JWTSecret:     jwtSecret,
-		LogFile:       filepath.Join(absData, "jiang13.log"),
-		ServiceAction: action,
+		WorkPath:          workPath,
+		ConfigFile:        configFile,
+		Port:              port,
+		RootURL:           normalizeRootURL(fileCfg.RootURL),
+		DataDir:           absData,
+		JWTSecret:         jwtSecret,
+		OAuthClientID:     fileCfg.OAuthClientID,
+		OAuthClientSecret: fileCfg.OAuthClientSecret,
+		OAuthRedirectURIs: splitCSV(fileCfg.OAuthRedirectURIs),
+		GiteaBaseURL:      normalizeRootURL(fileCfg.GiteaBaseURL),
+		GiteaToken:        fileCfg.GiteaToken,
+		GiteaSyncEnabled:  fileCfg.GiteaSyncEnabled,
+		LogFile:           filepath.Join(absData, "jiang13.log"),
+		ServiceAction:     action,
 	}
 
 	needDirs := action == "" || action == "install"
@@ -97,18 +114,29 @@ func Parse() (*Config, error) {
 		// 首次启动自动生成 app.ini，便于像 Gitea 一样改文件而不记一长串参数
 		if !configExists {
 			dataRel := resolveDataRelForINI(workPath, absData)
-			if err := writeAppINI(configFile, port, dataRel, ""); err != nil {
+			if err := writeAppINI(configFile, fileSettings{
+				Port:    port,
+				DataRel: dataRel,
+			}); err != nil {
 				return nil, fmt.Errorf("生成默认配置文件失败: %w", err)
 			}
 			fmt.Fprintf(os.Stderr, "已生成默认配置: %s\n", configFile)
 		} else if action == "install" {
 			// 安装服务前把当前生效配置写回，避免服务只读旧 app.ini
 			dataRel := resolveDataRelForINI(workPath, absData)
-			iniJWT := ""
+			iniJWT := fileCfg.JWTSecret
 			if strings.TrimSpace(*jwtFlag) != "" {
 				iniJWT = jwtSecret
 			}
-			if err := writeAppINI(configFile, port, dataRel, iniJWT); err != nil {
+			if err := writeAppINI(configFile, fileSettings{
+				Port:              port,
+				DataRel:           dataRel,
+				JWTSecret:         iniJWT,
+				RootURL:           fileCfg.RootURL,
+				OAuthClientID:     fileCfg.OAuthClientID,
+				OAuthClientSecret: fileCfg.OAuthClientSecret,
+				OAuthRedirectURIs: fileCfg.OAuthRedirectURIs,
+			}); err != nil {
 				return nil, fmt.Errorf("更新配置文件失败: %w", err)
 			}
 		}
@@ -149,6 +177,7 @@ func ensureDataDirs(dataDir string) error {
 	for _, sub := range []string{
 		filepath.Join(dataDir, "uploads", "avatars"),
 		filepath.Join(dataDir, "uploads", "posts"),
+		filepath.Join(dataDir, "uploads", "site"),
 	} {
 		if err := os.MkdirAll(sub, 0755); err != nil {
 			return fmt.Errorf("创建上传目录失败: %w", err)
@@ -198,6 +227,11 @@ func (c *Config) PostImageUploadDir() string {
 	return filepath.Join(c.DataDir, "uploads", "posts")
 }
 
+// SiteUploadDir 返回站点品牌资源（Logo / Favicon）目录
+func (c *Config) SiteUploadDir() string {
+	return filepath.Join(c.DataDir, "uploads", "site")
+}
+
 // UploadDir 返回头像上传目录（兼容旧调用）
 func (c *Config) UploadDir() string {
 	return c.AvatarUploadDir()
@@ -206,6 +240,29 @@ func (c *Config) UploadDir() string {
 // FilterWordsPath 返回敏感词配置文件路径
 func (c *Config) FilterWordsPath() string {
 	return filepath.Join(c.DataDir, "filter_words.txt")
+}
+
+// OIDCEnabled 是否已配置可作为 OIDC Provider
+func (c *Config) OIDCEnabled() bool {
+	return c.RootURL != "" && c.OAuthClientID != "" && c.OAuthClientSecret != "" && len(c.OAuthRedirectURIs) > 0
+}
+
+func normalizeRootURL(raw string) string {
+	u := strings.TrimSpace(raw)
+	u = strings.TrimRight(u, "/")
+	return u
+}
+
+func splitCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func generateRandomSecret(n int) string {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite" // 纯 Go，支持 CGO_ENABLED=0 交叉编译
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -36,6 +36,8 @@ func InitDB(dbPath string) error {
 	if err := db.AutoMigrate(
 		&User{}, &Board{}, &Post{}, &Comment{},
 		&PostLike{}, &PostFavorite{}, &PostRevision{}, &ForumSetting{},
+		&OAuthClient{}, &OAuthAuthCode{},
+		&GiteaRepo{},
 	); err != nil {
 		return fmt.Errorf("自动迁移失败: %w", err)
 	}

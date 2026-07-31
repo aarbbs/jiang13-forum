@@ -1,4 +1,4 @@
-import type { User, Board, PostItem, Comment, Notification, OnlineUser, OnlineStats, ForumStats, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision } from './types';
+import type { User, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, SiteBranding, RegisterConfig } from './types';
 
 const BASE = '';
 
@@ -25,12 +25,23 @@ export const api = {
   me: () => request<{ user: User | null }>('/api/me'),
   stats: () => request<ForumStats>('/api/stats'),
   forumLimits: () => request<ForumLimitsPublic>('/api/forum-limits'),
+  siteBranding: () => request<SiteBranding>('/api/site-branding'),
   boards: () => request<{ boards: Board[] }>('/api/boards'),
+  projects: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return request<{ projects: GiteaProject[]; total: number; page: number; total_pages: number }>(
+      `/api/projects${qs ? `?${qs}` : ''}`,
+    );
+  },
   posts: (params: Record<string, string | number>) => {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return request<{ posts: PostItem[]; total: number; page: number; has_more: boolean }>(`/api/posts?${q}`);
   },
   hotPosts: () => request<{ posts: PostItem[] }>('/api/posts/hot'),
+  tags: (limit = 40) => request<{ tags: TagCount[] }>(`/api/tags?limit=${limit}`),
   post: (id: number, opts?: { skipView?: boolean }) => {
     const q = opts?.skipView ? '?skip_view=1' : '';
     return request<PostDetailResponse>(`/api/posts/${id}${q}`);
@@ -39,9 +50,7 @@ export const api = {
     const q = myIds?.length ? `?my_ids=${myIds.join(',')}` : '';
     return request<{ comments: Comment[]; total: number }>(`/api/posts/${id}/comments${q}`);
   },
-  notifications: () => request<{ notifications: Notification[] }>('/api/notifications'),
-  online: () => request<OnlineStats>('/api/online'),
-  presence: () => request<Pick<OnlineStats, 'count' | 'members' | 'guests'>>('/api/presence', { method: 'POST' }),
+  recentComments: () => request<{ comments: RecentComment[] }>('/api/comments/recent'),
   favorites: () => request<{ favorites: unknown[]; total: number }>('/api/favorites'),
   createBoard: (body: { name: string; description: string; sort_order: number; icon?: string; color_index?: number }) =>
     request<{ board: Board }>('/api/admin/boards', { method: 'POST', body: JSON.stringify(body) }),
@@ -71,6 +80,57 @@ export const api = {
   adminUpdateForumSettings: (body: ForumLimits) =>
     request<{ message: string; limits: ForumLimits }>('/api/admin/settings/forum', {
       method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminUpdateMailSettings: (body: MailConfig) =>
+    request<{ message: string; mail: MailConfig }>('/api/admin/settings/mail', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminUpdateOIDCSettings: (body: OIDCConfig) =>
+    request<{ message: string; oidc: OIDCConfig }>('/api/admin/settings/oidc', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminUpdateGiteaSettings: (body: GiteaSyncConfig) =>
+    request<{ message: string; gitea: GiteaSyncConfig }>('/api/admin/settings/gitea', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminSyncGitea: () =>
+    request<{ message: string; count: number; gitea: GiteaSyncConfig }>('/api/admin/settings/gitea/sync', {
+      method: 'POST',
+    }),
+  adminUpdateBranding: (body: SiteBranding) =>
+    request<{ message: string; branding: SiteBranding }>('/api/admin/settings/branding', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminUploadBrandingAsset: (kind: 'logo' | 'favicon', file: File) => {
+    const fd = new FormData();
+    fd.append('kind', kind);
+    fd.append('file', file);
+    return request<{ message: string; url: string; branding: SiteBranding }>(
+      '/api/admin/settings/branding/upload',
+      { method: 'POST', body: fd, headers: {} },
+    );
+  },
+  adminClearBrandingAsset: (kind: 'logo' | 'favicon') =>
+    request<{ message: string; branding: SiteBranding }>('/api/admin/settings/branding/clear', {
+      method: 'POST', body: JSON.stringify({ kind }),
+    }),
+  adminListOAuthClients: () =>
+    request<{ clients: OAuthClient[] }>('/api/admin/oauth/clients'),
+  adminCreateOAuthClient: (body: OAuthClientInput) =>
+    request<{ message: string; client: OAuthClient; oidc: OIDCConfig }>('/api/admin/oauth/clients', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  adminUpdateOAuthClient: (id: number, body: OAuthClientInput) =>
+    request<{ message: string; client: OAuthClient; oidc: OIDCConfig }>(`/api/admin/oauth/clients/${id}`, {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminDeleteOAuthClient: (id: number) =>
+    request<{ message: string; oidc: OIDCConfig }>(`/api/admin/oauth/clients/${id}`, {
+      method: 'DELETE',
+    }),
+  adminTestMail: (to: string) =>
+    request<{ message: string }>('/api/admin/settings/mail/test', {
+      method: 'POST', body: JSON.stringify({ to }),
     }),
   adminUpdateFilterWords: (content: string) =>
     request<{ message: string; word_count: number }>('/api/admin/settings/filter-words', {
@@ -132,19 +192,35 @@ export const api = {
     fd.append('tags', data.tags || '');
     return request<{ message: string }>(`/api/posts/${id}`, { method: 'PUT', body: fd, headers: {} });
   },
+  deletePost: (id: number) => request<{ message: string }>(`/api/posts/${id}`, { method: 'DELETE' }),
   login: (username: string, password: string) => {
     const fd = new FormData();
     fd.append('username', username);
     fd.append('password', password);
     return request('/api/login', { method: 'POST', body: fd, headers: {} });
   },
-  register: (username: string, password: string, nickname: string) => {
+  register: (data: {
+    username: string;
+    password: string;
+    nickname: string;
+    email: string;
+    emailCode?: string;
+  }) => {
     const fd = new FormData();
-    fd.append('username', username);
-    fd.append('password', password);
-    fd.append('nickname', nickname);
+    fd.append('username', data.username);
+    fd.append('password', data.password);
+    fd.append('nickname', data.nickname);
+    fd.append('email', data.email);
+    if (data.emailCode) fd.append('email_code', data.emailCode);
     return request('/api/register', { method: 'POST', body: fd, headers: {} });
   },
+  registerConfig: () => request<RegisterConfig>('/api/register/config'),
+  sendRegisterEmailCode: (email: string) =>
+    request<{ message: string }>('/api/register/email-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  captcha: () => request<{ id: string; image: string }>('/api/captcha'),
   logout: () => request('/api/logout', { method: 'POST' }),
   like: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/posts/${id}/like`, { method: 'POST' }),
   favorite: (id: number) => request<{ favorited: boolean }>(`/api/posts/${id}/favorite`, { method: 'POST' }),
@@ -165,5 +241,10 @@ export const api = {
     if (data.isPrivate) fd.append('is_private', '1');
     return request<{ message: string; floor: number; id: number }>(`/api/posts/${postId}/comments`, { method: 'POST', body: fd, headers: {} });
   },
-  ping: () => request<Pick<OnlineStats, 'count' | 'members' | 'guests'>>('/api/ping', { method: 'POST' }),
+  updateComment: (id: number, content: string) => {
+    const fd = new FormData();
+    fd.append('content', content);
+    return request<{ message: string; content: string }>(`/api/comments/${id}`, { method: 'PUT', body: fd, headers: {} });
+  },
+  deleteComment: (id: number) => request<{ message: string }>(`/api/comments/${id}`, { method: 'DELETE' }),
 };

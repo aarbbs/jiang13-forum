@@ -3,37 +3,43 @@ package service
 import (
 	"errors"
 	"fmt"
-	"regexp"
+	"net/mail"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	ErrUserExists       = errors.New("用户名已存在")
-	ErrInvalidCred      = errors.New("用户名或密码错误")
-	ErrUserBanned       = errors.New("账号已被禁言")
-	ErrWeakPassword     = errors.New("密码至少 6 位")
-	ErrInvalidUsername  = errors.New("用户名 3-32 位字母数字下划线")
-	ErrPostNotFound     = errors.New("帖子不存在")
-	ErrCommentNotFound  = errors.New("评论不存在")
-	ErrPermissionDenied = errors.New("无权操作")
-	ErrBoardNotFound    = errors.New("板块不存在")
-	ErrPostEditLocked   = errors.New("帖子已被管理员锁定，无法编辑")
-	ErrPostEditExpired  = errors.New("已超过可编辑时限")
-	ErrRevisionNotFound = errors.New("历史版本不存在")
-	ErrInvalidSetting       = errors.New("无效的设置值")
+	ErrUserExists            = errors.New("用户名已存在")
+	ErrEmailExists           = errors.New("邮箱已被注册")
+	ErrInvalidCred           = errors.New("用户名或密码错误")
+	ErrUserBanned            = errors.New("账号已被禁言")
+	ErrWeakPassword          = errors.New("密码至少 6 位")
+	ErrInvalidUsername       = errors.New("用户名 2-32 位，支持中文、字母、数字与下划线")
+	ErrInvalidEmail          = errors.New("邮箱格式不正确")
+	ErrPostNotFound          = errors.New("帖子不存在")
+	ErrCommentNotFound       = errors.New("评论不存在")
+	ErrPermissionDenied      = errors.New("无权操作")
+	ErrBoardNotFound         = errors.New("板块不存在")
+	ErrPostEditLocked        = errors.New("帖子已被管理员锁定，无法编辑")
+	ErrPostEditExpired       = errors.New("已超过可编辑时限")
+	ErrRevisionNotFound      = errors.New("历史版本不存在")
+	ErrInvalidSetting        = errors.New("无效的设置值")
 	ErrSearchKeywordTooShort = errors.New("搜索关键词过短")
 	ErrSearchKeywordTooLong  = errors.New("搜索关键词过长")
 	ErrPostTitleTooLong      = errors.New("标题过长")
 	ErrPostTagsTooLong       = errors.New("标签过长")
 	ErrPostContentTooLong    = errors.New("正文过长")
 	ErrCommentTooLong        = errors.New("评论内容过长")
+	ErrCaptchaInvalid        = errors.New("验证码错误或已过期")
+	ErrEmailCodeInvalid      = errors.New("邮箱验证码错误或已过期")
+	ErrEmailCodeCooldown     = errors.New("发送过于频繁，请稍后再试")
+	ErrMailNotConfigured     = errors.New("邮件服务未配置或未启用")
+	ErrRegisterClosed        = errors.New("论坛暂未开放注册，请联系管理员配置邮件服务")
 )
-
-var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
 // HashPassword 使用 bcrypt 加密密码
 func HashPassword(password string) (string, error) {
@@ -46,10 +52,35 @@ func CheckPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-// ValidateUsername 校验用户名格式
+// ValidateUsername 校验用户名：中文/字母/数字/下划线，2-32 个字符
 func ValidateUsername(username string) error {
-	if !usernameRe.MatchString(username) {
+	n := utf8.RuneCountInString(username)
+	if n < 2 || n > 32 {
 		return ErrInvalidUsername
+	}
+	for _, r := range username {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			continue
+		}
+		return ErrInvalidUsername
+	}
+	return nil
+}
+
+// NormalizeEmail 规范化邮箱（小写去空格）
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// ValidateEmail 校验邮箱格式
+func ValidateEmail(email string) error {
+	email = NormalizeEmail(email)
+	if email == "" {
+		return ErrInvalidEmail
+	}
+	addr, err := mail.ParseAddress(email)
+	if err != nil || addr.Address != email {
+		return ErrInvalidEmail
 	}
 	return nil
 }

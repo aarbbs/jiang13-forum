@@ -58,14 +58,18 @@ export default function AdminUsersPage() {
           <div className="flex justify-center py-12"><Spinner size="lg" /></div>
         ) : (
           <>
+            <div className="admin-table-scroll">
             <table className="admin-table">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>用户名</th>
                   <th>昵称</th>
+                  <th>邮箱</th>
                   <th>角色</th>
                   <th>状态</th>
+                  <th>上次登录</th>
+                  <th>登录 IP</th>
                   <th>注册时间</th>
                   <th>操作</th>
                 </tr>
@@ -76,12 +80,15 @@ export default function AdminUsersPage() {
                     <td>{u.id}</td>
                     <td>{u.username}</td>
                     <td>{u.nickname}</td>
+                    <td className="admin-table-email">{u.email || '—'}</td>
                     <td>
                       {u.role === 'admin'
                         ? <Badge variant="orange">管理员</Badge>
                         : <Badge variant="secondary">用户</Badge>}
                     </td>
                     <td>{u.banned ? <Badge variant="destructive">已禁言</Badge> : '正常'}</td>
+                    <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString('zh-CN') : '—'}</td>
+                    <td className="admin-table-mono">{u.last_login_ip || '—'}</td>
                     <td>{u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '—'}</td>
                     <td>
                       {u.role !== 'admin' && (
@@ -94,6 +101,7 @@ export default function AdminUsersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             {users.length === 0 && <div className="admin-empty">暂无用户</div>}
             {totalPages > 1 && (
               <div className="admin-pagination">

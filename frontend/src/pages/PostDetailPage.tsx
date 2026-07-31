@@ -1,11 +1,22 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, FileQuestion } from 'lucide-react';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, FileQuestion, Trash2 } from 'lucide-react';
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import BoardBadge from '@/components/BoardBadge';
 import { Spinner } from '@/components/ui/spinner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import type { PostItem, Comment } from '../api/types';
@@ -13,23 +24,42 @@ import CommentThreadList from '../components/CommentThreadList';
 import CommentBox, { type CommentSubmitData } from '../components/CommentBox';
 import PostContent from '../components/PostContent';
 import PostRevisionPanel from '../components/PostRevisionPanel';
+import ArticleOutline from '../components/ArticleOutline';
 import { useAuth } from '../hooks/useAuth';
 import { formatDateTime, isTimeDiffSignificant } from '../utils/content';
 import { loadMyCommentIds, addMyCommentId } from '../utils/guest';
 import { clearAllFeedCache } from '../utils/feedCache';
 import { useGlobalWheelScroll } from '../hooks/useGlobalWheelScroll';
+import { loginPath } from '../utils/authRedirect';
+import type { LayoutCtx } from '../layouts/MainLayout';
+import type { PostHeading } from '../utils/postHeadings';
+
+/** 格式化剩余可编辑时间 */
+function formatEditRemaining(createdAt: string, windowHours: number): string {
+  if (windowHours <= 0) return '';
+  const deadline = new Date(createdAt).getTime() + windowHours * 3600_000;
+  const ms = deadline - Date.now();
+  if (ms <= 0) return '';
+  const hours = Math.floor(ms / 3600_000);
+  const mins = Math.floor((ms % 3600_000) / 60_000);
+  if (hours >= 24) return `还可编辑约 ${Math.floor(hours / 24)} 天`;
+  if (hours > 0) return `还可编辑约 ${hours} 小时`;
+  return `还可编辑约 ${mins} 分钟`;
+}
 
 export default function PostDetailPage() {
   const { id } = useParams();
   const postId = Number(id);
   const nav = useNavigate();
   const { user, refresh } = useAuth();
+  const { setPostOutline, isMobile } = useOutletContext<LayoutCtx>();
 
   const [post, setPost] = useState<PostItem | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [liked, setLiked] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [highlightFloor, setHighlightFloor] = useState<number | null>(null);
@@ -37,7 +67,10 @@ export default function PostDetailPage() {
   const [canEdit, setCanEdit] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
   const [editBlockReason, setEditBlockReason] = useState('');
+  const [editWindowHours, setEditWindowHours] = useState(0);
   const [showRevisions, setShowRevisions] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [headings, setHeadings] = useState<PostHeading[]>([]);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -46,18 +79,37 @@ export default function PostDetailPage() {
 
   useGlobalWheelScroll(pageRef, !loading && !!post);
 
+  const handleHeadingsChange = useCallback((next: PostHeading[]) => {
+    setHeadings(next);
+  }, []);
+
+  useEffect(() => {
+    if (loading || !post) {
+      setPostOutline({ headings: [], scrollRoot: null, title: '文章目录' });
+      return () => setPostOutline(null);
+    }
+    setPostOutline({
+      headings,
+      scrollRoot: pageRef.current,
+      title: '文章目录',
+    });
+    return () => setPostOutline(null);
+  }, [headings, loading, post, setPostOutline]);
+
   const loadSeq = useRef(0);
+  const postPath = `/post/${postId}`;
 
   useEffect(() => {
     if (!postId) return;
     setReplyTo(null);
+    setEditingCommentId(null);
+    setHeadings([]);
     const seq = ++loadSeq.current;
     setLoading(true);
     setPost(null);
 
     (async () => {
       try {
-        // 游客评论归属：仅在进入该帖时读取，不把 user 放进依赖以免 refresh 触发重载循环
         const myIds = user ? [] : loadMyCommentIds();
         const [detail, comm] = await Promise.all([
           api.post(postId),
@@ -70,8 +122,8 @@ export default function PostDetailPage() {
         setCanEdit(detail.can_edit ?? false);
         setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
         setEditBlockReason(detail.edit_block_reason ?? '');
+        setEditWindowHours(detail.post_edit_window_hours ?? 0);
         setComments(Array.isArray(comm.comments) ? comm.comments : []);
-        // 会话刷新与正文展示解耦；勿作为 effect 依赖
         void refresh();
       } catch (e: unknown) {
         if (seq !== loadSeq.current) return;
@@ -81,16 +133,15 @@ export default function PostDetailPage() {
         if (seq === loadSeq.current) setLoading(false);
       }
     })();
-    // 仅 postId 变化时加载；user/refresh 变化不得重跑
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 见上
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅 postId 变化时加载
   }, [postId]);
 
-  // 发评后局部刷新评论列表（不整页重载）
   const reloadComments = useCallback(async () => {
     const myIds = user ? [] : loadMyCommentIds();
     const comm = await api.comments(postId, myIds);
     setComments(Array.isArray(comm.comments) ? comm.comments : []);
   }, [postId, user]);
+
   const jumpToFloor = useCallback((floor: number) => {
     const el = document.getElementById(`floor-${floor}`);
     if (!el) return;
@@ -100,7 +151,13 @@ export default function PostDetailPage() {
     highlightTimer.current = setTimeout(() => setHighlightFloor(null), 2000);
   }, []);
 
+  const requireLogin = (actionLabel: string) => {
+    notify.warning(`登录后即可${actionLabel}`);
+    nav(loginPath(postPath));
+  };
+
   const handleReplyTo = (comment: Comment) => {
+    setEditingCommentId(null);
     if (replyTo?.id === comment.id) {
       setReplyTo(null);
       return;
@@ -108,7 +165,6 @@ export default function PostDetailPage() {
     setReplyTo(comment);
   };
 
-  // DOM 提交后再滚动，避免 setTimeout 与 focus 抢滚动导致概率性错位
   useLayoutEffect(() => {
     if (!replyTo) return;
     const el = document.getElementById(`reply-box-${replyTo.id}`);
@@ -120,7 +176,7 @@ export default function PostDetailPage() {
   }, []);
 
   const handleLike = async () => {
-    if (!user) { nav('/login'); return; }
+    if (!user) { requireLogin('点赞'); return; }
     try {
       const r = await api.like(postId);
       setLiked(r.liked);
@@ -131,7 +187,7 @@ export default function PostDetailPage() {
   };
 
   const handleFavorite = async () => {
-    if (!user) { nav('/login'); return; }
+    if (!user) { requireLogin('收藏'); return; }
     try {
       const r = await api.favorite(postId);
       setFavorited(r.favorited);
@@ -165,6 +221,50 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleSaveComment = async (comment: Comment, content: string) => {
+    try {
+      const r = await api.updateComment(comment.id, content);
+      setComments(list => list.map(c => (
+        c.id === comment.id
+          ? { ...c, content: r.content || content, updated_at: new Date().toISOString() }
+          : c
+      )));
+      setEditingCommentId(null);
+      notify.success('评论已更新');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '保存失败');
+      throw e;
+    }
+  };
+
+  const handleDeleteComment = async (comment: Comment) => {
+    try {
+      await api.deleteComment(comment.id);
+      setComments(list => list.filter(c => c.id !== comment.id));
+      if (replyTo?.id === comment.id) setReplyTo(null);
+      if (editingCommentId === comment.id) setEditingCommentId(null);
+      notify.success('评论已删除');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '删除失败');
+      throw e;
+    }
+  };
+
+  const handleDeletePost = async () => {
+    setDeletingPost(true);
+    try {
+      await api.deletePost(postId);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success('帖子已删除');
+      nav('/', { replace: true });
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setDeletingPost(false);
+    }
+  };
+
   const commentBoxProps = {
     user,
     submitting,
@@ -184,9 +284,12 @@ export default function PostDetailPage() {
 
   const authorInitial = post.user?.nickname?.[0] || '?';
   const tags = post.tags?.split(/[,，]/).map(t => t.trim()).filter(Boolean) ?? [];
-  const isOwnerOrAdmin = user && (user.role === 'admin' || user.id === post.user_id);
+  const isOwnerOrAdmin = !!(user && (user.role === 'admin' || user.id === post.user_id));
   const isAdmin = user?.role === 'admin';
   const showEdited = isEdited && post.updated_at;
+  const editRemaining = canEdit && user?.role !== 'admin'
+    ? formatEditRemaining(post.created_at, editWindowHours)
+    : '';
 
   const handlePin = async () => {
     if (!post) return;
@@ -264,14 +367,41 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        <PostContent html={post.content || ''} isLoggedIn={!!user} />
+        {isMobile && headings.length > 0 && (
+          <details className="post-detail-toc-mobile">
+            <summary>文章目录（{headings.length}）</summary>
+            <ArticleOutline
+              headings={headings}
+              scrollRoot={pageRef.current}
+              title="目录"
+            />
+          </details>
+        )}
+
+        <PostContent
+          html={post.content || ''}
+          isLoggedIn={!!user}
+          onHeadingsChange={handleHeadingsChange}
+        />
 
         <div className="post-detail-actions">
-          <Button variant={liked ? 'default' : 'outline'} size="sm" onClick={handleLike}>
+          <Button
+            variant={liked ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleLike}
+            title={!user ? '登录后可点赞' : undefined}
+            className={!user ? 'post-action-guest' : undefined}
+          >
             <ThumbsUp />
             点赞 {post.like_count}
           </Button>
-          <Button variant={favorited ? 'default' : 'outline'} size="sm" onClick={handleFavorite}>
+          <Button
+            variant={favorited ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleFavorite}
+            title={!user ? '登录后可收藏' : undefined}
+            className={!user ? 'post-action-guest' : undefined}
+          >
             <Star />
             {favorited ? '已收藏' : '收藏'}
           </Button>
@@ -286,6 +416,29 @@ export default function PostDetailPage() {
               <History />
               编辑历史
             </Button>
+          )}
+          {isOwnerOrAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={deletingPost}>
+                  <Trash2 />
+                  删除
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
+                  <AlertDialogDescription>相关评论也将一并删除，不可恢复。</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeletePost}>删除</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {editRemaining && (
+            <span className="post-detail-edit-hint">{editRemaining}</span>
           )}
           {isOwnerOrAdmin && !canEdit && editBlockReason && (
             <span className="post-detail-edit-hint" title={editBlockReason}>
@@ -338,8 +491,17 @@ export default function PostDetailPage() {
               comments={comments}
               highlightFloor={highlightFloor}
               replyToId={replyTo?.id ?? null}
+              editingId={editingCommentId}
+              currentUser={user}
               onReply={handleReplyTo}
               onCancelReply={() => setReplyTo(null)}
+              onStartEdit={(c) => {
+                setReplyTo(null);
+                setEditingCommentId(c.id);
+              }}
+              onCancelEdit={() => setEditingCommentId(null)}
+              onSaveEdit={handleSaveComment}
+              onDelete={handleDeleteComment}
               renderReplyBox={(c) => (
                 <CommentBox
                   key={c.id}

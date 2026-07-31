@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -131,6 +132,60 @@ func (s *PostService) HotPosts(limit int) ([]PostListItem, error) {
 		items[i] = PostListItem{Post: p, CommentCount: countMap[p.ID]}
 	}
 	return items, nil
+}
+
+// TagCount 标签及其出现次数
+type TagCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// PopularTags 聚合帖子标签，按热度降序返回
+func (s *PostService) PopularTags(limit int) ([]TagCount, error) {
+	if limit <= 0 {
+		limit = 40
+	}
+	var rows []struct{ Tags string }
+	if err := model.DB.Model(&model.Post{}).
+		Select("tags").
+		Where("tags <> '' AND tags IS NOT NULL").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int)
+	// 保留首次出现的原始大小写作为展示名
+	display := make(map[string]string)
+	for _, row := range rows {
+		for _, part := range strings.FieldsFunc(row.Tags, func(r rune) bool {
+			return r == ',' || r == '，'
+		}) {
+			name := strings.TrimSpace(part)
+			if name == "" {
+				continue
+			}
+			key := strings.ToLower(name)
+			counts[key]++
+			if _, ok := display[key]; !ok {
+				display[key] = name
+			}
+		}
+	}
+
+	list := make([]TagCount, 0, len(counts))
+	for key, n := range counts {
+		list = append(list, TagCount{Name: display[key], Count: n})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Count != list[j].Count {
+			return list[i].Count > list[j].Count
+		}
+		return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name)
+	})
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	return list, nil
 }
 
 func (s *PostService) CommentCount(postID uint) int {

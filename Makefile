@@ -17,32 +17,37 @@ all: build
 frontend-build:
 	cd frontend && npm install && npm run build
 
-## 编译当前平台二进制
+## 编译当前平台二进制（纯 Go SQLite，无需 CGO）
 build: frontend-build
 	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PKG)
+	CGO_ENABLED=0 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PKG)
 	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)"
 
-## Windows amd64
-build-windows:
+## Windows amd64（先打包前端再 embed）
+build-windows: frontend-build
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME).exe $(MAIN_PKG)
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME).exe $(MAIN_PKG)
 	@echo "✓ Windows: $(BUILD_DIR)/$(APP_NAME).exe"
 
-## Linux amd64
-build-linux:
+## Linux amd64（先打包前端再 embed）
+build-linux: frontend-build
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PKG)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PKG)
 	@echo "✓ Linux: $(BUILD_DIR)/$(APP_NAME)-linux-amd64"
 
-## macOS arm64 (Apple Silicon)
-build-darwin:
+## macOS arm64 (Apple Silicon)（先打包前端再 embed）
+build-darwin: frontend-build
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_PKG)
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_PKG)
 	@echo "✓ macOS: $(BUILD_DIR)/$(APP_NAME)-darwin-arm64"
 
-## 跨平台全量编译
-build-all: build-windows build-linux build-darwin build
+## 跨平台全量编译（frontend-build 只跑一次）
+build-all: frontend-build
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME).exe $(MAIN_PKG)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PKG)
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_PKG)
+	CGO_ENABLED=0 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PKG)
 	@echo "✓ 全平台编译完成"
 
 ## 整理依赖

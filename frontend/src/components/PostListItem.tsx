@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { MessageCircle, ThumbsUp } from 'lucide-react';
 import BoardBadge from '@/components/BoardBadge';
 import PinnedIcon from '@/components/PinnedIcon';
@@ -8,10 +9,10 @@ import { formatTime } from '../utils/content';
 interface Props {
   post: PostItem;
   sort?: FeedSort;
-  onClick: () => void;
+  onSelect: (id: number) => void;
 }
 
-export default function PostListItem({ post, sort = 'latest', onClick }: Props) {
+function PostListItem({ post, sort = 'latest', onSelect }: Props) {
   const initial = post.user?.nickname?.[0] || '?';
   const timeLabel = sort === 'reply'
     ? (post.last_reply_at
@@ -22,7 +23,7 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
   const likeCount = post.like_count ?? 0;
 
   return (
-    <button type="button" className="post-row" onClick={onClick}>
+    <button type="button" className="post-row" onClick={() => onSelect(post.id)}>
       <div className="post-avatar">
         {post.user?.avatar
           ? <img src={post.user.avatar} alt="" loading="lazy" decoding="async" />
@@ -52,3 +53,5 @@ export default function PostListItem({ post, sort = 'latest', onClick }: Props) 
     </button>
   );
 }
+
+export default memo(PostListItem);

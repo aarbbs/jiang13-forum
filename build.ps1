@@ -39,16 +39,30 @@ function Build-Go([string]$OutFile, [string]$GoOS = '', [string]$GoArch = '') {
     if ($GoOS) { $env:GOOS = $GoOS } else { Remove-Item Env:GOOS -ErrorAction SilentlyContinue }
     if ($GoArch) { $env:GOARCH = $GoArch } else { Remove-Item Env:GOARCH -ErrorAction SilentlyContinue }
 
+    # 纯 Go SQLite（glebarez），交叉编译无需 C 工具链
+    $prevCgo = $env:CGO_ENABLED
+    $env:CGO_ENABLED = '0'
+
     $isWindows = ($GoOS -eq 'windows') -or (($GoOS -eq '') -and ($env:OS -match 'Windows'))
     if ($isWindows -and ($OutFile -notmatch '\.exe$')) {
         $OutFile = "$OutFile.exe"
     }
 
     $outPath = Join-Path $BuildDir $OutFile
-    Write-Host "[go] build -> $outPath" -ForegroundColor Cyan
-    go build -trimpath -ldflags $Ldlags -o $outPath $MainPkg
-    if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
-    Write-Host "[ok] $outPath" -ForegroundColor Green
+    Write-Host "[go] build -> $outPath (CGO_ENABLED=0)" -ForegroundColor Cyan
+    try {
+        go build -trimpath -ldflags $Ldlags -o $outPath $MainPkg
+        if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
+        Write-Host "[ok] $outPath" -ForegroundColor Green
+    } finally {
+        if ($null -eq $prevCgo) {
+            Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
+        } else {
+            $env:CGO_ENABLED = $prevCgo
+        }
+        Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+        Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+    }
 }
 
 switch ($Target) {
@@ -103,6 +117,7 @@ switch ($Target) {
         Build-Go -OutFile $AppName -GoOS 'windows' -GoArch 'amd64'
     }
     'build-linux' {
+        Write-Host '[build-linux] will npm run build then go:embed SPA' -ForegroundColor Yellow
         Build-Frontend
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'
     }

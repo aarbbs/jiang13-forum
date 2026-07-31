@@ -43,7 +43,7 @@
     <td width="50%" align="center">
       <img src="docs/screenshots/home-light.png" alt="浅色主题首页" width="100%">
       <br><b>浅色主题</b><br>
-      <sub>左栏板块导航 · Feed 排序切换 · 右栏热门/动态/在线</sub>
+      <sub>左栏板块导航 · Feed 排序切换 · 右栏热门/评论</sub>
     </td>
     <td width="50%" align="center">
       <img src="docs/screenshots/home-dark.png" alt="暗色主题首页" width="100%">
@@ -78,7 +78,7 @@
 
 | 特性 | 说明 |
 |------|------|
-| **三栏布局** | 左栏板块菜单（可折叠）+ 中间虚拟滚动帖列表 + 右栏热门/通知/在线 |
+| **三栏布局** | 左栏板块菜单（可折叠）+ 中间虚拟滚动帖列表 + 右栏热门/最新评论 |
 | **虚拟滚动** | `@tanstack/react-virtual` 驱动帖列表与楼层回复，长列表依然流畅 |
 | **帖子排序** | 最新发帖 / 最新回复 / 热门讨论，一键切换 Feed 排序 |
 | **主题切换** | 浅色 / 暗色一键切换，跟随 `prefers-color-scheme` 与本地记忆 |
@@ -93,7 +93,7 @@
 - 帖子修订历史：编辑后保留版本记录，支持 diff 对比查看
 - 可配置编辑时限：管理员设定普通用户修改帖子的有效窗口
 - 楼层式评论，支持回复指定楼层、@ 高亮、引用回复
-- 点赞、收藏、热门帖、最新动态
+- 点赞、收藏、热门帖、最新评论
 - 管理员后台：删帖、删评论、禁言、论坛参数配置、敏感词管理、SQLite 一键备份
 - 内置敏感词过滤、发帖 / 评论 / 注册 / 登录限流（后台可配）
 
@@ -174,15 +174,21 @@ cp app.ini.example /opt/jiang13/app.ini
 ```ini
 [server]
 HTTP_PORT = 3000
+ROOT_URL = https://bbs.iioio.com
 
 [paths]
 DATA = data
 
 [security]
 JWT_SECRET =
+
+[oauth]
+CLIENT_ID = gitea
+CLIENT_SECRET =
+REDIRECT_URIS = https://git.iioio.com/user/oauth2/jiang13/callback
 ```
 
-完整示例见仓库根目录 [`app.ini.example`](app.ini.example)。
+完整示例见仓库根目录 [`app.ini.example`](app.ini.example)。`ROOT_URL` 与 `[oauth]` 可作首次种子；日常请在管理后台「系统设置 → OIDC / SSO」配置（保存即生效）。
 
 **优先级：** 命令行显式参数 > `app.ini` > 内置默认值。
 
@@ -291,7 +297,7 @@ jiang13-forum/
 ├── model/                 # GORM 模型与数据库迁移
 ├── service/               # 业务逻辑（认证、帖子、评论…）
 ├── handler/               # HTTP 处理器（前台 + 后台）
-├── middleware/            # JWT 鉴权、在线状态
+├── middleware/            # JWT 鉴权
 ├── router/                # 路由注册
 ├── embed_static/          # go:embed 内嵌的 SPA 与模板
 ├── frontend/              # React 源码（Vite 构建）

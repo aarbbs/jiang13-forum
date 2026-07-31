@@ -29,7 +29,6 @@ export default function AdminDashboardPage() {
     { label: '帖子总数', value: data.posts, cls: 'admin-stat-posts' },
     { label: '板块数量', value: data.boards, cls: 'admin-stat-boards' },
     { label: '评论总数', value: data.comments, cls: 'admin-stat-comments' },
-    { label: '当前在线', value: data.online, cls: 'admin-stat-online' },
   ];
 
   return (

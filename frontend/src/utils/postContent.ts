@@ -1,52 +1,34 @@
 import DOMPurify from 'dompurify';
+import type { Config } from 'dompurify';
+import { enhanceCodeBlocks } from './enhanceCodeBlocks';
+import { enhanceHeadingAnchors } from './postHeadings';
 
-/** DOMPurify 配置：允许会员专属自定义标签 */
-export const POST_CONTENT_PURIFY_CONFIG: DOMPurify.Config = {
+/** DOMPurify 配置：允许会员专属自定义标签与链接 target */
+export const POST_CONTENT_PURIFY_CONFIG: Config = {
   ADD_TAGS: ['members-only'],
-  ADD_ATTR: ['data-locked', 'data-length'],
+  ADD_ATTR: ['data-locked', 'data-length', 'target', 'rel', 'data-code-copy', 'data-lang'],
 };
 
-const VISIBLE_BADGE_HTML = `
-<div class="post-members-only__badge">
-  <span class="post-members-only__badge-icon" aria-hidden="true">
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-  </span>
-  <span>登录可见</span>
-</div>`;
+const LOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
-const LOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
-
-/** 游客看到的锁定区块：模糊占位 + 登录引导 */
+/** 游客看到的锁定区块：流内嵌条 + 登录引导（精简高度） */
 function buildLockedGateHtml(charLength: number): string {
-  const lineCount = charLength > 0
-    ? Math.min(6, Math.max(3, Math.ceil(charLength / 42)))
-    : 4;
-  const lines = Array.from({ length: lineCount }, (_, i) => {
-    const mod = i % 3;
-    const widthClass = mod === 1 ? ' post-members-only__preview-line--medium'
-      : mod === 2 ? ' post-members-only__preview-line--short' : '';
-    return `<div class="post-members-only__preview-line${widthClass}"></div>`;
-  }).join('');
-
   const lengthHint = charLength > 0
-    ? `约 ${charLength} 字的`
-    : '一段';
+    ? `约 ${charLength} 字`
+    : '专属内容';
 
   return `
 <div class="post-members-only__locked-wrap">
-  <div class="post-members-only__badge post-members-only__badge--locked">
-    <span class="post-members-only__badge-icon" aria-hidden="true">${LOCK_ICON_SVG}</span>
-    <span>登录可见</span>
-  </div>
-  <div class="post-members-only__preview" aria-hidden="true">
-    ${lines}
-  </div>
   <div class="post-members-only__gate">
-    <div class="post-members-only__gate-icon" aria-hidden="true">${LOCK_ICON_SVG}</div>
-    <p class="post-members-only__gate-title">此处有${lengthHint}专属内容</p>
-    <p class="post-members-only__gate-desc">作者已将这部分内容设为仅登录用户可见，登录后即可阅读全文。</p>
-    <button type="button" class="post-members-only__gate-btn" data-members-login>登录查看</button>
-    <span class="post-members-only__gate-alt">还没有账号？<button type="button" class="post-members-only__gate-link" data-members-register>免费注册</button></span>
+    <span class="post-members-only__gate-icon" aria-hidden="true">${LOCK_ICON_SVG}</span>
+    <div class="post-members-only__gate-text">
+      <p class="post-members-only__gate-title">登录后可见（${lengthHint}）</p>
+      <p class="post-members-only__gate-desc">作者将此段设为仅登录用户可读</p>
+    </div>
+    <div class="post-members-only__gate-actions">
+      <button type="button" class="post-members-only__gate-btn" data-members-login>登录查看</button>
+      <button type="button" class="post-members-only__gate-link" data-members-register>免费注册</button>
+    </div>
   </div>
 </div>`;
 }
@@ -55,18 +37,22 @@ function buildLockedGateHtml(charLength: number): string {
 export function isHtmlEmpty(html: string): boolean {
   if (!html.trim()) return true;
   const doc = new DOMParser().parseFromString(
-    DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG),
+    DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG) as string,
     'text/html',
   );
   return (doc.body.textContent ?? '').trim().length === 0;
 }
 
 /** 根据登录状态渲染帖子正文 HTML */
-export function renderPostContentHtml(html: string, isLoggedIn: boolean): string {
+export function renderPostContentHtml(
+  html: string,
+  isLoggedIn: boolean,
+  opts?: { openLinksInNewTab?: boolean },
+): string {
   if (!html.trim()) return '';
 
   const doc = new DOMParser().parseFromString(
-    DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG),
+    DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG) as string,
     'text/html',
   );
 
@@ -87,14 +73,30 @@ export function renderPostContentHtml(html: string, isLoggedIn: boolean): string
         .map(n => (n instanceof Element ? n.outerHTML : n.textContent ?? ''))
         .join('');
 
+    // 已登录：降噪，不展示醒目 badge，仅保留结构容器
     el.className = 'post-members-only post-members-only--visible';
-    el.innerHTML = `${VISIBLE_BADGE_HTML}<div class="post-members-only__body">${innerHtml}</div>`;
+    el.innerHTML = `<div class="post-members-only__body">${innerHtml}</div>`;
   });
 
   doc.querySelectorAll('img').forEach(img => {
     if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
     if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
   });
+
+  if (opts?.openLinksInNewTab) {
+    doc.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href') || '';
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+      a.setAttribute('target', '_blank');
+      const rel = new Set((a.getAttribute('rel') || '').split(/\s+/).filter(Boolean));
+      rel.add('noopener');
+      rel.add('noreferrer');
+      a.setAttribute('rel', Array.from(rel).join(' '));
+    });
+  }
+
+  enhanceHeadingAnchors(doc.body);
+  enhanceCodeBlocks(doc.body);
 
   return doc.body.innerHTML;
 }

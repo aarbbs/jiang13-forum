@@ -11,7 +11,7 @@
   <div class="table-responsive">
     <table class="table admin-table mb-0">
       <thead>
-        <tr><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>注册时间</th><th width="120">操作</th></tr>
+        <tr><th>ID</th><th>用户名</th><th>昵称</th><th>邮箱</th><th>角色</th><th>状态</th><th>上次登录</th><th>登录 IP</th><th>注册时间</th><th width="120">操作</th></tr>
       </thead>
       <tbody>
       {{range .Users}}
@@ -19,6 +19,7 @@
         <td>{{.ID}}</td>
         <td>{{.Username}}</td>
         <td>{{.Nickname}}</td>
+        <td>{{if .Email}}{{.Email}}{{else}}—{{end}}</td>
         <td>
           {{if eq .Role "admin"}}
           <span class="badge badge-admin">管理员</span>
@@ -27,6 +28,8 @@
         <td>
           {{if .Banned}}<span class="badge badge-banned">已禁言</span>{{else}}<span class="text-success">正常</span>{{end}}
         </td>
+        <td>{{if .LastLoginAt}}{{.LastLoginAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td>
+        <td>{{if .LastLoginIP}}{{.LastLoginIP}}{{else}}—{{end}}</td>
         <td>{{.CreatedAt.Format "2006-01-02"}}</td>
         <td>
           {{if eq .Role "admin"}}
@@ -39,7 +42,7 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="7" class="admin-empty">暂无用户</td></tr>
+      <tr><td colspan="10" class="admin-empty">暂无用户</td></tr>
       {{end}}
       </tbody>
     </table>
