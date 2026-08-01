@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -8,6 +9,7 @@ import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { User } from '../../api/types';
 
 export default function AdminUsersPage() {
+  const nav = useNavigate();
   const { ready } = useAdminGuard();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,11 @@ export default function AdminUsersPage() {
                   <tr key={u.id}>
                     <td>{u.id}</td>
                     <td>{u.username}</td>
-                    <td>{u.nickname}</td>
+                    <td>
+                      <button type="button" className="admin-text-link" onClick={() => nav(`/user/${u.id}`)}>
+                        {u.nickname}
+                      </button>
+                    </td>
                     <td className="admin-table-email">{u.email || '—'}</td>
                     <td>
                       {u.role === 'admin'

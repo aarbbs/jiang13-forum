@@ -23,6 +23,7 @@ type User struct {
 	Email       string         `gorm:"index;size:128;default:''" json:"-"`
 	Password    string         `gorm:"size:128;not null" json:"-"`
 	Nickname    string         `gorm:"size:64" json:"nickname"`
+	Signature   string         `gorm:"size:512;default:''" json:"signature"` // 个人签名
 	Avatar      string         `gorm:"size:256" json:"avatar"`
 	Role        Role           `gorm:"size:16;default:user" json:"role"`
 	Banned      bool           `gorm:"default:false" json:"banned"`

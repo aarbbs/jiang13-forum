@@ -279,6 +279,44 @@ func (h *Handlers) APILogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "已退出"})
 }
 
+// APIProfileStats 当前用户活动统计（发帖 / 评论 / 收藏 / 获赞）
+func (h *Handlers) APIProfileStats(c *gin.Context) {
+	st, err := h.User.ActivityStats(h.currentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"stats": st})
+}
+
+// APIUserPublic 公开用户主页（资料 + 公开统计）
+func (h *Handlers) APIUserPublic(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效用户"})
+		return
+	}
+	user, err := h.User.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+	st, err := h.User.ActivityStats(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	// 收藏数仅本人可见
+	viewerID := h.currentUserID(c)
+	if viewerID != user.ID {
+		st.FavoriteCount = 0
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"user":  user.ToPublic(),
+		"stats": st,
+	})
+}
+
 func (h *Handlers) APIUpdateProfile(c *gin.Context) {
 	nickname := c.PostForm("nickname")
 	if err := h.User.UpdateNickname(h.currentUserID(c), nickname); err != nil {
@@ -291,6 +329,20 @@ func (h *Handlers) APIUpdateProfile(c *gin.Context) {
 		userView = user.ToSelf()
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "昵称已更新", "user": userView})
+}
+
+func (h *Handlers) APIUpdateSignature(c *gin.Context) {
+	signature := c.PostForm("signature")
+	if err := h.User.UpdateSignature(h.currentUserID(c), signature); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, _ := h.User.GetByID(h.currentUserID(c))
+	var userView any
+	if user != nil {
+		userView = user.ToSelf()
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "签名已更新", "user": userView})
 }
 
 func (h *Handlers) APIUpdatePassword(c *gin.Context) {

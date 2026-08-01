@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import PageLoader from '../components/PageLoader';
 import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Moon, Sun, Search, Plus, PanelRight, X } from 'lucide-react';
+import { Menu, Moon, Sun, Search, Plus, PanelRight, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +54,7 @@ export default function MainLayout() {
     title?: string;
   } | null>(null);
   const [asideOpen, setAsideOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
   const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
   const asideEverLoaded = useRef(false);
@@ -64,16 +65,34 @@ export default function MainLayout() {
 
   const asideDrawerRef = useRef<HTMLElement>(null);
   const asideCloseRef = useRef<HTMLButtonElement>(null);
+  const sidebarDrawerRef = useRef<HTMLElement>(null);
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
   const boardBarRef = useRef<HTMLDivElement>(null);
 
   const closeAside = useCallback(() => setAsideOpen(false), []);
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const openAside = useCallback(() => {
+    setSidebarOpen(false);
+    setAsideOpen(true);
+  }, []);
+  const openSidebar = useCallback(() => {
+    setAsideOpen(false);
+    setSidebarOpen(true);
+  }, []);
+
   useOverlayA11y(asideOpen && hideAside && !isCompose, closeAside, asideDrawerRef, {
     initialFocusRef: asideCloseRef,
+  });
+  useOverlayA11y(sidebarOpen && isMobile && !isCompose, closeSidebar, sidebarDrawerRef, {
+    initialFocusRef: sidebarCloseRef,
   });
 
   useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
   useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
-  useEffect(() => { setAsideOpen(false); }, [loc.pathname, loc.search]);
+  useEffect(() => {
+    setAsideOpen(false);
+    setSidebarOpen(false);
+  }, [loc.pathname, loc.search]);
   useEffect(() => {
     if (!/^\/post\/\d+/.test(loc.pathname)) setPostOutline(null);
   }, [loc.pathname]);
@@ -81,11 +100,14 @@ export default function MainLayout() {
     if (!hideAside) setAsideOpen(false);
   }, [hideAside]);
   useEffect(() => {
-    if (!asideOpen) return;
+    if (!isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+  useEffect(() => {
+    if (!asideOpen && !sidebarOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [asideOpen]);
+  }, [asideOpen, sidebarOpen]);
 
   const refreshBoards = useCallback(() => {
     return Promise.all([
@@ -237,6 +259,19 @@ export default function MainLayout() {
       <div className="app-frame">
       <header className="app-header">
         <div className="header-inner">
+          {isMobile && !isCompose && (
+            <button
+              type="button"
+              className="header-icon-btn"
+              onClick={openSidebar}
+              aria-label={isPostDetail ? '打开目录与导航' : '打开导航菜单'}
+              aria-expanded={sidebarOpen}
+              aria-controls="sidebar-drawer"
+              title="导航"
+            >
+              <Menu size={18} aria-hidden />
+            </button>
+          )}
           <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
             <SiteBrandMark branding={branding} className="header-logo-mark" />
             {!isMobile && <span className="header-logo-text">{branding.name}</span>}
@@ -284,7 +319,7 @@ export default function MainLayout() {
                 <button
                   type="button"
                   className="header-icon-btn"
-                  onClick={() => setAsideOpen(true)}
+                  onClick={openAside}
                   aria-label="打开社区动态"
                   aria-expanded={asideOpen}
                   aria-controls="aside-drawer"
@@ -320,7 +355,8 @@ export default function MainLayout() {
                     className="w-40"
                     onCloseAutoFocus={(e) => e.preventDefault()}
                   >
-                    <DropdownMenuItem onClick={() => nav('/profile')}>个人中心</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav(`/user/${user.id}`)}>个人主页</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav('/profile')}>账号设置</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/favorites')}>我的收藏</DropdownMenuItem>
                     {user.role === 'admin' && (
                       <>
@@ -418,6 +454,51 @@ export default function MainLayout() {
         </div>
       </div>
       </div>
+
+      {sidebarOpen && isMobile && !isCompose && (
+        <div className="sidebar-drawer-root">
+          <button
+            type="button"
+            className="aside-drawer-backdrop"
+            aria-label="关闭导航菜单"
+            tabIndex={-1}
+            onClick={closeSidebar}
+          />
+          <aside
+            id="sidebar-drawer"
+            ref={sidebarDrawerRef}
+            className="sidebar-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={isPostDetail ? '目录与导航' : '导航菜单'}
+          >
+            <div className="aside-drawer-head">
+              <span>{isPostDetail ? '目录与导航' : '导航'}</span>
+              <button
+                ref={sidebarCloseRef}
+                type="button"
+                className="header-icon-btn"
+                aria-label="关闭"
+                onClick={closeSidebar}
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+            <div className="aside-drawer-body sidebar-drawer-body">
+              <Sidebar
+                boards={boards}
+                activeBoard={boardId}
+                onSelectBoard={setBoardId}
+                boardsLoading={boardsLoading}
+                outlineMode={isPostDetail}
+                outlineHeadings={postOutline?.headings ?? []}
+                outlineScrollRoot={postOutline?.scrollRoot ?? null}
+                outlineTitle={postOutline?.title}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
 
       {asideOpen && hideAside && !isCompose && (
         <div className="aside-drawer-root">

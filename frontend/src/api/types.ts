@@ -3,6 +3,7 @@ export interface User {
   username: string;
   email?: string;
   nickname: string;
+  signature?: string;
   avatar: string;
   role: 'user' | 'admin';
   banned?: boolean;
@@ -11,6 +12,27 @@ export interface User {
   last_login_ip?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+/** 公开用户主页（无邮箱） */
+export interface UserPublic {
+  id: number;
+  username: string;
+  nickname: string;
+  signature: string;
+  avatar: string;
+  role: 'user' | 'admin';
+  banned?: boolean;
+  banned_at?: string;
+  created_at: string;
+}
+
+/** 个人中心活动统计 */
+export interface UserActivityStats {
+  post_count: number;
+  comment_count: number;
+  favorite_count: number;
+  like_received: number;
 }
 
 export interface Board {
@@ -119,6 +141,7 @@ export interface ForumLimits {
   page_size_default: number;
   password_min_len: number;
   avatar_max_mb: number;
+  signature_max: number;
   open_posts_in_new_tab: boolean;
   open_content_links_in_new_tab: boolean;
 }
@@ -133,6 +156,7 @@ export interface ForumLimitsPublic {
   page_size_default: number;
   password_min_len: number;
   avatar_max_mb: number;
+  signature_max: number;
   open_posts_in_new_tab: boolean;
   open_content_links_in_new_tab: boolean;
 }
@@ -247,6 +271,7 @@ export interface Paginated<T> {
 export interface RecentComment {
   id: number;
   post_id: number;
+  user_id?: number;
   author: string;
   avatar: string;
   excerpt: string;

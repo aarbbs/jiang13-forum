@@ -84,7 +84,13 @@ export default function AdminCommentsPage() {
                         {c.post?.title ?? `#${c.post_id}`}
                       </button>
                     </td>
-                    <td>{c.user?.nickname || c.guest_nick || '游客'}</td>
+                    <td>
+                      {c.user_id && c.user ? (
+                        <button type="button" className="admin-text-link" onClick={() => nav(`/user/${c.user_id}`)}>
+                          {c.user.nickname}
+                        </button>
+                      ) : (c.guest_nick || '游客')}
+                    </td>
                     <td className="max-w-[200px] truncate">{c.content}</td>
                     <td>{c.is_private ? <Badge variant="secondary">是</Badge> : '—'}</td>
                     <td>{new Date(c.created_at).toLocaleString('zh-CN')}</td>

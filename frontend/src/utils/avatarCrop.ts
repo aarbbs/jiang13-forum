@@ -6,6 +6,12 @@ export const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image
 /** 头像输出尺寸 */
 export const AVATAR_OUTPUT_SIZE = 512;
 
+/**
+ * 原图体积软上限：仅防止浏览器加载过大文件卡死。
+ * 实际上传限额看裁剪后的文件（见 validateAvatarOutput）。
+ */
+export const AVATAR_SOURCE_MAX_MB = 20;
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -15,13 +21,21 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** 校验头像文件，返回错误信息或 null */
-export function validateAvatarFile(file: File, maxMb: number): string | null {
+/** 选择/拖入原图时：只校验格式与可读性上限，不按上传限额卡死 */
+export function validateAvatarFile(file: File): string | null {
   if (!AVATAR_MIME_TYPES.includes(file.type)) {
     return '仅支持 JPG、PNG、GIF、WebP 格式';
   }
+  if (file.size > AVATAR_SOURCE_MAX_MB * 1024 * 1024) {
+    return `原图过大（超过 ${AVATAR_SOURCE_MAX_MB}MB），请换一张较小的图片`;
+  }
+  return null;
+}
+
+/** 裁剪完成后：按实际上传体积校验 */
+export function validateAvatarOutput(file: File, maxMb: number): string | null {
   if (file.size > maxMb * 1024 * 1024) {
-    return `头像不能超过 ${maxMb}MB`;
+    return `裁剪后头像仍超过 ${maxMb}MB，请缩小裁剪区域或换图`;
   }
   return null;
 }

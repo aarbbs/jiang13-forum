@@ -29,8 +29,15 @@ function fetchBranding(): Promise<SiteBranding> {
   return inflight;
 }
 
+/** 浏览器标签标题：站点名 - 副标题（标语） */
+export function formatDocumentTitle(brand: SiteBranding): string {
+  const name = brand.name.trim();
+  const subtitle = brand.slogan.trim();
+  return subtitle ? `${name} - ${subtitle}` : name;
+}
+
 function applyDocumentBrand(brand: SiteBranding) {
-  const title = brand.name_en ? `${brand.name} ${brand.name_en}` : brand.name;
+  const title = formatDocumentTitle(brand);
   if (document.title !== title) document.title = title;
 
   let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');

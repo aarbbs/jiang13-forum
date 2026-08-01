@@ -5,6 +5,7 @@ import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import BoardBadge from '@/components/BoardBadge';
+import UserLink from '@/components/UserLink';
 import { Spinner } from '@/components/ui/spinner';
 import {
   AlertDialog,
@@ -340,11 +341,18 @@ export default function PostDetailPage() {
             {post.title}
           </h1>
           <div className="post-detail-author-row">
-            <div className="post-avatar post-avatar-lg">
-              {post.user?.avatar ? <img src={post.user.avatar} alt="" loading="lazy" decoding="async" /> : authorInitial}
-            </div>
+            <UserLink
+              user={post.user}
+              showAvatar={false}
+              showName={false}
+              className="post-avatar post-avatar-lg user-link--avatar-only"
+            >
+              {post.user?.avatar
+                ? <img src={post.user.avatar} alt="" loading="lazy" decoding="async" />
+                : authorInitial}
+            </UserLink>
             <div className="post-detail-author-info">
-              <span className="post-detail-author-name">{post.user?.nickname}</span>
+              <UserLink user={post.user} className="post-detail-author-name" />
               <span className="post-detail-meta-line">
                 发布于 {formatDateTime(post.created_at)}
                 {showEdited && (

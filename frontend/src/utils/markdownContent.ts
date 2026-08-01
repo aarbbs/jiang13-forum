@@ -50,14 +50,48 @@ function splitParagraphBreaks(html: string): string {
 
 /** 为 Turndown 注册通用正文规则（不含 members-only） */
 function addTurndownContentRules(service: TurndownService): void {
+  service.addRule('imageGroup', {
+    filter: (node) =>
+      node.nodeName === 'DIV' && (node as HTMLElement).hasAttribute('data-image-group'),
+    replacement: (_content, node) => {
+      const el = node as HTMLElement;
+      const layout = el.getAttribute('data-layout') || 'cols-2';
+      const imgs = [...el.querySelectorAll(':scope > img, :scope .image-group__grid > img')]
+        .map(img => {
+          const src = img.getAttribute('src') || '';
+          const alt = img.getAttribute('alt') || '';
+          return src ? `<img src="${src}" alt="${alt}">` : '';
+        })
+        .filter(Boolean)
+        .join('');
+      if (!imgs) return '';
+      return `\n\n<div data-image-group data-layout="${layout}" class="image-group image-group--${layout}">${imgs}</div>\n\n`;
+    },
+  });
+
   service.addRule('image', {
     filter: 'img',
     replacement: (_content, node) => {
       const el = node as HTMLImageElement;
+      // 已由图组规则处理的子图跳过
+      if (el.closest('[data-image-group]')) return '';
       const alt = el.getAttribute('alt') ?? '';
       const src = el.getAttribute('src') ?? '';
-      return src ? `![${alt}](${src})` : '';
+      if (!src) return '';
+      const display = el.getAttribute('data-display');
+      if (display && display !== 'default') {
+        return `\n\n<img src="${src}" alt="${alt}" data-display="${display}" class="article-img article-img--${display}">\n\n`;
+      }
+      return `![${alt}](${src})`;
     },
+  });
+
+  // 清浮动段落：保留为 HTML，避免空行被 Markdown 折叠后绕排失效
+  service.addRule('clearFloatParagraph', {
+    filter: (node) =>
+      node.nodeName === 'P' && (node as HTMLElement).hasAttribute('data-clear-float'),
+    replacement: (content) =>
+      `\n\n<p data-clear-float class="article-clear-float">${content}</p>\n\n`,
   });
 
   service.addRule('underline', {

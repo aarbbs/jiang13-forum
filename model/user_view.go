@@ -2,14 +2,28 @@ package model
 
 import "time"
 
+// UserPublic 公开用户主页视图（无邮箱与登录信息）
+type UserPublic struct {
+	ID        uint       `json:"id"`
+	Username  string     `json:"username"`
+	Nickname  string     `json:"nickname"`
+	Signature string     `json:"signature"`
+	Avatar    string     `json:"avatar"`
+	Role      Role       `json:"role"`
+	Banned    bool       `json:"banned"`
+	BannedAt  *time.Time `json:"banned_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 // UserSelf 当前登录用户视图（含邮箱，不含登录 IP）
 type UserSelf struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	Nickname  string    `json:"nickname"`
-	Avatar    string    `json:"avatar"`
-	Role      Role      `json:"role"`
+	ID        uint       `json:"id"`
+	Username  string     `json:"username"`
+	Email     string     `json:"email"`
+	Nickname  string     `json:"nickname"`
+	Signature string     `json:"signature"`
+	Avatar    string     `json:"avatar"`
+	Role      Role       `json:"role"`
 	Banned    bool       `json:"banned"`
 	BannedAt  *time.Time `json:"banned_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -22,6 +36,7 @@ type UserAdmin struct {
 	Username    string     `json:"username"`
 	Email       string     `json:"email"`
 	Nickname    string     `json:"nickname"`
+	Signature   string     `json:"signature"`
 	Avatar      string     `json:"avatar"`
 	Role        Role       `json:"role"`
 	Banned      bool       `json:"banned"`
@@ -32,6 +47,21 @@ type UserAdmin struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
+// ToPublic 转为公开主页视图
+func (u *User) ToPublic() UserPublic {
+	return UserPublic{
+		ID:        u.ID,
+		Username:  u.Username,
+		Nickname:  u.Nickname,
+		Signature: u.Signature,
+		Avatar:    u.Avatar,
+		Role:      u.Role,
+		Banned:    u.Banned,
+		BannedAt:  u.BannedAt,
+		CreatedAt: u.CreatedAt,
+	}
+}
+
 // ToSelf 转为个人中心 /api/me 视图
 func (u *User) ToSelf() UserSelf {
 	return UserSelf{
@@ -39,6 +69,7 @@ func (u *User) ToSelf() UserSelf {
 		Username:  u.Username,
 		Email:     u.Email,
 		Nickname:  u.Nickname,
+		Signature: u.Signature,
 		Avatar:    u.Avatar,
 		Role:      u.Role,
 		Banned:    u.Banned,
@@ -55,6 +86,7 @@ func (u *User) ToAdmin() UserAdmin {
 		Username:    u.Username,
 		Email:       u.Email,
 		Nickname:    u.Nickname,
+		Signature:   u.Signature,
 		Avatar:      u.Avatar,
 		Role:        u.Role,
 		Banned:      u.Banned,

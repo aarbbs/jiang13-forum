@@ -14,7 +14,7 @@ import { getBoardThemeIndex } from '../utils/boardTheme';
 import ArticleOutline from './ArticleOutline';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
-const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile'];
+const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile', '/user/'];
 
 export function isNeutralSidebarRoute(pathname: string): boolean {
   return NEUTRAL_SIDEBAR_PREFIXES.some(prefix => pathname.startsWith(prefix));

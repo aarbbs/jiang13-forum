@@ -28,6 +28,40 @@ func (s *UserService) GetByID(id uint) (*model.User, error) {
 	return &user, nil
 }
 
+// UserActivityStats 个人主页活动统计
+type UserActivityStats struct {
+	PostCount     int64 `json:"post_count"`
+	CommentCount  int64 `json:"comment_count"`
+	FavoriteCount int64 `json:"favorite_count"`
+	LikeReceived  int64 `json:"like_received"`
+}
+
+// ActivityStats 统计用户发帖、评论、收藏与帖子获赞
+func (s *UserService) ActivityStats(userID uint) (UserActivityStats, error) {
+	var st UserActivityStats
+	if userID == 0 {
+		return st, errors.New("无效用户")
+	}
+	if err := model.DB.Model(&model.Post{}).Where("user_id = ?", userID).Count(&st.PostCount).Error; err != nil {
+		return st, err
+	}
+	if err := model.DB.Model(&model.Comment{}).Where("user_id = ?", userID).Count(&st.CommentCount).Error; err != nil {
+		return st, err
+	}
+	if err := model.DB.Model(&model.PostFavorite{}).Where("user_id = ?", userID).Count(&st.FavoriteCount).Error; err != nil {
+		return st, err
+	}
+	var likeSum int64
+	if err := model.DB.Model(&model.Post{}).
+		Select("COALESCE(SUM(like_count), 0)").
+		Where("user_id = ?", userID).
+		Scan(&likeSum).Error; err != nil {
+		return st, err
+	}
+	st.LikeReceived = likeSum
+	return st, nil
+}
+
 // GetByUsername 按用户名查询
 func (s *UserService) GetByUsername(username string) (*model.User, error) {
 	var user model.User
@@ -45,6 +79,22 @@ func (s *UserService) UpdateNickname(userID uint, nickname string) error {
 	}
 	nickname = s.filter.Filter(nickname)
 	return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("nickname", nickname).Error
+}
+
+// UpdateSignature 修改个人签名
+func (s *UserService) UpdateSignature(userID uint, signature string) error {
+	signature = strings.TrimSpace(signature)
+	maxLen := s.settings.SignatureMax()
+	if maxLen > 0 {
+		runes := []rune(signature)
+		if len(runes) > maxLen {
+			return fmt.Errorf("签名不能超过 %d 字", maxLen)
+		}
+	}
+	if signature != "" {
+		signature = s.filter.Filter(signature)
+	}
+	return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("signature", signature).Error
 }
 
 // UpdatePassword 修改密码

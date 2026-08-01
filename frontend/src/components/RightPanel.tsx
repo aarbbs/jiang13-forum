@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { PostItem, RecentComment, TagCount } from '../api/types';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import TagCloud from './TagCloud';
+import UserLink from './UserLink';
 
 interface Props {
   hot: PostItem[];
@@ -110,21 +111,39 @@ export default function RightPanel({
           ) : commentList.length === 0 ? (
             <div className="widget-empty">暂无评论</div>
           ) : commentList.map(item => (
-            <button
+            <div
               key={item.id}
-              type="button"
               className="widget-item widget-item--comment"
               title={item.post_title ? `${item.author} · ${item.post_title}` : item.author}
-              onClick={() => onPostClick(item.post_id)}
             >
-              <span className="widget-item-avatar" aria-hidden>
-                {item.avatar
-                  ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
-                  : (item.author?.[0] || '?')}
-              </span>
-              <span className="widget-item-title">{item.excerpt}</span>
-              <span className="widget-item-time">{item.created_at}</span>
-            </button>
+              {item.user_id ? (
+                <UserLink
+                  user={{ id: item.user_id, nickname: item.author, avatar: item.avatar }}
+                  showAvatar={false}
+                  showName={false}
+                  stopPropagation
+                  className="widget-item-avatar user-link--avatar-only"
+                >
+                  {item.avatar
+                    ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                    : (item.author?.[0] || '?')}
+                </UserLink>
+              ) : (
+                <span className="widget-item-avatar" aria-hidden>
+                  {item.avatar
+                    ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                    : (item.author?.[0] || '?')}
+                </span>
+              )}
+              <button
+                type="button"
+                className="widget-item-comment-main"
+                onClick={() => onPostClick(item.post_id)}
+              >
+                <span className="widget-item-title">{item.excerpt}</span>
+                <span className="widget-item-time">{item.created_at}</span>
+              </button>
+            </div>
           ))}
         </div>
       </div>

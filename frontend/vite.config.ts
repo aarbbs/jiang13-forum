@@ -41,6 +41,7 @@ export default defineConfig({
     proxy: {
       '/api': apiTarget,
       '/uploads': apiTarget,
+      '/media': apiTarget,
     },
   },
 });

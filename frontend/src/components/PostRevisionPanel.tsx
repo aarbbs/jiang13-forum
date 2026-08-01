@@ -9,6 +9,7 @@ import type { PostRevision } from '../api/types';
 import PostContent from './PostContent';
 import { formatDateTime } from '../utils/content';
 import { moveTabIndex, useOverlayA11y } from '../hooks/useOverlayA11y';
+import UserLink from './UserLink';
 import {
   type PostSnapshot,
   htmlToDiffText,
@@ -273,7 +274,14 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
                       </div>
                       <span className="post-revision-item-title">{entry.rev.title}</span>
                       <span className="post-revision-item-meta">
-                        {entry.rev.editor?.nickname ?? '未知'} · {formatDateTime(entry.rev.created_at)}
+                        <UserLink
+                          user={entry.rev.editor
+                            ? entry.rev.editor
+                            : { nickname: '未知' }}
+                          stopPropagation
+                          className="post-revision-editor-link"
+                        />
+                        {' · '}{formatDateTime(entry.rev.created_at)}
                       </span>
                     </button>
                   </li>
@@ -291,7 +299,12 @@ export default function PostRevisionPanel({ postId, currentPost, open, onClose, 
                   <div className="post-revision-main-head">
                     <div>
                       <span className="post-revision-main-editor">
-                        {selected.rev.editor?.nickname ?? '未知'}
+                        <UserLink
+                          user={selected.rev.editor
+                            ? selected.rev.editor
+                            : { nickname: '未知' }}
+                          className="post-revision-editor-link"
+                        />
                       </span>
                       <span className="post-revision-main-time">
                         {formatDateTime(selected.rev.created_at)}

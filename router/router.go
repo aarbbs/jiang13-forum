@@ -36,6 +36,10 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	)
 	settingsSvc.MigrateLegacyOIDCClient()
 	settingsSvc.SeedGiteaFromINI(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaSyncEnabled)
+	// SPA 入口 HTML 注入后台配置的标签标题，避免刷新时先闪默认文案
+	embed_static.SetSPADocumentTitle(func() string {
+		return settingsSvc.SiteBranding().DocumentTitle()
+	})
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
 	userSvc := service.NewUserService(filter, settingsSvc)
 	boardSvc := service.NewBoardService()
@@ -62,6 +66,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
+	// 缩略图使用独立前缀，避免与 Static("/uploads/*filepath") 路由冲突
+	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
 	r.Static("/uploads", filepath.Join(cfg.DataDir, "uploads"))
 
 	// OIDC Provider（Gitea 等外部站点 SSO）
@@ -89,6 +95,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/posts/hot", h.APIHotPosts)
 		pubAPI.GET("/tags", h.APITags)
 		pubAPI.GET("/comments/recent", h.APIRecentComments)
+		pubAPI.GET("/users/:id", h.APIUserPublic)
 		pubAPI.GET("/posts/:id", h.APIPostDetail)
 		pubAPI.GET("/posts/:id/comments", h.APIPostComments)
 		pubAPI.POST("/posts/:id/comments", middleware.RateLimitMiddleware(limiter, "comment"), h.APICreateComment)
@@ -102,7 +109,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	{
 		api.POST("/logout", h.APILogout)
 		api.GET("/favorites", h.APIFavorites)
+		api.GET("/profile/stats", h.APIProfileStats)
 		api.POST("/profile/nickname", h.APIUpdateProfile)
+		api.POST("/profile/signature", h.APIUpdateSignature)
 		api.POST("/profile/password", h.APIUpdatePassword)
 		api.POST("/profile/avatar", h.APIUploadAvatar)
 		api.POST("/uploads/image", h.APIUploadPostImage)

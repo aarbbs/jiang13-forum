@@ -21,6 +21,7 @@ func NewPostService(filter *SensitiveFilter, settings *ForumSettingsService) *Po
 
 type PostListQuery struct {
 	BoardID uint
+	UserID  uint // >0 时仅返回该用户的帖子
 	Page    int
 	Size    int
 	Keyword string
@@ -209,6 +210,9 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	db := model.DB.Model(&model.Post{}).Preload("User").Preload("Board")
 	if q.BoardID > 0 {
 		db = db.Where("board_id = ?", q.BoardID)
+	}
+	if q.UserID > 0 {
+		db = db.Where("user_id = ?", q.UserID)
 	}
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"

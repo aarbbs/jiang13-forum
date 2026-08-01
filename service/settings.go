@@ -31,6 +31,7 @@ const (
 
 	SettingPasswordMinLen = "password_min_len"
 	SettingAvatarMaxMB    = "avatar_max_mb"
+	SettingSignatureMax   = "signature_max"
 
 	SettingOpenPostsInNewTab        = "open_posts_in_new_tab"
 	SettingOpenContentLinksInNewTab = "open_content_links_in_new_tab"
@@ -93,6 +94,7 @@ type ForumLimits struct {
 
 	PasswordMinLen int `json:"password_min_len"`
 	AvatarMaxMB    int `json:"avatar_max_mb"`
+	SignatureMax   int `json:"signature_max"`
 
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
@@ -109,6 +111,7 @@ type ForumLimitsPublic struct {
 	PageSizeDefault  int `json:"page_size_default"`
 	PasswordMinLen   int `json:"password_min_len"`
 	AvatarMaxMB      int `json:"avatar_max_mb"`
+	SignatureMax     int `json:"signature_max"`
 
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
@@ -143,6 +146,7 @@ var forumSettingDefs = []settingDef{
 
 	{SettingPasswordMinLen, "6", 4, 128},
 	{SettingAvatarMaxMB, "2", 1, 20},
+	{SettingSignatureMax, "200", 0, 512},
 
 	{SettingOpenPostsInNewTab, "1", 0, 1},
 	{SettingOpenContentLinksInNewTab, "1", 0, 1},
@@ -194,6 +198,16 @@ type SiteBranding struct {
 	LogoMark string `json:"logo_mark"`
 	Logo     string `json:"logo"`
 	Favicon  string `json:"favicon"`
+}
+
+// DocumentTitle 浏览器标签标题：站点名 - 副标题（标语）
+func (b SiteBranding) DocumentTitle() string {
+	name := strings.TrimSpace(b.Name)
+	subtitle := strings.TrimSpace(b.Slogan)
+	if subtitle != "" {
+		return name + " - " + subtitle
+	}
+	return name
 }
 
 // GiteaSyncConfig Gitea 仓库同步配置
@@ -337,6 +351,7 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 
 		PasswordMinLen: s.PasswordMinLen(),
 		AvatarMaxMB:    s.AvatarMaxMB(),
+		SignatureMax:   s.SignatureMax(),
 
 		OpenPostsInNewTab:        s.OpenPostsInNewTab(),
 		OpenContentLinksInNewTab: s.OpenContentLinksInNewTab(),
@@ -355,6 +370,7 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		PageSizeDefault:  limits.PageSizeDefault,
 		PasswordMinLen:   limits.PasswordMinLen,
 		AvatarMaxMB:      limits.AvatarMaxMB,
+		SignatureMax:     limits.SignatureMax,
 
 		OpenPostsInNewTab:        limits.OpenPostsInNewTab,
 		OpenContentLinksInNewTab: limits.OpenContentLinksInNewTab,
@@ -378,6 +394,7 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		SettingPageSizeDefault:     in.PageSizeDefault,
 		SettingPasswordMinLen:      in.PasswordMinLen,
 		SettingAvatarMaxMB:         in.AvatarMaxMB,
+		SettingSignatureMax:        in.SignatureMax,
 	}
 	if in.SearchKeywordMax > 0 && in.SearchKeywordMin > in.SearchKeywordMax {
 		return ErrInvalidSetting
@@ -438,6 +455,7 @@ func (s *ForumSettingsService) PageSizeDefault() int { return s.getInt(SettingPa
 
 func (s *ForumSettingsService) PasswordMinLen() int { return s.getInt(SettingPasswordMinLen, 6) }
 func (s *ForumSettingsService) AvatarMaxMB() int    { return s.getInt(SettingAvatarMaxMB, 2) }
+func (s *ForumSettingsService) SignatureMax() int   { return s.getInt(SettingSignatureMax, 200) }
 
 func (s *ForumSettingsService) OpenPostsInNewTab() bool {
 	return s.getString(SettingOpenPostsInNewTab, "1") == "1"

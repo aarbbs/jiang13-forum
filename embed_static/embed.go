@@ -2,9 +2,11 @@ package embed_static
 
 import (
 	"embed"
+	"html"
 	"html/template"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +17,16 @@ var staticFS embed.FS
 
 //go:embed templates/*
 var templatesFS embed.FS
+
+var (
+	spaTitleRe      = regexp.MustCompile(`(?s)<title>.*?</title>`)
+	spaBrandTitleFn func() string
+)
+
+// SetSPADocumentTitle 注册站点标题提供者，ServeSPA 会注入到入口 HTML，避免刷新闪烁
+func SetSPADocumentTitle(fn func() string) {
+	spaBrandTitleFn = fn
+}
 
 // SetupEmbed 配置内嵌资源：SPA 前端 + 后台 HTML 模板
 func SetupEmbed(r *gin.Engine) error {
@@ -44,6 +56,12 @@ func ServeSPA(c *gin.Context) {
 		c.String(http.StatusNotFound, "前端未构建，请运行: cd frontend && npm run build")
 		return
 	}
+	if spaBrandTitleFn != nil {
+		if title := strings.TrimSpace(spaBrandTitleFn()); title != "" {
+			escaped := html.EscapeString(title)
+			data = spaTitleRe.ReplaceAll(data, []byte("<title>"+escaped+"</title>"))
+		}
+	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 }
 
@@ -52,6 +70,7 @@ func IsSPARoute(path string) bool {
 	if strings.HasPrefix(path, "/api") ||
 		strings.HasPrefix(path, "/admin") ||
 		strings.HasPrefix(path, "/uploads") ||
+		strings.HasPrefix(path, "/media") ||
 		strings.HasPrefix(path, "/legacy") ||
 		strings.HasPrefix(path, "/assets") ||
 		strings.HasPrefix(path, "/oauth") ||

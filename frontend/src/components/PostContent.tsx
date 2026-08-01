@@ -1,10 +1,11 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { renderPostContentHtml } from '../utils/postContent';
 import { extractHeadingsFromHtml, type PostHeading } from '../utils/postHeadings';
 import { loginPath, registerPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { notify } from '@/lib/notify';
+import ImageLightbox from './ImageLightbox';
 
 interface Props {
   html: string;
@@ -14,7 +15,7 @@ interface Props {
   onHeadingsChange?: (headings: PostHeading[]) => void;
 }
 
-/** 帖子正文渲染（含会员专属区块、代码块美化） */
+/** 帖子正文渲染（含会员专属区块、代码块美化、图片灯箱） */
 export default function PostContent({
   html,
   isLoggedIn,
@@ -23,6 +24,8 @@ export default function PostContent({
 }: Props) {
   const nav = useNavigate();
   const { limits } = useForumLimits();
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxAlt, setLightboxAlt] = useState('');
 
   const prepared = useMemo(() => {
     const rendered = renderPostContentHtml(html, isLoggedIn, {
@@ -38,6 +41,13 @@ export default function PostContent({
     onHeadingsChange?.(prepared.headings);
   }, [prepared.headings, onHeadingsChange]);
 
+  const openLightbox = useCallback((img: HTMLImageElement) => {
+    const full = img.getAttribute('data-full') || img.currentSrc || img.src;
+    if (!full) return;
+    setLightboxSrc(full);
+    setLightboxAlt(img.getAttribute('alt') || '');
+  }, []);
+
   const handleClick = useCallback(async (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('[data-members-login]')) {
@@ -48,6 +58,12 @@ export default function PostContent({
     if (target.closest('[data-members-register]')) {
       e.preventDefault();
       nav(registerPath());
+      return;
+    }
+    const zoomImg = target.closest<HTMLImageElement>('img.post-content-img--zoomable');
+    if (zoomImg) {
+      e.preventDefault();
+      openLightbox(zoomImg);
       return;
     }
     const copyBtn = target.closest<HTMLElement>('[data-code-copy]');
@@ -68,13 +84,30 @@ export default function PostContent({
         notify.error('复制失败');
       }
     }
-  }, [nav]);
+  }, [nav, openLightbox]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const zoomImg = (e.target as HTMLElement).closest?.('img.post-content-img--zoomable');
+    if (!zoomImg || !(zoomImg instanceof HTMLImageElement)) return;
+    e.preventDefault();
+    openLightbox(zoomImg);
+  }, [openLightbox]);
 
   return (
-    <div
-      className={className}
-      onClick={handleClick}
-      dangerouslySetInnerHTML={{ __html: prepared.html }}
-    />
+    <>
+      <div
+        className={className}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        dangerouslySetInnerHTML={{ __html: prepared.html }}
+      />
+      <ImageLightbox
+        src={lightboxSrc}
+        alt={lightboxAlt}
+        open={!!lightboxSrc}
+        onClose={() => setLightboxSrc(null)}
+      />
+    </>
   );
 }

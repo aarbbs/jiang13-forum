@@ -78,10 +78,11 @@ const SETTING_SECTIONS: SettingSection[] = [
   {
     id: 'user',
     title: '用户账号',
-    summary: '注册、改密与头像上传限制',
+    summary: '注册、改密、头像与签名限制',
     rows: [
       { key: 'password_min_len', label: '密码最短', unit: '位', min: 4 },
       { key: 'avatar_max_mb', label: '头像上限', unit: 'MB', min: 1 },
+      { key: 'signature_max', label: '签名上限', unit: '字', min: 0 },
     ],
   },
 ];

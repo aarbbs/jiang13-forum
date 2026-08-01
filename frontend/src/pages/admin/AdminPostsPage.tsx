@@ -145,7 +145,13 @@ export default function AdminPostsPage() {
                       {edited && <Badge variant="secondary" className="ml-1">已编辑</Badge>}
                     </td>
                     <td>{p.board?.name ?? '—'}</td>
-                    <td>{p.user?.nickname ?? '—'}</td>
+                    <td>
+                      {p.user?.id ? (
+                        <button type="button" className="admin-text-link" onClick={() => nav(`/user/${p.user!.id}`)}>
+                          {p.user.nickname}
+                        </button>
+                      ) : '—'}
+                    </td>
                     <td className="max-w-[120px] truncate text-muted-foreground">{p.tags || '—'}</td>
                     <td>{p.comment_count ?? 0}</td>
                     <td>{p.pinned ? <Badge variant="orange">是</Badge> : '—'}</td>

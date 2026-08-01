@@ -24,6 +24,7 @@ import {
 } from '../utils/comment';
 import { isTimeDiffSignificant } from '../utils/content';
 import { useForumLimits } from '../hooks/useForumLimits';
+import UserLink from './UserLink';
 
 function canManageComment(c: Comment, user?: User | null): boolean {
   if (!user) return false;
@@ -97,20 +98,40 @@ function CommentItem({
       id={`floor-${c.floor}`}
       className={`waline-comment ${nested ? 'nested' : ''} ${isHighlighted ? 'highlight' : ''}`}
     >
-      <div className={`waline-comment-avatar ${guest && !c.user?.avatar ? 'guest' : ''}`}>
-        {c.user?.avatar ? (
-          <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
-        ) : (
-          commentInitial(c)
-        )}
-      </div>
+      {!guest && c.user_id ? (
+        <UserLink
+          user={c.user ?? { id: c.user_id, nickname: nick }}
+          showAvatar={false}
+          showName={false}
+          className={`waline-comment-avatar user-link--avatar-only${!c.user?.avatar ? ' guest' : ''}`}
+        >
+          {c.user?.avatar ? (
+            <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
+          ) : (
+            commentInitial(c)
+          )}
+        </UserLink>
+      ) : (
+        <div className={`waline-comment-avatar ${!c.user?.avatar ? 'guest' : ''}`}>
+          {c.user?.avatar ? (
+            <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
+          ) : (
+            commentInitial(c)
+          )}
+        </div>
+      )}
 
       <div className="waline-comment-main">
         <div className="waline-comment-head">
-          {c.guest_url ? (
+          {guest && c.guest_url ? (
             <a href={c.guest_url} target="_blank" rel="noopener noreferrer" className="waline-comment-author">
               {nick}
             </a>
+          ) : !guest && c.user_id ? (
+            <UserLink
+              user={c.user ?? { id: c.user_id, nickname: nick }}
+              className="waline-comment-author"
+            />
           ) : (
             <span className="waline-comment-author">{nick}</span>
           )}

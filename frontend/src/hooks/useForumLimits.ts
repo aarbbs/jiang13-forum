@@ -12,6 +12,7 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   page_size_default: 30,
   password_min_len: 6,
   avatar_max_mb: 2,
+  signature_max: 200,
   open_posts_in_new_tab: true,
   open_content_links_in_new_tab: true,
 };

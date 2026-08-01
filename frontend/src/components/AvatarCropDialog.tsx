@@ -11,12 +11,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
-import { getCroppedAvatarFile } from '../utils/avatarCrop';
+import { getCroppedAvatarFile, validateAvatarOutput } from '../utils/avatarCrop';
 
 interface Props {
   open: boolean;
   imageSrc: string | null;
   fileName?: string;
+  /** 裁剪后文件体积上限（MB） */
+  maxMb: number;
   onOpenChange: (open: boolean) => void;
   onConfirm: (file: File) => void;
 }
@@ -25,6 +27,7 @@ export default function AvatarCropDialog({
   open,
   imageSrc,
   fileName,
+  maxMb,
   onOpenChange,
   onConfirm,
 }: Props) {
@@ -50,6 +53,11 @@ export default function AvatarCropDialog({
     setConfirming(true);
     try {
       const file = await getCroppedAvatarFile(imageSrc, croppedAreaPixels, fileName);
+      const sizeErr = validateAvatarOutput(file, maxMb);
+      if (sizeErr) {
+        notify.error(sizeErr);
+        return;
+      }
       onConfirm(file);
       onOpenChange(false);
     } catch {

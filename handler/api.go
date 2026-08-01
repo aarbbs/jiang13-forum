@@ -662,10 +662,12 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", strconv.Itoa(h.Settings.PageSizeDefault())))
 	boardID, _ := strconv.ParseUint(c.Query("board_id"), 10, 64)
+	userID, _ := strconv.ParseUint(c.Query("user_id"), 10, 64)
 	keyword := c.Query("keyword")
 
 	q := service.PostListQuery{
 		BoardID: uint(boardID),
+		UserID:  uint(userID),
 		Page:    page,
 		Size:    size,
 		Keyword: keyword,

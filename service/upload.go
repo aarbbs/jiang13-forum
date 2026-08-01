@@ -49,5 +49,14 @@ func SaveUploadedImage(file *multipart.FileHeader, dir, urlPrefix, namePrefix st
 	}
 
 	prefix := strings.TrimSuffix(urlPrefix, "/")
-	return prefix + "/" + filename, nil
+	url := prefix + "/" + filename
+
+	// 帖子正文图：后台预热缩略图，加速首次打开详情
+	if strings.Contains(prefix, "/posts") {
+		uploadsRoot := filepath.Dir(dir) // .../uploads/posts → .../uploads
+		rel := filepath.ToSlash(filepath.Join(filepath.Base(dir), filename))
+		go WarmPostImageThumb(uploadsRoot, rel)
+	}
+
+	return url, nil
 }

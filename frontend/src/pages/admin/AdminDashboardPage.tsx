@@ -73,7 +73,13 @@ export default function AdminDashboardPage() {
                     {p.title}
                   </button>
                 </td>
-                <td>{p.user?.nickname ?? '—'}</td>
+                <td>
+                  {p.user?.id ? (
+                    <button type="button" className="admin-text-link" onClick={() => nav(`/user/${p.user!.id}`)}>
+                      {p.user.nickname}
+                    </button>
+                  ) : '—'}
+                </td>
                 <td>{p.pinned ? <Badge variant="orange">是</Badge> : '—'}</td>
                 <td>{new Date(p.created_at).toLocaleString('zh-CN')}</td>
               </tr>

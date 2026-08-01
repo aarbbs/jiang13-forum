@@ -5,7 +5,6 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import DOMPurify from 'dompurify';
@@ -13,6 +12,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Link as LinkIcon, Code, Quote,
   List, ListOrdered, Image as ImageIcon, Minus, LockKeyhole,
   FileCode, PenLine, Maximize2, Minimize2,
+  Columns2, PanelLeft, PanelRight, StretchHorizontal,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
@@ -30,6 +30,9 @@ import { api } from '../api/client';
 import { notify } from '@/lib/notify';
 import { MembersOnly } from './editor/MembersOnlyExtension';
 import { TabIndent } from './editor/TabIndentExtension';
+import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension';
+import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
+import { ClearFloatParagraph, ClearFloatSync } from './editor/ClearFloatParagraph';
 import { ArticleLinkDialog } from './editor/ArticleLinkDialog';
 import { Tooltip } from './ui/Tooltip';
 
@@ -85,25 +88,29 @@ function cycleHeading(editor: Editor) {
   editor.chain().focus().toggleHeading({ level: 2 }).run();
 }
 
-/** 触发图片文件选择并上传 */
-async function uploadPostImageFile(): Promise<string | null> {
+/** 触发图片文件选择并上传（支持多选） */
+async function uploadPostImageFiles(multiple = true): Promise<string[]> {
   return new Promise(resolve => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+    input.multiple = multiple;
     input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
+      const files = [...(input.files ?? [])];
+      if (!files.length) {
+        resolve([]);
         return;
       }
-      try {
-        const { url } = await api.uploadPostImage(file);
-        resolve(url);
-      } catch (e: unknown) {
-        notify.error(e instanceof Error ? e.message : '图片上传失败');
-        resolve(null);
+      const urls: string[] = [];
+      for (const file of files) {
+        try {
+          const { url } = await api.uploadPostImage(file);
+          urls.push(url);
+        } catch (e: unknown) {
+          notify.error(e instanceof Error ? e.message : '图片上传失败');
+        }
       }
+      resolve(urls);
     };
     input.click();
   });
@@ -149,14 +156,18 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3, 4, 5, 6] },
+        paragraph: false,
       }),
+      ClearFloatParagraph,
+      ClearFloatSync,
       Underline,
       Link.configure({
         openOnClick: false,
         autolink: true,
         defaultProtocol: 'https',
       }),
-      Image.configure({ inline: false, allowBase64: false }),
+      ArticleImage.configure({ inline: false, allowBase64: false }),
+      ImageGroup,
       Placeholder.configure({
         placeholder: ({ node }) => {
           if (node.type.name === 'paragraph' && node.parent?.type.name === 'membersOnly') {
@@ -302,9 +313,24 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
 
   const setImage = useCallback(async () => {
     if (!editor) return;
-    const url = await uploadPostImageFile();
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+    const urls = await uploadPostImageFiles(true);
+    if (!urls.length) return;
+    if (urls.length === 1) {
+      editor.chain().focus().setImage({ src: urls[0] }).run();
+      return;
+    }
+    editor.chain().focus().insertImageGroup(urls, suggestImageGroupLayout(urls.length)).run();
+  }, [editor]);
+
+  const setImageDisplay = useCallback((display: ImageDisplay) => {
+    if (!editor) return;
+    editor.chain().focus().setImageDisplay(display).run();
+  }, [editor]);
+
+  const wrapSelectedAsGroup = useCallback(() => {
+    if (!editor) return;
+    if (!editor.commands.wrapImagesInGroup()) {
+      notify.warning('请先点击或靠近至少两张连续图片，再合并为图组');
     }
   }, [editor]);
 
@@ -356,9 +382,16 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const insertMarkdownImage = useCallback(async () => {
     const textarea = markdownRef.current;
     if (!textarea) return;
-    const url = await uploadPostImageFile();
-    if (!url) return;
-    insertAtCursor(textarea, markdownSource, `\n\n![图片](${url})\n\n`, handleMarkdownChange);
+    const urls = await uploadPostImageFiles(true);
+    if (!urls.length) return;
+    if (urls.length === 1) {
+      insertAtCursor(textarea, markdownSource, `\n\n![图片](${urls[0]})\n\n`, handleMarkdownChange);
+      return;
+    }
+    const layout = suggestImageGroupLayout(urls.length);
+    const imgs = urls.map(u => `<img src="${u}" alt="">`).join('');
+    const block = `\n\n<div data-image-group data-layout="${layout}" class="image-group image-group--${layout}">${imgs}</div>\n\n`;
+    insertAtCursor(textarea, markdownSource, block, handleMarkdownChange);
   }, [markdownSource, handleMarkdownChange]);
 
   const markdownPreviewHtml = useMemo(
@@ -368,7 +401,11 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
 
   const buildRichTools = useCallback((): ToolBtn[] => {
     if (!editor) return [];
-    return [
+    const imageActive = editor.isActive('image');
+    const groupActive = editor.isActive('imageGroup');
+    const currentDisplay = (editor.getAttributes('image').display as ImageDisplay) || 'default';
+
+    const tools: ToolBtn[] = [
       { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', active: editor.isActive('heading'), action: () => cycleHeading(editor) },
       { icon: <Bold size={15} />, title: '加粗', active: editor.isActive('bold'), action: () => editor.chain().focus().toggleBold().run() },
       { icon: <Italic size={15} />, title: '斜体', active: editor.isActive('italic'), action: () => editor.chain().focus().toggleItalic().run() },
@@ -380,17 +417,57 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       { icon: <ListOrdered size={15} />, title: '有序列表', active: editor.isActive('orderedList'), action: () => editor.chain().focus().toggleOrderedList().run() },
       { icon: <Code size={15} />, title: '代码块', active: editor.isActive('codeBlock'), action: () => editor.chain().focus().toggleCodeBlock().run() },
       { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: () => openLinkDialog('rich') },
-      { icon: <ImageIcon size={15} />, title: '上传图片', action: setImage },
       {
-        icon: <LockKeyhole size={15} />,
-        title: '登录可见',
-        hint: '插入或包裹；区块内 Ctrl+Enter 退出',
-        active: editor.isActive('membersOnly'),
-        className: 'article-tool-btn--members',
-        action: wrapMembersOnly,
+        icon: <ImageIcon size={15} />,
+        title: '上传图片',
+        hint: '可多选；多张自动并排成图组',
+        action: setImage,
+      },
+      {
+        icon: <Columns2 size={15} />,
+        title: '合并为图组',
+        hint: '点击一张图后合并其附近连续图片（无需框选多张）',
+        active: groupActive,
+        action: wrapSelectedAsGroup,
       },
     ];
-  }, [editor, openLinkDialog, setImage, wrapMembersOnly]);
+
+    if (imageActive && !groupActive) {
+      tools.push(
+        {
+          icon: <StretchHorizontal size={15} />,
+          title: '通栏大图',
+          active: currentDisplay === 'wide',
+          action: () => setImageDisplay(currentDisplay === 'wide' ? 'default' : 'wide'),
+        },
+        {
+          icon: <PanelLeft size={15} />,
+          title: '左绕排',
+          hint: '图片居左，文字环绕',
+          active: currentDisplay === 'float-left',
+          action: () => setImageDisplay(currentDisplay === 'float-left' ? 'default' : 'float-left'),
+        },
+        {
+          icon: <PanelRight size={15} />,
+          title: '右绕排',
+          hint: '图片居右，文字环绕',
+          active: currentDisplay === 'float-right',
+          action: () => setImageDisplay(currentDisplay === 'float-right' ? 'default' : 'float-right'),
+        },
+      );
+    }
+
+    tools.push({
+      icon: <LockKeyhole size={15} />,
+      title: '登录可见',
+      hint: '插入或包裹；区块内 Ctrl+Enter 退出',
+      active: editor.isActive('membersOnly'),
+      className: 'article-tool-btn--members',
+      action: wrapMembersOnly,
+    });
+
+    return tools;
+  }, [editor, openLinkDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => [
     { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
@@ -463,12 +540,10 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
 
       <div className="article-editor-status">
         <div className="article-editor-status-meta">
-          <span>{words} 字</span>
-          <span className="article-editor-status-sep">·</span>
-          <span>
-            {mode === 'rich' ? '富文本' : 'Markdown 源码'}
-            {' · Tab 缩进 / Shift+Tab 回退'}
-            {mode === 'rich' ? ' · 登录可见内 Ctrl+Enter 退出' : ''}
+          <span className="article-editor-wordcount">{words} 字</span>
+          <span className="article-editor-status-sep" aria-hidden>·</span>
+          <span className="article-editor-mode-label">
+            {mode === 'rich' ? '所见即所得' : 'Markdown'}
           </span>
         </div>
 
@@ -498,12 +573,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
           >
             <button
               type="button"
-              className="article-editor-view-btn"
+              className={`article-editor-view-btn${fullscreen ? ' active' : ''}`}
               onMouseDown={e => e.preventDefault()}
               onClick={() => setFullscreen(v => !v)}
             >
               {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              <span>{fullscreen ? '退出全屏' : '全屏'}</span>
+              <span>{fullscreen ? '退出' : '全屏'}</span>
             </button>
           </Tooltip>
         </div>

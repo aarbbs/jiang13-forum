@@ -22,6 +22,7 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const ComposePage = lazy(() => import('./pages/ComposePage'));
 const BoardsManagePage = lazy(() => import('./pages/BoardsManagePage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
@@ -51,6 +52,7 @@ const router = createBrowserRouter(
         <Route path="/post/:id/edit" element={<ComposePage />} />
         <Route path="/compose" element={<ComposePage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/user/:id" element={<UserProfilePage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
       </Route>

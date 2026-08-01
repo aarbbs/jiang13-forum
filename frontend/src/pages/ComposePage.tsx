@@ -323,85 +323,90 @@ export default function ComposePage() {
   return (
     <div className="compose-page">
       <div className="compose-canvas">
-        <header className="compose-header">
-          <button
-            type="button"
-            className="compose-back"
-            onClick={() => requestLeave(() => {
-              if (isEdit) nav(`/post/${editId}`);
-              else nav(-1);
-            })}
-          >
-            <ArrowLeft size={16} />
-            <span>返回</span>
-          </button>
-          <div className="compose-header-actions">
-            {(draftHint || editWindowHint) && (
-              <span className="compose-draft-hint" title={editWindowHint || draftHint}>
-                {editWindowHint || draftHint}
-              </span>
-            )}
-            <button
-              type="button"
-              className="compose-publish-btn"
-              disabled={publishing}
-              onClick={handleSubmit}
-            >
-              <Send size={16} />
-              {publishing ? (isEdit ? '保存中…' : '发布中…') : (isEdit ? '保存修改' : '发布帖子')}
-            </button>
-          </div>
-        </header>
-
-        <div className="compose-meta">
-          {!isEdit ? (
-            <div className="compose-board-pills">
-              {boards.map(b => (
-                <button
-                  key={b.id}
-                  type="button"
-                  className={`compose-board-pill${String(b.id) === boardId ? ' active' : ''}`}
-                  onClick={() => setBoardId(String(b.id))}
-                >
-                  {b.name}
-                </button>
-              ))}
-            </div>
-          ) : currentBoard && (
-            <div className="compose-board-pills">
-              <span className="compose-board-pill active">{currentBoard.name}</span>
-            </div>
-          )}
-          <TagInput
-            value={tags}
-            onChange={setTags}
-            placeholder="输入标签后回车"
-            maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
-          />
-        </div>
-
-        <div className="compose-writing">
-          <input
-            className="compose-title"
-            type="text"
-            placeholder="输入文章标题…"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            maxLength={limits.post_title_max > 0 ? limits.post_title_max : undefined}
-          />
-          {currentBoard && (
-            <div className="compose-subtitle">
-              {isEdit ? '编辑于' : '发布至'} <strong>{currentBoard.name}</strong>
-              {editWindowHint && (
-                <span className="compose-edit-window"> · {editWindowHint}</span>
+        <div className="compose-shell">
+          <header className="compose-header">
+            <div className="compose-header-left">
+              <button
+                type="button"
+                className="compose-back"
+                onClick={() => requestLeave(() => {
+                  if (isEdit) nav(`/post/${editId}`);
+                  else nav(-1);
+                })}
+              >
+                <ArrowLeft size={16} />
+                <span>返回</span>
+              </button>
+              <h1 className="compose-header-title">{isEdit ? '编辑帖子' : '写新帖'}</h1>
+              {(draftHint || editWindowHint) && (
+                <span className="compose-draft-hint" title={editWindowHint || draftHint}>
+                  {editWindowHint || draftHint}
+                </span>
               )}
             </div>
-          )}
-          <ArticleEditor
-            value={content}
-            onChange={setContent}
-            placeholder="开始写作。所见即所得，选中文字后使用工具栏设置格式。"
-          />
+            <div className="compose-header-actions">
+              <button
+                type="button"
+                className="compose-publish-btn"
+                disabled={publishing}
+                onClick={handleSubmit}
+              >
+                <Send size={16} />
+                {publishing ? (isEdit ? '保存中…' : '发布中…') : (isEdit ? '保存修改' : '发布')}
+              </button>
+            </div>
+          </header>
+
+          <section className="compose-context" aria-label="发布设置">
+            <div className="compose-context-row">
+              <span className="compose-context-label">板块</span>
+              {!isEdit ? (
+                <div className="compose-board-pills" role="listbox" aria-label="选择板块">
+                  {boards.map(b => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="option"
+                      aria-selected={String(b.id) === boardId}
+                      className={`compose-board-pill${String(b.id) === boardId ? ' active' : ''}`}
+                      onClick={() => setBoardId(String(b.id))}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              ) : currentBoard ? (
+                <div className="compose-board-pills">
+                  <span className="compose-board-pill active">{currentBoard.name}</span>
+                </div>
+              ) : null}
+            </div>
+            <div className="compose-context-row compose-context-row--tags">
+              <span className="compose-context-label">标签</span>
+              <TagInput
+                value={tags}
+                onChange={setTags}
+                placeholder="添加标签，回车确认"
+                maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
+              />
+            </div>
+          </section>
+
+          <div className="compose-document">
+            <input
+              className="compose-title"
+              type="text"
+              placeholder="输入文章标题…"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              maxLength={limits.post_title_max > 0 ? limits.post_title_max : undefined}
+            />
+            <ArticleEditor
+              value={content}
+              onChange={setContent}
+              placeholder="开始写作。按回车分段，选中文字后用工具栏设置格式。"
+            />
+          </div>
         </div>
       </div>
       <UnsavedChangesDialog

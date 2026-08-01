@@ -1,4 +1,4 @@
-import type { User, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, SiteBranding, RegisterConfig } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, SiteBranding, RegisterConfig } from './types';
 
 const BASE = '';
 
@@ -156,10 +156,20 @@ export const api = {
     }),
   adminBackup: () =>
     request<{ message: string; filename: string; download: string }>('/api/admin/backup', { method: 'POST' }),
+  profileStats: () => request<{ stats: UserActivityStats }>('/api/profile/stats'),
+  userProfile: (id: number) =>
+    request<{ user: UserPublic; stats: UserActivityStats }>(`/api/users/${id}`),
   updateNickname: (nickname: string) => {
     const fd = new FormData();
     fd.append('nickname', nickname);
     return request('/api/profile/nickname', { method: 'POST', body: fd, headers: {} });
+  },
+  updateSignature: (signature: string) => {
+    const fd = new FormData();
+    fd.append('signature', signature);
+    return request<{ message: string; user: User }>('/api/profile/signature', {
+      method: 'POST', body: fd, headers: {},
+    });
   },
   updatePassword: (oldPassword: string, newPassword: string) => {
     const fd = new FormData();

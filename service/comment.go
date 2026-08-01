@@ -209,6 +209,7 @@ func (s *CommentService) AdminDelete(commentID uint) error {
 type RecentCommentItem struct {
 	ID        uint   `json:"id"`
 	PostID    uint   `json:"post_id"`
+	UserID    uint   `json:"user_id,omitempty"`
 	Author    string `json:"author"`
 	Avatar    string `json:"avatar"`
 	Excerpt   string `json:"excerpt"`
@@ -251,6 +252,7 @@ func (s *CommentService) ListRecentPublic(limit int) ([]RecentCommentItem, error
 		out = append(out, RecentCommentItem{
 			ID:        c.ID,
 			PostID:    c.PostID,
+			UserID:    c.UserID,
 			Author:    author,
 			Avatar:    avatar,
 			Excerpt:   excerpt,
