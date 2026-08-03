@@ -1,5 +1,5 @@
 import {
-  Home, Star, LayoutDashboard, FolderGit2, ArrowLeft,
+  Home, Star, LayoutDashboard, FolderGit2, FolderKanban, ArrowLeft,
 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { Board } from '../api/types';
@@ -148,6 +148,13 @@ export default function Sidebar({
                 </button>
               );
             })}
+          </nav>
+        </>
+      ) : isAdmin ? (
+        <>
+          <div className="sidebar-section sidebar-section--boards">板块</div>
+          <nav className="sidebar-nav">
+            {navItem('boards-empty', '创建第一个板块', <FolderKanban aria-hidden />, () => nav('/admin/boards'))}
           </nav>
         </>
       ) : null}

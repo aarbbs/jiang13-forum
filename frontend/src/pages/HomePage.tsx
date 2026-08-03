@@ -258,6 +258,7 @@ export default function HomePage() {
           keyword={keyword}
           boardId={boardId}
           boardName={ctx?.boards?.find(b => b.id === boardId)?.name || ''}
+          noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}
         />
       </div>
     </div>

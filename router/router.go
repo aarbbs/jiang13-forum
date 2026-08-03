@@ -44,6 +44,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
 	userSvc := service.NewUserService(filter, settingsSvc)
 	boardSvc := service.NewBoardService()
+	boardSvc.EnsureDefaultBoard()
 	postSvc := service.NewPostService(filter, settingsSvc)
 	commentSvc := service.NewCommentService(filter, settingsSvc)
 	messageSvc := service.NewMessageService(filter, settingsSvc)

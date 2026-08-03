@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useParams, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Send, Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
@@ -17,12 +17,6 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import { loginPath } from '../utils/authRedirect';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
 import { parsePermalinkID, postPath } from '../utils/permalink';
-import {
-  loadComposeDraft,
-  saveComposeDraft,
-  clearComposeDraft,
-  draftHasContent,
-} from '../utils/composeDraft';
 
 interface ComposeBaseline {
   title: string;
@@ -77,9 +71,6 @@ export default function ComposePage() {
   );
   const [baseline, setBaseline] = useState<ComposeBaseline | null>(null);
   const [editWindowHint, setEditWindowHint] = useState('');
-  const [draftHint, setDraftHint] = useState('');
-  const draftReadyRef = useRef(false);
-  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (authLoading) return;
@@ -90,7 +81,6 @@ export default function ComposePage() {
 
     if (isEdit) {
       setLoading(true);
-      draftReadyRef.current = false;
       const cached = resolveBoards(layoutCtx?.boards);
       const boardsPromise = cached.length > 0
         ? Promise.resolve({ boards: cached })
@@ -120,6 +110,9 @@ export default function ComposePage() {
           };
           setBoardId(loadedBoardId);
           setBaseline(serverBaseline);
+          setTitle(serverBaseline.title);
+          setTags(serverBaseline.tags);
+          setContent(serverBaseline.content);
 
           const windowHours = postData.post_edit_window_hours ?? 0;
           if (user.role !== 'admin' && windowHours > 0) {
@@ -127,28 +120,6 @@ export default function ComposePage() {
           } else {
             setEditWindowHint('');
           }
-
-          const draft = loadComposeDraft(editId);
-          const useDraft = draft
-            && draftHasContent(draft)
-            && (
-              draft.title !== serverBaseline.title
-              || draft.tags !== serverBaseline.tags
-              || draft.content !== serverBaseline.content
-            );
-          if (useDraft && draft) {
-            setTitle(draft.title);
-            setTags(draft.tags);
-            setContent(draft.content);
-            setDraftHint('已恢复未保存的编辑草稿');
-            notify.success('已恢复未保存的编辑草稿');
-          } else {
-            setTitle(serverBaseline.title);
-            setTags(serverBaseline.tags);
-            setContent(serverBaseline.content);
-            setDraftHint('');
-          }
-          draftReadyRef.current = true;
         })
         .catch((e: unknown) => {
           notify.error(e instanceof Error ? e.message : '加载帖子失败');
@@ -158,39 +129,17 @@ export default function ComposePage() {
       return;
     }
 
-    draftReadyRef.current = false;
     const applyNewBaseline = (list: Board[], initialBoardId: string) => {
       setBoards(list);
       if (!defaultBoard) setBoardId(initialBoardId);
       const boardForBaseline = defaultBoard || initialBoardId;
       setBoardId(prev => prev || boardForBaseline);
-
-      const draft = loadComposeDraft(null);
-      if (draft && draftHasContent(draft)) {
-        setTitle(draft.title);
-        setTags(draft.tags);
-        setContent(draft.content);
-        if (draft.boardId && list.some(b => String(b.id) === draft.boardId)) {
-          setBoardId(draft.boardId);
-        }
-        setBaseline({
-          title: '',
-          tags: '',
-          content: '',
-          boardId: draft.boardId || boardForBaseline,
-        });
-        setDraftHint('已恢复本地草稿');
-        notify.success('已恢复本地草稿');
-      } else {
-        setBaseline({
-          title: '',
-          tags: '',
-          content: '',
-          boardId: boardForBaseline,
-        });
-        setDraftHint('');
-      }
-      draftReadyRef.current = true;
+      setBaseline({
+        title: '',
+        tags: '',
+        content: '',
+        boardId: boardForBaseline,
+      });
     };
 
     const list = resolveBoards(layoutCtx?.boards);
@@ -209,27 +158,11 @@ export default function ComposePage() {
     }).catch(() => {
       setBoards([]);
     }).finally(() => setBoardsReady(true));
-  }, [user, authLoading, nav, defaultBoard, isEdit, editId, layoutCtx?.boards]);
-
-  // 防抖自动保存草稿
-  useEffect(() => {
-    if (!draftReadyRef.current || !user) return;
-    clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => {
-      saveComposeDraft(isEdit ? editId : null, {
-        title,
-        tags,
-        content,
-        boardId,
-      });
-      if (title.trim() || tags.trim() || content.trim()) {
-        setDraftHint('草稿已自动保存');
-      }
-    }, 800);
-    return () => clearTimeout(draftTimerRef.current);
-  }, [title, tags, content, boardId, isEdit, editId, user]);
+  }, [user, authLoading, nav, defaultBoard, isEdit, editId, layoutCtx?.boards, limits]);
 
   const isDirty = useMemo(() => {
+    // 无可发帖板块时不拦截导航（空态页本身没有可保存内容）
+    if (!isEdit && boards.length === 0) return false;
     if (!baseline) return false;
     return (
       title !== baseline.title
@@ -237,7 +170,7 @@ export default function ComposePage() {
       || content !== baseline.content
       || boardId !== baseline.boardId
     );
-  }, [baseline, title, tags, content, boardId]);
+  }, [baseline, title, tags, content, boardId, isEdit, boards.length]);
 
   const {
     dialogOpen,
@@ -246,6 +179,11 @@ export default function ComposePage() {
     requestLeave,
     markSaved,
   } = useUnsavedChangesGuard({ isDirty });
+
+  const leaveTo = (path: string) => {
+    markSaved();
+    nav(path);
+  };
 
   if (authLoading) {
     return (
@@ -267,24 +205,32 @@ export default function ComposePage() {
 
   if (!isEdit && boards.length === 0) {
     return (
-      <div className="compose-page compose-page--empty">
-        <div className="compose-empty-card">
-          <div className="compose-empty-icon" aria-hidden>
-            <Pencil size={28} strokeWidth={1.5} />
+      <>
+        <div className="compose-page compose-page--empty">
+          <div className="compose-empty-card">
+            <div className="compose-empty-icon" aria-hidden>
+              <Pencil size={28} strokeWidth={1.5} />
+            </div>
+            <h2>暂无可发帖板块</h2>
+            <p>需要管理员先创建板块后才能发布内容</p>
+            {user.role === 'admin' ? (
+              <button type="button" className="compose-primary-btn" onClick={() => leaveTo('/admin/boards')}>
+                去创建板块
+              </button>
+            ) : (
+              <button type="button" className="compose-ghost-btn" onClick={() => leaveTo('/')}>
+                返回首页
+              </button>
+            )}
           </div>
-          <h2>暂无可发帖板块</h2>
-          <p>需要管理员先创建板块后才能发布内容</p>
-          {user.role === 'admin' ? (
-            <button type="button" className="compose-primary-btn" onClick={() => nav('/admin/boards')}>
-              去创建板块
-            </button>
-          ) : (
-            <button type="button" className="compose-ghost-btn" onClick={() => nav('/')}>
-              返回首页
-            </button>
-          )}
         </div>
-      </div>
+        <UnsavedChangesDialog
+          open={dialogOpen}
+          onStay={stayOnPage}
+          onLeave={discardAndLeave}
+          isEdit={isEdit}
+        />
+      </>
     );
   }
 
@@ -305,13 +251,11 @@ export default function ComposePage() {
       if (isEdit) {
         await api.updatePost(editId!, payload);
         notify.success(user?.role === 'admin' ? '帖子已更新' : '已更新并重新提交审核');
-        clearComposeDraft(editId);
         markSaved();
         nav(postPath(editId!, limits));
       } else {
         const res = await api.createPost(payload);
         notify.success(res.message || (res.status === 'pending' ? '已提交审核' : '发帖成功'));
-        clearComposeDraft(null);
         markSaved();
         nav(postPath(res.post_id, limits));
       }
@@ -340,9 +284,9 @@ export default function ComposePage() {
                 <span>返回</span>
               </button>
               <h1 className="compose-header-title">{isEdit ? '编辑帖子' : '写新帖'}</h1>
-              {(draftHint || editWindowHint) && (
-                <span className="compose-draft-hint" title={editWindowHint || draftHint}>
-                  {editWindowHint || draftHint}
+              {editWindowHint && (
+                <span className="compose-draft-hint" title={editWindowHint}>
+                  {editWindowHint}
                 </span>
               )}
             </div>

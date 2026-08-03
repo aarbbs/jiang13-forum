@@ -283,11 +283,12 @@ export default function MainLayout() {
     keyword: outletKeyword,
     setBoardId,
     boards,
+    boardsLoading,
     stats,
     refreshBoards,
     isMobile,
     setPostOutline: setPostOutlineSafe,
-  }), [boardId, outletKeyword, boards, stats, refreshBoards, isMobile, setPostOutlineSafe]);
+  }), [boardId, outletKeyword, boards, boardsLoading, stats, refreshBoards, isMobile, setPostOutlineSafe]);
 
   const selectBoardChip = (id: number) => {
     setBoardId(id);
@@ -696,6 +697,7 @@ export type LayoutCtx = {
   keyword: string;
   setBoardId: (id: number) => void;
   boards: Board[];
+  boardsLoading: boolean;
   stats: ForumStats | null;
   refreshBoards: () => void;
   isMobile: boolean;

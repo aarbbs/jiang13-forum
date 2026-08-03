@@ -76,3 +76,12 @@ func (s *BoardService) Delete(id uint) error {
 	}
 	return model.DB.Delete(&model.Board{}, id).Error
 }
+
+// EnsureDefaultBoard 若尚无板块则创建默认「综合讨论」，便于全新安装后直接发帖
+func (s *BoardService) EnsureDefaultBoard() {
+	var n int64
+	if err := model.DB.Model(&model.Board{}).Count(&n).Error; err != nil || n > 0 {
+		return
+	}
+	_, _ = s.Create("综合讨论", "默认板块，欢迎发帖交流", "message-square", 0, 0)
+}

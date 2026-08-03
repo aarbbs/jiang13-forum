@@ -35,6 +35,8 @@ interface Props {
   boardId?: number;
   /** 当前板块名 */
   boardName?: string;
+  /** 站点是否尚无任何板块（全新安装） */
+  noBoards?: boolean;
 }
 
 export default function VirtualPostList({
@@ -55,6 +57,7 @@ export default function VirtualPostList({
   keyword = '',
   boardId = 0,
   boardName = '',
+  noBoards = false,
 }: Props) {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -81,6 +84,7 @@ export default function VirtualPostList({
   const isEmpty = !loading && posts.length === 0;
   const isSearchEmpty = isEmpty && !!keyword.trim();
   const composeTarget = boardId > 0 ? `/compose?board=${boardId}` : '/compose';
+  const isAdmin = user?.role === 'admin';
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
@@ -116,7 +120,17 @@ export default function VirtualPostList({
 
   const emptyActions = (
     <div className="empty-feed-actions">
-      {isSearchEmpty ? (
+      {noBoards ? (
+        isAdmin ? (
+          <Button type="button" size="sm" onClick={() => nav('/admin/boards')}>
+            去创建板块
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => nav('/')}>
+            刷新看看
+          </Button>
+        )
+      ) : isSearchEmpty ? (
         <>
           <Button type="button" size="sm" variant="outline" onClick={() => nav('/')}>
             返回全部帖子
@@ -155,13 +169,21 @@ export default function VirtualPostList({
           {isSearchEmpty
             ? <SearchX className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />
             : <Inbox className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />}
-          <p>{isSearchEmpty ? '没有匹配的帖子' : '暂无帖子'}</p>
+          <p>
+            {noBoards
+              ? '暂无板块'
+              : isSearchEmpty
+                ? '没有匹配的帖子'
+                : '暂无帖子'}
+          </p>
           <p className="empty-feed-hint">
-            {isSearchEmpty
-              ? '试试更短的关键词，或浏览标签云 / 板块'
-              : boardName
-                ? `「${boardName}」还没有内容，来发第一篇吧`
-                : '换个板块看看，或发第一篇内容'}
+            {noBoards
+              ? (isAdmin ? '创建第一个板块后即可开始发帖' : '管理员创建板块后即可参与讨论')
+              : isSearchEmpty
+                ? '试试更短的关键词，或浏览标签云 / 板块'
+                : boardName
+                  ? `「${boardName}」还没有内容，来发第一篇吧`
+                  : '换个板块看看，或发第一篇内容'}
           </p>
           {emptyActions}
         </div>
