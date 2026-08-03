@@ -716,33 +716,6 @@ func (s *ForumSettingsService) UpdateOIDCConfig(in OIDCConfig) error {
 	return nil
 }
 
-// SeedOIDCFromINI 若库中尚未配置，则用 app.ini 种子一次（直写 oauth_clients）
-func (s *ForumSettingsService) SeedOIDCFromINI(rootURL, clientID, clientSecret, redirectURIsCSV string) {
-	rootURL = normalizeRootURL(rootURL)
-	clientID = strings.TrimSpace(clientID)
-	clientSecret = strings.TrimSpace(clientSecret)
-	uris := normalizeRedirectURIs(redirectURIsCSV)
-	if rootURL == "" && clientID == "" && clientSecret == "" && uris == "" {
-		return
-	}
-	if s.getString(SettingOIDCRootURL, "") == "" && rootURL != "" {
-		_ = s.setString(SettingOIDCRootURL, rootURL)
-	}
-	if CountEnabledOAuthClients() == 0 && clientID != "" && clientSecret != "" && uris != "" {
-		_, _ = s.CreateOAuthClient(OAuthClientInput{
-			ClientID:     clientID,
-			Name:         "Gitea",
-			RedirectURIs: uris,
-			ClientSecret: clientSecret,
-		})
-	}
-	if s.getString(SettingOIDCEnabled, "0") == "0" &&
-		s.getString(SettingOIDCRootURL, "") != "" &&
-		CountEnabledOAuthClients() > 0 {
-		_ = s.setString(SettingOIDCEnabled, "1")
-	}
-}
-
 // GiteaSyncConfig 读取 Gitea 同步配置（含 Token 明文，供服务内部使用）
 func (s *ForumSettingsService) GiteaSyncConfig() GiteaSyncConfig {
 	interval, _ := strconv.Atoi(s.getString(SettingGiteaSyncIntervalMin, "60"))
@@ -809,26 +782,6 @@ func (s *ForumSettingsService) UpdateGiteaSyncConfig(in GiteaSyncConfig) error {
 		}
 	}
 	return nil
-}
-
-// SeedGiteaFromINI 若库中尚未配置，则用 app.ini 种子一次
-func (s *ForumSettingsService) SeedGiteaFromINI(baseURL, token string, enabled bool) {
-	baseURL = normalizeRootURL(baseURL)
-	token = strings.TrimSpace(token)
-	if baseURL == "" && token == "" && !enabled {
-		return
-	}
-	if s.getString(SettingGiteaBaseURL, "") == "" && baseURL != "" {
-		_ = s.setString(SettingGiteaBaseURL, baseURL)
-	}
-	if s.getString(SettingGiteaToken, "") == "" && token != "" {
-		_ = s.setString(SettingGiteaToken, token)
-	}
-	if enabled && s.getString(SettingGiteaSyncEnabled, "0") == "0" &&
-		s.getString(SettingGiteaBaseURL, "") != "" &&
-		s.getString(SettingGiteaToken, "") != "" {
-		_ = s.setString(SettingGiteaSyncEnabled, "1")
-	}
 }
 
 // StorageConfig 读取上传存储配置（含密钥明文，供内部使用）
@@ -932,59 +885,6 @@ func (s *ForumSettingsService) UpdateStorageConfig(in StorageConfig) error {
 		}
 	}
 	return nil
-}
-
-// SeedStorageFromINI 若库中尚未配置 S3，则用 app.ini 种子一次
-func (s *ForumSettingsService) SeedStorageFromINI(storageType, endpoint, region, bucket, accessKey, secretKey, publicBaseURL, prefix string, forcePathStyle bool) {
-	storageType = normalizeStorageType(storageType)
-	endpoint = strings.TrimSpace(endpoint)
-	region = strings.TrimSpace(region)
-	bucket = strings.TrimSpace(bucket)
-	accessKey = strings.TrimSpace(accessKey)
-	secretKey = strings.TrimSpace(secretKey)
-	publicBaseURL = normalizeRootURL(publicBaseURL)
-	prefix = normalizeObjectPrefix(prefix)
-
-	if storageType == "local" && endpoint == "" && bucket == "" && accessKey == "" && secretKey == "" && publicBaseURL == "" {
-		return
-	}
-
-	if s.getString(SettingStorageEndpoint, "") == "" && endpoint != "" {
-		_ = s.setString(SettingStorageEndpoint, endpoint)
-	}
-	if s.getString(SettingStorageRegion, "") == "" && region != "" {
-		_ = s.setString(SettingStorageRegion, region)
-	}
-	if s.getString(SettingStorageBucket, "") == "" && bucket != "" {
-		_ = s.setString(SettingStorageBucket, bucket)
-	}
-	if s.getString(SettingStorageAccessKey, "") == "" && accessKey != "" {
-		_ = s.setString(SettingStorageAccessKey, accessKey)
-	}
-	if s.getString(SettingStorageSecretKey, "") == "" && secretKey != "" {
-		_ = s.setString(SettingStorageSecretKey, secretKey)
-	}
-	if s.getString(SettingStoragePublicBaseURL, "") == "" && publicBaseURL != "" {
-		_ = s.setString(SettingStoragePublicBaseURL, publicBaseURL)
-	}
-	if s.getString(SettingStoragePrefix, "") == "" && prefix != "" {
-		_ = s.setString(SettingStoragePrefix, prefix)
-	}
-	// 仅当库中仍为默认 local 且 INI 明确为 s3、且关键字段齐全时切到 s3
-	if storageType == "s3" &&
-		normalizeStorageType(s.getString(SettingStorageType, "local")) == "local" &&
-		s.getString(SettingStorageEndpoint, "") != "" &&
-		s.getString(SettingStorageBucket, "") != "" &&
-		s.getString(SettingStorageAccessKey, "") != "" &&
-		s.getString(SettingStorageSecretKey, "") != "" &&
-		s.getString(SettingStoragePublicBaseURL, "") != "" {
-		_ = s.setString(SettingStorageType, "s3")
-		if forcePathStyle {
-			_ = s.setString(SettingStorageForcePathStyle, "1")
-		} else {
-			_ = s.setString(SettingStorageForcePathStyle, "0")
-		}
-	}
 }
 
 // SiteBranding 读取站点品牌配置

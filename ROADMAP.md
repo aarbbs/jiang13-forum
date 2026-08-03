@@ -14,7 +14,7 @@
 | 前台 SPA（React） | ✅ | 浏览、发帖、回复、管理操作已统一在 SPA 内 |
 | 管理后台 | ✅ | React 后台 `/admin/*`，与前台风格一致 |
 | 评论系统 | ✅ | 换行显示已修复 |
-| OIDC Provider | ✅ | 可供 Gitea 等站点 SSO（`ROOT_URL` + `[oauth]`） |
+| OIDC Provider | ✅ | 可供 Gitea 等站点 SSO（管理后台配置 ROOT_URL 与 OAuth 应用） |
 
 ---
 

@@ -174,21 +174,15 @@ cp app.ini.example /opt/jiang13/app.ini
 ```ini
 [server]
 HTTP_PORT = 3000
-ROOT_URL = https://bbs.iioio.com
 
 [paths]
 DATA = data
 
 [security]
 JWT_SECRET =
-
-[oauth]
-CLIENT_ID = gitea
-CLIENT_SECRET =
-REDIRECT_URIS = https://git.iioio.com/user/oauth2/jiang13/callback
 ```
 
-完整示例见仓库根目录 [`app.ini.example`](app.ini.example)。`ROOT_URL` 与 `[oauth]` 可作首次种子；日常请在管理后台「系统设置 → OIDC / SSO」配置（保存即生效）。
+完整示例见仓库根目录 [`app.ini.example`](app.ini.example)。OIDC、邮件、Gitea 同步、对象存储等请在管理后台「系统设置」配置（保存即生效）。
 
 **优先级：** 命令行显式参数 > `app.ini` > 内置默认值。
 

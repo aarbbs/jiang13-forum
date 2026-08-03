@@ -409,12 +409,7 @@ func (h *Handlers) userPageMeta(base, siteName, defaultImage string, user *model
 }
 
 func (h *Handlers) publicBaseURL(c *gin.Context) string {
-	cfgRoot := ""
-	if h.Cfg != nil {
-		cfgRoot = h.Cfg.RootURL
-	}
-	origin := requestOrigin(c)
-	return h.Settings.SitePublicBaseURL(cfgRoot, origin)
+	return h.Settings.SitePublicBaseURL(requestOrigin(c))
 }
 
 func requestOrigin(c *gin.Context) string {

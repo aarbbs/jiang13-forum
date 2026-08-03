@@ -23,12 +23,9 @@ type SitemapURL struct {
 }
 
 // SitePublicBaseURL 公开站点根地址（无尾斜杠）
-// 优先 OIDC / 配置中的 RootURL，否则根据请求 Host 推断
-func (s *ForumSettingsService) SitePublicBaseURL(cfgRoot, requestOrigin string) string {
+// 优先管理后台 OIDC 中的 ROOT_URL，否则根据请求 Host 推断
+func (s *ForumSettingsService) SitePublicBaseURL(requestOrigin string) string {
 	root := normalizeRootURL(s.getString(SettingOIDCRootURL, ""))
-	if root == "" {
-		root = normalizeRootURL(cfgRoot)
-	}
 	if root == "" {
 		root = normalizeRootURL(requestOrigin)
 	}

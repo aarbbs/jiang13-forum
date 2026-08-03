@@ -8,23 +8,11 @@ import (
 	"strings"
 )
 
-// StorageTypeLocal / StorageTypeS3 上传存储后端
+// StorageTypeLocal / StorageTypeS3 上传存储后端（管理后台运行时配置）
 const (
 	StorageTypeLocal = "local"
 	StorageTypeS3    = "s3"
 )
-
-// S3Config S3 兼容对象存储（MinIO / 七牛 / 又拍 / 阿里云 OSS 等）
-type S3Config struct {
-	Endpoint       string // 例：https://s3.example.com 或 s3.example.com:9000
-	Region         string
-	Bucket         string
-	AccessKey      string
-	SecretKey      string
-	PublicBaseURL  string // 公开访问根 URL（无尾斜杠），上传后返回此前缀下的绝对地址
-	Prefix         string // 对象 key 前缀（可选，如 forum/）
-	ForcePathStyle bool   // path-style（MinIO 等通常为 true；AWS 官方多为 false）
-}
 
 // Config 应用全局配置：默认读工作目录下 app.ini，命令行可覆盖
 type Config struct {
@@ -34,23 +22,10 @@ type Config struct {
 	ConfigFile string
 	// 监听端口
 	Port int
-	// 对外公网根地址（无尾斜杠），OIDC Issuer 使用
-	RootURL string
 	// 数据目录：SQLite、上传、日志（绝对路径）
 	DataDir string
 	// JWT 签名密钥
 	JWTSecret string
-	// OIDC 客户端（P0：写死在 app.ini，供 Gitea 对接）
-	OAuthClientID     string
-	OAuthClientSecret string
-	OAuthRedirectURIs []string
-	// Gitea API 同步种子（可选，运行时以管理后台为准）
-	GiteaBaseURL     string
-	GiteaToken       string
-	GiteaSyncEnabled bool
-	// 上传存储：local（默认）或 s3
-	StorageType string
-	S3          S3Config
 	// 日志文件路径
 	LogFile string
 	// 系统服务控制动作：install|uninstall|start|stop|restart|status，空表示正常运行
@@ -113,43 +88,15 @@ func Parse() (*Config, error) {
 		jwtSecret = fileCfg.JWTSecret
 	}
 
-	storageType := strings.ToLower(strings.TrimSpace(fileCfg.StorageType))
-	if storageType == "" {
-		storageType = StorageTypeLocal
-	}
-	if storageType != StorageTypeLocal && storageType != StorageTypeS3 {
-		return nil, fmt.Errorf("storage.TYPE 无效: %q（可选 local / s3）", fileCfg.StorageType)
-	}
-
 	cfg := &Config{
-		WorkPath:          workPath,
-		ConfigFile:        configFile,
-		Port:              port,
-		RootURL:           normalizeRootURL(fileCfg.RootURL),
-		DataDir:           absData,
-		JWTSecret:         jwtSecret,
-		OAuthClientID:     fileCfg.OAuthClientID,
-		OAuthClientSecret: fileCfg.OAuthClientSecret,
-		OAuthRedirectURIs: splitCSV(fileCfg.OAuthRedirectURIs),
-		GiteaBaseURL:      normalizeRootURL(fileCfg.GiteaBaseURL),
-		GiteaToken:        fileCfg.GiteaToken,
-		GiteaSyncEnabled:  fileCfg.GiteaSyncEnabled,
-		StorageType:       storageType,
-		S3: S3Config{
-			Endpoint:       strings.TrimSpace(fileCfg.S3Endpoint),
-			Region:         strings.TrimSpace(fileCfg.S3Region),
-			Bucket:         strings.TrimSpace(fileCfg.S3Bucket),
-			AccessKey:      strings.TrimSpace(fileCfg.S3AccessKey),
-			SecretKey:      strings.TrimSpace(fileCfg.S3SecretKey),
-			PublicBaseURL:  normalizeRootURL(fileCfg.S3PublicBaseURL),
-			Prefix:         normalizeStoragePrefix(fileCfg.S3Prefix),
-			ForcePathStyle: fileCfg.S3ForcePathStyle,
-		},
+		WorkPath:      workPath,
+		ConfigFile:    configFile,
+		Port:          port,
+		DataDir:       absData,
+		JWTSecret:     jwtSecret,
 		LogFile:       filepath.Join(absData, "jiang13.log"),
 		ServiceAction: action,
 	}
-
-	// [storage] 仅作首次种子；运行时以管理后台为准，此处不强制校验 S3 完整性
 
 	needDirs := action == "" || action == "install"
 	if needDirs {
@@ -157,11 +104,8 @@ func Parse() (*Config, error) {
 		if !configExists {
 			dataRel := resolveDataRelForINI(workPath, absData)
 			if err := writeAppINI(configFile, fileSettings{
-				Port:              port,
-				DataRel:           dataRel,
-				StorageType:       StorageTypeLocal,
-				S3ForcePathStyle:  true,
-				S3Region:          "us-east-1",
+				Port:    port,
+				DataRel: dataRel,
 			}); err != nil {
 				return nil, fmt.Errorf("生成默认配置文件失败: %w", err)
 			}
@@ -174,25 +118,9 @@ func Parse() (*Config, error) {
 				iniJWT = jwtSecret
 			}
 			if err := writeAppINI(configFile, fileSettings{
-				Port:              port,
-				DataRel:           dataRel,
-				JWTSecret:         iniJWT,
-				RootURL:           fileCfg.RootURL,
-				OAuthClientID:     fileCfg.OAuthClientID,
-				OAuthClientSecret: fileCfg.OAuthClientSecret,
-				OAuthRedirectURIs: fileCfg.OAuthRedirectURIs,
-				GiteaBaseURL:      fileCfg.GiteaBaseURL,
-				GiteaToken:        fileCfg.GiteaToken,
-				GiteaSyncEnabled:  fileCfg.GiteaSyncEnabled,
-				StorageType:       fileCfg.StorageType,
-				S3Endpoint:        fileCfg.S3Endpoint,
-				S3Region:          fileCfg.S3Region,
-				S3Bucket:          fileCfg.S3Bucket,
-				S3AccessKey:       fileCfg.S3AccessKey,
-				S3SecretKey:       fileCfg.S3SecretKey,
-				S3PublicBaseURL:   fileCfg.S3PublicBaseURL,
-				S3Prefix:          fileCfg.S3Prefix,
-				S3ForcePathStyle:  fileCfg.S3ForcePathStyle,
+				Port:      port,
+				DataRel:   dataRel,
+				JWTSecret: iniJWT,
 			}); err != nil {
 				return nil, fmt.Errorf("更新配置文件失败: %w", err)
 			}
@@ -292,50 +220,6 @@ func (c *Config) SiteUploadDir() string {
 // FilterWordsPath 返回敏感词配置文件路径
 func (c *Config) FilterWordsPath() string {
 	return filepath.Join(c.DataDir, "filter_words.txt")
-}
-
-func normalizeRootURL(raw string) string {
-	u := strings.TrimSpace(raw)
-	u = strings.TrimRight(u, "/")
-	return u
-}
-
-// normalizeStoragePrefix 规范化对象 key 前缀：去首尾空白与首斜杠，非空时保证尾斜杠
-func normalizeStoragePrefix(raw string) string {
-	p := strings.TrimSpace(raw)
-	p = strings.TrimPrefix(p, "/")
-	if p == "" {
-		return ""
-	}
-	return strings.TrimSuffix(p, "/") + "/"
-}
-
-func (s S3Config) validate() error {
-	if s.Endpoint == "" {
-		return fmt.Errorf("storage.TYPE=s3 时必须配置 ENDPOINT")
-	}
-	if s.Bucket == "" {
-		return fmt.Errorf("storage.TYPE=s3 时必须配置 BUCKET")
-	}
-	if s.AccessKey == "" || s.SecretKey == "" {
-		return fmt.Errorf("storage.TYPE=s3 时必须配置 ACCESS_KEY 与 SECRET_KEY")
-	}
-	if s.PublicBaseURL == "" {
-		return fmt.Errorf("storage.TYPE=s3 时必须配置 PUBLIC_BASE_URL（公开访问根地址）")
-	}
-	return nil
-}
-
-func splitCSV(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }
 
 func generateRandomSecret(n int) string {

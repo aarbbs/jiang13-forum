@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/config"
@@ -31,24 +30,6 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	filter.LoadFromFile(cfg.FilterWordsPath())
 
 	settingsSvc := service.NewForumSettingsService()
-	settingsSvc.SeedOIDCFromINI(
-		cfg.RootURL,
-		cfg.OAuthClientID,
-		cfg.OAuthClientSecret,
-		strings.Join(cfg.OAuthRedirectURIs, ","),
-	)
-	settingsSvc.SeedGiteaFromINI(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaSyncEnabled)
-	settingsSvc.SeedStorageFromINI(
-		cfg.StorageType,
-		cfg.S3.Endpoint,
-		cfg.S3.Region,
-		cfg.S3.Bucket,
-		cfg.S3.AccessKey,
-		cfg.S3.SecretKey,
-		cfg.S3.PublicBaseURL,
-		cfg.S3.Prefix,
-		cfg.S3.ForcePathStyle,
-	)
 	// SPA 入口 HTML 注入标题与品牌 JSON，避免刷新时先闪默认文案
 	embed_static.SetSPADocumentTitle(func() string {
 		return settingsSvc.SiteBranding().DocumentTitle()
