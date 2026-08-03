@@ -27,6 +27,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { useAuth } from '../hooks/useAuth';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
 import { api } from '../api/client';
 import type { PostItem, UserActivityStats } from '../api/types';
 import { useForumLimits } from '../hooks/useForumLimits';
@@ -37,6 +38,7 @@ import { AVATAR_ACCEPT, validateAvatarFile } from '../utils/avatarCrop';
 import { loginPath } from '../utils/authRedirect';
 import { openForumPost } from '../utils/openPost';
 import { formatDateTime } from '../utils/content';
+import { InFlowSiteFooter } from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
 
 const nickSchema = z.object({
@@ -71,6 +73,7 @@ export default function ProfilePage() {
   const [params, setParams] = useSearchParams();
   const tab = parseTab(params.get('tab'));
   const { user, loading: authLoading, refresh } = useAuth();
+  useNoIndexSEO('个人中心');
   const [nickLoading, setNickLoading] = useState(false);
   const [sigLoading, setSigLoading] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
@@ -596,7 +599,7 @@ export default function ProfilePage() {
                 />
                 <div className="profile-form-footer">
                   <span className="profile-form-hint">
-                    用户名与 ID 不可修改；头像支持 JPG / PNG / GIF / WebP，裁剪后不超过 {limits.avatar_max_mb}MB
+                    用户名与 ID 不可修改；头像支持 JPG / PNG / GIF / WebP，服务端保留原图并生成 WebP，裁剪后不超过 {limits.avatar_max_mb}MB
                   </span>
                   <Button type="submit" loading={nickLoading}>保存昵称</Button>
                 </div>
@@ -690,6 +693,7 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      <InFlowSiteFooter />
     </div>
   );
 }

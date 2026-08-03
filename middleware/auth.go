@@ -101,12 +101,11 @@ func extractToken(c *gin.Context) string {
 	if token, err := c.Cookie(CookieName); err == nil {
 		return token
 	}
-	return c.Query("token")
+	return ""
 }
 
 func isAPI(c *gin.Context) bool {
-	p := c.Request.URL.Path
-	return strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/admin/api/")
+	return strings.HasPrefix(c.Request.URL.Path, "/api/")
 }
 
 func adminLoginPath(c *gin.Context) string {

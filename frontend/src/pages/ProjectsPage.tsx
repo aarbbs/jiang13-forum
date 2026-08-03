@@ -6,6 +6,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import type { GiteaProject } from '../api/types';
+import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
+import { getCachedSiteBranding } from '../hooks/useSiteBranding';
+import { InFlowSiteFooter } from '../components/SiteFooter';
 
 function formatRemoteTime(raw?: string | null): string {
   if (!raw) return '';
@@ -27,6 +30,12 @@ export default function ProjectsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
+  usePageSEO({
+    title: '项目',
+    description: '公开项目列表',
+    keywords: joinSEOKeywords('项目', getCachedSiteBranding().keywords),
+    canonicalPath: '/projects',
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -114,6 +123,7 @@ export default function ProjectsPage() {
           </>
         )}
       </div>
+      <InFlowSiteFooter />
     </div>
   );
 }

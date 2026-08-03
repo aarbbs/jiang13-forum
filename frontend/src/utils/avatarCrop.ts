@@ -40,11 +40,11 @@ export function validateAvatarOutput(file: File, maxMb: number): string | null {
   return null;
 }
 
-/** 将裁剪区域渲染为 JPEG 文件 */
+/** 将裁剪区域渲染为 WebP 文件（体积更小；不支持时回退 JPEG） */
 export async function getCroppedAvatarFile(
   imageSrc: string,
   pixelCrop: Area,
-  originalName = 'avatar.jpg',
+  originalName = 'avatar.webp',
 ): Promise<File> {
   const image = await loadImage(imageSrc);
   const canvas = document.createElement('canvas');
@@ -67,14 +67,25 @@ export async function getCroppedAvatarFile(
     size,
   );
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      b => (b ? resolve(b) : reject(new Error('裁剪失败'))),
-      'image/jpeg',
-      0.92,
-    );
-  });
+  const tryTypes: { mime: string; quality: number; ext: string }[] = [
+    { mime: 'image/webp', quality: 0.86, ext: 'webp' },
+    { mime: 'image/jpeg', quality: 0.92, ext: 'jpg' },
+  ];
+
+  let blob: Blob | null = null;
+  let picked = tryTypes[1];
+  for (const t of tryTypes) {
+    blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(b => resolve(b), t.mime, t.quality);
+    });
+    if (blob && blob.type === t.mime) {
+      picked = t;
+      break;
+    }
+    blob = null;
+  }
+  if (!blob) throw new Error('裁剪失败');
 
   const baseName = originalName.replace(/\.[^.]+$/, '') || 'avatar';
-  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+  return new File([blob], `${baseName}.${picked.ext}`, { type: picked.mime });
 }

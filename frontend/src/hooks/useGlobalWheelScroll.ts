@@ -44,6 +44,8 @@ export function useGlobalWheelScroll(scrollRef: RefObject<HTMLElement | null>, e
       const inner = findScrollable(target, e.deltaY, root);
       // 主内容区内部嵌套滚动（如 textarea、表情面板）保留原生行为
       if (inner && inner !== scrollEl && scrollEl.contains(inner)) return;
+      // 主内容区外的独立滚动区（如右侧目录）保留原生行为，避免滚轮被抢走
+      if (inner && !scrollEl.contains(inner)) return;
       // 鼠标已在主滚动容器上时，交给浏览器原生处理
       if (inner === scrollEl) return;
 

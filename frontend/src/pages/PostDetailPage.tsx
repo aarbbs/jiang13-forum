@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, FileQuestion, Trash2 } from 'lucide-react';
+import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban } from 'lucide-react';
+import FeaturedIcon from '@/components/FeaturedIcon';
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,22 +19,38 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
-import type { PostItem, Comment } from '../api/types';
+import type { PostItem, Comment, ReportReason } from '../api/types';
+import { REPORT_REASON_OPTIONS } from '../utils/report';
 import CommentThreadList from '../components/CommentThreadList';
 import CommentBox, { type CommentSubmitData } from '../components/CommentBox';
 import PostContent from '../components/PostContent';
 import PostRevisionPanel from '../components/PostRevisionPanel';
 import ArticleOutline from '../components/ArticleOutline';
 import { useAuth } from '../hooks/useAuth';
+import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
+import { getCachedSiteBranding } from '../hooks/useSiteBranding';
 import { formatDateTime, isTimeDiffSignificant } from '../utils/content';
-import { loadMyCommentIds, addMyCommentId } from '../utils/guest';
+import { loadMyCommentIds } from '../utils/guest';
 import { clearAllFeedCache } from '../utils/feedCache';
 import { useGlobalWheelScroll } from '../hooks/useGlobalWheelScroll';
 import { loginPath } from '../utils/authRedirect';
+import { excerptFromHTML, firstImageFromHTML } from '../utils/seoText';
+import { canonicalRedirectPath, parsePermalinkID, postPath } from '../utils/permalink';
+import { useForumLimits } from '../hooks/useForumLimits';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import type { PostHeading } from '../utils/postHeadings';
+import { InFlowSiteFooter } from '../components/SiteFooter';
+import NotFoundPage from './NotFoundPage';
 
 /** 格式化剩余可编辑时间 */
 function formatEditRemaining(createdAt: string, windowHours: number): string {
@@ -50,9 +67,11 @@ function formatEditRemaining(createdAt: string, windowHours: number): string {
 
 export default function PostDetailPage() {
   const { id } = useParams();
-  const postId = Number(id);
+  const postId = parsePermalinkID(id);
   const nav = useNavigate();
+  const location = useLocation();
   const { user, refresh } = useAuth();
+  const { limits } = useForumLimits();
   const { setPostOutline, isMobile } = useOutletContext<LayoutCtx>();
 
   const [post, setPost] = useState<PostItem | null>(null);
@@ -72,6 +91,13 @@ export default function PostDetailPage() {
   const [showRevisions, setShowRevisions] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [headings, setHeadings] = useState<PostHeading[]>([]);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason>('spam');
+  const [reportDetail, setReportDetail] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -79,6 +105,38 @@ export default function PostDetailPage() {
   const highlightTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useGlobalWheelScroll(pageRef, !loading && !!post);
+
+  // SPA 内跳转时纠正非规范伪静态路径
+  useEffect(() => {
+    if (!postId || Number.isNaN(postId)) return;
+    const target = canonicalRedirectPath('post', postId, location.pathname, limits);
+    if (target) nav(target + location.search + location.hash, { replace: true });
+  }, [postId, location.pathname, location.search, location.hash, limits, nav]);
+
+  const brand = getCachedSiteBranding();
+  const postContent = post?.content ?? '';
+  const postSEO = post ? {
+    title: post.title,
+    description: excerptFromHTML(postContent),
+    keywords: joinSEOKeywords(post.board?.name, brand.keywords),
+    canonicalPath: postPath(post.id, limits),
+    ogType: 'article',
+    ogImage: firstImageFromHTML(postContent) || post.user?.avatar || brand.og_image || '',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'DiscussionForumPosting',
+      headline: post.title,
+      description: excerptFromHTML(postContent),
+      datePublished: post.created_at,
+      dateModified: post.updated_at || post.created_at,
+      url: postPath(post.id, limits),
+      author: {
+        '@type': 'Person',
+        name: post.user?.nickname || post.user?.username || '',
+      },
+    },
+  } : null;
+  usePageSEO(postSEO);
 
   const handleHeadingsChange = useCallback((next: PostHeading[]) => {
     setHeadings(next);
@@ -93,15 +151,22 @@ export default function PostDetailPage() {
       headings,
       scrollRoot: pageRef.current,
       title: '文章目录',
+      author: post.user ?? null,
+      publishedAt: post.created_at,
+      viewCount: post.view_count,
     });
     return () => setPostOutline(null);
   }, [headings, loading, post, setPostOutline]);
 
   const loadSeq = useRef(0);
-  const postPath = `/post/${postId}`;
+  const detailPath = postPath(postId, limits);
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || Number.isNaN(postId)) {
+      setPost(null);
+      setLoading(false);
+      return;
+    }
     setReplyTo(null);
     setEditingCommentId(null);
     setHeadings([]);
@@ -126,10 +191,9 @@ export default function PostDetailPage() {
         setEditWindowHours(detail.post_edit_window_hours ?? 0);
         setComments(Array.isArray(comm.comments) ? comm.comments : []);
         void refresh();
-      } catch (e: unknown) {
+      } catch {
         if (seq !== loadSeq.current) return;
         setPost(null);
-        notify.error(e instanceof Error ? e.message : '加载失败');
       } finally {
         if (seq === loadSeq.current) setLoading(false);
       }
@@ -152,12 +216,27 @@ export default function PostDetailPage() {
     highlightTimer.current = setTimeout(() => setHighlightFloor(null), 2000);
   }, []);
 
+  // 从 #floor-N 定位到对应评论（右栏最新评论等入口）
+  useEffect(() => {
+    if (loading || !post) return;
+    const m = location.hash.match(/^#floor-(\d+)$/);
+    if (!m) return;
+    const floor = Number(m[1]);
+    if (!floor) return;
+    const t = window.setTimeout(() => jumpToFloor(floor), 80);
+    return () => clearTimeout(t);
+  }, [loading, post, comments, location.hash, jumpToFloor]);
+
   const requireLogin = (actionLabel: string) => {
     notify.warning(`登录后即可${actionLabel}`);
-    nav(loginPath(postPath));
+    nav(loginPath(detailPath));
   };
 
   const handleReplyTo = (comment: Comment) => {
+    if (!user) {
+      requireLogin('回复');
+      return;
+    }
     setEditingCommentId(null);
     if (replyTo?.id === comment.id) {
       setReplyTo(null);
@@ -199,20 +278,20 @@ export default function PostDetailPage() {
   };
 
   const handleSubmitComment = async (data: CommentSubmitData) => {
+    if (!user) {
+      requireLogin('评论');
+      return;
+    }
     setSubmitting(true);
     try {
       const r = await api.addComment(postId, {
         content: data.content,
         replyTo: replyTo?.id,
-        guestNick: data.guestNick,
-        guestEmail: data.guestEmail,
-        guestUrl: data.guestUrl,
         isPrivate: data.isPrivate,
       });
-      if (!user) addMyCommentId(r.id);
       setReplyTo(null);
       setSubmitCount(c => c + 1);
-      notify.success('评论成功');
+      notify.success(r.message || (r.status === 'pending' ? '评论已提交审核' : '评论成功'));
       await reloadComments();
       setTimeout(() => jumpToFloor(r.floor), 100);
     } catch (e: unknown) {
@@ -227,11 +306,16 @@ export default function PostDetailPage() {
       const r = await api.updateComment(comment.id, content);
       setComments(list => list.map(c => (
         c.id === comment.id
-          ? { ...c, content: r.content || content, updated_at: new Date().toISOString() }
+          ? {
+              ...c,
+              content: r.content || content,
+              updated_at: new Date().toISOString(),
+              status: r.status || c.status,
+            }
           : c
       )));
       setEditingCommentId(null);
-      notify.success('评论已更新');
+      notify.success(r.message || '评论已更新');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '保存失败');
       throw e;
@@ -247,6 +331,19 @@ export default function PostDetailPage() {
       notify.success('评论已删除');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '删除失败');
+      throw e;
+    }
+  };
+
+  const handleApproveComment = async (comment: Comment) => {
+    try {
+      const r = await api.adminApproveComment(comment.id);
+      setComments(list => list.map(c => (
+        c.id === comment.id ? { ...c, status: r.status } : c
+      )));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '审核失败');
       throw e;
     }
   };
@@ -275,13 +372,14 @@ export default function PostDetailPage() {
   };
 
   if (loading) return <div className="post-detail-loading flex justify-center py-16"><Spinner size="lg" /></div>;
-  if (!post) return (
-    <div className="empty-state">
-      <FileQuestion className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
-      <p>帖子不存在</p>
-      <Button variant="outline" onClick={() => nav('/')}>返回首页</Button>
-    </div>
-  );
+  if (!post) {
+    return (
+      <NotFoundPage
+        title="帖子不存在"
+        description="该帖子不存在，或已被删除。"
+      />
+    );
+  }
 
   const authorInitial = post.user?.nickname?.[0] || '?';
   const tags = post.tags?.split(/[,，]/).map(t => t.trim()).filter(Boolean) ?? [];
@@ -305,6 +403,74 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleFeature = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminFeaturePost(postId, !post.featured);
+      setPost(p => p ? { ...p, featured: r.featured } : p);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminApprovePost(postId);
+      setPost(p => p ? { ...p, status: r.status } : p);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
+  const handleReport = async () => {
+    if (!user) {
+      requireLogin('举报');
+      return;
+    }
+    setReporting(true);
+    try {
+      const r = await api.reportPost(postId, {
+        reason: reportReason,
+        detail: reportDetail.trim() || undefined,
+      });
+      notify.success(r.message);
+      setReportOpen(false);
+      setReportDetail('');
+      setReportReason('spam');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '举报失败');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      notify.warning('请填写拒绝原因');
+      return;
+    }
+    setRejecting(true);
+    try {
+      const r = await api.adminRejectPost(postId, rejectReason.trim());
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+      setRejectOpen(false);
+      nav('/');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const handleLock = async () => {
     if (!post) return;
     try {
@@ -322,8 +488,12 @@ export default function PostDetailPage() {
     }
   };
 
+  const jumpToComments = () => {
+    commentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <div className="page-wrap post-detail-page" ref={pageRef}>
+    <article className="page-wrap post-detail-page" ref={pageRef}>
       <div className="post-detail-header">
         <div className="post-detail-nav">
           <Button variant="ghost" size="sm" onClick={() => nav(-1)}>
@@ -335,8 +505,22 @@ export default function PostDetailPage() {
           )}
         </div>
 
+        {post.status === 'pending' && (
+          <div className="post-moderation-banner post-moderation-banner--pending">
+            该帖子审核中，仅你与管理员可见；通过后将公开显示。
+          </div>
+        )}
+        {post.status === 'rejected' && (
+          <div className="post-moderation-banner post-moderation-banner--rejected">
+            该帖子未通过审核，仅你与管理员可见。可修改后重新提交，或查看站内私信中的拒绝原因。
+          </div>
+        )}
+
         <div className="post-detail-head">
           <h1 className="post-detail-title">
+            {post.status === 'pending' && <Badge variant="orange" className="mr-2 align-middle">审核中</Badge>}
+            {post.status === 'rejected' && <Badge variant="destructive" className="mr-2 align-middle">未通过</Badge>}
+            {post.featured && <FeaturedIcon className="mr-2" size={18} />}
             {post.pinned && <PinnedIcon className="mr-2" size={18} />}
             {post.title}
           </h1>
@@ -397,22 +581,38 @@ export default function PostDetailPage() {
             variant={liked ? 'default' : 'outline'}
             size="sm"
             onClick={handleLike}
-            title={!user ? '登录后可点赞' : undefined}
+            title={!user ? '登录后即可点赞' : undefined}
             className={!user ? 'post-action-guest' : undefined}
           >
             <ThumbsUp />
-            点赞 {post.like_count}
+            {!user ? '登录后点赞' : `点赞 ${post.like_count}`}
           </Button>
           <Button
             variant={favorited ? 'default' : 'outline'}
             size="sm"
             onClick={handleFavorite}
-            title={!user ? '登录后可收藏' : undefined}
+            title={!user ? '登录后即可收藏' : undefined}
             className={!user ? 'post-action-guest' : undefined}
           >
             <Star />
-            {favorited ? '已收藏' : '收藏'}
+            {!user ? '登录后收藏' : (favorited ? '已收藏' : '收藏')}
           </Button>
+          <Button variant="outline" size="sm" onClick={jumpToComments}>
+            <MessageSquare />
+            评论 {comments.length}
+          </Button>
+          {user && user.id !== post.user_id && (
+            <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+              <Flag />
+              举报
+            </Button>
+          )}
+          {!user && (
+            <Button variant="outline" size="sm" onClick={() => requireLogin('举报')}>
+              <Flag />
+              举报
+            </Button>
+          )}
           {canEdit && (
             <Button variant="outline" size="sm" onClick={() => nav(`/post/${postId}/edit`)}>
               <Pencil />
@@ -425,7 +625,7 @@ export default function PostDetailPage() {
               编辑历史
             </Button>
           )}
-          {isOwnerOrAdmin && (
+          {isAdmin && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" disabled={deletingPost}>
@@ -436,7 +636,9 @@ export default function PostDetailPage() {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
-                  <AlertDialogDescription>相关评论也将一并删除，不可恢复。</AlertDialogDescription>
+                  <AlertDialogDescription>
+                    帖子与评论将移入回收站，可在后台恢复或永久删除。普通用户不可自行删除内容。
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>取消</AlertDialogCancel>
@@ -455,6 +657,15 @@ export default function PostDetailPage() {
           )}
           {isAdmin && (
             <>
+              {(post.status === 'pending' || post.status === 'rejected') && (
+                <Button variant="default" size="sm" onClick={handleApprove}>
+                  通过审核
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleFeature}>
+                <Sparkles />
+                {post.featured ? '取消精华' : '设为精华'}
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePin}>
                 <Pin />
                 {post.pinned ? '取消置顶' : '置顶'}
@@ -463,10 +674,79 @@ export default function PostDetailPage() {
                 <Lock />
                 {post.edit_locked ? '解锁编辑' : '锁定编辑'}
               </Button>
+              {post.status !== 'rejected' && (
+                <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
+                  <Ban />
+                  拒绝并通知
+                </Button>
+              )}
             </>
           )}
         </div>
       </div>
+
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>举报帖子</DialogTitle>
+            <DialogDescription>请选择原因，管理员将尽快处理。</DialogDescription>
+          </DialogHeader>
+          <div className="pm-compose-fields">
+            <label className="pm-field">
+              <span>举报原因</span>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value as ReportReason)}
+              >
+                {REPORT_REASON_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="pm-field">
+              <span>补充说明（可选）</span>
+              <textarea
+                value={reportDetail}
+                onChange={(e) => setReportDetail(e.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="补充更多细节…"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportOpen(false)}>取消</Button>
+            <Button loading={reporting} onClick={handleReport}>提交举报</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>拒绝帖子并通知作者</DialogTitle>
+            <DialogDescription>
+              帖子将移入回收站，拒绝原因会通过站内私信发送给作者。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="pm-compose-fields">
+            <label className="pm-field">
+              <span>拒绝原因</span>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={5}
+                maxLength={1000}
+                placeholder="请说明未通过的原因…"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectOpen(false)}>取消</Button>
+            <Button variant="destructive" loading={rejecting} onClick={handleReject}>确认拒绝</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PostRevisionPanel
         postId={postId}
@@ -492,7 +772,7 @@ export default function PostDetailPage() {
           {comments.length === 0 && !replyTo ? (
             <div className="comment-empty">
               <MessageSquare className="comment-empty-icon" aria-hidden size={32} strokeWidth={1.5} />
-              <p>暂无评论，来抢沙发吧</p>
+              <p>{user ? '暂无评论，来抢沙发吧' : '暂无评论，登录后来抢沙发吧'}</p>
             </div>
           ) : (
             <CommentThreadList
@@ -510,6 +790,7 @@ export default function PostDetailPage() {
               onCancelEdit={() => setEditingCommentId(null)}
               onSaveEdit={handleSaveComment}
               onDelete={handleDeleteComment}
+              onApprove={user?.role === 'admin' ? handleApproveComment : undefined}
               renderReplyBox={(c) => (
                 <CommentBox
                   key={c.id}
@@ -522,6 +803,7 @@ export default function PostDetailPage() {
           )}
         </div>
       </div>
-    </div>
+      <InFlowSiteFooter />
+    </article>
   );
 }

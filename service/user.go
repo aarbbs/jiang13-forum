@@ -116,13 +116,23 @@ func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error
 	return model.DB.Model(&user).Update("password", hash).Error
 }
 
-// UploadAvatar 上传头像到本地目录
-func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, uploadDir string) (string, error) {
-	url, err := SaveUploadedImage(file, uploadDir, "/uploads/avatars", fmt.Sprintf("%d", userID))
+// UploadAvatar 上传头像；成功后删除用户旧头像文件，避免磁盘/对象存储堆积
+func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, store *UploadStore) (string, error) {
+	var user model.User
+	if err := model.DB.Select("id", "avatar").First(&user, userID).Error; err != nil {
+		return "", err
+	}
+	url, err := SaveUploadedImage(store, file, UploadCategoryAvatars, fmt.Sprintf("%d", userID))
 	if err != nil {
 		return "", err
 	}
-	return url, model.DB.Model(&model.User{}).Where("id = ?", userID).Update("avatar", url).Error
+	if err := model.DB.Model(&model.User{}).Where("id = ?", userID).Update("avatar", url).Error; err != nil {
+		return "", err
+	}
+	if old := strings.TrimSpace(user.Avatar); old != "" && old != url {
+		store.DeleteByURL(old)
+	}
+	return url, nil
 }
 
 // ListUsers 管理员列出用户
@@ -150,4 +160,25 @@ func (s *UserService) BanUser(userID uint, banned bool) error {
 		updates["banned_at"] = &now
 	}
 	return model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error
+}
+
+// SitemapUser 站点地图用的轻量用户字段
+type SitemapUser struct {
+	ID        uint
+	UpdatedAt time.Time
+}
+
+// ListSitemap 列出未禁言用户（供 sitemap）
+func (s *UserService) ListSitemap(limit int) ([]SitemapUser, error) {
+	if limit <= 0 {
+		limit = 5000
+	}
+	var rows []SitemapUser
+	err := model.DB.Model(&model.User{}).
+		Select("id, updated_at").
+		Where("banned = ?", false).
+		Order("updated_at desc, id desc").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
 }

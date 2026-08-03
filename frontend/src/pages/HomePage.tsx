@@ -18,18 +18,34 @@ import {
   type FeedNavState,
 } from '../utils/feedCache';
 import { openForumPost } from '../utils/openPost';
+import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
+import { siteMetaDescription, useSiteBranding } from '../hooks/useSiteBranding';
 
 export default function HomePage() {
   const nav = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const ctx = useOutletContext<LayoutCtx>();
+  const { branding } = useSiteBranding();
   const { limits, loading: limitsLoading } = useForumLimits();
   const pageSize = Math.max(1, limits.page_size_default);
 
   const boardId = Number(params.get('board')) || ctx?.boardId || 0;
   const keyword = params.get('keyword') || '';
   const sort = parseFeedSort(params.get('sort'));
+  const board = (ctx?.boards ?? []).find(b => b.id === boardId);
+  const isSiteHome = !boardId && !keyword;
+  const siteIntro = siteMetaDescription(branding);
+  const feedTitle = keyword
+    ? `搜索：${keyword}`
+    : (boardId && board ? board.name : '');
+  usePageSEO({
+    title: feedTitle || undefined,
+    description: board?.description?.trim() || siteIntro,
+    keywords: joinSEOKeywords(board?.name, branding.keywords),
+    canonicalPath: boardId ? `/?board=${boardId}` : '/',
+    ogType: 'website',
+  });
 
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [postTotal, setPostTotal] = useState(0);
@@ -43,6 +59,8 @@ export default function HomePage() {
   const loadingRef = useRef(false);
   const pageRef = useRef(1);
   pageRef.current = page;
+  // 与当前筛选一致的列表快照（供卸载/切换筛选时写入缓存）
+  const feedSnapRef = useRef({ boardId, keyword, sort, posts, postTotal, page });
 
   const totalPages = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
   const showPagination = totalPages > 1 && posts.length > 0;
@@ -143,18 +161,31 @@ export default function HomePage() {
     beginFeedRefresh,
   ]);
 
-  // 离开当前筛选条件时写入内存缓存
+  // 筛选未变时同步列表快照；变筛选的那一帧先保留旧快照供 cleanup 写入
+  if (
+    feedSnapRef.current.boardId === boardId
+    && feedSnapRef.current.keyword === keyword
+    && feedSnapRef.current.sort === sort
+  ) {
+    feedSnapRef.current = { boardId, keyword, sort, posts, postTotal, page };
+  }
+
+  // 仅在筛选变化 / 卸载时缓存；勿把 posts 放进 deps（否则会用旧列表污染新 keyword）
   useEffect(() => {
+    // cleanup 先保存上一档；再把快照重置为当前筛选的空占位
+    feedSnapRef.current = { boardId, keyword, sort, posts: [], postTotal: 0, page: 1 };
     return () => {
-      if (skipCacheSaveRef.current || posts.length === 0) return;
-      setFeedCache(boardId, keyword, sort, {
-        posts,
-        postTotal,
-        page,
+      if (skipCacheSaveRef.current) return;
+      const snap = feedSnapRef.current;
+      if (snap.posts.length === 0) return;
+      setFeedCache(snap.boardId, snap.keyword, snap.sort, {
+        posts: snap.posts,
+        postTotal: snap.postTotal,
+        page: snap.page,
         scrollTop: scrollTopRef.current,
       });
     };
-  }, [boardId, keyword, sort, posts, postTotal, page]);
+  }, [boardId, keyword, sort]);
 
   useEffect(() => {
     if (!loading && posts.length > 0) skipCacheSaveRef.current = false;
@@ -195,16 +226,19 @@ export default function HomePage() {
     <div className="page-wrap page-wrap--feed">
       <div className="feed-panel">
         <div className="feed-top">
-          <FeedHeader
-            boardId={boardId}
-            keyword={keyword}
-            boards={ctx?.boards ?? []}
-            stats={ctx?.stats ?? null}
-            postTotal={postTotal}
-          />
-          {showSortBar && (
-            <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
-          )}
+          <div className="feed-top__bar">
+            <FeedHeader
+              boardId={boardId}
+              keyword={keyword}
+              boards={ctx?.boards ?? []}
+              stats={ctx?.stats ?? null}
+              postTotal={postTotal}
+              titleAs={isSiteHome ? 'h2' : 'h1'}
+            />
+            {showSortBar && (
+              <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
+            )}
+          </div>
         </div>
         <VirtualPostList
           posts={posts}
@@ -221,6 +255,9 @@ export default function HomePage() {
           resetScrollKey={listResetKey}
           onScrollTopChange={(top) => { scrollTopRef.current = top; }}
           onScrollRestored={() => setRestoreScrollTop(null)}
+          keyword={keyword}
+          boardId={boardId}
+          boardName={ctx?.boards?.find(b => b.id === boardId)?.name || ''}
         />
       </div>
     </div>

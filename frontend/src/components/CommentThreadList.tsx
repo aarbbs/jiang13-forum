@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Clock, MessageSquare, X, Pencil, Trash2 } from 'lucide-react';
+import { Check, Clock, History, MessageSquare, X, Pencil, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Comment, User } from '../api/types';
 import CommentContent from './CommentContent';
+import CommentRevisionDialog from './CommentRevisionDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +27,18 @@ import { isTimeDiffSignificant } from '../utils/content';
 import { useForumLimits } from '../hooks/useForumLimits';
 import UserLink from './UserLink';
 
-function canManageComment(c: Comment, user?: User | null): boolean {
+function isCommentAuthor(c: Comment, user?: User | null): boolean {
+  return !!user && c.user_id > 0 && c.user_id === user.id;
+}
+
+function canEditComment(c: Comment, user: User | null | undefined, windowHours: number): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  return c.user_id > 0 && c.user_id === user.id;
+  if (!isCommentAuthor(c, user)) return false;
+  if (windowHours <= 0) return true;
+  const created = new Date(c.created_at).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created <= windowHours * 3600_000;
 }
 
 interface ItemProps {
@@ -45,6 +54,7 @@ interface ItemProps {
   onCancelEdit: () => void;
   onSaveEdit: (comment: Comment, content: string) => Promise<void>;
   onDelete: (comment: Comment) => Promise<void>;
+  onApprove?: (comment: Comment) => Promise<void>;
   renderReplyBox?: (comment: Comment) => ReactNode;
 }
 
@@ -62,6 +72,7 @@ function CommentItem({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onApprove,
   renderReplyBox,
 }: ItemProps) {
   const { limits } = useForumLimits();
@@ -72,11 +83,18 @@ function CommentItem({
   const hidden = !!c.content_hidden;
   const isReplying = replyToId === c.id;
   const isEditing = editingId === c.id;
-  const manageable = canManageComment(c, currentUser);
+  const isAdmin = currentUser?.role === 'admin';
+  const canEdit = canEditComment(c, currentUser, limits.comment_edit_window_hours ?? 24);
+  const canDelete = isAdmin;
+  const canApprove = isAdmin
+    && (c.status === 'pending' || c.status === 'rejected')
+    && !!onApprove;
   const showEdited = !hidden && !!c.updated_at && isTimeDiffSignificant(c.created_at, c.updated_at);
   const [editText, setEditText] = useState(c.content);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [revOpen, setRevOpen] = useState(false);
 
   useEffect(() => {
     if (isEditing) setEditText(c.content);
@@ -178,7 +196,27 @@ function CommentItem({
             <Clock size={14} />
             {formatCommentDate(c.created_at)}
             {showEdited && <span className="waline-comment-edited"> · 已编辑</span>}
+            {c.status === 'pending' && <span className="waline-comment-status waline-comment-status--pending"> · 审核中</span>}
+            {c.status === 'rejected' && <span className="waline-comment-status waline-comment-status--rejected"> · 未通过</span>}
           </span>
+          {!hidden && !isEditing && canApprove && (
+            <button
+              type="button"
+              className="waline-comment-reply-btn waline-comment-approve-btn"
+              disabled={approving}
+              onClick={async () => {
+                setApproving(true);
+                try {
+                  await onApprove?.(c);
+                } finally {
+                  setApproving(false);
+                }
+              }}
+            >
+              <Check size={14} />
+              {approving ? '通过中…' : '通过'}
+            </button>
+          )}
           {!hidden && !isEditing && (
             isReplying ? (
               <button type="button" className="waline-comment-reply-btn cancel" onClick={onCancelReply}>
@@ -192,13 +230,19 @@ function CommentItem({
               </button>
             )
           )}
-          {!hidden && !isEditing && manageable && (
+          {!hidden && !isEditing && canEdit && (
             <button type="button" className="waline-comment-reply-btn" onClick={() => onStartEdit(c)}>
               <Pencil size={14} />
               编辑
             </button>
           )}
-          {!hidden && !isEditing && manageable && (
+          {!hidden && !isEditing && isAdmin && showEdited && (
+            <button type="button" className="waline-comment-reply-btn" onClick={() => setRevOpen(true)}>
+              <History size={14} />
+              编辑记录
+            </button>
+          )}
+          {!hidden && !isEditing && canDelete && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button type="button" className="waline-comment-reply-btn cancel" disabled={deleting}>
@@ -231,6 +275,10 @@ function CommentItem({
           )}
         </div>
 
+        {isAdmin && (
+          <CommentRevisionDialog open={revOpen} onOpenChange={setRevOpen} comment={c} />
+        )}
+
         {isReplying && renderReplyBox && (
           <div id={`reply-box-${c.id}`} className="comment-box-wrap inline">
             {renderReplyBox(c)}
@@ -254,6 +302,7 @@ function CommentItem({
                 onCancelEdit={onCancelEdit}
                 onSaveEdit={onSaveEdit}
                 onDelete={onDelete}
+                onApprove={onApprove}
                 renderReplyBox={renderReplyBox}
               />
             ))}
@@ -276,6 +325,7 @@ interface Props {
   onCancelEdit: () => void;
   onSaveEdit: (comment: Comment, content: string) => Promise<void>;
   onDelete: (comment: Comment) => Promise<void>;
+  onApprove?: (comment: Comment) => Promise<void>;
   renderReplyBox?: (comment: Comment) => ReactNode;
 }
 
@@ -292,6 +342,7 @@ export default function CommentThreadList({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onApprove,
   renderReplyBox,
 }: Props) {
   const tree = buildCommentTree(comments);
@@ -312,6 +363,7 @@ export default function CommentThreadList({
           onCancelEdit={onCancelEdit}
           onSaveEdit={onSaveEdit}
           onDelete={onDelete}
+          onApprove={onApprove}
           renderReplyBox={renderReplyBox}
         />
       ))}

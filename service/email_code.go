@@ -2,7 +2,6 @@ package service
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"strings"
 	"sync"
@@ -16,6 +15,9 @@ const (
 	emailCodeTTL      = 10 * time.Minute
 	emailCodeCooldown = 60 * time.Second
 )
+
+// EmailCodeLen 注册邮箱验证码位数（供 API 告知前端）
+const EmailCodeLen = emailCodeLen
 
 type emailCodeEntry struct {
 	code      string
@@ -63,9 +65,12 @@ func (s *EmailCodeService) SendRegisterCode(email string) error {
 		return err
 	}
 
-	subject := "注册验证码"
-	body := fmt.Sprintf("您的注册验证码是：%s\n\n%d 分钟内有效，如非本人操作请忽略。", code, int(emailCodeTTL.Minutes()))
-	if err := s.mail.Send(email, subject, body); err != nil {
+	siteName := "姜十三论坛"
+	if s.mail != nil && s.mail.settings != nil {
+		siteName = s.mail.settings.SiteBranding().Name
+	}
+	subject, textBody, htmlBody := BuildRegisterCodeMail(siteName, code, int(emailCodeTTL.Minutes()))
+	if err := s.mail.SendHTML(email, subject, textBody, htmlBody); err != nil {
 		return err
 	}
 

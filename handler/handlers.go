@@ -17,11 +17,14 @@ import (
 // Handlers 聚合所有 HTTP 处理器
 type Handlers struct {
 	Cfg       *config.Config
+	Store     *service.UploadStore
 	Auth      *service.AuthService
 	User      *service.UserService
 	Board     *service.BoardService
 	Post      *service.PostService
 	Comment   *service.CommentService
+	Message   *service.MessageService
+	Report    *service.ReportService
 	Backup    *service.BackupService
 	Filter    *service.SensitiveFilter
 	Limiter   *service.RateLimiter
@@ -70,108 +73,18 @@ func (h *Handlers) parseGuestCommentIDs(c *gin.Context) []uint {
 	return ids
 }
 
-func (h *Handlers) pageData(c *gin.Context, title string, data gin.H) gin.H {
-	if data == nil {
-		data = gin.H{}
+func calcTotalPages(total int64, size int) int {
+	if total == 0 {
+		return 1
 	}
-	data["Title"] = title
-	brand := h.Settings.SiteBranding()
-	data["SiteName"] = brand.Name
-	data["SiteEN"] = brand.NameEN
-	if uid := h.currentUserID(c); uid > 0 {
-		data["CurrentUserID"] = uid
-		if u, err := h.User.GetByID(uid); err == nil {
-			data["CurrentUser"] = u
-		}
+	pages := int(total) / size
+	if int(total)%size > 0 {
+		pages++
 	}
-	data["IsAdmin"] = h.isAdmin(c)
-	return data
-}
-
-// --- 页面路由 ---
-
-func (h *Handlers) IndexPage(c *gin.Context) {
-	boards, _ := h.Board.List()
-	posts, _, _ := h.Post.List(service.PostListQuery{Page: 1, Size: 10})
-	c.HTML(http.StatusOK, "index.html", h.pageData(c, "首页", gin.H{
-		"Boards": boards, "Posts": posts,
-	}))
-}
-
-func (h *Handlers) LoginPage(c *gin.Context) {
-	c.HTML(http.StatusOK, "login.html", h.pageData(c, "登录", nil))
-}
-
-func (h *Handlers) RegisterPage(c *gin.Context) {
-	c.HTML(http.StatusOK, "register.html", h.pageData(c, "注册", nil))
-}
-
-func (h *Handlers) BoardPage(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	board, err := h.Board.GetByID(uint(id))
-	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", h.pageData(c, "板块不存在", gin.H{"Message": "板块不存在"}))
-		return
+	if pages < 1 {
+		return 1
 	}
-	posts, total, _ := h.Post.List(service.PostListQuery{BoardID: uint(id), Page: page, Size: 20})
-	c.HTML(http.StatusOK, "board.html", h.pageData(c, board.Name, gin.H{
-		"Board": board, "Posts": posts, "Total": total, "Page": page,
-	}))
-}
-
-func (h *Handlers) PostPage(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.GetByID(uint(id))
-	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", h.pageData(c, "帖子不存在", gin.H{"Message": "帖子不存在"}))
-		return
-	}
-	comments, _ := h.Comment.ListByPost(uint(id), h.currentUserID(c), h.isAdmin(c), post.UserID, nil)
-	uid := h.currentUserID(c)
-	c.HTML(http.StatusOK, "post.html", h.pageData(c, post.Title, gin.H{
-		"Post": post, "Comments": comments,
-		"Liked": h.Post.IsLiked(uid, uint(id)),
-		"Favorited": h.Post.IsFavorited(uid, uint(id)),
-	}))
-}
-
-func (h *Handlers) PostNewPage(c *gin.Context) {
-	boards, _ := h.Board.List()
-	c.HTML(http.StatusOK, "post_new.html", h.pageData(c, "发帖", gin.H{"Boards": boards}))
-}
-
-func (h *Handlers) PostEditPage(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := h.Post.FindByID(uint(id))
-	if err != nil || (!h.isAdmin(c) && post.UserID != h.currentUserID(c)) {
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
-	c.HTML(http.StatusOK, "post_edit.html", h.pageData(c, "编辑帖子", gin.H{"Post": post}))
-}
-
-func (h *Handlers) ProfilePage(c *gin.Context) {
-	user, _ := h.User.GetByID(h.currentUserID(c))
-	c.HTML(http.StatusOK, "profile.html", h.pageData(c, "个人主页", gin.H{"ProfileUser": user}))
-}
-
-func (h *Handlers) UserProfilePage(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	user, err := h.User.GetByID(uint(id))
-	if err != nil {
-		c.HTML(http.StatusNotFound, "error.html", h.pageData(c, "用户不存在", gin.H{"Message": "用户不存在"}))
-		return
-	}
-	c.HTML(http.StatusOK, "user_profile.html", h.pageData(c, user.Nickname, gin.H{"ProfileUser": user}))
-}
-
-func (h *Handlers) FavoritesPage(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	favs, total, _ := h.Post.ListFavorites(h.currentUserID(c), page, 20)
-	c.HTML(http.StatusOK, "favorites.html", h.pageData(c, "我的收藏", gin.H{
-		"Favorites": favs, "Total": total, "Page": page,
-	}))
+	return pages
 }
 
 // --- API ---
@@ -197,6 +110,7 @@ func (h *Handlers) APIRegisterConfig(c *gin.Context) {
 		"mail_ready":         mailReady,
 		"require_email_code": mailReady,
 		"register_open":      userCount == 0 || mailReady,
+		"email_code_len":     service.EmailCodeLen,
 	})
 }
 
@@ -366,7 +280,7 @@ func (h *Handlers) APIUploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件过大"})
 		return
 	}
-	url, err := h.User.UploadAvatar(h.currentUserID(c), file, h.Cfg.UploadDir())
+	url, err := h.User.UploadAvatar(h.currentUserID(c), file, h.Store)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -382,9 +296,9 @@ func (h *Handlers) APIUploadPostImage(c *gin.Context) {
 	}
 	uid := h.currentUserID(c)
 	url, err := service.SaveUploadedImage(
+		h.Store,
 		file,
-		h.Cfg.PostImageUploadDir(),
-		"/uploads/posts",
+		service.UploadCategoryPosts,
 		fmt.Sprintf("%d", uid),
 	)
 	if err != nil {
@@ -399,18 +313,23 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 	title := c.PostForm("title")
 	content := c.PostForm("content")
 	tags := c.PostForm("tags")
-	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags)
+	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, h.isAdmin(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "发帖成功", "post_id": post.ID})
+	msg := "发帖成功"
+	if post.Status == model.ContentStatusPending {
+		msg = "已提交审核，通过后将公开显示"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "post_id": post.ID, "status": post.Status})
 }
 
 func (h *Handlers) APIUpdatePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
 	err := h.Post.Update(h.currentUserID(c), uint(id), h.isAdmin(c),
-		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"))
+		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), uint(boardID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -424,7 +343,7 @@ func (h *Handlers) APIDeletePost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "帖子已删除"})
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已移入回收站"})
 }
 
 func (h *Handlers) APIToggleLike(c *gin.Context) {
@@ -460,6 +379,10 @@ func (h *Handlers) APICreateComment(c *gin.Context) {
 	}
 	isPrivate := c.PostForm("is_private") == "1" || c.PostForm("is_private") == "true"
 	uid := h.currentUserID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请登录后评论"})
+		return
+	}
 
 	in := service.CommentCreateInput{
 		UserID:    uid,
@@ -468,18 +391,17 @@ func (h *Handlers) APICreateComment(c *gin.Context) {
 		ReplyTo:   replyTo,
 		IsPrivate: isPrivate,
 	}
-	if uid == 0 {
-		in.GuestNick = c.PostForm("guest_nick")
-		in.GuestEmail = c.PostForm("guest_email")
-		in.GuestURL = c.PostForm("guest_url")
-	}
 
 	comment, err := h.Comment.Create(in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "评论成功", "floor": comment.Floor, "id": comment.ID})
+	msg := "评论成功"
+	if comment.Status == model.ContentStatusPending {
+		msg = "评论已提交，审核通过后公开显示"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "floor": comment.Floor, "id": comment.ID, "status": comment.Status})
 }
 
 func (h *Handlers) APIDeleteComment(c *gin.Context) {
@@ -499,5 +421,13 @@ func (h *Handlers) APIUpdateComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "评论已更新", "content": saved})
+	msg := "评论已更新"
+	status := ""
+	if comment, e := h.Comment.GetByID(uint(id)); e == nil {
+		status = comment.Status
+		if status == model.ContentStatusPending && !h.isAdmin(c) {
+			msg = "评论已更新，审核通过后公开显示"
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "content": saved, "status": status})
 }

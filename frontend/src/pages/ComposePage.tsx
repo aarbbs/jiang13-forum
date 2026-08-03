@@ -15,6 +15,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { getCachedBoards } from '../utils/layoutCache';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import { loginPath } from '../utils/authRedirect';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
+import { parsePermalinkID, postPath } from '../utils/permalink';
 import {
   loadComposeDraft,
   saveComposeDraft,
@@ -53,12 +55,13 @@ function formatEditRemaining(createdAt: string, windowHours: number): string {
 export default function ComposePage() {
   const nav = useNavigate();
   const { id: editIdParam } = useParams();
-  const editId = editIdParam ? Number(editIdParam) : null;
+  const editId = editIdParam ? parsePermalinkID(editIdParam) : null;
   const isEdit = editId !== null && !Number.isNaN(editId);
   const [params] = useSearchParams();
   const defaultBoard = params.get('board') || '';
   const { user, loading: authLoading } = useAuth();
   const { limits } = useForumLimits();
+  useNoIndexSEO(isEdit ? '编辑帖子' : '发帖');
   const layoutCtx = useOutletContext<LayoutCtx | undefined>();
 
   const [boards, setBoards] = useState<Board[]>(() => resolveBoards(layoutCtx?.boards));
@@ -100,12 +103,12 @@ export default function ComposePage() {
           const isOwnerOrAdmin = user.role === 'admin' || post.user_id === user.id;
           if (!isOwnerOrAdmin) {
             notify.error('无权编辑此帖子');
-            nav(`/post/${editId}`);
+            nav(postPath(editId!, limits));
             return;
           }
           if (!postData.can_edit) {
             notify.error(postData.edit_block_reason || '当前无法编辑此帖子');
-            nav(`/post/${editId}`);
+            nav(postPath(editId!, limits));
             return;
           }
           const loadedBoardId = String(post.board_id);
@@ -232,9 +235,9 @@ export default function ComposePage() {
       title !== baseline.title
       || serializeTags(parseTags(tags)) !== serializeTags(parseTags(baseline.tags))
       || content !== baseline.content
-      || (!isEdit && boardId !== baseline.boardId)
+      || boardId !== baseline.boardId
     );
-  }, [baseline, title, tags, content, boardId, isEdit]);
+  }, [baseline, title, tags, content, boardId]);
 
   const {
     dialogOpen,
@@ -287,7 +290,7 @@ export default function ComposePage() {
 
   const handleSubmit = async () => {
     const trimmedTitle = title.trim();
-    if (!isEdit && !boardId) { notify.warning('请选择板块'); return; }
+    if (!boardId) { notify.warning('请选择板块'); return; }
     if (!trimmedTitle) { notify.warning('请输入标题'); return; }
     if (isHtmlEmpty(content)) { notify.warning('请输入正文内容'); return; }
 
@@ -297,19 +300,20 @@ export default function ComposePage() {
         title: trimmedTitle,
         content: content.trim(),
         tags: serializeTags(parseTags(tags)),
+        board_id: boardId,
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
-        notify.success('帖子已更新');
+        notify.success(user?.role === 'admin' ? '帖子已更新' : '已更新并重新提交审核');
         clearComposeDraft(editId);
         markSaved();
-        nav(`/post/${editId}`);
+        nav(postPath(editId!, limits));
       } else {
-        const res = await api.createPost({ board_id: boardId, ...payload });
-        notify.success('发帖成功');
+        const res = await api.createPost(payload);
+        notify.success(res.message || (res.status === 'pending' ? '已提交审核' : '发帖成功'));
         clearComposeDraft(null);
         markSaved();
-        nav(`/post/${res.post_id}`);
+        nav(postPath(res.post_id, limits));
       }
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : isEdit ? '保存失败' : '发帖失败');
@@ -317,8 +321,6 @@ export default function ComposePage() {
       setPublishing(false);
     }
   };
-
-  const currentBoard = boards.find(b => String(b.id) === boardId);
 
   return (
     <div className="compose-page">
@@ -330,7 +332,7 @@ export default function ComposePage() {
                 type="button"
                 className="compose-back"
                 onClick={() => requestLeave(() => {
-                  if (isEdit) nav(`/post/${editId}`);
+                  if (isEdit) nav(postPath(editId!, limits));
                   else nav(-1);
                 })}
               >
@@ -360,26 +362,20 @@ export default function ComposePage() {
           <section className="compose-context" aria-label="发布设置">
             <div className="compose-context-row">
               <span className="compose-context-label">板块</span>
-              {!isEdit ? (
-                <div className="compose-board-pills" role="listbox" aria-label="选择板块">
-                  {boards.map(b => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      role="option"
-                      aria-selected={String(b.id) === boardId}
-                      className={`compose-board-pill${String(b.id) === boardId ? ' active' : ''}`}
-                      onClick={() => setBoardId(String(b.id))}
-                    >
-                      {b.name}
-                    </button>
-                  ))}
-                </div>
-              ) : currentBoard ? (
-                <div className="compose-board-pills">
-                  <span className="compose-board-pill active">{currentBoard.name}</span>
-                </div>
-              ) : null}
+              <div className="compose-board-pills" role="listbox" aria-label={isEdit ? '修改板块' : '选择板块'}>
+                {boards.map(b => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    role="option"
+                    aria-selected={String(b.id) === boardId}
+                    className={`compose-board-pill${String(b.id) === boardId ? ' active' : ''}`}
+                    onClick={() => setBoardId(String(b.id))}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="compose-context-row compose-context-row--tags">
               <span className="compose-context-label">标签</span>

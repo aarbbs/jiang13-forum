@@ -19,12 +19,20 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="error-boundary">
-          <h3>页面渲染出错</h3>
-          <p className="error-boundary-msg">{this.state.error.message}</p>
-          <Button size="sm" onClick={() => { this.setState({ error: null }); window.location.reload(); }}>
-            刷新页面
-          </Button>
+        <div className="error-page-shell">
+          <div className="error-page">
+            <div className="error-page__code" aria-hidden>500</div>
+            <h1 className="error-page__title">页面渲染出错</h1>
+            <p className="error-page__desc">{this.state.error.message || '发生了意外错误，请尝试刷新页面。'}</p>
+            <div className="error-page__actions">
+              <Button size="sm" onClick={() => { this.setState({ error: null }); window.location.reload(); }}>
+                刷新页面
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { window.location.href = '/'; }}>
+                返回首页
+              </Button>
+            </div>
+          </div>
         </div>
       );
     }

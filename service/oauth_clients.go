@@ -165,24 +165,12 @@ func FindEnabledOAuthClient(clientID string) (*model.OAuthClient, error) {
 	return &row, nil
 }
 
-// VerifyOAuthClientSecret 校验客户端密钥（支持 bcrypt；兼容尚未哈希的历史明文）
+// VerifyOAuthClientSecret 校验客户端密钥（bcrypt 哈希）
 func VerifyOAuthClientSecret(row *model.OAuthClient, secret string) bool {
 	if row == nil || secret == "" || row.ClientSecretHash == "" {
 		return false
 	}
-	hash := row.ClientSecretHash
-	if strings.HasPrefix(hash, "$2a$") || strings.HasPrefix(hash, "$2b$") || strings.HasPrefix(hash, "$2y$") {
-		return CheckPassword(hash, secret)
-	}
-	// 遗留明文：校验通过后就地升级为哈希
-	if hash == secret {
-		if newHash, err := HashPassword(secret); err == nil {
-			_ = model.DB.Model(row).Update("client_secret_hash", newHash).Error
-			row.ClientSecretHash = newHash
-		}
-		return true
-	}
-	return false
+	return CheckPassword(row.ClientSecretHash, secret)
 }
 
 func toOAuthClientView(row model.OAuthClient, plainSecret string) OAuthClientView {
@@ -212,42 +200,4 @@ func CountEnabledOAuthClients() int64 {
 	var n int64
 	model.DB.Model(&model.OAuthClient{}).Where("enabled = ?", true).Count(&n)
 	return n
-}
-
-// MigrateLegacyOIDCClient 将旧版 ForumSetting 单客户端迁入 oauth_clients（仅一次）
-func (s *ForumSettingsService) MigrateLegacyOIDCClient() {
-	if CountEnabledOAuthClients() > 0 {
-		// 仍清理遗留明文密钥字段
-		s.clearLegacyOAuthSecrets()
-		return
-	}
-	clientID := strings.TrimSpace(s.getString(SettingOAuthClientID, ""))
-	secret := s.getString(SettingOAuthClientSecret, "")
-	uris := normalizeRedirectURIs(s.getString(SettingOAuthRedirectURIs, ""))
-	if clientID == "" || secret == "" || uris == "" {
-		return
-	}
-	hash := secret
-	if !(strings.HasPrefix(secret, "$2a$") || strings.HasPrefix(secret, "$2b$") || strings.HasPrefix(secret, "$2y$")) {
-		h, err := HashPassword(secret)
-		if err != nil {
-			return
-		}
-		hash = h
-	}
-	_ = model.DB.Create(&model.OAuthClient{
-		ClientID:         clientID,
-		ClientSecretHash: hash,
-		Name:             "Gitea",
-		RedirectURIs:     uris,
-		Enabled:          true,
-	}).Error
-	s.clearLegacyOAuthSecrets()
-}
-
-func (s *ForumSettingsService) clearLegacyOAuthSecrets() {
-	// 清空遗留明文，避免双源配置
-	if s.getString(SettingOAuthClientSecret, "") != "" {
-		_ = s.setString(SettingOAuthClientSecret, "")
-	}
 }

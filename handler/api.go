@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -52,7 +51,7 @@ func (h *Handlers) APIBoards(c *gin.Context) {
 func (h *Handlers) APIStats(c *gin.Context) {
 	var userCount, postCount, boardCount int64
 	model.DB.Model(&model.User{}).Count(&userCount)
-	model.DB.Model(&model.Post{}).Count(&postCount)
+	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
 	model.DB.Model(&model.Board{}).Count(&boardCount)
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
@@ -121,10 +120,12 @@ func (h *Handlers) APIAdminDeleteBoard(c *gin.Context) {
 func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	var userCount, postCount, boardCount, commentCount int64
 	model.DB.Model(&model.User{}).Count(&userCount)
-	model.DB.Model(&model.Post{}).Count(&postCount)
+	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
 	model.DB.Model(&model.Board{}).Count(&boardCount)
-	model.DB.Model(&model.Comment{}).Count(&commentCount)
-	recentPosts, _, _ := h.Post.List(service.PostListQuery{Page: 1, Size: 8})
+	model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPublished).Count(&commentCount)
+	recentPosts, _, _ := h.Post.List(service.PostListQuery{
+		Page: 1, Size: 8, ViewerIsAdmin: true, Status: "all",
+	})
 	if recentPosts == nil {
 		recentPosts = []model.Post{}
 	}
@@ -140,7 +141,11 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	keyword := strings.TrimSpace(c.Query("keyword"))
-	posts, total, err := h.Post.ListItems(service.PostListQuery{Page: page, Size: size, Keyword: keyword})
+	status := strings.TrimSpace(c.DefaultQuery("status", "all"))
+	posts, total, err := h.Post.ListItems(service.PostListQuery{
+		Page: page, Size: size, Keyword: keyword,
+		ViewerIsAdmin: true, Status: status,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -148,9 +153,12 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 	if posts == nil {
 		posts = []service.PostListItem{}
 	}
+	pending, _ := h.Post.PendingPostCount()
 	c.JSON(http.StatusOK, gin.H{
 		"posts": posts, "total": total, "page": page,
-		"total_pages": calcTotalPages(total, size),
+		"total_pages":   calcTotalPages(total, size),
+		"pending_count": pending,
+		"status":        status,
 	})
 }
 
@@ -196,21 +204,82 @@ func (h *Handlers) APIAdminPinPost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg, "pinned": req.Pinned})
 }
 
-// APIAdminDeletePost 管理员删除帖子
+// APIAdminFeaturePost 设为精华/取消精华（JSON）
+func (h *Handlers) APIAdminFeaturePost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Featured bool `json:"featured"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Post.SetFeatured(uint(id), req.Featured); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已取消精华"
+	if req.Featured {
+		msg = "已设为精华"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "featured": req.Featured})
+}
+
+// APIAdminDeletePost 管理员软删除帖子（进入回收站）
 func (h *Handlers) APIAdminDeletePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.Post.Delete(0, uint(id), true); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "帖子已删除"})
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已移入回收站"})
+}
+
+// APIAdminTrashPosts 回收站帖子列表
+func (h *Handlers) APIAdminTrashPosts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	posts, total, err := h.Post.ListTrash(page, size, keyword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if posts == nil {
+		posts = []service.TrashPostItem{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"posts": posts, "total": total, "page": page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminRestorePost 从回收站恢复帖子
+func (h *Handlers) APIAdminRestorePost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Post.Restore(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已恢复"})
+}
+
+// APIAdminPurgePost 永久删除回收站帖子
+func (h *Handlers) APIAdminPurgePost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Post.Purge(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已永久删除"})
 }
 
 // APIAdminComments 管理员评论列表
 func (h *Handlers) APIAdminComments(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
-	comments, total, err := h.Comment.ListRecent(page, size)
+	status := strings.TrimSpace(c.DefaultQuery("status", "all"))
+	comments, total, err := h.Comment.ListRecent(page, size, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -218,10 +287,61 @@ func (h *Handlers) APIAdminComments(c *gin.Context) {
 	if comments == nil {
 		comments = []model.Comment{}
 	}
+	pending, _ := h.Comment.PendingCommentCount()
 	c.JSON(http.StatusOK, gin.H{
 		"comments": comments, "total": total, "page": page,
-		"total_pages": calcTotalPages(total, size),
+		"total_pages":   calcTotalPages(total, size),
+		"pending_count": pending,
+		"status":        status,
 	})
+}
+
+// APIAdminApproveComment 通过评论审核
+func (h *Handlers) APIAdminApproveComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Comment.SetStatus(uint(id), model.ContentStatusPublished); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "评论已通过审核", "status": model.ContentStatusPublished})
+}
+
+// APIAdminRejectComment 拒绝评论并私信通知
+func (h *Handlers) APIAdminRejectComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		reason = "不符合社区规范"
+	}
+	comment, err := h.Comment.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.Comment.SetStatus(uint(id), model.ContentStatusRejected); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if comment.UserID > 0 {
+		title := comment.Post.Title
+		if title == "" {
+			title = "未知帖子"
+		}
+		pid := comment.PostID
+		_, _ = h.Message.SendSystem(
+			comment.UserID,
+			"评论未通过审核",
+			service.FormatCommentRejectContent(title, comment.PostID, comment.Floor, reason),
+			model.MessageKindReject,
+			&pid,
+			nil,
+		)
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已拒绝该评论并通知作者", "status": model.ContentStatusRejected})
 }
 
 // APIAdminDeleteComment 管理员删除评论
@@ -232,6 +352,17 @@ func (h *Handlers) APIAdminDeleteComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "评论已删除"})
+}
+
+// APIAdminCommentRevisions 管理员查看评论编辑历史
+func (h *Handlers) APIAdminCommentRevisions(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	revs, err := h.Comment.ListRevisions(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"revisions": revs})
 }
 
 // APIAdminUsers 管理员用户列表
@@ -314,6 +445,7 @@ func (h *Handlers) APIAdminSettings(c *gin.Context) {
 		"oidc":              h.Settings.OIDCConfigPublic(),
 		"oauth_clients":     clients,
 		"gitea":             h.Settings.GiteaSyncConfigPublic(),
+		"storage":           h.Settings.StorageConfigPublic(),
 		"branding":          h.Settings.SiteBranding(),
 		"filter_words":      filterContent,
 		"filter_word_count": service.CountFilterWords(filterContent),
@@ -342,11 +474,11 @@ func (h *Handlers) APIAdminUpdateBranding(c *gin.Context) {
 	})
 }
 
-// APIAdminUploadBrandingAsset 上传 Logo 或 Favicon（form: file + kind=logo|favicon）
+// APIAdminUploadBrandingAsset 上传 Logo / Favicon / 默认 OG 图（form: file + kind=logo|favicon|og_image）
 func (h *Handlers) APIAdminUploadBrandingAsset(c *gin.Context) {
 	kind := strings.TrimSpace(c.PostForm("kind"))
-	if kind != "logo" && kind != "favicon" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo 或 favicon"})
+	if kind != "logo" && kind != "favicon" && kind != "og_image" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo、favicon 或 og_image"})
 		return
 	}
 	file, err := c.FormFile("file")
@@ -359,18 +491,22 @@ func (h *Handlers) APIAdminUploadBrandingAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "图片不能超过 2MB"})
 		return
 	}
-	url, err := service.SaveUploadedImage(file, h.Cfg.SiteUploadDir(), "/uploads/site", kind)
+	url, err := service.SaveUploadedImage(h.Store, file, service.UploadCategorySite, kind)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	prev := h.Settings.SiteBranding()
-	if kind == "logo" {
+	switch kind {
+	case "logo":
 		_ = h.Settings.SetSiteLogo(url)
-		h.removeSiteUploadIfLocal(prev.Logo)
-	} else {
+		h.Store.DeleteByURL(prev.Logo)
+	case "favicon":
 		_ = h.Settings.SetSiteFavicon(url)
-		h.removeSiteUploadIfLocal(prev.Favicon)
+		h.Store.DeleteByURL(prev.Favicon)
+	case "og_image":
+		_ = h.Settings.SetSiteOGImage(url)
+		h.Store.DeleteByURL(prev.OGImage)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "上传成功",
@@ -379,7 +515,7 @@ func (h *Handlers) APIAdminUploadBrandingAsset(c *gin.Context) {
 	})
 }
 
-// APIAdminClearBrandingAsset 清除 Logo 或 Favicon
+// APIAdminClearBrandingAsset 清除 Logo / Favicon / 默认 OG 图
 func (h *Handlers) APIAdminClearBrandingAsset(c *gin.Context) {
 	var req struct {
 		Kind string `json:"kind"`
@@ -393,12 +529,15 @@ func (h *Handlers) APIAdminClearBrandingAsset(c *gin.Context) {
 	switch kind {
 	case "logo":
 		_ = h.Settings.SetSiteLogo("")
-		h.removeSiteUploadIfLocal(brand.Logo)
+		h.Store.DeleteByURL(brand.Logo)
 	case "favicon":
 		_ = h.Settings.SetSiteFavicon("")
-		h.removeSiteUploadIfLocal(brand.Favicon)
+		h.Store.DeleteByURL(brand.Favicon)
+	case "og_image":
+		_ = h.Settings.SetSiteOGImage("")
+		h.Store.DeleteByURL(brand.OGImage)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo 或 favicon"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind 须为 logo、favicon 或 og_image"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -502,6 +641,27 @@ func (h *Handlers) APIAdminUpdateGiteaSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Gitea 同步设置已保存",
 		"gitea":   h.Settings.GiteaSyncConfigPublic(),
+	})
+}
+
+// APIAdminUpdateStorageSettings 更新上传存储（本地 / S3 兼容），保存后立即热切换
+func (h *Handlers) APIAdminUpdateStorageSettings(c *gin.Context) {
+	var req service.StorageConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Settings.UpdateStorageConfig(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.Store.ReloadFromSettings(h.Settings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "配置已保存，但初始化存储失败：" + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "存储设置已保存",
+		"storage": h.Settings.StorageConfigPublic(),
 	})
 }
 
@@ -666,12 +826,14 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	keyword := c.Query("keyword")
 
 	q := service.PostListQuery{
-		BoardID: uint(boardID),
-		UserID:  uint(userID),
-		Page:    page,
-		Size:    size,
-		Keyword: keyword,
-		Sort:    c.DefaultQuery("sort", "latest"),
+		BoardID:       uint(boardID),
+		UserID:        uint(userID),
+		Page:          page,
+		Size:          size,
+		Keyword:       keyword,
+		Sort:          c.DefaultQuery("sort", "latest"),
+		ViewerID:      h.currentUserID(c),
+		ViewerIsAdmin: h.isAdmin(c),
 	}
 	items, total, err := h.Post.ListItems(q)
 	if err != nil {
@@ -702,15 +864,19 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
 	}
-	if c.Query("skip_view") != "1" {
+	uid := h.currentUserID(c)
+	isAdmin := h.isAdmin(c)
+	if !service.CanViewPost(post, uid, isAdmin) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
+		return
+	}
+	if c.Query("skip_view") != "1" && post.Status == model.ContentStatusPublished {
 		h.Post.RecordView(uint(id))
 	}
-	uid := h.currentUserID(c)
 	if uid == 0 {
 		post.Content = service.RedactMembersOnlyHTML(post.Content)
 	}
-	comments, _ := h.Comment.ListByPost(uint(id), uid, h.isAdmin(c), post.UserID, h.parseGuestCommentIDs(c))
-	isAdmin := h.isAdmin(c)
+	comments, _ := h.Comment.ListByPost(uint(id), uid, isAdmin, post.UserID, h.parseGuestCommentIDs(c))
 	canEdit := h.Post.CanUserEdit(post, uid, isAdmin)
 	editReason := ""
 	if !canEdit && uid > 0 {
@@ -737,7 +903,13 @@ func (h *Handlers) APIPostComments(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
 	}
-	comments, err := h.Comment.ListByPost(uint(id), h.currentUserID(c), h.isAdmin(c), post.UserID, h.parseGuestCommentIDs(c))
+	uid := h.currentUserID(c)
+	isAdmin := h.isAdmin(c)
+	if !service.CanViewPost(post, uid, isAdmin) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
+		return
+	}
+	comments, err := h.Comment.ListByPost(uint(id), uid, isAdmin, post.UserID, h.parseGuestCommentIDs(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -840,20 +1012,6 @@ func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"revision": rev})
-}
-
-// removeSiteUploadIfLocal 删除本站 uploads/site 下的旧资源文件
-func (h *Handlers) removeSiteUploadIfLocal(urlPath string) {
-	urlPath = strings.TrimSpace(urlPath)
-	const prefix = "/uploads/site/"
-	if !strings.HasPrefix(urlPath, prefix) {
-		return
-	}
-	name := filepath.Base(urlPath)
-	if name == "" || name == "." || name == ".." {
-		return
-	}
-	_ = os.Remove(filepath.Join(h.Cfg.SiteUploadDir(), name))
 }
 
 func isClientLimitError(err error) bool {

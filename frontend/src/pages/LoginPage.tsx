@@ -3,14 +3,17 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import AuthPasswordInput from '@/components/AuthPasswordInput';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { resolveAuthRedirect, registerPath, navigateAfterAuth } from '../utils/authRedirect';
 import { useSiteBranding } from '../hooks/useSiteBranding';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
 import SiteBrandMark from '../components/SiteBrandMark';
 
 const schema = z.object({
@@ -25,6 +28,7 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const { refresh } = useAuth();
   const { branding } = useSiteBranding();
+  useNoIndexSEO('登录');
   const [loading, setLoading] = useState(false);
   const redirectTo = resolveAuthRedirect(searchParams);
   const form = useForm<FormValues>({
@@ -49,7 +53,9 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <SiteBrandMark branding={branding} className="logo-mark" />
+        <Link to="/" className="auth-brand-link" aria-label={`返回${branding.name}`}>
+          <SiteBrandMark branding={branding} className="logo-mark" />
+        </Link>
         <h1>登录{branding.name}</h1>
         <p className="subtitle">{branding.slogan || '欢迎回来'}</p>
         <Form {...form}>
@@ -74,7 +80,7 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>密码</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="密码" autoComplete="current-password" {...field} />
+                    <AuthPasswordInput placeholder="密码" autoComplete="current-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -88,6 +94,10 @@ export default function LoginPage() {
         <p className="auth-footer">
           没有账号？<Link to={registerPath(redirectTo === '/' ? undefined : redirectTo)}>注册</Link>
         </p>
+        <Link to="/" className="auth-back">
+          <ArrowLeft size={16} aria-hidden />
+          返回论坛
+        </Link>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, SiteBranding, RegisterConfig } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus } from './types';
 
 const BASE = '';
 
@@ -60,22 +60,59 @@ export const api = {
   // 管理后台 API
   adminDashboard: () => request<AdminDashboard>('/api/admin/dashboard'),
   adminSettings: () => request<AdminSettings>('/api/admin/settings'),
-  adminPosts: (params: { page?: number; keyword?: string }) => {
+  adminPosts: (params: { page?: number; keyword?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));
     if (params.keyword) q.set('keyword', params.keyword);
+    if (params.status) q.set('status', params.status);
     const qs = q.toString();
-    return request<{ posts: PostItem[]; total: number; page: number; total_pages: number }>(
-      `/api/admin/posts${qs ? `?${qs}` : ''}`,
-    );
+    return request<{
+      posts: PostItem[];
+      total: number;
+      page: number;
+      total_pages: number;
+      pending_count?: number;
+      status?: string;
+    }>(`/api/admin/posts${qs ? `?${qs}` : ''}`);
   },
+  adminApprovePost: (id: number) =>
+    request<{ message: string; status: string }>(`/api/admin/posts/${id}/approve`, { method: 'POST' }),
   adminPinPost: (id: number, pinned: boolean) =>
     request<{ message: string; pinned: boolean }>(`/api/admin/posts/${id}/pin`, {
       method: 'POST', body: JSON.stringify({ pinned }),
     }),
+  adminFeaturePost: (id: number, featured: boolean) =>
+    request<{ message: string; featured: boolean }>(`/api/admin/posts/${id}/feature`, {
+      method: 'POST', body: JSON.stringify({ featured }),
+    }),
   adminLockPost: (id: number, locked: boolean) =>
     request<{ message: string; edit_locked: boolean }>(`/api/admin/posts/${id}/lock`, {
       method: 'POST', body: JSON.stringify({ locked }),
+    }),
+  adminRejectPost: (id: number, reason: string) =>
+    request<{ message: string; notified: boolean }>(`/api/admin/posts/${id}/reject`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    }),
+  adminReports: (params?: { page?: number; status?: ReportStatus | 'all' | string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return request<{
+      reports: PostReport[];
+      total: number;
+      page: number;
+      pending_count: number;
+      status: string;
+    }>(`/api/admin/reports${qs ? `?${qs}` : ''}`);
+  },
+  adminHandleReport: (id: number, body: {
+    action: 'dismiss' | 'resolve' | 'reject_post';
+    handle_note?: string;
+    reject_reason?: string;
+  }) =>
+    request<{ message: string; report: PostReport }>(`/api/admin/reports/${id}/handle`, {
+      method: 'POST', body: JSON.stringify(body),
     }),
   adminUpdateForumSettings: (body: ForumLimits) =>
     request<{ message: string; limits: ForumLimits }>('/api/admin/settings/forum', {
@@ -97,11 +134,15 @@ export const api = {
     request<{ message: string; count: number; gitea: GiteaSyncConfig }>('/api/admin/settings/gitea/sync', {
       method: 'POST',
     }),
+  adminUpdateStorageSettings: (body: StorageConfig) =>
+    request<{ message: string; storage: StorageConfig }>('/api/admin/settings/storage', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
   adminUpdateBranding: (body: SiteBranding) =>
     request<{ message: string; branding: SiteBranding }>('/api/admin/settings/branding', {
       method: 'PUT', body: JSON.stringify(body),
     }),
-  adminUploadBrandingAsset: (kind: 'logo' | 'favicon', file: File) => {
+  adminUploadBrandingAsset: (kind: 'logo' | 'favicon' | 'og_image', file: File) => {
     const fd = new FormData();
     fd.append('kind', kind);
     fd.append('file', file);
@@ -110,7 +151,7 @@ export const api = {
       { method: 'POST', body: fd, headers: {} },
     );
   },
-  adminClearBrandingAsset: (kind: 'logo' | 'favicon') =>
+  adminClearBrandingAsset: (kind: 'logo' | 'favicon' | 'og_image') =>
     request<{ message: string; branding: SiteBranding }>('/api/admin/settings/branding/clear', {
       method: 'POST', body: JSON.stringify({ kind }),
     }),
@@ -141,11 +182,41 @@ export const api = {
   postRevision: (id: number, revId: number) =>
     request<{ revision: PostRevision }>(`/api/posts/${id}/revisions/${revId}`),
   adminDeletePost: (id: number) => request(`/api/admin/posts/${id}`, { method: 'DELETE' }),
-  adminComments: (page = 1) =>
-    request<{ comments: Comment[]; total: number; page: number; total_pages: number }>(
-      `/api/admin/comments?page=${page}`,
-    ),
+  adminTrashPosts: (params: { page?: number; keyword?: string }) => {
+    const q = new URLSearchParams();
+    if (params.page) q.set('page', String(params.page));
+    if (params.keyword) q.set('keyword', params.keyword);
+    const qs = q.toString();
+    return request<{ posts: (PostItem & { deleted_at: string })[]; total: number; page: number; total_pages: number }>(
+      `/api/admin/posts/trash${qs ? `?${qs}` : ''}`,
+    );
+  },
+  adminRestorePost: (id: number) =>
+    request<{ message: string }>(`/api/admin/posts/${id}/restore`, { method: 'POST' }),
+  adminPurgePost: (id: number) =>
+    request<{ message: string }>(`/api/admin/posts/${id}/purge`, { method: 'DELETE' }),
+  adminComments: (params?: { page?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return request<{
+      comments: Comment[];
+      total: number;
+      page: number;
+      total_pages: number;
+      pending_count?: number;
+    }>(`/api/admin/comments${qs ? `?${qs}` : ''}`);
+  },
+  adminApproveComment: (id: number) =>
+    request<{ message: string; status: string }>(`/api/admin/comments/${id}/approve`, { method: 'POST' }),
+  adminRejectComment: (id: number, reason?: string) =>
+    request<{ message: string; status: string }>(`/api/admin/comments/${id}/reject`, {
+      method: 'POST', body: JSON.stringify({ reason: reason || '' }),
+    }),
   adminDeleteComment: (id: number) => request(`/api/admin/comments/${id}`, { method: 'DELETE' }),
+  adminCommentRevisions: (id: number) =>
+    request<{ revisions: CommentRevision[] }>(`/api/admin/comments/${id}/revisions`),
   adminUsers: (page = 1) =>
     request<{ users: User[]; total: number; page: number; total_pages: number }>(
       `/api/admin/users?page=${page}`,
@@ -153,6 +224,19 @@ export const api = {
   adminBanUser: (id: number, banned: boolean) =>
     request<{ message: string; banned: boolean }>(`/api/admin/users/${id}/ban`, {
       method: 'POST', body: JSON.stringify({ banned }),
+    }),
+  adminMedia: (params?: { category?: string; page?: number; size?: number; q?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.category) sp.set('category', params.category);
+    if (params?.page) sp.set('page', String(params.page));
+    if (params?.size) sp.set('size', String(params.size));
+    if (params?.q) sp.set('q', params.q);
+    const qs = sp.toString();
+    return request<MediaListResult>(`/api/admin/media${qs ? `?${qs}` : ''}`);
+  },
+  adminDeleteMedia: (urls: string[]) =>
+    request<{ message: string; deleted: number }>('/api/admin/media/delete', {
+      method: 'POST', body: JSON.stringify({ urls }),
     }),
   adminBackup: () =>
     request<{ message: string; filename: string; download: string }>('/api/admin/backup', { method: 'POST' }),
@@ -193,13 +277,16 @@ export const api = {
     fd.append('title', data.title);
     fd.append('content', data.content);
     fd.append('tags', data.tags || '');
-    return request<{ post_id: number }>('/api/posts', { method: 'POST', body: fd, headers: {} });
+    return request<{ post_id: number; message?: string; status?: string }>('/api/posts', { method: 'POST', body: fd, headers: {} });
   },
-  updatePost: (id: number, data: { title: string; content: string; tags?: string }) => {
+  updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number }) => {
     const fd = new FormData();
     fd.append('title', data.title);
     fd.append('content', data.content);
     fd.append('tags', data.tags || '');
+    if (data.board_id != null && data.board_id !== '') {
+      fd.append('board_id', String(data.board_id));
+    }
     return request<{ message: string }>(`/api/posts/${id}`, { method: 'PUT', body: fd, headers: {} });
   },
   deletePost: (id: number) => request<{ message: string }>(`/api/posts/${id}`, { method: 'DELETE' }),
@@ -234,27 +321,56 @@ export const api = {
   logout: () => request('/api/logout', { method: 'POST' }),
   like: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/posts/${id}/like`, { method: 'POST' }),
   favorite: (id: number) => request<{ favorited: boolean }>(`/api/posts/${id}/favorite`, { method: 'POST' }),
+  reportPost: (id: number, body: { reason: ReportReason; detail?: string }) =>
+    request<{ message: string; report: PostReport }>(`/api/posts/${id}/report`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  messageConversations: (params?: { page?: number; size?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.size) q.set('size', String(params.size));
+    const qs = q.toString();
+    return request<{ conversations: MessageConversation[]; total: number; page: number }>(
+      `/api/messages/conversations${qs ? `?${qs}` : ''}`,
+    );
+  },
+  conversationMessages: (peerId: number, params?: { size?: number; before?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.size) q.set('size', String(params.size));
+    if (params?.before) q.set('before', String(params.before));
+    const qs = q.toString();
+    return request<{
+      messages: PrivateMessage[];
+      total: number;
+      peer_user_id: number;
+      peer_user?: User;
+      is_system: boolean;
+    }>(`/api/messages/conversations/${peerId}${qs ? `?${qs}` : ''}`);
+  },
+  markConversationRead: (peerId: number) =>
+    request<{ message: string }>(`/api/messages/conversations/${peerId}/read`, { method: 'POST' }),
+  messageUnreadCount: () => request<{ count: number }>('/api/messages/unread-count'),
+  sendMessage: (body: { to_user_id: number; subject?: string; content: string }) =>
+    request<{ message: PrivateMessage }>('/api/messages', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  markAllMessagesRead: () =>
+    request<{ message: string }>('/api/messages/read-all', { method: 'POST' }),
   addComment: (postId: number, data: {
     content: string;
     replyTo?: number;
-    guestNick?: string;
-    guestEmail?: string;
-    guestUrl?: string;
     isPrivate?: boolean;
   }) => {
     const fd = new FormData();
     fd.append('content', data.content);
     if (data.replyTo) fd.append('reply_to', String(data.replyTo));
-    if (data.guestNick) fd.append('guest_nick', data.guestNick);
-    if (data.guestEmail) fd.append('guest_email', data.guestEmail);
-    if (data.guestUrl) fd.append('guest_url', data.guestUrl);
     if (data.isPrivate) fd.append('is_private', '1');
-    return request<{ message: string; floor: number; id: number }>(`/api/posts/${postId}/comments`, { method: 'POST', body: fd, headers: {} });
+    return request<{ message: string; floor: number; id: number; status?: string }>(`/api/posts/${postId}/comments`, { method: 'POST', body: fd, headers: {} });
   },
   updateComment: (id: number, content: string) => {
     const fd = new FormData();
     fd.append('content', content);
-    return request<{ message: string; content: string }>(`/api/comments/${id}`, { method: 'PUT', body: fd, headers: {} });
+    return request<{ message: string; content: string; status?: string }>(`/api/comments/${id}`, { method: 'PUT', body: fd, headers: {} });
   },
   deleteComment: (id: number) => request<{ message: string }>(`/api/comments/${id}`, { method: 'DELETE' }),
 };

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import PageLoader from '../components/PageLoader';
 import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Menu, Moon, Sun, Search, Plus, PanelRight, X } from 'lucide-react';
+import { Menu, Moon, Sun, Search, Plus, PanelRight, X, Mail } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
 import { useOverlayA11y, moveTabIndex } from '../hooks/useOverlayA11y';
 import { api } from '../api/client';
-import type { Board, PostItem, RecentComment, ForumStats, TagCount } from '../api/types';
+import type { Board, PostItem, RecentComment, ForumStats, TagCount, User } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { getCachedBoards, getCachedStats, getCachedHot, getCachedRecentComments, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedHot, setCachedRecentComments, setCachedTags } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
@@ -30,6 +30,8 @@ import { loginPath } from '../utils/authRedirect';
 import { openForumPost } from '../utils/openPost';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import SiteBrandMark from '../components/SiteBrandMark';
+import SiteFooter from '../components/SiteFooter';
+import { userPath } from '../utils/userPath';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -46,15 +48,21 @@ export default function MainLayout() {
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
   const [hot, setHot] = useState<PostItem[]>(() => getCachedHot());
   const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
   const [tagsLoading, setTagsLoading] = useState(() => getCachedTags().length === 0);
   const [postOutline, setPostOutline] = useState<{
     headings: PostHeading[];
     scrollRoot: HTMLElement | null;
     title?: string;
+    author?: User | null;
+    publishedAt?: string;
+    viewCount?: number;
   } | null>(null);
   const [asideOpen, setAsideOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
   const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
   const asideEverLoaded = useRef(false);
@@ -92,6 +100,7 @@ export default function MainLayout() {
   useEffect(() => {
     setAsideOpen(false);
     setSidebarOpen(false);
+    setSearchExpanded(false);
   }, [loc.pathname, loc.search]);
   useEffect(() => {
     if (!/^\/post\/\d+/.test(loc.pathname)) setPostOutline(null);
@@ -100,8 +109,16 @@ export default function MainLayout() {
     if (!hideAside) setAsideOpen(false);
   }, [hideAside]);
   useEffect(() => {
-    if (!isMobile) setSidebarOpen(false);
+    if (!isMobile) {
+      setSidebarOpen(false);
+      setSearchExpanded(false);
+    }
   }, [isMobile]);
+  useEffect(() => {
+    if (!searchExpanded) return;
+    const t = window.setTimeout(() => searchInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(t);
+  }, [searchExpanded]);
   useEffect(() => {
     if (!asideOpen && !sidebarOpen) return;
     const prev = document.body.style.overflow;
@@ -134,27 +151,42 @@ export default function MainLayout() {
     return () => window.removeEventListener('boards-refresh', onRefresh);
   }, [refreshBoards]);
 
-  // 标签云：非编辑页拉取（左侧栏常显）
+  const refreshUnreadMessages = useCallback(() => {
+    if (!user) {
+      setUnreadMessages(0);
+      return;
+    }
+    api.messageUnreadCount()
+      .then((r) => setUnreadMessages(r.count || 0))
+      .catch(() => setUnreadMessages(0));
+  }, [user]);
+
+  useEffect(() => {
+    refreshUnreadMessages();
+    const onRefresh = () => refreshUnreadMessages();
+    window.addEventListener('messages-unread-refresh', onRefresh);
+    const timer = window.setInterval(refreshUnreadMessages, 60_000);
+    return () => {
+      window.removeEventListener('messages-unread-refresh', onRefresh);
+      window.clearInterval(timer);
+    };
+  }, [refreshUnreadMessages]);
+
+  // 标签云：进页/离开发帖页时拉取；不跟 posts-refresh 联动（置顶/精华等不改标签）
   useEffect(() => {
     if (isCompose) return;
     let cancelled = false;
-    const loadTags = () => {
-      if (getCachedTags().length === 0) setTagsLoading(true);
-      api.tags(40).then(d => {
-        if (cancelled) return;
-        const next = Array.isArray(d.tags) ? d.tags : [];
-        setTags(next);
-        setCachedTags(next);
-      }).catch(() => {}).finally(() => {
-        if (!cancelled) setTagsLoading(false);
-      });
-    };
-    loadTags();
-    const onRefresh = () => loadTags();
-    window.addEventListener('posts-refresh', onRefresh);
+    if (getCachedTags().length === 0) setTagsLoading(true);
+    api.tags(40).then(d => {
+      if (cancelled) return;
+      const next = Array.isArray(d.tags) ? d.tags : [];
+      setTags(next);
+      setCachedTags(next);
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setTagsLoading(false);
+    });
     return () => {
       cancelled = true;
-      window.removeEventListener('posts-refresh', onRefresh);
     };
   }, [isCompose]);
 
@@ -194,8 +226,10 @@ export default function MainLayout() {
 
   const doSearch = () => {
     const kw = keyword.trim();
+    const active = (params.get('keyword') || '').trim();
     if (!kw) {
-      nav('/');
+      // 输入已空：仅当 URL 仍带搜索时才回到全部帖子
+      if (active) navigateFeed(nav, '/');
       return;
     }
     const len = [...kw].length;
@@ -207,24 +241,41 @@ export default function MainLayout() {
       notify.warning(`搜索关键词最多 ${forumLimits.search_keyword_max} 个字`);
       return;
     }
-    nav(`/?keyword=${encodeURIComponent(kw)}`);
+    const target = `/?keyword=${encodeURIComponent(kw)}`;
+    // 相同关键词再次回车：强制刷新，避免命中错误缓存或被当成空导航
+    if (active === kw && loc.pathname === '/') {
+      navigateFeed(nav, target);
+      return;
+    }
+    nav(target);
   };
 
-  const openPost = useCallback((id: number) => {
+  const openPost = useCallback((id: number, opts?: { floor?: number }) => {
     setAsideOpen(false);
-    openForumPost(nav, id, forumLimits.open_posts_in_new_tab);
+    openForumPost(nav, id, forumLimits.open_posts_in_new_tab, opts);
   }, [nav, forumLimits.open_posts_in_new_tab]);
 
   const userInitial = user?.nickname?.charAt(0) || '?';
   const isFeedHome = loc.pathname === '/';
-  const mobileActiveBoard = isNeutralSidebarRoute(loc.pathname) ? -1 : boardId;
+  const outletKeyword = params.get('keyword') || '';
+  // 搜索结果页不选中任何板块芯片（避免看起来仍停在「全部」）
+  const mobileActiveBoard =
+    isNeutralSidebarRoute(loc.pathname) || !!outletKeyword
+      ? -1
+      : boardId;
 
   const boardChipIds = useMemo(() => [0, ...boards.map(b => b.id)], [boards]);
   const activeChipIndex = Math.max(0, boardChipIds.indexOf(mobileActiveBoard === -1 ? 0 : mobileActiveBoard));
 
-  const outletKeyword = params.get('keyword') || '';
-  const isPostDetail = /^\/post\/\d+\/?$/.test(loc.pathname);
-  const setPostOutlineSafe = useCallback((outline: LayoutCtx['postOutline']) => {
+  const isPostDetail = /^\/post\/\d+/.test(loc.pathname) && !/\/edit$/.test(loc.pathname);
+  const setPostOutlineSafe = useCallback((outline: {
+    headings: PostHeading[];
+    scrollRoot: HTMLElement | null;
+    title?: string;
+    author?: User | null;
+    publishedAt?: string;
+    viewCount?: number;
+  } | null) => {
     setPostOutline(outline);
   }, []);
   const layoutCtx = useMemo<LayoutCtx>(() => ({
@@ -257,14 +308,14 @@ export default function MainLayout() {
   return (
     <div className="app-shell">
       <div className="app-frame">
-      <header className="app-header">
+      <header className={`app-header${searchExpanded && isMobile ? ' app-header--search-open' : ''}`}>
         <div className="header-inner">
-          {isMobile && !isCompose && (
+          {isMobile && !isCompose && !searchExpanded && (
             <button
               type="button"
               className="header-icon-btn"
               onClick={openSidebar}
-              aria-label={isPostDetail ? '打开目录与导航' : '打开导航菜单'}
+              aria-label="打开导航菜单"
               aria-expanded={sidebarOpen}
               aria-controls="sidebar-drawer"
               title="导航"
@@ -272,15 +323,38 @@ export default function MainLayout() {
               <Menu size={18} aria-hidden />
             </button>
           )}
-          <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
-            <SiteBrandMark branding={branding} className="header-logo-mark" />
-            {!isMobile && <span className="header-logo-text">{branding.name}</span>}
-          </button>
+          {!(isMobile && searchExpanded) && (
+            <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
+              <SiteBrandMark branding={branding} className="header-logo-mark" />
+              {!isMobile && <span className="header-logo-text">{branding.name}</span>}
+            </button>
+          )}
 
-          {!isCompose && (
-          <div className="header-search-wrap">
+          {!isCompose && isMobile && !searchExpanded && (
+            <button
+              type="button"
+              className="header-icon-btn header-search-toggle"
+              onClick={() => setSearchExpanded(true)}
+              aria-label="搜索帖子"
+              title="搜索"
+            >
+              <Search size={18} aria-hidden />
+            </button>
+          )}
+
+          {!isCompose && (!isMobile || searchExpanded) && (
+          <form
+            className={`header-search-wrap${isMobile && searchExpanded ? ' header-search-wrap--expanded' : ''}`}
+            role="search"
+            onSubmit={e => {
+              e.preventDefault();
+              doSearch();
+              if (isMobile) setSearchExpanded(false);
+            }}
+          >
             <Search className="header-search-icon" size={16} aria-hidden />
             <input
+              ref={searchInputRef}
               className="header-search-input"
               type="search"
               placeholder="搜索帖子..."
@@ -288,19 +362,29 @@ export default function MainLayout() {
               value={keyword}
               onChange={e => setKeyword(e.target.value)}
               maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
-              onKeyDown={e => e.key === 'Enter' && doSearch()}
+              enterKeyHint="search"
             />
             {keyword && (
               <button
                 type="button"
                 className="header-search-clear"
-                onClick={() => { setKeyword(''); nav('/'); }}
+                onClick={() => { setKeyword(''); navigateFeed(nav, '/'); }}
                 aria-label="清除搜索"
               >×</button>
             )}
-          </div>
+            {isMobile && searchExpanded && (
+              <button
+                type="button"
+                className="header-search-cancel"
+                onClick={() => setSearchExpanded(false)}
+              >
+                取消
+              </button>
+            )}
+          </form>
           )}
 
+          {!(isMobile && searchExpanded) && (
           <div className="header-actions">
             {!isCompose && (
             <button
@@ -315,33 +399,49 @@ export default function MainLayout() {
             )}
 
             <div className="header-action-group">
-              {!isCompose && hideAside && (
+              {/* 平板：侧栏收起时用按钮打开社区动态；手机改由导航抽屉入口 */}
+              {!isCompose && hideAside && !isMobile && (
                 <button
                   type="button"
                   className="header-icon-btn"
                   onClick={openAside}
-                  aria-label="打开社区动态"
+                  aria-label={isPostDetail ? '打开作者与目录' : '打开社区动态'}
                   aria-expanded={asideOpen}
                   aria-controls="aside-drawer"
-                  title="社区动态"
+                  title={isPostDetail ? '作者与目录' : '社区动态'}
                 >
                   <PanelRight size={18} aria-hidden />
                 </button>
               )}
 
-              <button
-                type="button"
-                className="header-icon-btn"
-                onClick={toggle}
-                aria-label={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
-                title={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
-              >
-                {theme === 'light' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
-              </button>
+              {!isMobile && (
+                <button
+                  type="button"
+                  className="header-icon-btn"
+                  onClick={toggle}
+                  aria-label={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
+                  title={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
+                >
+                  {theme === 'light' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
+                </button>
+              )}
 
               {authLoading ? (
                 <span className="header-auth-slot header-auth-slot--loading" aria-hidden />
               ) : user ? (
+                <>
+                <button
+                  type="button"
+                  className="header-icon-btn header-msg-btn"
+                  title={unreadMessages > 0 ? `${unreadMessages} 条未读私信` : '站内私信'}
+                  aria-label={unreadMessages > 0 ? `站内私信，${unreadMessages} 条未读` : '站内私信'}
+                  onClick={() => nav('/messages')}
+                >
+                  <Mail size={18} aria-hidden />
+                  {unreadMessages > 0 && (
+                    <span className="header-msg-badge">{unreadMessages > 99 ? '99+' : unreadMessages}</span>
+                  )}
+                </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button type="button" className="header-user-btn" title={user.nickname} aria-label={`用户菜单：${user.nickname}`}>
@@ -355,9 +455,17 @@ export default function MainLayout() {
                     className="w-40"
                     onCloseAutoFocus={(e) => e.preventDefault()}
                   >
-                    <DropdownMenuItem onClick={() => nav(`/user/${user.id}`)}>个人主页</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav(userPath(user.id))}>个人主页</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/profile')}>账号设置</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav('/messages')}>
+                      站内私信{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/favorites')}>我的收藏</DropdownMenuItem>
+                    {isMobile && (
+                      <DropdownMenuItem onClick={toggle}>
+                        {theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
+                      </DropdownMenuItem>
+                    )}
                     {user.role === 'admin' && (
                       <>
                         <DropdownMenuSeparator />
@@ -370,6 +478,7 @@ export default function MainLayout() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                </>
               ) : (
                 <button type="button" className="header-login-btn" onClick={() => nav(loginPath())}>
                   登录
@@ -377,6 +486,7 @@ export default function MainLayout() {
               )}
             </div>
           </div>
+          )}
         </div>
       </header>
 
@@ -387,14 +497,14 @@ export default function MainLayout() {
             activeBoard={boardId}
             onSelectBoard={setBoardId}
             boardsLoading={boardsLoading}
-            outlineMode={isPostDetail}
-            outlineHeadings={postOutline?.headings ?? []}
-            outlineScrollRoot={postOutline?.scrollRoot ?? null}
-            outlineTitle={postOutline?.title}
           />
         )}
 
-        <div className={`content-workspace${isCompose ? ' content-workspace--compose' : ''}`}>
+        <div className={cn(
+          'content-workspace',
+          isCompose && 'content-workspace--compose',
+          hideAside && !isCompose && 'content-workspace--aside-hidden',
+        )}>
         <main className={`main-content${isCompose ? ' main-content--compose' : ''}`}>
           {isMobile && !isCompose && isFeedHome && (
             <div
@@ -448,11 +558,22 @@ export default function MainLayout() {
             tagsLoading={tagsLoading}
             loading={asideLoading}
             onPostClick={openPost}
+            postDetail={isPostDetail ? {
+              author: postOutline?.author ?? null,
+              publishedAt: postOutline?.publishedAt,
+              viewCount: postOutline?.viewCount,
+              headings: postOutline?.headings ?? [],
+              scrollRoot: postOutline?.scrollRoot ?? null,
+              outlineTitle: postOutline?.title,
+            } : null}
           />
         </aside>
         )}
         </div>
       </div>
+
+      {/* 桌面壳层贴底；手机端由各页 InFlowSiteFooter 随内容滚动 */}
+      {!isCompose && !isMobile && <SiteFooter />}
       </div>
 
       {sidebarOpen && isMobile && !isCompose && (
@@ -470,10 +591,10 @@ export default function MainLayout() {
             className="sidebar-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label={isPostDetail ? '目录与导航' : '导航菜单'}
+            aria-label="导航菜单"
           >
             <div className="aside-drawer-head">
-              <span>{isPostDetail ? '目录与导航' : '导航'}</span>
+              <span>导航</span>
               <button
                 ref={sidebarCloseRef}
                 type="button"
@@ -490,11 +611,25 @@ export default function MainLayout() {
                 activeBoard={boardId}
                 onSelectBoard={setBoardId}
                 boardsLoading={boardsLoading}
-                outlineMode={isPostDetail}
-                outlineHeadings={postOutline?.headings ?? []}
-                outlineScrollRoot={postOutline?.scrollRoot ?? null}
-                outlineTitle={postOutline?.title}
               />
+              <div className="sidebar-drawer-extras">
+                <button
+                  type="button"
+                  className="sidebar-drawer-extra-btn"
+                  onClick={() => { closeSidebar(); openAside(); }}
+                >
+                  <PanelRight size={16} aria-hidden />
+                  {isPostDetail ? '作者与目录' : '社区动态'}
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-drawer-extra-btn"
+                  onClick={toggle}
+                >
+                  {theme === 'light' ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />}
+                  {theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
+                </button>
+              </div>
             </div>
           </aside>
         </div>
@@ -515,10 +650,10 @@ export default function MainLayout() {
             className="aside-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label="社区动态"
+            aria-label={isPostDetail ? '作者与目录' : '社区动态'}
           >
             <div className="aside-drawer-head">
-              <span>社区动态</span>
+              <span>{isPostDetail ? '作者与目录' : '社区动态'}</span>
               <button
                 ref={asideCloseRef}
                 type="button"
@@ -537,6 +672,14 @@ export default function MainLayout() {
                 tagsLoading={tagsLoading}
                 loading={asideLoading}
                 onPostClick={openPost}
+                postDetail={isPostDetail ? {
+                  author: postOutline?.author ?? null,
+                  publishedAt: postOutline?.publishedAt,
+                  viewCount: postOutline?.viewCount,
+                  headings: postOutline?.headings ?? [],
+                  scrollRoot: postOutline?.scrollRoot ?? null,
+                  outlineTitle: postOutline?.title,
+                } : null}
               />
             </div>
           </aside>
@@ -556,10 +699,13 @@ export type LayoutCtx = {
   stats: ForumStats | null;
   refreshBoards: () => void;
   isMobile: boolean;
-  /** 详情页上报文章目录，供左侧栏展示 */
+  /** 详情页上报作者与目录，供右侧栏展示 */
   setPostOutline: (outline: {
     headings: PostHeading[];
     scrollRoot: HTMLElement | null;
     title?: string;
+    author?: User | null;
+    publishedAt?: string;
+    viewCount?: number;
   } | null) => void;
 };

@@ -22,7 +22,7 @@ export function isGuestComment(c: Comment): boolean {
   return !c.user_id || c.user_id === 0;
 }
 
-/** 构建嵌套评论树（按 reply_to） */
+/** 构建嵌套评论树（优先 thread_parent_id，回退 reply_to） */
 export function buildCommentTree(comments: Comment[]): CommentNode[] {
   const map = new Map<number, CommentNode>();
   const roots: CommentNode[] = [];
@@ -33,8 +33,9 @@ export function buildCommentTree(comments: Comment[]): CommentNode[] {
 
   for (const c of comments) {
     const node = map.get(c.id)!;
-    if (c.reply_to && map.has(c.reply_to)) {
-      map.get(c.reply_to)!.children.push(node);
+    const parentId = c.thread_parent_id ?? c.reply_to;
+    if (parentId && map.has(parentId)) {
+      map.get(parentId)!.children.push(node);
     } else {
       roots.push(node);
     }

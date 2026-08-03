@@ -34,6 +34,11 @@ func NewMailService(settings *ForumSettingsService) *MailService {
 
 // Send 发送纯文本邮件
 func (m *MailService) Send(to, subject, body string) error {
+	return m.SendHTML(to, subject, body, "")
+}
+
+// SendHTML 发送邮件；htmlBody 非空时使用 multipart/alternative
+func (m *MailService) SendHTML(to, subject, textBody, htmlBody string) error {
 	cfg := m.settings.MailConfig()
 	if !m.settings.MailReady() {
 		return ErrMailNotConfigured
@@ -45,16 +50,43 @@ func (m *MailService) Send(to, subject, body string) error {
 		fromHeader = fmt.Sprintf("%s <%s>", encodeMailHeader(name), from)
 	}
 
-	msg := strings.Join([]string{
-		"From: " + fromHeader,
-		"To: " + to,
-		"Subject: " + encodeMailHeader(subject),
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"Content-Transfer-Encoding: 8bit",
-		"",
-		body,
-	}, "\r\n")
+	var msg string
+	if strings.TrimSpace(htmlBody) == "" {
+		msg = strings.Join([]string{
+			"From: " + fromHeader,
+			"To: " + to,
+			"Subject: " + encodeMailHeader(subject),
+			"MIME-Version: 1.0",
+			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Transfer-Encoding: 8bit",
+			"",
+			textBody,
+		}, "\r\n")
+	} else {
+		boundary := fmt.Sprintf("j13bound_%d", time.Now().UnixNano())
+		msg = strings.Join([]string{
+			"From: " + fromHeader,
+			"To: " + to,
+			"Subject: " + encodeMailHeader(subject),
+			"MIME-Version: 1.0",
+			"Content-Type: multipart/alternative; boundary=\"" + boundary + "\"",
+			"",
+			"--" + boundary,
+			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Transfer-Encoding: 8bit",
+			"",
+			textBody,
+			"",
+			"--" + boundary,
+			"Content-Type: text/html; charset=UTF-8",
+			"Content-Transfer-Encoding: 8bit",
+			"",
+			htmlBody,
+			"",
+			"--" + boundary + "--",
+			"",
+		}, "\r\n")
+	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)

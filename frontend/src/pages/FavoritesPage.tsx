@@ -11,6 +11,8 @@ import PostListItem from '../components/PostListItem';
 import { loginPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { openForumPost } from '../utils/openPost';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
+import { InFlowSiteFooter } from '../components/SiteFooter';
 
 interface FavItem {
   id: number;
@@ -23,6 +25,7 @@ export default function FavoritesPage() {
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { limits } = useForumLimits();
+  useNoIndexSEO('我的收藏');
   const [list, setList] = useState<FavItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +83,7 @@ export default function FavoritesPage() {
           </div>
         )}
       </div>
+      <InFlowSiteFooter />
     </div>
   );
 }

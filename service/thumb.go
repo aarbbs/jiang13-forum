@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/jpeg"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	// 注册解码器
 	_ "image/gif"
+	_ "image/jpeg"
 	_ "image/png"
 
 	_ "golang.org/x/image/webp"
@@ -23,13 +23,11 @@ import (
 const (
 	// PostThumbMaxSide 正文预览图最长边（像素）
 	PostThumbMaxSide = 1280
-	// PostThumbJPEGQuality 预览图 JPEG 质量
-	PostThumbJPEGQuality = 82
 )
 
 var thumbLocks sync.Map // 同一原图并发生成时串行化
 
-// ThumbURLFromUpload 将 /uploads/posts/xxx.jpg 转为 /media/thumb/posts/xxx.jpg
+// ThumbURLFromUpload 将 /uploads/posts/xxx.webp 转为 /media/thumb/posts/xxx.webp
 func ThumbURLFromUpload(uploadURL string) string {
 	u := strings.TrimSpace(uploadURL)
 	if u == "" {
@@ -50,7 +48,7 @@ func WarmPostImageThumb(uploadsRoot, relativePath string) {
 }
 
 // EnsureUploadThumb 确保缩略图存在，返回磁盘路径
-// relativePath 形如 posts/1_123.jpg（相对 uploads 根目录）
+// relativePath 形如 posts/1_123.webp（相对 uploads 根目录）
 func EnsureUploadThumb(uploadsRoot, relativePath string) (string, error) {
 	rel, err := sanitizeUploadRel(relativePath)
 	if err != nil {
@@ -66,7 +64,7 @@ func EnsureUploadThumb(uploadsRoot, relativePath string) (string, error) {
 		return "", errors.New("原图不存在")
 	}
 
-	thumbPath := filepath.Join(uploadsRoot, ".thumbs", filepath.FromSlash(rel)+".jpg")
+	thumbPath := filepath.Join(uploadsRoot, ".thumbs", filepath.FromSlash(rel)+".webp")
 	if fresh, err := thumbFresherThan(thumbPath, origPath); err == nil && fresh {
 		return thumbPath, nil
 	}
@@ -82,7 +80,7 @@ func EnsureUploadThumb(uploadsRoot, relativePath string) (string, error) {
 		return thumbPath, nil
 	}
 
-	if err := generateJPEGThumb(origPath, thumbPath, PostThumbMaxSide, PostThumbJPEGQuality); err != nil {
+	if err := generateWebPThumb(origPath, thumbPath, PostThumbMaxSide); err != nil {
 		return "", err
 	}
 	return thumbPath, nil
@@ -114,7 +112,7 @@ func sanitizeUploadRel(relativePath string) (string, error) {
 	return filepath.ToSlash(cleaned), nil
 }
 
-func generateJPEGThumb(srcPath, dstPath string, maxSide, quality int) error {
+func generateWebPThumb(srcPath, dstPath string, maxSide int) error {
 	f, err := os.Open(srcPath)
 	if err != nil {
 		return err
@@ -127,24 +125,17 @@ func generateJPEGThumb(srcPath, dstPath string, maxSide, quality int) error {
 	}
 
 	out := resizeToMax(img, maxSide)
+	data, err := encodeWebPBytes(out, ThumbWebPQuality, UploadWebPMethod)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
 		return err
 	}
 
 	tmp := fmt.Sprintf("%s.%d.tmp", dstPath, time.Now().UnixNano())
-	dst, err := os.Create(tmp)
-	if err != nil {
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
 		return err
-	}
-	encErr := jpeg.Encode(dst, out, &jpeg.Options{Quality: quality})
-	closeErr := dst.Close()
-	if encErr != nil {
-		_ = os.Remove(tmp)
-		return encErr
-	}
-	if closeErr != nil {
-		_ = os.Remove(tmp)
-		return closeErr
 	}
 	if err := os.Rename(tmp, dstPath); err != nil {
 		_ = os.Remove(tmp)

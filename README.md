@@ -279,7 +279,7 @@ make dev                   # Linux / macOS
 
 **何时需要完整构建：**
 
-- 修改 Go 代码、HTML 模板、embed 静态资源 → `go build` / `make build`
+- 修改 Go 代码、前端或 embed 静态资源 → `go build` / `make build`（或 `build.bat`）
 - 发布单二进制前 → `npm run build` + `make build`
 - 更新 README 界面截图 → 启动服务后执行 `node scripts/capture-screenshots.mjs`
 

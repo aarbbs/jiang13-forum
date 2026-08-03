@@ -20,8 +20,10 @@ export function isNeutralSidebarRoute(pathname: string): boolean {
   return NEUTRAL_SIDEBAR_PREFIXES.some(prefix => pathname.startsWith(prefix));
 }
 
-function resolveMenuKey(pathname: string, activeBoard: number): string | null {
+function resolveMenuKey(pathname: string, activeBoard: number, keyword = ''): string | null {
   if (isNeutralSidebarRoute(pathname)) return null;
+  // 搜索结果不属于「全部帖子」或某一板块，取消侧栏选中高亮
+  if (keyword.trim()) return null;
   if (pathname.startsWith('/favorites')) return 'favorites';
   if (pathname.startsWith('/projects')) return 'projects';
   if (pathname.startsWith('/admin')) return 'admin';
@@ -58,7 +60,8 @@ export default function Sidebar({
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const menuKey = resolveMenuKey(loc.pathname, activeBoard);
+  const keyword = params.get('keyword') || '';
+  const menuKey = resolveMenuKey(loc.pathname, activeBoard, keyword);
 
   const navItem = (key: string, label: React.ReactNode, icon?: React.ReactNode, onClick?: () => void) => (
     <button
@@ -138,7 +141,9 @@ export default function Sidebar({
                   />
                   <span className="flex-1 truncate">{b.name}</span>
                   {(b.post_count ?? 0) > 0 && (
-                    <span className="sidebar-nav-item__meta">{b.post_count}</span>
+                    <span className="sidebar-nav-item__meta" title={`${b.post_count} 篇帖子`}>
+                      {b.post_count} 帖
+                    </span>
                   )}
                 </button>
               );

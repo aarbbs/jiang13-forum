@@ -17,7 +17,7 @@ DATA = data
 JWT_SECRET =
 
 [oauth]
-; 可选：启动时若管理后台尚未配置，会用此处种子写入数据库一次
+; 可选：启动时若管理后台尚未配置，会用此处种子写入 oauth_clients 一次
 ; 日常请优先在管理后台「系统设置 → OIDC / SSO」修改（保存即生效）
 ; Gitea 认证源名称须与回调路径一致，例如名称 jiang13 对应：
 ; https://git.iioio.com/user/oauth2/jiang13/callback
@@ -34,3 +34,17 @@ BASE_URL =
 TOKEN =
 ; 首次种子时若 BASE_URL+TOKEN 齐全且此项为 true，则写入并启用同步
 SYNC_ENABLED = false
+
+[storage]
+; 可选种子：仅当管理后台尚未配置时写入一次；日常请在「系统设置 → 对象存储」修改（保存即生效）
+; TYPE = local | s3
+TYPE = local
+; 以下仅 TYPE = s3 时作为种子（MinIO / 七牛 / 又拍 / 阿里云 OSS 等）
+ENDPOINT =
+REGION = us-east-1
+BUCKET =
+ACCESS_KEY =
+SECRET_KEY =
+PUBLIC_BASE_URL =
+PREFIX =
+FORCE_PATH_STYLE = true

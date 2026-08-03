@@ -28,12 +28,24 @@ type fileSettings struct {
 	GiteaBaseURL      string
 	GiteaToken        string
 	GiteaSyncEnabled  bool
+	StorageType       string
+	S3Endpoint        string
+	S3Region          string
+	S3Bucket          string
+	S3AccessKey       string
+	S3SecretKey       string
+	S3PublicBaseURL   string
+	S3Prefix          string
+	S3ForcePathStyle  bool
 }
 
 func defaultFileSettings() fileSettings {
 	return fileSettings{
-		Port:    defaultPort,
-		DataRel: defaultDataRel,
+		Port:             defaultPort,
+		DataRel:          defaultDataRel,
+		StorageType:      StorageTypeLocal,
+		S3Region:         "us-east-1",
+		S3ForcePathStyle: true,
 	}
 }
 
@@ -82,6 +94,24 @@ func loadAppINI(path string) (fileSettings, error) {
 		out.GiteaSyncEnabled = sec.Key("SYNC_ENABLED").MustBool(false)
 	}
 
+	if sec, err := cfg.GetSection("storage"); err == nil {
+		if v := strings.TrimSpace(sec.Key("TYPE").String()); v != "" {
+			out.StorageType = v
+		}
+		out.S3Endpoint = strings.TrimSpace(sec.Key("ENDPOINT").String())
+		if v := strings.TrimSpace(sec.Key("REGION").String()); v != "" {
+			out.S3Region = v
+		}
+		out.S3Bucket = strings.TrimSpace(sec.Key("BUCKET").String())
+		out.S3AccessKey = strings.TrimSpace(sec.Key("ACCESS_KEY").String())
+		out.S3SecretKey = strings.TrimSpace(sec.Key("SECRET_KEY").String())
+		out.S3PublicBaseURL = strings.TrimSpace(sec.Key("PUBLIC_BASE_URL").String())
+		out.S3Prefix = strings.TrimSpace(sec.Key("PREFIX").String())
+		if sec.HasKey("FORCE_PATH_STYLE") {
+			out.S3ForcePathStyle = sec.Key("FORCE_PATH_STYLE").MustBool(true)
+		}
+	}
+
 	return out, nil
 }
 
@@ -89,6 +119,15 @@ func loadAppINI(path string) (fileSettings, error) {
 func writeAppINI(path string, s fileSettings) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
+	}
+
+	storageType := strings.TrimSpace(s.StorageType)
+	if storageType == "" {
+		storageType = StorageTypeLocal
+	}
+	region := strings.TrimSpace(s.S3Region)
+	if region == "" {
+		region = "us-east-1"
 	}
 
 	var b strings.Builder
@@ -130,6 +169,52 @@ func writeAppINI(path string, s fileSettings) error {
 	b.WriteString("; 多个回调用逗号分隔\n")
 	b.WriteString("REDIRECT_URIS = ")
 	b.WriteString(s.OAuthRedirectURIs)
+	b.WriteString("\n\n")
+	b.WriteString("[gitea]\n")
+	b.WriteString("; 可选：同步会员公开仓库到侧栏 /projects\n")
+	b.WriteString("BASE_URL = ")
+	b.WriteString(s.GiteaBaseURL)
+	b.WriteString("\n")
+	b.WriteString("TOKEN = ")
+	b.WriteString(s.GiteaToken)
+	b.WriteString("\n")
+	b.WriteString("SYNC_ENABLED = ")
+	b.WriteString(strconv.FormatBool(s.GiteaSyncEnabled))
+	b.WriteString("\n\n")
+	b.WriteString("[storage]\n")
+	b.WriteString("; 可选种子：日常请在管理后台「系统设置 → 对象存储」配置（保存即生效）\n")
+	b.WriteString("TYPE = ")
+	b.WriteString(storageType)
+	b.WriteString("\n")
+	b.WriteString("; 以下仅作首次种子（MinIO / 七牛 / 又拍 / 阿里云 OSS 等）\n")
+	b.WriteString("; ENDPOINT = https://s3.example.com\n")
+	b.WriteString("ENDPOINT = ")
+	b.WriteString(s.S3Endpoint)
+	b.WriteString("\n")
+	b.WriteString("REGION = ")
+	b.WriteString(region)
+	b.WriteString("\n")
+	b.WriteString("BUCKET = ")
+	b.WriteString(s.S3Bucket)
+	b.WriteString("\n")
+	b.WriteString("ACCESS_KEY = ")
+	b.WriteString(s.S3AccessKey)
+	b.WriteString("\n")
+	b.WriteString("SECRET_KEY = ")
+	b.WriteString(s.S3SecretKey)
+	b.WriteString("\n")
+	b.WriteString("; 公开访问根 URL（无尾斜杠）；上传后返回 PUBLIC_BASE_URL/avatars/xxx.jpg\n")
+	b.WriteString("; PUBLIC_BASE_URL = https://cdn.example.com/forum\n")
+	b.WriteString("PUBLIC_BASE_URL = ")
+	b.WriteString(s.S3PublicBaseURL)
+	b.WriteString("\n")
+	b.WriteString("; 对象 key 前缀（可选），如 forum/\n")
+	b.WriteString("PREFIX = ")
+	b.WriteString(s.S3Prefix)
+	b.WriteString("\n")
+	b.WriteString("; MinIO 等多为 true；AWS S3 官方多为 false\n")
+	b.WriteString("FORCE_PATH_STYLE = ")
+	b.WriteString(strconv.FormatBool(s.S3ForcePathStyle))
 	b.WriteString("\n")
 
 	return os.WriteFile(path, []byte(b.String()), 0644)

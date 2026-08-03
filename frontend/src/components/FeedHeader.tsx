@@ -8,9 +8,11 @@ interface Props {
   boards: Board[];
   stats: ForumStats | null;
   postTotal: number;
+  /** 首页「全部帖子」用 h2，板块/搜索页用 h1 */
+  titleAs?: 'h1' | 'h2';
 }
 
-export default function FeedHeader({ boardId, keyword, boards, stats, postTotal }: Props) {
+export default function FeedHeader({ boardId, keyword, boards, stats, postTotal, titleAs = 'h1' }: Props) {
   const nav = useNavigate();
   const board = boards.find(b => b.id === boardId);
 
@@ -19,12 +21,27 @@ export default function FeedHeader({ boardId, keyword, boards, stats, postTotal 
     : (boardId && board ? board.name : '全部帖子');
 
   const boardHint = boardId && board ? (board.description || '') : '';
+  const TitleTag = titleAs;
+  const inBoard = !keyword && boardId > 0 && !!board;
 
   return (
     <div className={`feed-head${keyword ? ' feed-head--solo' : ''}`}>
       <div className="feed-head__title">
-        <h2 title={boardHint || undefined}>{title}</h2>
-        {!keyword && stats && (
+        <TitleTag title={boardHint || undefined}>{title}</TitleTag>
+        {!keyword && inBoard && (
+          <div className="feed-head__stats">
+            <span className="feed-stat-chip">
+              <FileText aria-hidden />
+              本板块 <strong>{postTotal}</strong> 帖
+            </span>
+            {stats && (
+              <span className="feed-stat-chip feed-stat-chip--muted" title="全站统计">
+                全站 {stats.posts} 帖 · {stats.users} 会员
+              </span>
+            )}
+          </div>
+        )}
+        {!keyword && !inBoard && stats && (
           <div className="feed-head__stats">
             <span className="feed-stat-chip">
               <Users aria-hidden />

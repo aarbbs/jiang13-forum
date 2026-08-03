@@ -7,6 +7,7 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   post_tags_max: 256,
   post_content_max: 50000,
   comment_max: 5000,
+  comment_edit_window_hours: 24,
   search_keyword_min: 1,
   search_keyword_max: 50,
   page_size_default: 30,
@@ -15,6 +16,8 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   signature_max: 200,
   open_posts_in_new_tab: true,
   open_content_links_in_new_tab: true,
+  permalink_enabled: false,
+  permalink_ext: 'html',
 };
 
 let cached: ForumLimitsPublic | null = null;
@@ -69,4 +72,9 @@ export function invalidateForumLimitsCache() {
   cached = null;
   cacheEpoch += 1;
   listeners.forEach(fn => fn());
+}
+
+/** 同步读取已缓存的论坛限制（供路径生成等非 hook 场景） */
+export function getCachedForumLimits(): ForumLimitsPublic {
+  return cached ?? DEFAULT_LIMITS;
 }

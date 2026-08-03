@@ -2,8 +2,6 @@ package embed_static
 
 import (
 	"embed"
-	"html"
-	"html/template"
 	"io/fs"
 	"net/http"
 	"regexp"
@@ -15,12 +13,10 @@ import (
 //go:embed static/*
 var staticFS embed.FS
 
-//go:embed templates/*
-var templatesFS embed.FS
-
 var (
 	spaTitleRe      = regexp.MustCompile(`(?s)<title>.*?</title>`)
 	spaBrandTitleFn func() string
+	spaBrandJSONFn  func() []byte // 站点品牌 JSON，注入 window.__J13_BRANDING__
 )
 
 // SetSPADocumentTitle 注册站点标题提供者，ServeSPA 会注入到入口 HTML，避免刷新闪烁
@@ -28,67 +24,49 @@ func SetSPADocumentTitle(fn func() string) {
 	spaBrandTitleFn = fn
 }
 
-// SetupEmbed 配置内嵌资源：SPA 前端 + 后台 HTML 模板
-func SetupEmbed(r *gin.Engine) error {
-	tmpl, err := LoadTemplates()
-	if err != nil {
-		return err
-	}
-	r.SetHTMLTemplate(tmpl)
+// SetSPABrandingJSON 注册品牌 JSON 提供者（须为合法 JSON 对象），供前端首屏同步读入
+func SetSPABrandingJSON(fn func() []byte) {
+	spaBrandJSONFn = fn
+}
 
-	// React SPA 构建产物（Vite）
+// SetupEmbed 配置内嵌资源：React SPA 静态资源
+func SetupEmbed(r *gin.Engine) error {
 	if sub, err := fs.Sub(staticFS, "static/spa/assets"); err == nil {
 		r.GET("/assets/*filepath", gin.WrapH(http.StripPrefix("/assets", http.FileServer(http.FS(sub)))))
 	}
-
-	// 后台管理遗留静态资源
-	if sub, err := fs.Sub(staticFS, "static/legacy"); err == nil {
-		r.GET("/legacy/*filepath", gin.WrapH(http.StripPrefix("/legacy", http.FileServer(http.FS(sub)))))
-	}
-
 	return nil
 }
 
-// ServeSPA 返回 React SPA 入口
+// ServeSPA 返回 React SPA 入口（仅注入站点默认标题）
 func ServeSPA(c *gin.Context) {
-	data, err := staticFS.ReadFile("static/spa/index.html")
-	if err != nil {
-		c.String(http.StatusNotFound, "前端未构建，请运行: cd frontend && npm run build")
-		return
-	}
+	ServeSPAWithMeta(c, nil)
+}
+
+// ServeSPANoIndex 返回带 noindex 的 SPA（登录/后台等私密页）
+func ServeSPANoIndex(c *gin.Context) {
+	title := ""
 	if spaBrandTitleFn != nil {
-		if title := strings.TrimSpace(spaBrandTitleFn()); title != "" {
-			escaped := html.EscapeString(title)
-			data = spaTitleRe.ReplaceAll(data, []byte("<title>"+escaped+"</title>"))
-		}
+		title = strings.TrimSpace(spaBrandTitleFn())
 	}
-	c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	ServeSPAWithMeta(c, &SPAPageMeta{
+		Title:  title,
+		Robots: "noindex,nofollow",
+	})
 }
 
 // IsSPARoute 判断是否应由 SPA 处理
 func IsSPARoute(path string) bool {
+	if path == "/robots.txt" || path == "/sitemap.xml" {
+		return false
+	}
 	if strings.HasPrefix(path, "/api") ||
 		strings.HasPrefix(path, "/admin") ||
 		strings.HasPrefix(path, "/uploads") ||
 		strings.HasPrefix(path, "/media") ||
-		strings.HasPrefix(path, "/legacy") ||
 		strings.HasPrefix(path, "/assets") ||
 		strings.HasPrefix(path, "/oauth") ||
 		strings.HasPrefix(path, "/.well-known") {
 		return false
 	}
 	return true
-}
-
-func LoadTemplates() (*template.Template, error) {
-	sub, err := fs.Sub(templatesFS, "templates")
-	if err != nil {
-		return nil, err
-	}
-	tmpl := template.New("").Funcs(template.FuncMap{
-		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
-		"add":      func(a, b int) int { return a + b },
-		"sub":      func(a, b int) int { return a - b },
-	})
-	return tmpl.ParseFS(sub, "*.html", "admin/*.html")
 }

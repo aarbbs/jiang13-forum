@@ -1,7 +1,10 @@
 package router
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -34,17 +37,36 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		cfg.OAuthClientSecret,
 		strings.Join(cfg.OAuthRedirectURIs, ","),
 	)
-	settingsSvc.MigrateLegacyOIDCClient()
 	settingsSvc.SeedGiteaFromINI(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaSyncEnabled)
-	// SPA 入口 HTML 注入后台配置的标签标题，避免刷新时先闪默认文案
+	settingsSvc.SeedStorageFromINI(
+		cfg.StorageType,
+		cfg.S3.Endpoint,
+		cfg.S3.Region,
+		cfg.S3.Bucket,
+		cfg.S3.AccessKey,
+		cfg.S3.SecretKey,
+		cfg.S3.PublicBaseURL,
+		cfg.S3.Prefix,
+		cfg.S3.ForcePathStyle,
+	)
+	// SPA 入口 HTML 注入标题与品牌 JSON，避免刷新时先闪默认文案
 	embed_static.SetSPADocumentTitle(func() string {
 		return settingsSvc.SiteBranding().DocumentTitle()
+	})
+	embed_static.SetSPABrandingJSON(func() []byte {
+		b, err := json.Marshal(settingsSvc.SiteBranding())
+		if err != nil {
+			return nil
+		}
+		return b
 	})
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
 	userSvc := service.NewUserService(filter, settingsSvc)
 	boardSvc := service.NewBoardService()
 	postSvc := service.NewPostService(filter, settingsSvc)
 	commentSvc := service.NewCommentService(filter, settingsSvc)
+	messageSvc := service.NewMessageService(filter, settingsSvc)
+	reportSvc := service.NewReportService(filter, settingsSvc, messageSvc, postSvc)
 	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
 	limiter := service.NewRateLimiter(settingsSvc)
 	captchaSvc := service.NewCaptchaService()
@@ -57,9 +79,25 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	giteaSvc := service.NewGiteaService(settingsSvc)
 	giteaSvc.StartBackgroundSync()
 
+	uploadStore := service.NewUploadStore(cfg.DataDir, settingsSvc)
+	if err := uploadStore.ReloadFromSettings(settingsSvc); err != nil {
+		// 配置不完整时保持本地磁盘，避免进程无法启动；管理员可在后台修正后热切换
+		fmt.Fprintf(os.Stderr, "警告: 对象存储初始化失败，暂用本地磁盘: %v\n", err)
+		_ = uploadStore.Apply(service.StorageConfig{Type: "local"})
+	}
+	// 后台同步存量文件到媒体索引，避免列表依赖实时扫盘
+	go func() {
+		if n, err := uploadStore.SyncMediaIndex(); err != nil {
+			fmt.Fprintf(os.Stderr, "警告: 媒体索引同步失败: %v\n", err)
+		} else if n > 0 {
+			fmt.Fprintf(os.Stderr, "媒体索引已同步 %d 条\n", n)
+		}
+	}()
+
 	h := &handler.Handlers{
-		Cfg: cfg, Auth: authSvc, User: userSvc, Board: boardSvc,
-		Post: postSvc, Comment: commentSvc, Backup: backupSvc,
+		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
+		Post: postSvc, Comment: commentSvc, Message: messageSvc, Report: reportSvc,
+		Backup: backupSvc,
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
@@ -69,6 +107,10 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	// 缩略图使用独立前缀，避免与 Static("/uploads/*filepath") 路由冲突
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
 	r.Static("/uploads", filepath.Join(cfg.DataDir, "uploads"))
+
+	// SEO：抓取规则与站点地图
+	r.GET("/robots.txt", h.RobotsTxt)
+	r.GET("/sitemap.xml", h.SitemapXML)
 
 	// OIDC Provider（Gitea 等外部站点 SSO）
 	r.GET("/.well-known/openid-configuration", h.OIDCDiscovery)
@@ -122,6 +164,13 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.GET("/posts/:id/revisions/:revId", h.APIPostRevisionDetail)
 		api.POST("/posts/:id/like", h.APIToggleLike)
 		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
+		api.POST("/posts/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreatePostReport)
+		api.GET("/messages/unread-count", h.APIMessageUnreadCount)
+		api.GET("/messages/conversations", h.APIMessageConversations)
+		api.GET("/messages/conversations/:peerId", h.APIConversationMessages)
+		api.POST("/messages/conversations/:peerId/read", h.APIMarkConversationRead)
+		api.POST("/messages", middleware.RateLimitMiddleware(limiter, "message"), h.APISendMessage)
+		api.POST("/messages/read-all", h.APIMarkAllMessagesRead)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 		api.PUT("/comments/:id", h.APIUpdateComment)
 	}
@@ -137,6 +186,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.PUT("/settings/oidc", h.APIAdminUpdateOIDCSettings)
 		adminAPI.PUT("/settings/gitea", h.APIAdminUpdateGiteaSettings)
 		adminAPI.POST("/settings/gitea/sync", h.APIAdminSyncGitea)
+		adminAPI.PUT("/settings/storage", h.APIAdminUpdateStorageSettings)
 		adminAPI.PUT("/settings/branding", h.APIAdminUpdateBranding)
 		adminAPI.POST("/settings/branding/upload", h.APIAdminUploadBrandingAsset)
 		adminAPI.POST("/settings/branding/clear", h.APIAdminClearBrandingAsset)
@@ -150,52 +200,51 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
 		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)
 		adminAPI.GET("/posts", h.APIAdminPosts)
+		adminAPI.GET("/posts/trash", h.APIAdminTrashPosts)
 		adminAPI.POST("/posts/:id/pin", h.APIAdminPinPost)
+		adminAPI.POST("/posts/:id/feature", h.APIAdminFeaturePost)
 		adminAPI.POST("/posts/:id/lock", h.APIAdminLockPost)
+		adminAPI.POST("/posts/:id/approve", h.APIAdminApprovePost)
+		adminAPI.POST("/posts/:id/reject", h.APIAdminRejectPost)
+		adminAPI.POST("/posts/:id/restore", h.APIAdminRestorePost)
+		adminAPI.DELETE("/posts/:id/purge", h.APIAdminPurgePost)
 		adminAPI.DELETE("/posts/:id", h.APIAdminDeletePost)
+		adminAPI.GET("/reports", h.APIAdminReports)
+		adminAPI.POST("/reports/:id/handle", h.APIAdminHandleReport)
 		adminAPI.GET("/comments", h.APIAdminComments)
+		adminAPI.GET("/comments/:id/revisions", h.APIAdminCommentRevisions)
+		adminAPI.POST("/comments/:id/approve", h.APIAdminApproveComment)
+		adminAPI.POST("/comments/:id/reject", h.APIAdminRejectComment)
 		adminAPI.DELETE("/comments/:id", h.APIAdminDeleteComment)
 		adminAPI.GET("/users", h.APIAdminUsers)
 		adminAPI.POST("/users/:id/ban", h.APIAdminBanUser)
+		adminAPI.GET("/media", h.APIAdminMedia)
+		adminAPI.POST("/media/delete", h.APIAdminDeleteMedia)
 		adminAPI.POST("/backup", h.APIAdminBackup)
 		adminAPI.GET("/backup/download/:name", h.APIAdminDownloadBackup)
 	}
 
-	// 后台管理：API 保留兼容，页面统一由 React SPA 渲染
+	// 后台管理页面由 React SPA 渲染（JSON API 见上方 /api/admin）
 	admin := r.Group("/admin")
 	{
 		admin.GET("/login", func(c *gin.Context) {
 			c.Redirect(http.StatusFound, "/login")
 		})
-		admin.POST("/api/login", middleware.RateLimitMiddleware(limiter, "admin_login"), h.AdminAPILogin)
 
 		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 		{
-			adminAuth.POST("/api/logout", h.AdminAPILogout)
-			// 遗留 form API（旧模板脚本仍可能调用）
-			adminAuth.POST("/api/boards", h.AdminAPICreateBoard)
-			adminAuth.PUT("/api/boards/:id", h.AdminAPIUpdateBoard)
-			adminAuth.DELETE("/api/boards/:id", h.AdminAPIDeleteBoard)
-			adminAuth.POST("/api/posts/:id/pin", h.AdminAPIPinPost)
-			adminAuth.DELETE("/api/posts/:id", h.AdminAPIDeletePost)
-			adminAuth.DELETE("/api/comments/:id", h.AdminAPIDeleteComment)
-			adminAuth.POST("/api/users/:id/ban", h.AdminAPIBanUser)
-			adminAuth.POST("/api/backup", h.AdminAPIBackup)
-			adminAuth.GET("/api/backup/download/:name", h.AdminDownloadBackup)
-
-			// React SPA 管理页面
 			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-			for _, page := range []string{"dashboard", "boards", "posts", "comments", "users", "settings"} {
-				adminAuth.GET("/"+page, embed_static.ServeSPA)
+			for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "media", "settings"} {
+				adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
 			}
 		}
 	}
 
-	// React SPA 入口
-	r.GET("/", embed_static.ServeSPA)
+	// React SPA 入口（公开页注入 SEO meta / JSON-LD / 预渲染摘要）
+	r.GET("/", h.ServePublicSPA)
 	r.NoRoute(func(c *gin.Context) {
 		if embed_static.IsSPARoute(c.Request.URL.Path) {
-			embed_static.ServeSPA(c)
+			h.ServePublicSPA(c)
 			return
 		}
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})

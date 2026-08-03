@@ -55,9 +55,9 @@
 
 ---
 
-## Issue #2 · React 前台支持帖子置顶
+## Issue #2 · 示例：管理能力扩展（模板文案）
 
-**标题：** `[Feature] React 前台增加帖子置顶操作`
+**标题：** `[Feature] 管理后台增加某某能力`
 
 **标签：** `enhancement` `ui/ux` `good first issue`
 
@@ -65,35 +65,28 @@
 
 ### 要解决的问题
 
-管理员无法在 React SPA 前台对帖子执行置顶/取消置顶，必须跳转到旧版 HTML 管理后台（`/admin/posts`），体验割裂。
+描述管理员在 React SPA 管理后台 / 前台中缺少的操作入口或能力。
 
 ### 现状
 
-
-| 能力                                  | 状态   |
-| ----------------------------------- | ---- |
-| 数据模型 `pinned` 字段                    | ✅ 已有 |
-| 列表按置顶排序                             | ✅ 已有 |
-| API `POST /admin/api/posts/:id/pin` | ✅ 已有 |
-| 旧版后台置顶按钮                            | ✅ 已有 |
-| React 列表/详情显示置顶徽章                   | ✅ 已有 |
-| **React 前台置顶操作入口**                  | ❌ 缺失 |
-
+| 能力 | 状态 |
+| --- | --- |
+| 数据模型与业务逻辑 | ✅ / ❌ |
+| JSON API（如 `POST /api/admin/...`） | ✅ / ❌ |
+| React 管理后台入口 | ✅ / ❌ |
+| React 前台操作入口（如适用） | ✅ / ❌ |
 
 ### 期望方案
 
-在 React SPA 中为管理员提供置顶操作，例如：
-
-1. **帖子详情页**：标题旁增加「置顶 / 取消置顶」按钮（仅 `role === 'admin'` 可见）
-2. **帖列表项**：管理员 hover 时显示置顶快捷操作（可选）
-3. 调用已有 API，成功后刷新列表/详情，无需跳转旧后台
+1. 在对应页面为管理员增加操作入口（仅 `role === 'admin'` 可见）
+2. 调用已有或新增的 `/api/admin/*` JSON API
+3. 成功后刷新列表/详情，无需离开当前页面
 
 ### 相关代码
 
-- 后端：`service/post.go` → `SetPinned`，`handler/admin.go` → `AdminAPIPinPost`
-- 前端：`frontend/src/pages/PostDetailPage.tsx`、`frontend/src/components/PostListItem.tsx`
-- 参考旧版：`embed_static/templates/admin/posts.html` 中的 `togglePin`
+- 后端：`service/`、`handler/api.go`、`router/router.go`
+- 前端：`frontend/src/pages/admin/`、`frontend/src/api/client.ts`
 
 ### 备注
 
-适合作为 `good first issue`，改动范围小、API 已就绪。
+适合作为 `good first issue` 时，优先选择 API 已就绪、只需补 UI 的小改动。

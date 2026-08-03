@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, FileText, MessageSquare, Users, Settings, ArrowLeft, Moon, Sun, Menu, X,
+  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../hooks/useAuth';
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import BackToTop from '../components/BackToTop';
 import { loginPath } from '../utils/authRedirect';
 import { useSiteBranding } from '../hooks/useSiteBranding';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
 import SiteBrandMark from '../components/SiteBrandMark';
 
 const NAV = [
@@ -19,7 +20,9 @@ const NAV = [
   { to: '/admin/boards', label: '板块管理', icon: FolderKanban },
   { to: '/admin/posts', label: '帖子管理', icon: FileText },
   { to: '/admin/comments', label: '评论管理', icon: MessageSquare },
+  { to: '/admin/reports', label: '举报管理', icon: Flag },
   { to: '/admin/users', label: '用户管理', icon: Users },
+  { to: '/admin/media', label: '媒体库', icon: Images },
   { to: '/admin/settings', label: '系统设置', icon: Settings },
 ];
 
@@ -28,6 +31,7 @@ export default function AdminLayout() {
   const { user, loading } = useAuth();
   const { theme, toggle } = useTheme();
   const { branding } = useSiteBranding();
+  useNoIndexSEO('管理后台');
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
   const nav = useNavigate();

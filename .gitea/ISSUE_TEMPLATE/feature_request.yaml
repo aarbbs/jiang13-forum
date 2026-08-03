@@ -13,7 +13,7 @@ body:
     attributes:
       label: 要解决什么问题？
       description: 从用户场景出发描述痛点
-      placeholder: 管理员在 React 前台无法置顶帖子，必须切到旧版后台…
+      placeholder: 管理员在帖子详情页缺少某某操作入口…
     validations:
       required: true
   - type: textarea

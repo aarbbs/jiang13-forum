@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notify';
 import type { User, Comment } from '../api/types';
 import EmojiPicker from './EmojiPicker';
-import { loadGuestInfo, saveGuestInfo } from '../utils/guest';
 import { commentNick } from '../utils/comment';
+import { loginPath, registerPath } from '../utils/authRedirect';
 
 export interface CommentSubmitData {
   content: string;
-  guestNick?: string;
-  guestEmail?: string;
-  guestUrl?: string;
   isPrivate: boolean;
 }
 
@@ -24,13 +24,9 @@ interface Props {
   onCancelReply?: () => void;
 }
 
-/** Waline 风格评论输入框：登录用户 / 游客双模式 */
+/** 评论输入框：需登录后发表 */
 export default function CommentBox({ user, replyTo, inline, submitting, submitCount = 0, onSubmit, onCancelReply }: Props) {
-  const saved = loadGuestInfo();
   const [content, setContent] = useState('');
-  const [guestNick, setGuestNick] = useState(saved.nick);
-  const [guestEmail, setGuestEmail] = useState(saved.email);
-  const [guestUrl, setGuestUrl] = useState(saved.url);
   const [isPrivate, setIsPrivate] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,7 +35,6 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
 
   useEffect(() => {
     if (inline && replyTo) {
-      // preventScroll 避免 focus 与页面 scrollIntoView 争抢滚动位置
       textareaRef.current?.focus({ preventScroll: true });
     }
   }, [replyTo?.id, inline]);
@@ -90,21 +85,14 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
   };
 
   const handleSubmit = () => {
+    if (!user) return;
     const text = content.trim();
-    if (!text) return;
-    if (!user && !guestNick.trim()) return;
-
-    if (!user) {
-      saveGuestInfo({ nick: guestNick.trim(), email: guestEmail.trim(), url: guestUrl.trim() });
+    if (!text) {
+      notify.warning('请先写点内容');
+      textareaRef.current?.focus();
+      return;
     }
-
-    onSubmit({
-      content: text,
-      guestNick: user ? undefined : guestNick.trim(),
-      guestEmail: user ? undefined : guestEmail.trim(),
-      guestUrl: user ? undefined : guestUrl.trim(),
-      isPrivate,
-    });
+    onSubmit({ content: text, isPrivate });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -114,20 +102,33 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
     }
   };
 
-  const avatarInitial = user?.nickname?.[0] || guestNick?.[0] || '?';
+  if (!user) {
+    return (
+      <div className={`comment-login-gate${inline ? ' comment-login-gate--inline' : ''}`}>
+        <p className="comment-login-gate__text">登录后即可参与讨论与回复</p>
+        <div className="comment-login-gate__actions">
+          <Button asChild size="sm">
+            <Link to={loginPath()}>登录</Link>
+          </Button>
+          <Link to={registerPath()} className="comment-login-gate__register">
+            注册账号
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const avatarInitial = user.nickname?.[0] || '?';
+  const canSend = !!content.trim() && !submitting;
 
   return (
     <div className="comment-box" ref={boxRef}>
       <div className="comment-box-avatar">
-        {user?.avatar ? (
+        {user.avatar ? (
           <img src={user.avatar} alt="" className="comment-box-avatar-img" loading="lazy" decoding="async" />
         ) : (
-          <div className={`comment-box-avatar-placeholder ${user ? '' : 'guest'}`}>
-            {user ? avatarInitial : (
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-              </svg>
-            )}
+          <div className="comment-box-avatar-placeholder">
+            {avatarInitial}
           </div>
         )}
       </div>
@@ -155,61 +156,14 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
           <button
             type="button"
             className="comment-box-send"
-            disabled={submitting || !content.trim() || (!user && !guestNick.trim())}
+            disabled={!canSend}
             onClick={handleSubmit}
             aria-label="发送评论"
-            title="发送"
+            title="发送（Ctrl/⌘ + Enter）"
           >
             <Send size={16} />
           </button>
         </div>
-
-        {!user && (
-          <div className="comment-box-guest-fields">
-            <label className="comment-box-guest-field">
-              <span className="comment-box-guest-label">
-                昵称
-                <em className="comment-box-guest-required">必填</em>
-              </span>
-              <input
-                className="comment-box-guest-input"
-                placeholder="怎么称呼你"
-                autoComplete="nickname"
-                value={guestNick}
-                onChange={(e) => setGuestNick(e.target.value)}
-              />
-            </label>
-            <label className="comment-box-guest-field">
-              <span className="comment-box-guest-label">
-                邮箱
-                <em className="comment-box-guest-optional">选填</em>
-              </span>
-              <input
-                className="comment-box-guest-input"
-                placeholder="name@example.com"
-                type="email"
-                autoComplete="email"
-                value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-              />
-            </label>
-            <label className="comment-box-guest-field">
-              <span className="comment-box-guest-label">
-                网址
-                <em className="comment-box-guest-optional">选填</em>
-              </span>
-              <input
-                className="comment-box-guest-input"
-                placeholder="https://example.com"
-                type="url"
-                autoComplete="url"
-                value={guestUrl}
-                onChange={(e) => setGuestUrl(e.target.value)}
-              />
-            </label>
-            <p className="comment-box-guest-hint">邮箱不会公开展示，仅用于站内记录。</p>
-          </div>
-        )}
 
         <div className="comment-box-toolbar">
           <button
@@ -223,10 +177,11 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
           >
             OwO
           </button>
-          <label className="comment-box-private">
+          <label className="comment-box-private" title="仅作者与管理员可见">
             <Switch checked={isPrivate} onCheckedChange={setIsPrivate} />
             <span>隐私评论</span>
           </label>
+          <span className="comment-box-private-hint">仅作者与管理员可见</span>
         </div>
 
         {showEmoji && <EmojiPicker id="comment-emoji-picker" onSelect={insertEmoji} />}

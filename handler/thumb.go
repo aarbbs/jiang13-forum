@@ -11,7 +11,7 @@ import (
 )
 
 // ServeImageThumb 帖子图片缩略图（按需生成并缓存）
-// GET /media/thumb/posts/xxx.jpg → 最长边 1280 的 JPEG 预览
+// GET /media/thumb/posts/xxx.webp → 最长边 1280 的 WebP 预览
 func (h *Handlers) ServeImageThumb(c *gin.Context) {
 	rel := strings.TrimPrefix(c.Param("filepath"), "/")
 	uploadsRoot := filepath.Join(h.Cfg.DataDir, "uploads")

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   FileText,
   Hash,
   Heart,
+  Mail,
   MessageCircle,
   PenLine,
   Settings,
@@ -20,20 +21,29 @@ import { useAuth } from '../hooks/useAuth';
 import { useForumLimits } from '../hooks/useForumLimits';
 import PostListItem from '../components/PostListItem';
 import FeedPagination from '../components/FeedPagination';
+import ComposeMessageDialog from '../components/ComposeMessageDialog';
 import { openForumPost } from '../utils/openPost';
 import { formatDateTime } from '../utils/content';
+import { usePageSEO } from '../hooks/usePageSEO';
+import { loginPath } from '../utils/authRedirect';
+import { canonicalRedirectPath, parsePermalinkID, userPath } from '../utils/permalink';
+import NotFoundPage from './NotFoundPage';
+import { InFlowSiteFooter } from '../components/SiteFooter';
 
 export default function UserProfilePage() {
   const { id: idParam } = useParams();
-  const userId = Number(idParam);
+  const userId = parsePermalinkID(idParam);
   const nav = useNavigate();
+  const location = useLocation();
   const { user: me } = useAuth();
   const { limits } = useForumLimits();
   const pageSize = limits.page_size_default > 0 ? limits.page_size_default : 20;
 
   const [profile, setProfile] = useState<UserPublic | null>(null);
   const [stats, setStats] = useState<UserActivityStats | null>(null);
+  const [msgOpen, setMsgOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [postPage, setPostPage] = useState(1);
@@ -44,23 +54,25 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     if (!userId || Number.isNaN(userId)) {
-      notify.error('无效用户');
-      nav('/');
+      setNotFound(true);
+      setLoading(false);
       return;
     }
     setLoading(true);
+    setNotFound(false);
     setPostPage(1);
     api.userProfile(userId)
       .then(d => {
         setProfile(d.user);
         setStats(d.stats);
       })
-      .catch(e => {
-        notify.error(e instanceof Error ? e.message : '用户不存在');
-        nav('/');
+      .catch(() => {
+        setProfile(null);
+        setStats(null);
+        setNotFound(true);
       })
       .finally(() => setLoading(false));
-  }, [userId, nav]);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId || Number.isNaN(userId) || !profile) return;
@@ -81,10 +93,40 @@ export default function UserProfilePage() {
     return () => { cancelled = true; };
   }, [userId, profile, postPage, pageSize]);
 
+  useEffect(() => {
+    if (!userId || Number.isNaN(userId)) return;
+    const target = canonicalRedirectPath('user', userId, location.pathname, limits);
+    if (target) nav(target + location.search + location.hash, { replace: true });
+  }, [userId, location.pathname, location.search, location.hash, limits, nav]);
+
+  usePageSEO(profile ? {
+    title: `${profile.nickname} 的主页`,
+    description: profile.signature?.trim() || `${profile.nickname} 的主页`,
+    canonicalPath: userPath(profile.id, limits),
+    ogType: 'profile',
+    ogImage: profile.avatar || '',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'ProfilePage',
+      mainEntity: {
+        '@type': 'Person',
+        name: profile.nickname,
+        description: profile.signature?.trim() || undefined,
+      },
+    },
+  } : null);
+
   if (loading) {
     return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
   }
-  if (!profile) return null;
+  if (notFound || !profile) {
+    return (
+      <NotFoundPage
+        title="用户不存在"
+        description="该用户不存在，或账号不可访问。"
+      />
+    );
+  }
 
   const joinedAt = profile.created_at ? formatDateTime(profile.created_at) : '';
   const signature = profile.signature?.trim() || '';
@@ -132,14 +174,29 @@ export default function UserProfilePage() {
                 )}
               </dl>
             </div>
-            {isSelf && (
-              <div className="profile-avatar-actions">
+            <div className="profile-avatar-actions">
+              {isSelf ? (
                 <Button size="sm" variant="outline" onClick={() => nav('/profile?tab=settings')}>
                   <Settings size={14} />
                   编辑资料
                 </Button>
-              </div>
-            )}
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (!me) {
+                      nav(loginPath(userPath(profile.id)));
+                      return;
+                    }
+                    setMsgOpen(true);
+                  }}
+                >
+                  <Mail size={14} />
+                  发私信
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="profile-stat-grid" aria-label="活动统计">
@@ -206,6 +263,17 @@ export default function UserProfilePage() {
           )}
         </div>
       </div>
+      <InFlowSiteFooter />
+
+      {!isSelf && profile && me && (
+        <ComposeMessageDialog
+          open={msgOpen}
+          onOpenChange={setMsgOpen}
+          toUserId={profile.id}
+          toNickname={profile.nickname}
+          onSent={() => nav(`/messages?peer=${profile.id}`)}
+        />
+      )}
     </div>
   );
 }

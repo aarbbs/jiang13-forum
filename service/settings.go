@@ -1,6 +1,9 @@
 package service
 
 import (
+	"encoding/json"
+	"errors"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,7 +13,8 @@ import (
 
 // 论坛设置键名
 const (
-	SettingPostEditWindowHours = "post_edit_window_hours"
+	SettingPostEditWindowHours    = "post_edit_window_hours"
+	SettingCommentEditWindowHours = "comment_edit_window_hours"
 
 	SettingRateLimitPost     = "rate_limit_post"
 	SettingRateLimitComment  = "rate_limit_comment"
@@ -36,6 +40,8 @@ const (
 	SettingOpenPostsInNewTab        = "open_posts_in_new_tab"
 	SettingOpenContentLinksInNewTab = "open_content_links_in_new_tab"
 
+	// 伪静态键名见 permalink.go：SettingPermalinkEnabled / SettingPermalinkExt
+
 	SettingSMTPEnabled    = "smtp_enabled"
 	SettingSMTPHost       = "smtp_host"
 	SettingSMTPPort       = "smtp_port"
@@ -45,27 +51,39 @@ const (
 	SettingSMTPFromName   = "smtp_from_name"
 	SettingSMTPEncryption = "smtp_encryption"
 
-	SettingOIDCEnabled       = "oidc_enabled"
-	SettingOIDCRootURL       = "oidc_root_url"
-	SettingOIDCGroupClaim    = "oidc_group_claim"
-	SettingOIDCAdminGroup    = "oidc_admin_group"
-	SettingOIDCUserGroup     = "oidc_user_group"
-	// 遗留单客户端字段（仅用于迁移到 oauth_clients）
-	SettingOAuthClientID     = "oauth_client_id"
-	SettingOAuthClientSecret = "oauth_client_secret"
-	SettingOAuthRedirectURIs = "oauth_redirect_uris"
+	SettingOIDCEnabled    = "oidc_enabled"
+	SettingOIDCRootURL    = "oidc_root_url"
+	SettingOIDCGroupClaim = "oidc_group_claim"
+	SettingOIDCAdminGroup = "oidc_admin_group"
+	SettingOIDCUserGroup  = "oidc_user_group"
 
 	SettingGiteaSyncEnabled     = "gitea_sync_enabled"
 	SettingGiteaBaseURL         = "gitea_base_url"
 	SettingGiteaToken           = "gitea_token"
 	SettingGiteaSyncIntervalMin = "gitea_sync_interval_min"
 
-	SettingSiteName     = "site_name"
-	SettingSiteNameEN   = "site_name_en"
-	SettingSiteSlogan   = "site_slogan"
-	SettingSiteLogoMark = "site_logo_mark"
-	SettingSiteLogo     = "site_logo"
-	SettingSiteFavicon  = "site_favicon"
+	SettingStorageType           = "storage_type"
+	SettingStorageEndpoint       = "storage_endpoint"
+	SettingStorageRegion         = "storage_region"
+	SettingStorageBucket         = "storage_bucket"
+	SettingStorageAccessKey      = "storage_access_key"
+	SettingStorageSecretKey      = "storage_secret_key"
+	SettingStoragePublicBaseURL  = "storage_public_base_url"
+	SettingStoragePrefix         = "storage_prefix"
+	SettingStorageForcePathStyle = "storage_force_path_style"
+	SettingStorageImageDelivery  = "storage_image_delivery"
+
+	SettingSiteName        = "site_name"
+	SettingSiteSlogan      = "site_slogan"
+	SettingSiteDescription = "site_description"
+	SettingSiteKeywords    = "site_keywords"
+	SettingSiteLogoMark    = "site_logo_mark"
+	SettingSiteLogo        = "site_logo"
+	SettingSiteFavicon     = "site_favicon"
+	SettingSiteOGImage     = "site_og_image"
+	SettingSiteICPBeian    = "site_icp_beian"
+	SettingSiteICPBeianURL = "site_icp_beian_url"
+	SettingSiteFriendLinks = "site_friend_links"
 
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
@@ -73,7 +91,8 @@ const (
 
 // ForumLimits 论坛可配置限制（API 传输结构）
 type ForumLimits struct {
-	PostEditWindowHours int `json:"post_edit_window_hours"`
+	PostEditWindowHours    int `json:"post_edit_window_hours"`
+	CommentEditWindowHours int `json:"comment_edit_window_hours"`
 
 	RateLimitPost      int `json:"rate_limit_post"`
 	RateLimitComment   int `json:"rate_limit_comment"`
@@ -98,6 +117,9 @@ type ForumLimits struct {
 
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
+
+	PermalinkEnabled bool   `json:"permalink_enabled"`
+	PermalinkExt     string `json:"permalink_ext"`
 }
 
 // ForumLimitsPublic 前台可见的限制（不含限流等内部配置）
@@ -113,8 +135,13 @@ type ForumLimitsPublic struct {
 	AvatarMaxMB      int `json:"avatar_max_mb"`
 	SignatureMax     int `json:"signature_max"`
 
+	CommentEditWindowHours int `json:"comment_edit_window_hours"`
+
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
+
+	PermalinkEnabled bool   `json:"permalink_enabled"`
+	PermalinkExt     string `json:"permalink_ext"`
 }
 
 type settingDef struct {
@@ -126,6 +153,7 @@ type settingDef struct {
 
 var forumSettingDefs = []settingDef{
 	{SettingPostEditWindowHours, "24", 0, 0},
+	{SettingCommentEditWindowHours, "24", 0, 0},
 
 	{SettingRateLimitPost, "10", 1, 1000},
 	{SettingRateLimitComment, "10", 1, 1000},
@@ -164,14 +192,11 @@ var mailSettingDefaults = map[string]string{
 }
 
 var oidcSettingDefaults = map[string]string{
-	SettingOIDCEnabled:       "0",
-	SettingOIDCRootURL:       "",
-	SettingOIDCGroupClaim:    "groups",
-	SettingOIDCAdminGroup:    "gitea-admin",
-	SettingOIDCUserGroup:     "gitea-users",
-	SettingOAuthClientID:     "",
-	SettingOAuthClientSecret: "",
-	SettingOAuthRedirectURIs: "",
+	SettingOIDCEnabled:    "0",
+	SettingOIDCRootURL:    "",
+	SettingOIDCGroupClaim: "groups",
+	SettingOIDCAdminGroup: "gitea-admin",
+	SettingOIDCUserGroup:  "gitea-users",
 }
 
 var giteaSettingDefaults = map[string]string{
@@ -181,23 +206,64 @@ var giteaSettingDefaults = map[string]string{
 	SettingGiteaSyncIntervalMin: "60",
 }
 
-var siteBrandingDefaults = map[string]string{
-	SettingSiteName:     "姜十三论坛",
-	SettingSiteNameEN:   "Jiang13 Forum",
-	SettingSiteSlogan:   "拾三一隅，自在交流",
-	SettingSiteLogoMark: "姜",
-	SettingSiteLogo:     "",
-	SettingSiteFavicon:  "",
+var storageSettingDefaults = map[string]string{
+	SettingStorageType:           "local",
+	SettingStorageEndpoint:       "",
+	SettingStorageRegion:         "us-east-1",
+	SettingStorageBucket:         "",
+	SettingStorageAccessKey:      "",
+	SettingStorageSecretKey:      "",
+	SettingStoragePublicBaseURL:  "",
+	SettingStoragePrefix:         "",
+	SettingStorageForcePathStyle: "1",
+	SettingStorageImageDelivery:  ImageDeliveryWebP,
 }
 
-// SiteBranding 站点品牌配置（名称、Logo、Favicon 等）
+var siteBrandingDefaults = map[string]string{
+	SettingSiteName:        "姜十三论坛",
+	SettingSiteSlogan:      "拾三一隅，自在交流",
+	SettingSiteDescription: "",
+	SettingSiteKeywords:    "",
+	SettingSiteLogoMark:    "姜",
+	SettingSiteLogo:        "",
+	SettingSiteFavicon:     "",
+	SettingSiteOGImage:     "",
+	SettingSiteICPBeian:    "",
+	SettingSiteICPBeianURL: "https://beian.miit.gov.cn/",
+	SettingSiteFriendLinks: "[]",
+}
+
+const (
+	maxFriendLinks        = 20
+	maxFriendLinkName     = 32
+	maxFriendLinkURL      = 512
+	maxICPBeianLen        = 64
+	maxICPBeianURLLen     = 512
+	maxSiteDescriptionLen = 500
+	maxSiteKeywordsLen    = 200
+	maxSiteKeywordItems   = 20
+	defaultICPBeianURL    = "https://beian.miit.gov.cn/"
+)
+
+// FriendLink 页脚友情链接
+type FriendLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// SiteBranding 站点品牌配置（名称、Logo、Favicon、页脚等）
 type SiteBranding struct {
-	Name     string `json:"name"`
-	NameEN   string `json:"name_en"`
-	Slogan   string `json:"slogan"`
-	LogoMark string `json:"logo_mark"`
-	Logo     string `json:"logo"`
-	Favicon  string `json:"favicon"`
+	Name        string       `json:"name"`
+	Slogan      string       `json:"slogan"`
+	Description string       `json:"description"` // 站点简介（SEO / 首页可见）
+	Keywords    string       `json:"keywords"`    // SEO keywords，逗号分隔
+	LogoMark    string       `json:"logo_mark"`
+	Logo        string       `json:"logo"`
+	Favicon     string       `json:"favicon"`
+	OGImage     string       `json:"og_image"` // 默认社交分享图（Open Graph）
+	ICPBeian    string       `json:"icp_beian"`
+	ICPBeianURL string       `json:"icp_beian_url"`
+	FriendLinks []FriendLink `json:"friend_links"`
 }
 
 // DocumentTitle 浏览器标签标题：站点名 - 副标题（标语）
@@ -208,6 +274,29 @@ func (b SiteBranding) DocumentTitle() string {
 		return name + " - " + subtitle
 	}
 	return name
+}
+
+// MetaDescription 用于 meta description：优先简介，其次标语
+func (b SiteBranding) MetaDescription() string {
+	if d := strings.TrimSpace(b.Description); d != "" {
+		return d
+	}
+	return strings.TrimSpace(b.Slogan)
+}
+
+// MetaKeywords 用于 meta keywords
+func (b SiteBranding) MetaKeywords() string {
+	return strings.TrimSpace(b.Keywords)
+}
+
+// DefaultShareImage 默认社交预览图：专用 OG 图 → Logo → Favicon
+func (b SiteBranding) DefaultShareImage() string {
+	for _, u := range []string{b.OGImage, b.Logo, b.Favicon} {
+		if s := strings.TrimSpace(u); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // GiteaSyncConfig Gitea 仓库同步配置
@@ -275,6 +364,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
 		}
 	}
+	for key, val := range storageSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
 	for key, val := range siteBrandingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
@@ -329,8 +425,10 @@ func (s *ForumSettingsService) setInt(key string, value int) error {
 }
 
 func (s *ForumSettingsService) Limits() ForumLimits {
+	permalink := s.Permalink()
 	return ForumLimits{
-		PostEditWindowHours: s.PostEditWindowHours(),
+		PostEditWindowHours:    s.PostEditWindowHours(),
+		CommentEditWindowHours: s.CommentEditWindowHours(),
 
 		RateLimitPost:      s.RateLimitFor("post"),
 		RateLimitComment:   s.RateLimitFor("comment"),
@@ -355,6 +453,9 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 
 		OpenPostsInNewTab:        s.OpenPostsInNewTab(),
 		OpenContentLinksInNewTab: s.OpenContentLinksInNewTab(),
+
+		PermalinkEnabled: permalink.Enabled,
+		PermalinkExt:     permalink.Ext,
 	}
 }
 
@@ -372,15 +473,21 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		AvatarMaxMB:      limits.AvatarMaxMB,
 		SignatureMax:     limits.SignatureMax,
 
+		CommentEditWindowHours: limits.CommentEditWindowHours,
+
 		OpenPostsInNewTab:        limits.OpenPostsInNewTab,
 		OpenContentLinksInNewTab: limits.OpenContentLinksInNewTab,
+
+		PermalinkEnabled: limits.PermalinkEnabled,
+		PermalinkExt:     limits.PermalinkExt,
 	}
 }
 
 func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 	updates := map[string]int{
-		SettingPostEditWindowHours: in.PostEditWindowHours,
-		SettingRateLimitPost:       in.RateLimitPost,
+		SettingPostEditWindowHours:    in.PostEditWindowHours,
+		SettingCommentEditWindowHours: in.CommentEditWindowHours,
+		SettingRateLimitPost:          in.RateLimitPost,
 		SettingRateLimitComment:    in.RateLimitComment,
 		SettingRateLimitRegister:   in.RateLimitRegister,
 		SettingRateLimitLogin:      in.RateLimitLogin,
@@ -407,6 +514,7 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 	boolUpdates := map[string]bool{
 		SettingOpenPostsInNewTab:        in.OpenPostsInNewTab,
 		SettingOpenContentLinksInNewTab: in.OpenContentLinksInNewTab,
+		SettingPermalinkEnabled:         in.PermalinkEnabled,
 	}
 	for key, on := range boolUpdates {
 		v := "0"
@@ -417,11 +525,22 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 			return err
 		}
 	}
+	ext, ok := NormalizePermalinkExt(in.PermalinkExt)
+	if !ok {
+		return ErrInvalidSetting
+	}
+	if err := s.setString(SettingPermalinkExt, ext); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *ForumSettingsService) PostEditWindowHours() int {
 	return s.getInt(SettingPostEditWindowHours, 24)
+}
+
+func (s *ForumSettingsService) CommentEditWindowHours() int {
+	return s.getInt(SettingCommentEditWindowHours, 24)
 }
 
 func (s *ForumSettingsService) RateLimitFor(action string) int {
@@ -597,7 +716,7 @@ func (s *ForumSettingsService) UpdateOIDCConfig(in OIDCConfig) error {
 	return nil
 }
 
-// SeedOIDCFromINI 若库中尚未配置，则用 app.ini 种子一次（便于迁移）
+// SeedOIDCFromINI 若库中尚未配置，则用 app.ini 种子一次（直写 oauth_clients）
 func (s *ForumSettingsService) SeedOIDCFromINI(rootURL, clientID, clientSecret, redirectURIsCSV string) {
 	rootURL = normalizeRootURL(rootURL)
 	clientID = strings.TrimSpace(clientID)
@@ -609,16 +728,14 @@ func (s *ForumSettingsService) SeedOIDCFromINI(rootURL, clientID, clientSecret, 
 	if s.getString(SettingOIDCRootURL, "") == "" && rootURL != "" {
 		_ = s.setString(SettingOIDCRootURL, rootURL)
 	}
-	if s.getString(SettingOAuthClientID, "") == "" && clientID != "" {
-		_ = s.setString(SettingOAuthClientID, clientID)
+	if CountEnabledOAuthClients() == 0 && clientID != "" && clientSecret != "" && uris != "" {
+		_, _ = s.CreateOAuthClient(OAuthClientInput{
+			ClientID:     clientID,
+			Name:         "Gitea",
+			RedirectURIs: uris,
+			ClientSecret: clientSecret,
+		})
 	}
-	if s.getString(SettingOAuthClientSecret, "") == "" && clientSecret != "" {
-		_ = s.setString(SettingOAuthClientSecret, clientSecret)
-	}
-	if s.getString(SettingOAuthRedirectURIs, "") == "" && uris != "" {
-		_ = s.setString(SettingOAuthRedirectURIs, uris)
-	}
-	s.MigrateLegacyOIDCClient()
 	if s.getString(SettingOIDCEnabled, "0") == "0" &&
 		s.getString(SettingOIDCRootURL, "") != "" &&
 		CountEnabledOAuthClients() > 0 {
@@ -714,6 +831,162 @@ func (s *ForumSettingsService) SeedGiteaFromINI(baseURL, token string, enabled b
 	}
 }
 
+// StorageConfig 读取上传存储配置（含密钥明文，供内部使用）
+func (s *ForumSettingsService) StorageConfig() StorageConfig {
+	secret := s.getString(SettingStorageSecretKey, "")
+	region := strings.TrimSpace(s.getString(SettingStorageRegion, "us-east-1"))
+	if region == "" {
+		region = "us-east-1"
+	}
+	cfg := StorageConfig{
+		Type:           normalizeStorageType(s.getString(SettingStorageType, "local")),
+		Endpoint:       strings.TrimSpace(s.getString(SettingStorageEndpoint, "")),
+		Region:         region,
+		Bucket:         strings.TrimSpace(s.getString(SettingStorageBucket, "")),
+		AccessKey:      strings.TrimSpace(s.getString(SettingStorageAccessKey, "")),
+		SecretKey:      secret,
+		PublicBaseURL:  normalizeRootURL(s.getString(SettingStoragePublicBaseURL, "")),
+		Prefix:         normalizeObjectPrefix(s.getString(SettingStoragePrefix, "")),
+		ForcePathStyle: s.getString(SettingStorageForcePathStyle, "1") == "1",
+		HasSecretKey:   secret != "",
+		ImageDelivery:  normalizeImageDelivery(s.getString(SettingStorageImageDelivery, ImageDeliveryWebP)),
+	}
+	cfg.Ready = cfg.Type == "local" || (cfg.Endpoint != "" && cfg.Bucket != "" &&
+		cfg.AccessKey != "" && cfg.HasSecretKey && cfg.PublicBaseURL != "")
+	return cfg
+}
+
+// ImageDelivery 图片展示方案：webp | original
+func (s *ForumSettingsService) ImageDelivery() string {
+	return normalizeImageDelivery(s.getString(SettingStorageImageDelivery, ImageDeliveryWebP))
+}
+
+// StorageConfigPublic 管理端回显（不含 Secret Key 明文）
+func (s *ForumSettingsService) StorageConfigPublic() StorageConfig {
+	cfg := s.StorageConfig()
+	cfg.SecretKey = ""
+	return cfg
+}
+
+// UpdateStorageConfig 更新存储配置；Secret Key 为空表示保持原值
+func (s *ForumSettingsService) UpdateStorageConfig(in StorageConfig) error {
+	typ := normalizeStorageType(in.Type)
+	if typ != "local" && typ != "s3" {
+		return ErrInvalidSetting
+	}
+	endpoint := strings.TrimSpace(in.Endpoint)
+	region := strings.TrimSpace(in.Region)
+	if region == "" {
+		region = "us-east-1"
+	}
+	bucket := strings.TrimSpace(in.Bucket)
+	accessKey := strings.TrimSpace(in.AccessKey)
+	publicBase := normalizeRootURL(in.PublicBaseURL)
+	prefix := normalizeObjectPrefix(in.Prefix)
+	forcePath := "0"
+	if in.ForcePathStyle {
+		forcePath = "1"
+	}
+
+	if typ == "s3" {
+		if endpoint == "" || bucket == "" || publicBase == "" {
+			return errors.New("启用 S3 时须填写 Endpoint、Bucket 与公开访问地址")
+		}
+		if _, _, err := parseS3Endpoint(endpoint); err != nil {
+			return err
+		}
+		if !strings.HasPrefix(publicBase, "http://") && !strings.HasPrefix(publicBase, "https://") {
+			return errors.New("公开访问地址须以 http:// 或 https:// 开头")
+		}
+		existingSecret := s.getString(SettingStorageSecretKey, "")
+		secret := strings.TrimSpace(in.SecretKey)
+		if accessKey == "" {
+			accessKey = strings.TrimSpace(s.getString(SettingStorageAccessKey, ""))
+		}
+		if secret == "" {
+			secret = existingSecret
+		}
+		if accessKey == "" || secret == "" {
+			return errors.New("启用 S3 时须填写 Access Key 与 Secret Key")
+		}
+	}
+
+	delivery := normalizeImageDelivery(in.ImageDelivery)
+	updates := map[string]string{
+		SettingStorageType:           typ,
+		SettingStorageEndpoint:       endpoint,
+		SettingStorageRegion:         region,
+		SettingStorageBucket:         bucket,
+		SettingStorageAccessKey:      accessKey,
+		SettingStoragePublicBaseURL:  publicBase,
+		SettingStoragePrefix:         prefix,
+		SettingStorageForcePathStyle: forcePath,
+		SettingStorageImageDelivery:  delivery,
+	}
+	if strings.TrimSpace(in.SecretKey) != "" {
+		updates[SettingStorageSecretKey] = strings.TrimSpace(in.SecretKey)
+	}
+	for key, val := range updates {
+		if err := s.setString(key, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SeedStorageFromINI 若库中尚未配置 S3，则用 app.ini 种子一次
+func (s *ForumSettingsService) SeedStorageFromINI(storageType, endpoint, region, bucket, accessKey, secretKey, publicBaseURL, prefix string, forcePathStyle bool) {
+	storageType = normalizeStorageType(storageType)
+	endpoint = strings.TrimSpace(endpoint)
+	region = strings.TrimSpace(region)
+	bucket = strings.TrimSpace(bucket)
+	accessKey = strings.TrimSpace(accessKey)
+	secretKey = strings.TrimSpace(secretKey)
+	publicBaseURL = normalizeRootURL(publicBaseURL)
+	prefix = normalizeObjectPrefix(prefix)
+
+	if storageType == "local" && endpoint == "" && bucket == "" && accessKey == "" && secretKey == "" && publicBaseURL == "" {
+		return
+	}
+
+	if s.getString(SettingStorageEndpoint, "") == "" && endpoint != "" {
+		_ = s.setString(SettingStorageEndpoint, endpoint)
+	}
+	if s.getString(SettingStorageRegion, "") == "" && region != "" {
+		_ = s.setString(SettingStorageRegion, region)
+	}
+	if s.getString(SettingStorageBucket, "") == "" && bucket != "" {
+		_ = s.setString(SettingStorageBucket, bucket)
+	}
+	if s.getString(SettingStorageAccessKey, "") == "" && accessKey != "" {
+		_ = s.setString(SettingStorageAccessKey, accessKey)
+	}
+	if s.getString(SettingStorageSecretKey, "") == "" && secretKey != "" {
+		_ = s.setString(SettingStorageSecretKey, secretKey)
+	}
+	if s.getString(SettingStoragePublicBaseURL, "") == "" && publicBaseURL != "" {
+		_ = s.setString(SettingStoragePublicBaseURL, publicBaseURL)
+	}
+	if s.getString(SettingStoragePrefix, "") == "" && prefix != "" {
+		_ = s.setString(SettingStoragePrefix, prefix)
+	}
+	// 仅当库中仍为默认 local 且 INI 明确为 s3、且关键字段齐全时切到 s3
+	if storageType == "s3" &&
+		normalizeStorageType(s.getString(SettingStorageType, "local")) == "local" &&
+		s.getString(SettingStorageEndpoint, "") != "" &&
+		s.getString(SettingStorageBucket, "") != "" &&
+		s.getString(SettingStorageAccessKey, "") != "" &&
+		s.getString(SettingStorageSecretKey, "") != "" &&
+		s.getString(SettingStoragePublicBaseURL, "") != "" {
+		_ = s.setString(SettingStorageType, "s3")
+		if forcePathStyle {
+			_ = s.setString(SettingStorageForcePathStyle, "1")
+		} else {
+			_ = s.setString(SettingStorageForcePathStyle, "0")
+		}
+	}
+}
+
 // SiteBranding 读取站点品牌配置
 func (s *ForumSettingsService) SiteBranding() SiteBranding {
 	name := strings.TrimSpace(s.getString(SettingSiteName, siteBrandingDefaults[SettingSiteName]))
@@ -729,17 +1002,23 @@ func (s *ForumSettingsService) SiteBranding() SiteBranding {
 	if len(runes) > 1 {
 		mark = string(runes[0])
 	}
+	links := parseFriendLinksJSON(s.getString(SettingSiteFriendLinks, "[]"))
 	return SiteBranding{
-		Name:     name,
-		NameEN:   strings.TrimSpace(s.getString(SettingSiteNameEN, siteBrandingDefaults[SettingSiteNameEN])),
-		Slogan:   strings.TrimSpace(s.getString(SettingSiteSlogan, siteBrandingDefaults[SettingSiteSlogan])),
-		LogoMark: mark,
-		Logo:     strings.TrimSpace(s.getString(SettingSiteLogo, "")),
-		Favicon:  strings.TrimSpace(s.getString(SettingSiteFavicon, "")),
+		Name:        name,
+		Slogan:      strings.TrimSpace(s.getString(SettingSiteSlogan, siteBrandingDefaults[SettingSiteSlogan])),
+		Description: strings.TrimSpace(s.getString(SettingSiteDescription, "")),
+		Keywords:    strings.TrimSpace(s.getString(SettingSiteKeywords, "")),
+		LogoMark:    mark,
+		Logo:        strings.TrimSpace(s.getString(SettingSiteLogo, "")),
+		Favicon:     strings.TrimSpace(s.getString(SettingSiteFavicon, "")),
+		OGImage:     strings.TrimSpace(s.getString(SettingSiteOGImage, "")),
+		ICPBeian:    strings.TrimSpace(s.getString(SettingSiteICPBeian, "")),
+		ICPBeianURL: strings.TrimSpace(s.getString(SettingSiteICPBeianURL, defaultICPBeianURL)),
+		FriendLinks: links,
 	}
 }
 
-// UpdateSiteBranding 更新品牌文案；Logo/Favicon URL 由上传接口单独写入
+// UpdateSiteBranding 更新品牌文案与页脚信息；Logo/Favicon URL 由上传接口单独写入
 func (s *ForumSettingsService) UpdateSiteBranding(in SiteBranding) error {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
@@ -756,19 +1035,43 @@ func (s *ForumSettingsService) UpdateSiteBranding(in SiteBranding) error {
 	if len(runes) > 1 {
 		mark = string(runes[0])
 	}
-	nameEN := strings.TrimSpace(in.NameEN)
-	if len([]rune(nameEN)) > 64 {
-		return ErrInvalidSetting
-	}
 	slogan := strings.TrimSpace(in.Slogan)
 	if len([]rune(slogan)) > 200 {
 		return ErrInvalidSetting
 	}
+	description := strings.TrimSpace(in.Description)
+	if len([]rune(description)) > maxSiteDescriptionLen {
+		return ErrInvalidSetting
+	}
+	keywords, err := normalizeSiteKeywords(in.Keywords)
+	if err != nil {
+		return err
+	}
+	icp := strings.TrimSpace(in.ICPBeian)
+	if len([]rune(icp)) > maxICPBeianLen {
+		return ErrInvalidSetting
+	}
+	icpURL, err := normalizeOptionalHTTPURL(in.ICPBeianURL, defaultICPBeianURL, maxICPBeianURLLen)
+	if err != nil {
+		return err
+	}
+	links, err := normalizeFriendLinks(in.FriendLinks)
+	if err != nil {
+		return err
+	}
+	linksJSON, err := json.Marshal(links)
+	if err != nil {
+		return err
+	}
 	updates := map[string]string{
-		SettingSiteName:     name,
-		SettingSiteNameEN:   nameEN,
-		SettingSiteSlogan:   slogan,
-		SettingSiteLogoMark: mark,
+		SettingSiteName:        name,
+		SettingSiteSlogan:      slogan,
+		SettingSiteDescription: description,
+		SettingSiteKeywords:    keywords,
+		SettingSiteLogoMark:    mark,
+		SettingSiteICPBeian:    icp,
+		SettingSiteICPBeianURL: icpURL,
+		SettingSiteFriendLinks: string(linksJSON),
 	}
 	for key, val := range updates {
 		if err := s.setString(key, val); err != nil {
@@ -786,6 +1089,134 @@ func (s *ForumSettingsService) SetSiteLogo(url string) error {
 // SetSiteFavicon 写入 Favicon URL（空串表示清除）
 func (s *ForumSettingsService) SetSiteFavicon(url string) error {
 	return s.setString(SettingSiteFavicon, strings.TrimSpace(url))
+}
+
+// SetSiteOGImage 写入默认社交分享图 URL（空串表示清除）
+func (s *ForumSettingsService) SetSiteOGImage(url string) error {
+	return s.setString(SettingSiteOGImage, strings.TrimSpace(url))
+}
+
+// normalizeSiteKeywords 统一中英文分隔符，去重并限制数量/长度
+func normalizeSiteKeywords(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	if len([]rune(raw)) > maxSiteKeywordsLen {
+		return "", ErrInvalidSetting
+	}
+	raw = strings.NewReplacer("，", ",", "、", ",", ";", ",", "；", ",").Replace(raw)
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	if len(out) > maxSiteKeywordItems {
+		return "", ErrInvalidSetting
+	}
+	return strings.Join(out, ","), nil
+}
+
+// JoinSEOKeywords 合并页面级与站点级关键词（逗号分隔）
+func JoinSEOKeywords(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		for _, p := range strings.Split(strings.NewReplacer("，", ",", "、", ",").Replace(part), ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+// normalizeOptionalHTTPURL 空值回落到 defaultURL；非空须为 http(s)
+func normalizeOptionalHTTPURL(raw, defaultURL string, maxLen int) (string, error) {
+	href := strings.TrimSpace(raw)
+	if href == "" {
+		return defaultURL, nil
+	}
+	if len(href) > maxLen {
+		return "", ErrInvalidSetting
+	}
+	u, err := url.Parse(href)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", ErrInvalidSetting
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", ErrInvalidSetting
+	}
+	return href, nil
+}
+
+func parseFriendLinksJSON(raw string) []FriendLink {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []FriendLink{}
+	}
+	var links []FriendLink
+	if err := json.Unmarshal([]byte(raw), &links); err != nil {
+		return []FriendLink{}
+	}
+	out, err := normalizeFriendLinks(links)
+	if err != nil {
+		return []FriendLink{}
+	}
+	return out
+}
+
+func normalizeFriendLinks(in []FriendLink) ([]FriendLink, error) {
+	if len(in) > maxFriendLinks {
+		return nil, ErrInvalidSetting
+	}
+	out := make([]FriendLink, 0, len(in))
+	for _, item := range in {
+		name := strings.TrimSpace(item.Name)
+		href := strings.TrimSpace(item.URL)
+		if name == "" && href == "" {
+			continue
+		}
+		if name == "" || href == "" {
+			return nil, ErrInvalidSetting
+		}
+		if len([]rune(name)) > maxFriendLinkName || len(href) > maxFriendLinkURL {
+			return nil, ErrInvalidSetting
+		}
+		u, err := url.Parse(href)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return nil, ErrInvalidSetting
+		}
+		scheme := strings.ToLower(u.Scheme)
+		if scheme != "http" && scheme != "https" {
+			return nil, ErrInvalidSetting
+		}
+		out = append(out, FriendLink{Name: name, URL: href})
+	}
+	if out == nil {
+		out = []FriendLink{}
+	}
+	return out, nil
 }
 
 func normalizeRootURL(raw string) string {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Mail, Shield, Server, SlidersHorizontal, KeyRound, FolderGit2, Palette } from 'lucide-react';
+import { Database, Mail, Shield, Server, SlidersHorizontal, KeyRound, FolderGit2, Palette, HardDrive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,9 +10,9 @@ import { useAdminGuard } from '../../layouts/AdminLayout';
 import { invalidateForumLimitsCache } from '../../hooks/useForumLimits';
 import { DEFAULT_BRANDING, seedSiteBrandingCache } from '../../hooks/useSiteBranding';
 import { clearAllFeedCache } from '../../utils/feedCache';
-import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, SiteBranding } from '../../api/types';
+import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, FriendLink } from '../../api/types';
 
-type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'filter' | 'system';
+type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'storage' | 'filter' | 'system';
 
 type NumberLimitKey = {
   [K in keyof ForumLimits]: ForumLimits[K] extends number ? K : never;
@@ -37,9 +37,10 @@ const SETTING_SECTIONS: SettingSection[] = [
   {
     id: 'rule',
     title: '编辑规则',
-    summary: '控制普通用户修改自己帖子的时限',
+    summary: '控制普通用户修改自己帖子 / 评论的时限（0 = 不限）',
     rows: [
-      { key: 'post_edit_window_hours', label: '可编辑时限', unit: '小时', hint: '0 = 不限', min: 0 },
+      { key: 'post_edit_window_hours', label: '帖子可编辑时限', unit: '小时', hint: '0 = 不限', min: 0 },
+      { key: 'comment_edit_window_hours', label: '评论可编辑时限', unit: '小时', hint: '0 = 不限', min: 0 },
     ],
   },
   {
@@ -103,11 +104,12 @@ const NAV_TOGGLES: { key: BoolLimitKey; label: string; hint: string }[] = [
 ];
 
 const TABS: { id: TabId; label: string; icon: typeof SlidersHorizontal }[] = [
-  { id: 'branding', label: '站点品牌', icon: Palette },
+  { id: 'branding', label: '站点与呈现', icon: Palette },
   { id: 'limits', label: '论坛限制', icon: SlidersHorizontal },
   { id: 'mail', label: '邮件服务', icon: Mail },
   { id: 'oidc', label: 'OIDC / SSO', icon: KeyRound },
   { id: 'gitea', label: 'Gitea 同步', icon: FolderGit2 },
+  { id: 'storage', label: '对象存储', icon: HardDrive },
   { id: 'filter', label: '敏感词', icon: Shield },
   { id: 'system', label: '系统维护', icon: Server },
 ];
@@ -154,12 +156,39 @@ const EMPTY_GITEA: GiteaSyncConfig = {
   repo_count: 0,
 };
 
+const EMPTY_STORAGE: StorageConfig = {
+  type: 'local',
+  endpoint: '',
+  region: 'us-east-1',
+  bucket: '',
+  access_key: '',
+  public_base_url: '',
+  prefix: '',
+  force_path_style: true,
+  has_secret_key: false,
+  ready: true,
+  image_delivery: 'webp',
+};
+
 function giteaStatusLabel(gitea: GiteaSyncConfig): string {
   if (gitea.ready) return `已就绪 · ${gitea.repo_count} 个仓库`;
   if (!gitea.enabled) return '未启用';
   const reasons: string[] = [];
   if (!gitea.base_url.trim()) reasons.push('BASE_URL');
   if (!gitea.has_token) reasons.push('Token');
+  if (reasons.length === 0) reasons.push('保存后生效');
+  return `未就绪（需${reasons.join('、')}）`;
+}
+
+function storageStatusLabel(storage: StorageConfig): string {
+  if (storage.type === 'local') return '本地磁盘';
+  if (storage.ready) return 'S3 已就绪';
+  const reasons: string[] = [];
+  if (!storage.endpoint.trim()) reasons.push('Endpoint');
+  if (!storage.bucket.trim()) reasons.push('Bucket');
+  if (!storage.access_key.trim()) reasons.push('Access Key');
+  if (!storage.has_secret_key) reasons.push('Secret Key');
+  if (!storage.public_base_url.trim()) reasons.push('公开访问地址');
   if (reasons.length === 0) reasons.push('保存后生效');
   return `未就绪（需${reasons.join('、')}）`;
 }
@@ -216,6 +245,7 @@ export default function AdminSettingsPage() {
   const [mail, setMail] = useState<MailConfig>(EMPTY_MAIL);
   const [oidc, setOidc] = useState<OIDCConfig>(EMPTY_OIDC);
   const [gitea, setGitea] = useState<GiteaSyncConfig>(EMPTY_GITEA);
+  const [storage, setStorage] = useState<StorageConfig>(EMPTY_STORAGE);
   const [oauthClients, setOauthClients] = useState<OAuthClient[]>([]);
   const [clientForm, setClientForm] = useState({
     client_id: 'gitea',
@@ -231,11 +261,12 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [backing, setBacking] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
-  const [uploadingBrand, setUploadingBrand] = useState<'logo' | 'favicon' | null>(null);
+  const [uploadingBrand, setUploadingBrand] = useState<'logo' | 'favicon' | 'og_image' | null>(null);
   const [savingForum, setSavingForum] = useState(false);
   const [savingMail, setSavingMail] = useState(false);
   const [savingOidc, setSavingOidc] = useState(false);
   const [savingGitea, setSavingGitea] = useState(false);
+  const [savingStorage, setSavingStorage] = useState(false);
   const [syncingGitea, setSyncingGitea] = useState(false);
   const [savingClient, setSavingClient] = useState(false);
   const [testingMail, setTestingMail] = useState(false);
@@ -249,12 +280,15 @@ export default function AdminSettingsPage() {
         setLimits({
           open_posts_in_new_tab: true,
           open_content_links_in_new_tab: true,
+          permalink_enabled: false,
+          permalink_ext: 'html',
           ...s.limits,
         });
         setBranding({ ...DEFAULT_BRANDING, ...(s.branding ?? {}) });
         setMail({ ...EMPTY_MAIL, ...s.mail, password: '' });
         setOidc({ ...EMPTY_OIDC, ...(s.oidc ?? {}) });
         setGitea({ ...EMPTY_GITEA, ...(s.gitea ?? {}), token: '' });
+        setStorage({ ...EMPTY_STORAGE, ...(s.storage ?? {}), secret_key: '' });
         setOauthClients(s.oauth_clients ?? []);
         setFilterWords(s.filter_words);
         if (s.mail?.from) setTestTo(s.mail.from);
@@ -279,11 +313,23 @@ export default function AdminSettingsPage() {
   };
 
   const handleSaveBranding = async () => {
+    if (!limits) return;
+    const links = (branding.friend_links ?? [])
+      .map(l => ({ name: l.name.trim(), url: l.url.trim() }))
+      .filter(l => l.name || l.url);
+    if (links.some(l => !l.name || !l.url)) {
+      notify.warning('友情链接需同时填写名称与完整 URL');
+      return;
+    }
     setSavingBranding(true);
     try {
-      const r = await api.adminUpdateBranding(branding);
-      notify.success(r.message);
+      const r = await api.adminUpdateBranding({ ...branding, friend_links: links });
       applyBranding(r.branding);
+      // 伪静态与品牌同属站点呈现，一并保存
+      const forum = await api.adminUpdateForumSettings(limits);
+      setLimits(forum.limits);
+      invalidateForumLimitsCache();
+      notify.success('站点设置已保存');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -291,7 +337,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleUploadBrandAsset = async (kind: 'logo' | 'favicon', file: File | undefined) => {
+  const handleUploadBrandAsset = async (kind: 'logo' | 'favicon' | 'og_image', file: File | undefined) => {
     if (!file) return;
     setUploadingBrand(kind);
     try {
@@ -305,7 +351,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleClearBrandAsset = async (kind: 'logo' | 'favicon') => {
+  const handleClearBrandAsset = async (kind: 'logo' | 'favicon' | 'og_image') => {
     setUploadingBrand(kind);
     try {
       const r = await api.adminClearBrandingAsset(kind);
@@ -382,6 +428,24 @@ export default function AdminSettingsPage() {
       notify.error(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSavingGitea(false);
+    }
+  };
+
+  const handleSaveStorageSettings = async () => {
+    setSavingStorage(true);
+    try {
+      const payload: StorageConfig = {
+        ...storage,
+        secret_key: storage.secret_key?.trim() ? storage.secret_key : undefined,
+      };
+      const r = await api.adminUpdateStorageSettings(payload);
+      notify.success(r.message);
+      setStorage({ ...EMPTY_STORAGE, ...r.storage, secret_key: '' });
+      setSettings(s => s ? { ...s, storage: r.storage } : s);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSavingStorage(false);
     }
   };
 
@@ -558,14 +622,14 @@ export default function AdminSettingsPage() {
         ))}
       </nav>
 
-      {activeTab === 'branding' && (
+      {activeTab === 'branding' && limits && (
         <div className="admin-settings-panel admin-mail-panel">
           <div className="admin-card admin-settings-card">
             <div className="admin-card-head">
-              <span>站点品牌</span>
+              <span>站点与呈现</span>
               <span className="admin-settings-card-badge">{branding.name}</span>
             </div>
-            <div className="admin-card-body admin-mail-body">
+            <div className="admin-card-body admin-mail-body admin-brand-sections">
               <div className="admin-brand-preview">
                 {branding.logo ? (
                   <img src={branding.logo} alt="" className="admin-brand-preview-logo" />
@@ -574,119 +638,339 @@ export default function AdminSettingsPage() {
                 )}
                 <div>
                   <strong>{branding.name}</strong>
-                  {branding.name_en && <div className="admin-mail-field-hint">{branding.name_en}</div>}
                   {branding.slogan && <p className="admin-mail-field-hint" style={{ marginTop: 4 }}>{branding.slogan}</p>}
                 </div>
               </div>
 
-              <div className="admin-mail-grid">
-                <div className="admin-mail-field">
-                  <label htmlFor="brand-name">论坛名称</label>
-                  <Input
-                    id="brand-name"
-                    value={branding.name}
-                    onChange={e => setBranding(b => ({ ...b, name: e.target.value }))}
-                    placeholder="姜十三论坛"
-                    maxLength={64}
-                  />
+              <section className="admin-settings-section" id="settings-brand-identity">
+                <div className="admin-settings-section-head">
+                  <h3>品牌标识</h3>
+                  <p>名称、标语、简介与字标；简介用于首页展示与搜索引擎 description</p>
                 </div>
-                <div className="admin-mail-field">
-                  <label htmlFor="brand-name-en">英文名称</label>
-                  <Input
-                    id="brand-name-en"
-                    value={branding.name_en}
-                    onChange={e => setBranding(b => ({ ...b, name_en: e.target.value }))}
-                    placeholder="Jiang13 Forum"
-                    maxLength={64}
-                  />
+                <div className="admin-mail-grid">
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-name">论坛名称</label>
+                    <Input
+                      id="brand-name"
+                      value={branding.name}
+                      onChange={e => setBranding(b => ({ ...b, name: e.target.value }))}
+                      placeholder="姜十三论坛"
+                      maxLength={64}
+                    />
+                  </div>
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-mark">字标（无 Logo 时显示）</label>
+                    <Input
+                      id="brand-mark"
+                      value={branding.logo_mark}
+                      onChange={e => setBranding(b => ({ ...b, logo_mark: e.target.value.slice(0, 2) }))}
+                      placeholder="姜"
+                      maxLength={2}
+                    />
+                    <span className="admin-mail-field-hint">建议 1 个汉字或字母</span>
+                  </div>
+                  <div className="admin-mail-field admin-mail-field--span2">
+                    <label htmlFor="brand-slogan">标语</label>
+                    <Input
+                      id="brand-slogan"
+                      value={branding.slogan}
+                      onChange={e => setBranding(b => ({ ...b, slogan: e.target.value }))}
+                      placeholder="拾三一隅，自在交流"
+                      maxLength={200}
+                    />
+                    <span className="admin-mail-field-hint">短句，出现在浏览器标题与页脚</span>
+                  </div>
+                  <div className="admin-mail-field admin-mail-field--span2">
+                    <label htmlFor="brand-description">站点简介</label>
+                    <Textarea
+                      id="brand-description"
+                      value={branding.description ?? ''}
+                      onChange={e => setBranding(b => ({ ...b, description: e.target.value }))}
+                      placeholder="一两段话介绍本站定位与内容，便于搜索引擎与访客理解"
+                      maxLength={500}
+                      rows={3}
+                    />
+                    <span className="admin-mail-field-hint">
+                      用于右侧栏介绍与 SEO description；未填写时回退到标语（建议 80–160 字）
+                    </span>
+                  </div>
+                  <div className="admin-mail-field admin-mail-field--span2">
+                    <label htmlFor="brand-keywords">SEO 关键词</label>
+                    <Input
+                      id="brand-keywords"
+                      value={branding.keywords ?? ''}
+                      onChange={e => setBranding(b => ({ ...b, keywords: e.target.value }))}
+                      placeholder="论坛,社区,技术交流"
+                      maxLength={200}
+                    />
+                    <span className="admin-mail-field-hint">
+                      用于 meta keywords；用逗号分隔，最多 20 个（支持中文逗号）
+                    </span>
+                  </div>
                 </div>
-                <div className="admin-mail-field admin-mail-field--span2">
-                  <label htmlFor="brand-slogan">标语 / Slogan</label>
-                  <Input
-                    id="brand-slogan"
-                    value={branding.slogan}
-                    onChange={e => setBranding(b => ({ ...b, slogan: e.target.value }))}
-                    placeholder="拾三一隅，自在交流"
-                    maxLength={200}
-                  />
-                </div>
-                <div className="admin-mail-field">
-                  <label htmlFor="brand-mark">字标（无 Logo 时显示）</label>
-                  <Input
-                    id="brand-mark"
-                    value={branding.logo_mark}
-                    onChange={e => setBranding(b => ({ ...b, logo_mark: e.target.value.slice(0, 2) }))}
-                    placeholder="姜"
-                    maxLength={2}
-                  />
-                  <span className="admin-mail-field-hint">建议 1 个汉字或字母</span>
-                </div>
-              </div>
+              </section>
 
-              <div className="admin-mail-grid" style={{ marginTop: 8 }}>
-                <div className="admin-mail-field">
-                  <label htmlFor="brand-logo-file">站点 Logo</label>
-                  <div className="admin-brand-upload-row">
-                    <Input
-                      id="brand-logo-file"
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp"
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        void handleUploadBrandAsset('logo', f);
-                        e.target.value = '';
-                      }}
-                    />
-                    {branding.logo && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        loading={uploadingBrand === 'logo'}
-                        onClick={() => void handleClearBrandAsset('logo')}
-                      >
-                        清除
-                      </Button>
-                    )}
+              <section className="admin-settings-section" id="settings-brand-assets">
+                <div className="admin-settings-section-head">
+                  <h3>视觉资源</h3>
+                  <p>站点 Logo、浏览器标签图标与默认社交分享图</p>
+                </div>
+                <div className="admin-mail-grid">
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-logo-file">站点 Logo</label>
+                    <div className="admin-brand-upload-row">
+                      <Input
+                        id="brand-logo-file"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          void handleUploadBrandAsset('logo', f);
+                          e.target.value = '';
+                        }}
+                      />
+                      {branding.logo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          loading={uploadingBrand === 'logo'}
+                          onClick={() => void handleClearBrandAsset('logo')}
+                        >
+                          清除
+                        </Button>
+                      )}
+                    </div>
+                    <span className="admin-mail-field-hint">
+                      {uploadingBrand === 'logo' ? '上传中…' : '保留原图并生成 WebP，最大 2MB'}
+                    </span>
                   </div>
-                  <span className="admin-mail-field-hint">
-                    {uploadingBrand === 'logo' ? '上传中…' : 'jpg/png/gif/webp，最大 2MB'}
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-favicon-file">Favicon</label>
+                    <div className="admin-brand-upload-row">
+                      <Input
+                        id="brand-favicon-file"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          void handleUploadBrandAsset('favicon', f);
+                          e.target.value = '';
+                        }}
+                      />
+                      {branding.favicon && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          loading={uploadingBrand === 'favicon'}
+                          onClick={() => void handleClearBrandAsset('favicon')}
+                        >
+                          清除
+                        </Button>
+                      )}
+                    </div>
+                    <span className="admin-mail-field-hint">
+                      {branding.favicon ? `当前：${branding.favicon}` : '浏览器标签图标'}
+                    </span>
+                  </div>
+                  <div className="admin-mail-field admin-mail-field--span2">
+                    <label htmlFor="brand-og-image-file">默认社交分享图（OG Image）</label>
+                    <div className="admin-brand-upload-row">
+                      <Input
+                        id="brand-og-image-file"
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          void handleUploadBrandAsset('og_image', f);
+                          e.target.value = '';
+                        }}
+                      />
+                      {branding.og_image && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          loading={uploadingBrand === 'og_image'}
+                          onClick={() => void handleClearBrandAsset('og_image')}
+                        >
+                          清除
+                        </Button>
+                      )}
+                    </div>
+                    <span className="admin-mail-field-hint">
+                      {uploadingBrand === 'og_image'
+                        ? '上传中…'
+                        : branding.og_image
+                          ? `当前：${branding.og_image}；建议 1200×630，用于微信/社交预览；未设置时回退 Logo`
+                          : '建议 1200×630，用于微信/社交预览；未设置时回退 Logo'}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="admin-settings-section" id="settings-brand-footer">
+                <div className="admin-settings-section-head">
+                  <h3>页脚信息</h3>
+                  <p>备案号与友情链接，显示在站点底部</p>
+                </div>
+                <div className="admin-mail-grid">
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-icp">ICP 备案号</label>
+                    <Input
+                      id="brand-icp"
+                      value={branding.icp_beian ?? ''}
+                      onChange={e => setBranding(b => ({ ...b, icp_beian: e.target.value }))}
+                      placeholder="京ICP备xxxxxxxx号"
+                      maxLength={64}
+                    />
+                  </div>
+                  <div className="admin-mail-field">
+                    <label htmlFor="brand-icp-url">ICP 跳转链接</label>
+                    <Input
+                      id="brand-icp-url"
+                      value={branding.icp_beian_url ?? ''}
+                      onChange={e => setBranding(b => ({ ...b, icp_beian_url: e.target.value }))}
+                      placeholder="https://beian.miit.gov.cn/"
+                      maxLength={512}
+                    />
+                    <span className="admin-mail-field-hint">留空则用工信部默认页</span>
+                  </div>
+                </div>
+                <div className="admin-friend-links" style={{ marginTop: 12 }}>
+                  <div className="admin-friend-links-list">
+                    {(branding.friend_links ?? []).map((link, idx) => (
+                      <div key={idx} className="admin-friend-links-row">
+                        <Input
+                          value={link.name}
+                          placeholder="友链名称"
+                          maxLength={32}
+                          onChange={e => {
+                            const name = e.target.value;
+                            setBranding(b => {
+                              const next = [...(b.friend_links ?? [])];
+                              next[idx] = { ...next[idx], name };
+                              return { ...b, friend_links: next };
+                            });
+                          }}
+                        />
+                        <Input
+                          value={link.url}
+                          placeholder="https://example.com"
+                          maxLength={512}
+                          onChange={e => {
+                            const url = e.target.value;
+                            setBranding(b => {
+                              const next = [...(b.friend_links ?? [])];
+                              next[idx] = { ...next[idx], url };
+                              return { ...b, friend_links: next };
+                            });
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setBranding(b => ({
+                              ...b,
+                              friend_links: (b.friend_links ?? []).filter((_, i) => i !== idx),
+                            }));
+                          }}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={(branding.friend_links?.length ?? 0) >= 20}
+                    onClick={() => {
+                      setBranding(b => ({
+                        ...b,
+                        friend_links: [...(b.friend_links ?? []), { name: '', url: '' } as FriendLink],
+                      }));
+                    }}
+                  >
+                    添加友链
+                  </Button>
+                  <span className="admin-mail-field-hint" style={{ display: 'block', marginTop: 8 }}>
+                    最多 20 条，需填写完整 http(s) 地址
                   </span>
                 </div>
-                <div className="admin-mail-field">
-                  <label htmlFor="brand-favicon-file">Favicon</label>
-                  <div className="admin-brand-upload-row">
-                    <Input
-                      id="brand-favicon-file"
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        void handleUploadBrandAsset('favicon', f);
-                        e.target.value = '';
-                      }}
-                    />
-                    {branding.favicon && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        loading={uploadingBrand === 'favicon'}
-                        onClick={() => void handleClearBrandAsset('favicon')}
-                      >
-                        清除
-                      </Button>
-                    )}
-                  </div>
-                  <span className="admin-mail-field-hint">
-                    {branding.favicon ? `当前：${branding.favicon}` : '浏览器标签图标'}
-                  </span>
+              </section>
+
+              <section className="admin-settings-section" id="settings-permalink">
+                <div className="admin-settings-section-head">
+                  <h3>伪静态 URL</h3>
+                  <p>为帖子 / 用户生成带后缀的规范链接，非规范路径会 301 跳转</p>
                 </div>
-              </div>
+                <div className="admin-settings-table" role="group" aria-label="伪静态">
+                  <div className="admin-settings-row">
+                    <span className="admin-settings-row-label" id="limit-label-permalink_enabled">
+                      启用伪静态
+                    </span>
+                    <div className="admin-settings-row-input">
+                      <button
+                        type="button"
+                        id="limit-permalink_enabled"
+                        role="switch"
+                        aria-checked={!!limits.permalink_enabled}
+                        aria-labelledby="limit-label-permalink_enabled"
+                        className={`admin-settings-switch${limits.permalink_enabled ? ' is-on' : ''}`}
+                        onClick={() => setLimits(prev => prev ? { ...prev, permalink_enabled: !prev.permalink_enabled } : prev)}
+                      >
+                        <span className="admin-settings-switch-ui" aria-hidden />
+                      </button>
+                    </div>
+                    <span className="admin-settings-row-hint">关闭：/post/123 · 开启：/post/123.后缀</span>
+                  </div>
+                  <div className="admin-settings-row">
+                    <span className="admin-settings-row-label" id="limit-label-permalink_ext">
+                      URL 后缀
+                    </span>
+                    <div className="admin-settings-row-input admin-settings-row-input--stack">
+                      <div className="admin-permalink-presets">
+                        {(['html', 'htm', 'shtml'] as const).map(ext => (
+                          <button
+                            key={ext}
+                            type="button"
+                            className={`admin-permalink-chip${limits.permalink_ext === ext ? ' is-active' : ''}`}
+                            disabled={!limits.permalink_enabled}
+                            onClick={() => setLimits(prev => prev ? { ...prev, permalink_ext: ext } : prev)}
+                          >
+                            .{ext}
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        id="limit-permalink_ext"
+                        value={limits.permalink_ext}
+                        disabled={!limits.permalink_enabled}
+                        placeholder="html"
+                        aria-labelledby="limit-label-permalink_ext"
+                        onChange={e => {
+                          const v = e.target.value.replace(/^\./, '').toLowerCase();
+                          setLimits(prev => prev ? { ...prev, permalink_ext: v } : prev);
+                        }}
+                      />
+                    </div>
+                    <span className="admin-settings-row-hint">
+                      预览：
+                      <code className="admin-permalink-preview">
+                        /post/123{limits.permalink_enabled ? `.${(limits.permalink_ext || 'html').replace(/^\./, '')}` : ''}
+                      </code>
+                    </span>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
           <div className="admin-settings-bar">
-            <p>保存后立即影响顶栏、登录页、浏览器标题与右栏介绍</p>
+            <p>保存后立即影响顶栏、页脚、伪静态链接与浏览器标题</p>
             <Button onClick={handleSaveBranding} loading={savingBranding}>
-              保存品牌设置
+              保存站点设置
             </Button>
           </div>
         </div>
@@ -1159,6 +1443,161 @@ export default function AdminSettingsPage() {
                 保存同步设置
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'storage' && (
+        <div className="admin-settings-panel admin-mail-panel">
+          <div className="admin-card admin-settings-card">
+            <div className="admin-card-head">
+              <span>上传对象存储</span>
+              <span className={`admin-mail-status${storage.ready ? ' is-on' : ''}`}>
+                <span className="admin-mail-status-dot" aria-hidden />
+                {storageStatusLabel(storage)}
+              </span>
+            </div>
+            <div className="admin-card-body admin-mail-body">
+              <div className="admin-mail-grid">
+                <div className="admin-mail-field">
+                  <label htmlFor="storage-type">存储类型</label>
+                  <select
+                    id="storage-type"
+                    className="admin-mail-select"
+                    value={storage.type}
+                    onChange={e => setStorage(s => ({
+                      ...s,
+                      type: e.target.value === 's3' ? 's3' : 'local',
+                    }))}
+                  >
+                    <option value="local">本地磁盘（data/uploads）</option>
+                    <option value="s3">S3 兼容（MinIO / OSS / 七牛等）</option>
+                  </select>
+                  <span className="admin-mail-field-hint">头像、帖子图、站点品牌图均走此后端</span>
+                </div>
+                <div className="admin-mail-field">
+                  <label htmlFor="storage-image-delivery">图片展示方案</label>
+                  <select
+                    id="storage-image-delivery"
+                    className="admin-mail-select"
+                    value={storage.image_delivery || 'webp'}
+                    onChange={e => setStorage(s => ({
+                      ...s,
+                      image_delivery: e.target.value === 'original' ? 'original' : 'webp',
+                    }))}
+                  >
+                    <option value="webp">使用 WebP（省流量，仍保留原图）</option>
+                    <option value="original">使用原图（体积更大）</option>
+                  </select>
+                  <span className="admin-mail-field-hint">
+                    静态图上传后同时保存原图与 WebP；此项只影响新上传写入正文/头像的 URL。动图 GIF 始终保留原文件
+                  </span>
+                </div>
+              </div>
+
+              {storage.type === 's3' && (
+                <>
+                  <div className="admin-mail-grid">
+                    <div className="admin-mail-field admin-mail-field--span2">
+                      <label htmlFor="storage-endpoint">Endpoint</label>
+                      <Input
+                        id="storage-endpoint"
+                        value={storage.endpoint}
+                        onChange={e => setStorage(s => ({ ...s, endpoint: e.target.value }))}
+                        placeholder="https://s3.example.com"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="admin-mail-field">
+                      <label htmlFor="storage-region">Region</label>
+                      <Input
+                        id="storage-region"
+                        value={storage.region}
+                        onChange={e => setStorage(s => ({ ...s, region: e.target.value }))}
+                        placeholder="us-east-1"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="admin-mail-field">
+                      <label htmlFor="storage-bucket">Bucket</label>
+                      <Input
+                        id="storage-bucket"
+                        value={storage.bucket}
+                        onChange={e => setStorage(s => ({ ...s, bucket: e.target.value }))}
+                        placeholder="jiang13"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="admin-mail-field">
+                      <label htmlFor="storage-access-key">Access Key</label>
+                      <Input
+                        id="storage-access-key"
+                        value={storage.access_key}
+                        onChange={e => setStorage(s => ({ ...s, access_key: e.target.value }))}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="admin-mail-field">
+                      <label htmlFor="storage-secret-key">Secret Key</label>
+                      <Input
+                        id="storage-secret-key"
+                        type="password"
+                        value={storage.secret_key ?? ''}
+                        onChange={e => setStorage(s => ({ ...s, secret_key: e.target.value }))}
+                        placeholder={storage.has_secret_key ? '已配置，留空则保持不变' : 'Secret Key'}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div className="admin-mail-field admin-mail-field--span2">
+                      <label htmlFor="storage-public-base">公开访问地址</label>
+                      <Input
+                        id="storage-public-base"
+                        value={storage.public_base_url}
+                        onChange={e => setStorage(s => ({ ...s, public_base_url: e.target.value }))}
+                        placeholder="https://cdn.example.com/forum"
+                        autoComplete="off"
+                      />
+                      <span className="admin-mail-field-hint">无尾斜杠；上传后返回此前缀下的绝对 URL</span>
+                    </div>
+                    <div className="admin-mail-field">
+                      <label htmlFor="storage-prefix">对象前缀（可选）</label>
+                      <Input
+                        id="storage-prefix"
+                        value={storage.prefix}
+                        onChange={e => setStorage(s => ({ ...s, prefix: e.target.value }))}
+                        placeholder="forum/"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="admin-mail-field">
+                      <label className="admin-mail-switch" htmlFor="storage-path-style" style={{ marginTop: 22 }}>
+                        <input
+                          id="storage-path-style"
+                          type="checkbox"
+                          checked={storage.force_path_style}
+                          onChange={e => setStorage(s => ({ ...s, force_path_style: e.target.checked }))}
+                        />
+                        <span className="admin-mail-switch-ui" aria-hidden />
+                        <span className="admin-mail-switch-copy">
+                          <strong>Path-Style</strong>
+                          <small>MinIO 等多为开启；AWS S3 官方多为关闭</small>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                  <p className="admin-mail-field-hint" style={{ marginTop: 8 }}>
+                    请确保 Bucket 已配置公开读或 CDN 回源可读；本程序不代设 ACL。
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="admin-settings-bar">
+            <p>保存后立即生效，无需重启；切换存储后端或展示方案不会改写历史帖子里的图片 URL</p>
+            <Button onClick={handleSaveStorageSettings} loading={savingStorage}>
+              保存存储设置
+            </Button>
           </div>
         </div>
       )}

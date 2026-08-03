@@ -35,12 +35,18 @@ func InitDB(dbPath string) error {
 
 	if err := db.AutoMigrate(
 		&User{}, &Board{}, &Post{}, &Comment{},
-		&PostLike{}, &PostFavorite{}, &PostRevision{}, &ForumSetting{},
+		&PostLike{}, &PostFavorite{}, &PostRevision{}, &CommentRevision{}, &ForumSetting{},
 		&OAuthClient{}, &OAuthAuthCode{},
 		&GiteaRepo{},
+		&PrivateMessage{}, &PostReport{},
+		&Media{},
 	); err != nil {
 		return fmt.Errorf("自动迁移失败: %w", err)
 	}
+
+	// 存量数据默认视为已公开，避免升级后内容全部进入待审
+	_ = db.Model(&Post{}).Where("status = '' OR status IS NULL").Update("status", ContentStatusPublished).Error
+	_ = db.Model(&Comment{}).Where("status = '' OR status IS NULL").Update("status", ContentStatusPublished).Error
 
 	DB = db
 	log.Println("[model] SQLite 数据库初始化完成:", dbPath)

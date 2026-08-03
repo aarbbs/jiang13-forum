@@ -60,7 +60,7 @@ export default function AdminDashboardPage() {
               <th>ID</th>
               <th>标题</th>
               <th>作者</th>
-              <th>置顶</th>
+              <th>标记</th>
               <th>时间</th>
             </tr>
           </thead>
@@ -80,7 +80,11 @@ export default function AdminDashboardPage() {
                     </button>
                   ) : '—'}
                 </td>
-                <td>{p.pinned ? <Badge variant="orange">是</Badge> : '—'}</td>
+                <td className="space-x-1">
+                  {p.featured ? <Badge variant="orange">精华</Badge> : null}
+                  {p.pinned ? <Badge variant="green">置顶</Badge> : null}
+                  {!p.featured && !p.pinned ? '—' : null}
+                </td>
                 <td>{new Date(p.created_at).toLocaleString('zh-CN')}</td>
               </tr>
             ))}

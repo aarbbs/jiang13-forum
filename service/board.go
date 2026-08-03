@@ -32,7 +32,9 @@ func (s *BoardService) ListWithStats() ([]BoardWithStats, error) {
 	result := make([]BoardWithStats, len(boards))
 	for i, b := range boards {
 		var count int64
-		model.DB.Model(&model.Post{}).Where("board_id = ?", b.ID).Count(&count)
+		model.DB.Model(&model.Post{}).
+			Where("board_id = ? AND status = ?", b.ID, model.ContentStatusPublished).
+			Count(&count)
 		result[i] = BoardWithStats{Board: b, PostCount: int(count)}
 	}
 	return result, nil

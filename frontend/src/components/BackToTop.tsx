@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, MessageSquare } from 'lucide-react';
 
 /** 滚动超过该距离后显示按钮 */
 const SHOW_THRESHOLD = 320;
@@ -32,6 +32,7 @@ export default function BackToTop() {
   const loc = useLocation();
   const [visible, setVisible] = useState(false);
   const scrollElRef = useRef<HTMLElement | null>(null);
+  const isPostDetail = /^\/post\/\d+/.test(loc.pathname);
 
   const syncVisible = useCallback(() => {
     const el = scrollElRef.current;
@@ -110,16 +111,35 @@ export default function BackToTop() {
     el.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const scrollToComments = () => {
+    const section = document.querySelector<HTMLElement>('.comment-section');
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <button
-      type="button"
-      className={`back-to-top${visible ? ' back-to-top--visible' : ''}`}
-      onClick={scrollToTop}
-      aria-label="回到顶部"
-      title="回到顶部"
-      tabIndex={visible ? 0 : -1}
-    >
-      <ArrowUp size={20} strokeWidth={2.25} />
-    </button>
+    <div className={`back-to-top-stack${visible ? ' back-to-top-stack--visible' : ''}`}>
+      {isPostDetail && (
+        <button
+          type="button"
+          className="back-to-top back-to-top--comment"
+          onClick={scrollToComments}
+          aria-label="前往评论"
+          title="前往评论"
+          tabIndex={visible ? 0 : -1}
+        >
+          <MessageSquare size={18} strokeWidth={2.25} />
+        </button>
+      )}
+      <button
+        type="button"
+        className="back-to-top"
+        onClick={scrollToTop}
+        aria-label="回到顶部"
+        title="回到顶部"
+        tabIndex={visible ? 0 : -1}
+      >
+        <ArrowUp size={20} strokeWidth={2.25} />
+      </button>
+    </div>
   );
 }

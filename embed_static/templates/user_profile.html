@@ -1,8 +1,0 @@
-{{define "user_profile.html"}}{{template "layout" .}}{{end}}
-{{define "content"}}
-<div class="text-center py-4">
-  <img src="{{if .ProfileUser.Avatar}}{{.ProfileUser.Avatar}}{{else}}https://via.placeholder.com/128{{end}}" class="avatar-md mb-2">
-  <h3>{{.ProfileUser.Nickname}}</h3>
-  <p class="text-muted">@{{.ProfileUser.Username}} · 注册于 {{.ProfileUser.CreatedAt.Format "2006-01-02"}}</p>
-</div>
-{{end}}

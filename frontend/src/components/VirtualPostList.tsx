@@ -1,11 +1,12 @@
 import { useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Inbox } from 'lucide-react';
+import { Inbox, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
 import PostListSkeleton from './PostListSkeleton';
 import FeedPagination from './FeedPagination';
+import { InFlowSiteFooter } from './SiteFooter';
 import { useAuth } from '../hooks/useAuth';
 import { loginPath } from '../utils/authRedirect';
 import type { PostItem } from '../api/types';
@@ -28,6 +29,12 @@ interface Props {
   resetScrollKey?: number;
   onScrollTopChange?: (top: number) => void;
   onScrollRestored?: () => void;
+  /** 搜索关键词（用于空态文案） */
+  keyword?: string;
+  /** 当前板块 id，0 表示全部 */
+  boardId?: number;
+  /** 当前板块名 */
+  boardName?: string;
 }
 
 export default function VirtualPostList({
@@ -45,6 +52,9 @@ export default function VirtualPostList({
   resetScrollKey = 0,
   onScrollTopChange,
   onScrollRestored,
+  keyword = '',
+  boardId = 0,
+  boardName = '',
 }: Props) {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -58,7 +68,7 @@ export default function VirtualPostList({
   const virtualizer = useVirtualizer({
     count: posts.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 72,
+    estimateSize: () => 108,
     overscan: 8,
     measureElement:
       typeof window !== 'undefined' && !navigator.userAgent.includes('Firefox')
@@ -69,6 +79,8 @@ export default function VirtualPostList({
   const showEnd = !hasMore && !showPagination && posts.length > 0 && !loading;
   const isInitialLoad = loading && posts.length === 0;
   const isEmpty = !loading && posts.length === 0;
+  const isSearchEmpty = isEmpty && !!keyword.trim();
+  const composeTarget = boardId > 0 ? `/compose?board=${boardId}` : '/compose';
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
@@ -102,26 +114,56 @@ export default function VirtualPostList({
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
+  const emptyActions = (
+    <div className="empty-feed-actions">
+      {isSearchEmpty ? (
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={() => nav('/')}>
+            返回全部帖子
+          </Button>
+          <Button type="button" size="sm" onClick={() => nav(user ? composeTarget : loginPath(composeTarget))}>
+            {user ? '发帖' : '登录后发帖'}
+          </Button>
+        </>
+      ) : (
+        <>
+          {boardId > 0 && (
+            <Button type="button" size="sm" variant="outline" onClick={() => nav('/')}>
+              看看其他板块
+            </Button>
+          )}
+          {user ? (
+            <Button type="button" size="sm" onClick={() => nav(composeTarget)}>
+              {boardName ? `成为「${boardName}」第一帖` : '发第一帖'}
+            </Button>
+          ) : (
+            <Button type="button" size="sm" onClick={() => nav(loginPath(composeTarget))}>
+              登录后发帖
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="post-list-scroll" ref={parentRef}>
       {isInitialLoad ? (
         <PostListSkeleton />
       ) : isEmpty ? (
         <div className="empty-feed" role="status">
-          <Inbox className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />
-          <p>暂无帖子</p>
-          <p className="empty-feed-hint">换个板块看看，或发第一篇内容</p>
-          <div className="empty-feed-actions">
-            {user ? (
-              <Button type="button" size="sm" onClick={() => nav('/compose')}>
-                发第一帖
-              </Button>
-            ) : (
-              <Button type="button" size="sm" onClick={() => nav(loginPath('/compose'))}>
-                登录后发帖
-              </Button>
-            )}
-          </div>
+          {isSearchEmpty
+            ? <SearchX className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />
+            : <Inbox className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />}
+          <p>{isSearchEmpty ? '没有匹配的帖子' : '暂无帖子'}</p>
+          <p className="empty-feed-hint">
+            {isSearchEmpty
+              ? '试试更短的关键词，或浏览标签云 / 板块'
+              : boardName
+                ? `「${boardName}」还没有内容，来发第一篇吧`
+                : '换个板块看看，或发第一篇内容'}
+          </p>
+          {emptyActions}
         </div>
       ) : (
         <>
@@ -163,6 +205,7 @@ export default function VirtualPostList({
           )}
         </>
       )}
+      <InFlowSiteFooter />
     </div>
   );
 }

@@ -15,34 +15,24 @@ export function highlightMentions(text: string, _onClick?: (name: string) => voi
     .replace(/@([\w\u4e00-\u9fa5_-]+)/g, '<span class="mention">@$1</span>');
 }
 
+/** 相对时间：刚刚 / N分钟前 / N小时前 / N天前；更早用具体日期 */
 export function formatTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
 
   const now = new Date();
-  const diff = (now.getTime() - d.getTime()) / 1000;
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+  const diffSec = Math.max(0, (now.getTime() - d.getTime()) / 1000);
+  if (diffSec < 60) return '刚刚';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分钟前`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}小时前`;
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (
-    d.getFullYear() === yesterday.getFullYear()
-    && d.getMonth() === yesterday.getMonth()
-    && d.getDate() === yesterday.getDate()
-  ) {
-    return `昨天 ${clock}`;
-  }
+  const diffDay = Math.floor(diffSec / 86400);
+  if (diffDay < 30) return `${diffDay}天前`;
 
   if (d.getFullYear() === now.getFullYear()) {
-    return `${d.getMonth() + 1}月${d.getDate()}日 ${clock}`;
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
   }
-
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${clock}`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 /** 完整日期时间（用于帖子发布/修改时间展示） */

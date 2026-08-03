@@ -3,9 +3,11 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import AuthPasswordInput from '@/components/AuthPasswordInput';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useForumLimits } from '../hooks/useForumLimits';
@@ -13,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { resolveAuthRedirect, loginPath, navigateAfterAuth } from '../utils/authRedirect';
 import type { RegisterConfig } from '../api/types';
 import { useSiteBranding } from '../hooks/useSiteBranding';
+import { useNoIndexSEO } from '../hooks/usePageSEO';
 import SiteBrandMark from '../components/SiteBrandMark';
 
 const schema = (minLen: number) => z.object({
@@ -28,6 +31,7 @@ type FormValues = z.infer<ReturnType<typeof schema>>;
 export default function RegisterPage() {
   const { limits } = useForumLimits();
   const { branding } = useSiteBranding();
+  useNoIndexSEO('注册');
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const { refresh } = useAuth();
@@ -37,6 +41,9 @@ export default function RegisterPage() {
   const [regConfig, setRegConfig] = useState<RegisterConfig | null>(null);
   const redirectTo = resolveAuthRedirect(searchParams);
   const requireCode = !!regConfig?.require_email_code;
+  const codeLen = regConfig?.email_code_len && regConfig.email_code_len > 0
+    ? regConfig.email_code_len
+    : 6;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema(limits.password_min_len)),
@@ -84,9 +91,12 @@ export default function RegisterPage() {
       notify.error('论坛暂未开放注册，请联系管理员配置邮件服务');
       return;
     }
-    if (requireCode && !values.email_code?.trim()) {
-      form.setError('email_code', { message: '请输入邮箱验证码' });
-      return;
+    if (requireCode) {
+      const code = (values.email_code || '').trim();
+      if (!new RegExp(`^\\d{${codeLen}}$`).test(code)) {
+        form.setError('email_code', { message: `请输入 ${codeLen} 位数字验证码` });
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -117,7 +127,9 @@ export default function RegisterPage() {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <SiteBrandMark branding={branding} className="logo-mark" />
+        <Link to="/" className="auth-brand-link" aria-label={`返回${branding.name}`}>
+          <SiteBrandMark branding={branding} className="logo-mark" />
+        </Link>
         <h1>注册账号</h1>
         <p className="subtitle">{subtitle}</p>
         {regConfig && !regConfig.register_open ? (
@@ -174,7 +186,11 @@ export default function RegisterPage() {
                     <FormItem>
                       <FormLabel>密码</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder={`至少 ${limits.password_min_len} 位`} autoComplete="new-password" {...field} />
+                        <AuthPasswordInput
+                          placeholder={`至少 ${limits.password_min_len} 位`}
+                          autoComplete="new-password"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -190,10 +206,17 @@ export default function RegisterPage() {
                         <div className="auth-captcha-row">
                           <FormControl>
                             <Input
-                              placeholder="6 位数字验证码"
+                              placeholder={`${codeLen} 位数字`}
                               autoComplete="one-time-code"
                               inputMode="numeric"
+                              pattern={`\\d{${codeLen}}`}
+                              maxLength={codeLen}
+                              className="auth-email-code-input"
                               {...field}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(0, codeLen);
+                                field.onChange(digits);
+                              }}
                             />
                           </FormControl>
                           <Button
@@ -207,6 +230,7 @@ export default function RegisterPage() {
                             {countdown > 0 ? `${countdown}s` : '发送验证码'}
                           </Button>
                         </div>
+                        <p className="auth-hint">请填写邮件中的 {codeLen} 位数字验证码，有效期 10 分钟</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -225,6 +249,10 @@ export default function RegisterPage() {
             </p>
           </>
         )}
+        <Link to="/" className="auth-back">
+          <ArrowLeft size={16} aria-hidden />
+          返回论坛
+        </Link>
       </div>
     </div>
   );
