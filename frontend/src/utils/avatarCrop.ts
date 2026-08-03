@@ -40,11 +40,13 @@ export function validateAvatarOutput(file: File, maxMb: number): string | null {
   return null;
 }
 
-/** 将裁剪区域渲染为 WebP 文件（体积更小；不支持时回退 JPEG） */
+/** 将裁剪区域渲染为上传「原图」；服务端再衍生 WebP。
+ * 优先保留源格式：PNG 保透明；其余（含 JPG/GIF/WebP）导出为 JPEG。
+ */
 export async function getCroppedAvatarFile(
   imageSrc: string,
   pixelCrop: Area,
-  originalName = 'avatar.webp',
+  originalName = 'avatar.jpg',
 ): Promise<File> {
   const image = await loadImage(imageSrc);
   const canvas = document.createElement('canvas');
@@ -67,13 +69,21 @@ export async function getCroppedAvatarFile(
     size,
   );
 
-  const tryTypes: { mime: string; quality: number; ext: string }[] = [
-    { mime: 'image/webp', quality: 0.86, ext: 'webp' },
-    { mime: 'image/jpeg', quality: 0.92, ext: 'jpg' },
-  ];
+  const srcExt = (originalName.match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
+  const preferPng = srcExt === 'png';
+  // 勿优先 WebP：否则服务端只会存一份 WebP，丢失用户原图格式
+  const tryTypes: { mime: string; quality?: number; ext: string }[] = preferPng
+    ? [
+        { mime: 'image/png', ext: 'png' },
+        { mime: 'image/jpeg', quality: 0.92, ext: 'jpg' },
+      ]
+    : [
+        { mime: 'image/jpeg', quality: 0.92, ext: 'jpg' },
+        { mime: 'image/png', ext: 'png' },
+      ];
 
   let blob: Blob | null = null;
-  let picked = tryTypes[1];
+  let picked = tryTypes[0];
   for (const t of tryTypes) {
     blob = await new Promise<Blob | null>(resolve => {
       canvas.toBlob(b => resolve(b), t.mime, t.quality);

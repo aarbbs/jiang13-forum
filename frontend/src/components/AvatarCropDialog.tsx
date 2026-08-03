@@ -73,7 +73,7 @@ export default function AvatarCropDialog({
         <DialogHeader>
           <DialogTitle>裁剪头像</DialogTitle>
           <DialogDescription>
-            拖动图片调整位置，滚轮或滑块缩放。GIF 裁剪后将变为静态 JPG。
+            拖动图片调整位置，滚轮或滑块缩放。裁剪结果按原图格式保存（JPG→JPEG，PNG 保留透明）；GIF 裁剪后变为静态 JPG。服务端会额外生成 WebP。
           </DialogDescription>
         </DialogHeader>
 
