@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -221,6 +221,9 @@ export default function BoardsManagePage() {
         <DialogContent className="board-manage-dialog">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑板块' : '新建板块'}</DialogTitle>
+            <DialogDescription>
+              {editing ? '修改名称、简介、图标与色标后保存。' : '填写板块信息，创建后即可在发帖时选择。'}
+            </DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
