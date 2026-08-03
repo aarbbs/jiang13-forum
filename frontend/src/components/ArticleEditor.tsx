@@ -2,7 +2,7 @@ import {
   useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useState, useMemo, type ReactNode,
 } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import { TextSelection } from '@tiptap/pm/state';
+import { TextSelection, NodeSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -71,6 +71,35 @@ function sanitizeHtml(html: string): string {
 /** 判断编辑器内容是否为空 */
 function isEditorEmpty(editor: Editor): boolean {
   return editor.state.doc.textContent.trim().length === 0;
+}
+
+/**
+ * 将光标放到第一个文本块开头。
+ * 文档以分割线等原子节点开头时，默认选区会变成 NodeSelection，出现整条高亮。
+ */
+function placeCaretInFirstTextblock(editor: Editor) {
+  const { state } = editor;
+  const { doc, selection } = state;
+  let pos: number | null = null;
+  doc.descendants((node, nodePos) => {
+    if (node.isTextblock) {
+      pos = nodePos + 1;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null) return;
+
+  const needsMove =
+    selection instanceof NodeSelection
+    || selection.from !== pos
+    || selection.to !== pos;
+  if (!needsMove) return;
+
+  const tr = state.tr
+    .setSelection(TextSelection.create(doc, pos))
+    .setMeta('addToHistory', false);
+  editor.view.dispatch(tr);
 }
 
 /** 标题循环：正文 → H2 → H3 → … → H6 → 正文 */
@@ -181,6 +210,10 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       TabIndent,
     ],
     content: sanitizeHtml(value) || '',
+    autofocus: false,
+    onCreate: ({ editor: ed }) => {
+      placeCaretInFirstTextblock(ed);
+    },
     onUpdate: ({ editor: ed }) => {
       const html = sanitizeHtml(ed.getHTML());
       isInternalUpdate.current = true;
@@ -229,6 +262,8 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     if (next === lastValueRef.current) return;
     lastValueRef.current = next;
     editor.commands.setContent(next || '', { emitUpdate: false });
+    // 加载长文时避免首行分割线被 NodeSelection 选中
+    placeCaretInFirstTextblock(editor);
   }, [value, editor, mode]);
 
   // 全屏时锁定页面滚动，Esc 退出
@@ -267,7 +302,9 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         markdownRef.current?.focus();
         return;
       }
-      editor?.commands.focus();
+      if (!editor) return;
+      placeCaretInFirstTextblock(editor);
+      editor.commands.focus();
     },
   }), [editor, value, mode, markdownSource]);
 
@@ -365,6 +402,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     onChange(html);
     if (editor) {
       editor.commands.setContent(html || '', { emitUpdate: false });
+      placeCaretInFirstTextblock(editor);
     }
     setMode('rich');
   }, [editor, markdownSource, onChange]);

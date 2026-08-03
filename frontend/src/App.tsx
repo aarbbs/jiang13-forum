@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -12,33 +12,36 @@ import { ThemeProvider } from './hooks/useTheme';
 import MainLayout from './layouts/MainLayout';
 import AdminLayout from './layouts/AdminLayout';
 import ErrorBoundary from './components/ErrorBoundary';
+import AppRouteError from './components/AppRouteError';
 import PageLoader from './components/PageLoader';
 import AuthPageFallback from './components/AuthPageFallback';
 import { Toaster } from './components/ui/sonner';
+import PullToRefresh from './components/PullToRefresh';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const PostDetailPage = lazy(() => import('./pages/PostDetailPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage'));
-const ComposePage = lazy(() => import('./pages/ComposePage'));
-const BoardsManagePage = lazy(() => import('./pages/BoardsManagePage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
-const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
-const MessagesPage = lazy(() => import('./pages/MessagesPage'));
-const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
-const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
-const AdminPostsPage = lazy(() => import('./pages/admin/AdminPostsPage'));
-const AdminCommentsPage = lazy(() => import('./pages/admin/AdminCommentsPage'));
-const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage'));
-const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'));
-const AdminMediaPage = lazy(() => import('./pages/admin/AdminMediaPage'));
-const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const HomePage = lazyWithRetry(() => import('./pages/HomePage'));
+const PostDetailPage = lazyWithRetry(() => import('./pages/PostDetailPage'));
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage'));
+const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage'));
+const ComposePage = lazyWithRetry(() => import('./pages/ComposePage'));
+const BoardsManagePage = lazyWithRetry(() => import('./pages/BoardsManagePage'));
+const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage'));
+const UserProfilePage = lazyWithRetry(() => import('./pages/UserProfilePage'));
+const FavoritesPage = lazyWithRetry(() => import('./pages/FavoritesPage'));
+const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'));
+const ProjectsPage = lazyWithRetry(() => import('./pages/ProjectsPage'));
+const AdminDashboardPage = lazyWithRetry(() => import('./pages/admin/AdminDashboardPage'));
+const AdminPostsPage = lazyWithRetry(() => import('./pages/admin/AdminPostsPage'));
+const AdminCommentsPage = lazyWithRetry(() => import('./pages/admin/AdminCommentsPage'));
+const AdminReportsPage = lazyWithRetry(() => import('./pages/admin/AdminReportsPage'));
+const AdminUsersPage = lazyWithRetry(() => import('./pages/admin/AdminUsersPage'));
+const AdminMediaPage = lazyWithRetry(() => import('./pages/admin/AdminMediaPage'));
+const AdminSettingsPage = lazyWithRetry(() => import('./pages/admin/AdminSettingsPage'));
+const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <>
+    <Route errorElement={<AppRouteError />}>
       <Route path="/login" element={<Suspense fallback={<AuthPageFallback />}><LoginPage /></Suspense>} />
       <Route path="/register" element={<Suspense fallback={<AuthPageFallback />}><RegisterPage /></Suspense>} />
       <Route path="/boards" element={<Navigate to="/admin/boards" replace />} />
@@ -68,7 +71,7 @@ const router = createBrowserRouter(
         <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Suspense fallback={<PageLoader fullScreen />}><NotFoundPage standalone /></Suspense>} />
-    </>,
+    </Route>,
   ),
 );
 
@@ -78,6 +81,7 @@ export default function App() {
       <AuthProvider>
         <ErrorBoundary>
           <RouterProvider router={router} />
+          <PullToRefresh />
           <Toaster />
         </ErrorBoundary>
       </AuthProvider>

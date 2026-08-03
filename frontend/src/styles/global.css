@@ -1470,6 +1470,57 @@ img.site-brand-logo-img {
   transform: scale(0.96);
 }
 
+/* 手机端自定义下拉刷新指示器（原生 PTR 依赖 document 滚动） */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transition: transform 0.12s ease-out;
+}
+
+.ptr-indicator__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--j13-border);
+  background: var(--j13-bg-surface);
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--j13-shadow-card);
+}
+
+.ptr-indicator--ready .ptr-indicator__chip {
+  color: var(--j13-green);
+  border-color: color-mix(in srgb, var(--j13-green) 35%, var(--j13-border));
+  background: var(--j13-green-bg);
+}
+
+.ptr-indicator__arrow {
+  transition: transform 0.15s ease;
+}
+
+.ptr-indicator__spin {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ptr-indicator { display: none; }
+}
+
+
 @media (max-width: 768px) {
   .back-to-top-stack {
     right: 14px;
@@ -5809,10 +5860,11 @@ button.profile-stat:hover strong {
 .compose-page {
   /* 与 .compose-header 实际高度对齐，供编辑器工具栏 sticky 偏移 */
   --compose-header-sticky-h: 57px;
-  flex: 1;
+  /* 随正文增高，避免白底被视口高度裁切、粘性顶栏失效 */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: min(100%, 100vh - var(--j13-header-h));
+  min-height: 100%;
   overflow: visible;
   background: var(--j13-bg-workspace);
 }
@@ -5880,15 +5932,16 @@ button.profile-stat:hover strong {
 }
 
 .compose-canvas {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: min(100%, 100vh - var(--j13-header-h));
-  /* 富文本：接近阅读宽度；源码双栏时拉宽 */
-  max-width: 1120px;
+  min-height: 100%;
+  /* 富文本：接近正文阅读宽度，避免宽行/表格撑出右侧；源码双栏另加宽 */
+  max-width: calc(var(--j13-article-read-w) + 64px);
   width: 100%;
   margin: 0 auto;
   padding: 16px 20px 24px;
+  box-sizing: border-box;
   transition: max-width 0.2s ease;
 }
 
@@ -5897,15 +5950,31 @@ button.profile-stat:hover strong {
 }
 
 .compose-shell {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /* 短文填满可视区；长文随内容增高（勿用 min-height:0，否则白底被裁切） */
+  min-height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
   background: var(--j13-bg-surface);
   border: 1px solid var(--j13-border-light);
   border-radius: 12px;
   box-shadow: var(--j13-shadow-card);
+  /* 顶栏 sticky 需 visible；横向溢出由 .compose-shell-body 承接 */
   overflow: visible;
+}
+
+/* 正文区单独限宽，避免表格/长词撑出白底 */
+.compose-shell-body {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0 0 12px 12px;
 }
 
 .compose-header {
@@ -5921,6 +5990,8 @@ button.profile-stat:hover strong {
   background: var(--j13-bg-surface);
   border-bottom: 1px solid var(--j13-border-light);
   border-radius: 12px 12px 0 0;
+  /* 长文下滚时顶栏与正文分层更清晰 */
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
 }
 
 .compose-header-left {
@@ -6199,11 +6270,12 @@ button.profile-stat:hover strong {
 }
 
 .compose-document {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  padding: 0 0 0;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
 }
 
 .compose-title {
@@ -6238,9 +6310,11 @@ button.profile-stat:hover strong {
 
 /* 文章编辑器 */
 .article-editor {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
   border-top: 1px solid var(--j13-border-light);
 }
 
@@ -6407,20 +6481,25 @@ button.profile-stat:hover strong {
 }
 
 .article-editor-body {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
   min-height: 280px;
 }
 
 /* 编辑面板 */
 .article-editor-pane {
   display: flex;
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 0;
+  max-width: 100%;
   min-height: 320px;
   border: none;
   border-radius: 0;
-  overflow: hidden;
+  /* 普通模式随正文增高，由外层 .main-content--compose 滚动 */
+  overflow: visible;
   background: transparent;
   box-shadow: none;
 }
@@ -6457,9 +6536,11 @@ button.profile-stat:hover strong {
 }
 
 .article-editor-scroll {
-  flex: 1;
+  flex: 1 0 auto;
   min-width: 0;
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
   background: transparent;
 }
 
@@ -6476,11 +6557,32 @@ button.profile-stat:hover strong {
 .article-editor-content .tiptap,
 .article-prosemirror {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   min-height: 360px;
   padding: 16px 24px 32px;
   outline: none;
   font-size: 15.5px;
   line-height: 1.7;
+  /* 长中英混排/表格单元格：强制在容器内换行，不撑破白底 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 编辑器内表格：允许单元格换行，过宽时在编辑区内横滑 */
+.article-prosemirror.post-detail-content table,
+.article-prosemirror table {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.article-prosemirror.post-detail-content th,
+.article-prosemirror.post-detail-content td,
+.article-prosemirror th,
+.article-prosemirror td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 源码双栏：充分利用加宽画布 */
@@ -6900,6 +7002,13 @@ button.profile-stat:hover strong {
 .article-editor--fullscreen .article-editor-body {
   min-height: 0;
   flex: 1;
+}
+
+.article-editor--fullscreen .article-editor-pane,
+.article-editor--fullscreen .article-editor-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* 全屏富文本：编辑区居中，宽度对齐帖子正文阅读区 */

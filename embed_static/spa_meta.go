@@ -37,6 +37,8 @@ func ServeSPAWithMeta(c *gin.Context, meta *SPAPageMeta) {
 		return
 	}
 	data = applySPAPageMeta(data, meta)
+	// 入口 HTML 禁止长期缓存，否则发版后仍引用旧 chunk 哈希
+	c.Header("Cache-Control", "no-cache")
 	c.Data(status, "text/html; charset=utf-8", data)
 }
 

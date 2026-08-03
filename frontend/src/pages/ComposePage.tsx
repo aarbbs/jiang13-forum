@@ -303,6 +303,7 @@ export default function ComposePage() {
             </div>
           </header>
 
+          <div className="compose-shell-body">
           <section className="compose-context" aria-label="发布设置">
             <div className="compose-context-row">
               <span className="compose-context-label">板块</span>
@@ -346,6 +347,7 @@ export default function ComposePage() {
               onChange={setContent}
               placeholder="开始写作。按回车分段，选中文字后用工具栏设置格式。"
             />
+          </div>
           </div>
         </div>
       </div>

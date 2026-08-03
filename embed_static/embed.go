@@ -32,7 +32,12 @@ func SetSPABrandingJSON(fn func() []byte) {
 // SetupEmbed 配置内嵌资源：React SPA 静态资源
 func SetupEmbed(r *gin.Engine) error {
 	if sub, err := fs.Sub(staticFS, "static/spa/assets"); err == nil {
-		r.GET("/assets/*filepath", gin.WrapH(http.StripPrefix("/assets", http.FileServer(http.FS(sub)))))
+		fileServer := http.StripPrefix("/assets", http.FileServer(http.FS(sub)))
+		r.GET("/assets/*filepath", func(c *gin.Context) {
+			// hashed 资源可长期缓存；发版后文件名变更，旧 URL 自然 404
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			fileServer.ServeHTTP(c.Writer, c.Request)
+		})
 	}
 	return nil
 }
