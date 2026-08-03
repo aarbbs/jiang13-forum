@@ -66,6 +66,20 @@ export default function PostContent({
       openLightbox(zoomImg);
       return;
     }
+    const headingCopy = target.closest<HTMLElement>('[data-heading-copy]');
+    if (headingCopy) {
+      e.preventDefault();
+      const id = headingCopy.getAttribute('data-heading-copy') || '';
+      if (!id) return;
+      const url = `${window.location.origin}${window.location.pathname}${window.location.search}#${id}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        notify.success('已复制本节链接');
+      } catch {
+        notify.error('复制失败');
+      }
+      return;
+    }
     const copyBtn = target.closest<HTMLElement>('[data-code-copy]');
     if (copyBtn) {
       e.preventDefault();

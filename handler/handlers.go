@@ -313,7 +313,8 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 	title := c.PostForm("title")
 	content := c.PostForm("content")
 	tags := c.PostForm("tags")
-	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, h.isAdmin(c))
+	postType := c.PostForm("post_type")
+	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, postType, h.isAdmin(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -329,7 +330,7 @@ func (h *Handlers) APIUpdatePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
 	err := h.Post.Update(h.currentUserID(c), uint(id), h.isAdmin(c),
-		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), uint(boardID))
+		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), c.PostForm("post_type"), uint(boardID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -366,6 +367,21 @@ func (h *Handlers) APIToggleFavorite(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"favorited": faved})
+}
+
+// APISetQuestionResolved 标记问答帖已解决 / 未解决
+func (h *Handlers) APISetQuestionResolved(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	resolved := c.PostForm("resolved") == "1" || c.PostForm("resolved") == "true"
+	if err := h.Post.SetQuestionResolved(h.currentUserID(c), uint(id), h.isAdmin(c), resolved); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已标记为未解决"
+	if resolved {
+		msg = "已标记为已解决"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "question_resolved": resolved})
 }
 
 func (h *Handlers) APICreateComment(c *gin.Context) {

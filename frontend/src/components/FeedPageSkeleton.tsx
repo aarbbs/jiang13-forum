@@ -8,9 +8,8 @@ export default function FeedPageSkeleton() {
       <div className="feed-panel">
         <div className="feed-top">
           <div className="feed-top__bar">
-            <div className="feed-head">
+            <div className="feed-head feed-head--stats-only">
               <div className="feed-head__title">
-                <Skeleton className="skeleton--feed-title" />
                 <div className="feed-head__stats">
                   <Skeleton className="skeleton--stat-chip" />
                   <Skeleton className="skeleton--stat-chip" />

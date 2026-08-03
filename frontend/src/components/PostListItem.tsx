@@ -75,33 +75,38 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
             <span className="post-head-dot" aria-hidden>·</span>
             <span className="post-time">{timeLabel}</span>
           </div>
-          {(post.featured || post.pinned || post.status === 'pending' || post.status === 'rejected') && (
-            <div className="post-head-badges">
-              {post.status === 'pending' && (
-                <span className="post-status-badge post-status-badge--pending" title="审核中">审核中</span>
-              )}
-              {post.status === 'rejected' && (
-                <span className="post-status-badge post-status-badge--rejected" title="未通过">未通过</span>
-              )}
-              {post.featured && (
-                <span className="post-feature-badge" title="精华">
-                  <FeaturedIcon size={12} />
-                  精华
-                </span>
-              )}
-              {post.pinned && (
-                <span className="post-pin-badge" title="置顶">
-                  <PinnedIcon size={12} />
-                  置顶
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
-        <a href={href} className="post-title" onClick={onTitleClick}>
-          {post.title}
-        </a>
+        <div className="post-title-row">
+          {post.pinned && (
+            <span className="post-pin-badge post-pin-badge--icon" title="置顶">
+              <PinnedIcon size={13} />
+            </span>
+          )}
+          {post.featured && (
+            <span className="post-feature-badge" title="精华">
+              <FeaturedIcon size={12} />
+              精华
+            </span>
+          )}
+          {post.status === 'pending' && (
+            <span className="post-status-badge post-status-badge--pending" title="审核中">审核中</span>
+          )}
+          {post.status === 'rejected' && (
+            <span className="post-status-badge post-status-badge--rejected" title="未通过">未通过</span>
+          )}
+          {post.post_type === 'question' && (
+            <span
+              className={`post-qa-badge${post.question_resolved ? ' post-qa-badge--resolved' : ' post-qa-badge--open'}`}
+              title={post.question_resolved ? '已解决' : '未解决'}
+            >
+              {post.question_resolved ? '已解决' : '未解决'}
+            </span>
+          )}
+          <a href={href} className="post-title" onClick={onTitleClick}>
+            {post.title}
+          </a>
+        </div>
 
         {excerpt && <p className="post-excerpt">{excerpt}</p>}
 

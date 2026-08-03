@@ -146,6 +146,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.GET("/posts/:id/revisions/:revId", h.APIPostRevisionDetail)
 		api.POST("/posts/:id/like", h.APIToggleLike)
 		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
+		api.POST("/posts/:id/resolve", h.APISetQuestionResolved)
 		api.POST("/posts/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreatePostReport)
 		api.GET("/messages/unread-count", h.APIMessageUnreadCount)
 		api.GET("/messages/conversations", h.APIMessageConversations)

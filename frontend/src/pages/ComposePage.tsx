@@ -23,6 +23,7 @@ interface ComposeBaseline {
   tags: string;
   content: string;
   boardId: string;
+  postType: 'normal' | 'question';
 }
 
 function resolveBoards(ctxBoards?: Board[]): Board[] {
@@ -63,6 +64,7 @@ export default function ComposePage() {
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
+  const [postType, setPostType] = useState<'normal' | 'question'>('normal');
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   /** 新建帖：板块列表是否已就绪（避免请求中误显空态） */
@@ -102,17 +104,20 @@ export default function ComposePage() {
             return;
           }
           const loadedBoardId = String(post.board_id);
+          const loadedType = post.post_type === 'question' ? 'question' : 'normal';
           const serverBaseline: ComposeBaseline = {
             title: post.title,
             tags: post.tags ?? '',
             content: post.content ?? '',
             boardId: loadedBoardId,
+            postType: loadedType,
           };
           setBoardId(loadedBoardId);
           setBaseline(serverBaseline);
           setTitle(serverBaseline.title);
           setTags(serverBaseline.tags);
           setContent(serverBaseline.content);
+          setPostType(loadedType);
 
           const windowHours = postData.post_edit_window_hours ?? 0;
           if (user.role !== 'admin' && windowHours > 0) {
@@ -139,6 +144,7 @@ export default function ComposePage() {
         tags: '',
         content: '',
         boardId: boardForBaseline,
+        postType: 'normal',
       });
     };
 
@@ -169,8 +175,9 @@ export default function ComposePage() {
       || serializeTags(parseTags(tags)) !== serializeTags(parseTags(baseline.tags))
       || content !== baseline.content
       || boardId !== baseline.boardId
+      || postType !== baseline.postType
     );
-  }, [baseline, title, tags, content, boardId, isEdit, boards.length]);
+  }, [baseline, title, tags, content, boardId, postType, isEdit, boards.length]);
 
   const {
     dialogOpen,
@@ -247,6 +254,7 @@ export default function ComposePage() {
         content: content.trim(),
         tags: serializeTags(parseTags(tags)),
         board_id: boardId,
+        post_type: postType,
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
@@ -306,6 +314,32 @@ export default function ComposePage() {
           <div className="compose-shell-body">
           <section className="compose-context" aria-label="发布设置">
             <div className="compose-context-row">
+              <span className="compose-context-label">类型</span>
+              <div className="compose-type-pills" role="radiogroup" aria-label="帖子类型">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={postType === 'normal'}
+                  className={`compose-type-pill${postType === 'normal' ? ' active' : ''}`}
+                  onClick={() => setPostType('normal')}
+                >
+                  讨论
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={postType === 'question'}
+                  className={`compose-type-pill${postType === 'question' ? ' active' : ''}`}
+                  onClick={() => setPostType('question')}
+                >
+                  问答
+                </button>
+              </div>
+              {postType === 'question' && (
+                <span className="compose-type-hint">可标记未解决 / 已解决</span>
+              )}
+            </div>
+            <div className="compose-context-row">
               <span className="compose-context-label">板块</span>
               <div className="compose-board-pills" role="listbox" aria-label={isEdit ? '修改板块' : '选择板块'}>
                 {boards.map(b => (
@@ -337,7 +371,7 @@ export default function ComposePage() {
             <input
               className="compose-title"
               type="text"
-              placeholder="输入文章标题…"
+              placeholder={postType === 'question' ? '用一句话描述你的问题…' : '输入文章标题…'}
               value={title}
               onChange={e => setTitle(e.target.value)}
               maxLength={limits.post_title_max > 0 ? limits.post_title_max : undefined}

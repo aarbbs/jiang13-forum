@@ -8,7 +8,7 @@ interface Props {
   boards: Board[];
   stats: ForumStats | null;
   postTotal: number;
-  /** 首页「全部帖子」用 h2，板块/搜索页用 h1 */
+  /** 搜索页用 h1；首页/板块页中间栏不再展示标题 */
   titleAs?: 'h1' | 'h2';
 }
 
@@ -16,18 +16,15 @@ export default function FeedHeader({ boardId, keyword, boards, stats, postTotal,
   const nav = useNavigate();
   const board = boards.find(b => b.id === boardId);
 
-  const title = keyword
-    ? `搜索：${keyword}`
-    : (boardId && board ? board.name : '全部帖子');
-
-  const boardHint = boardId && board ? (board.description || '') : '';
-  const TitleTag = titleAs;
   const inBoard = !keyword && boardId > 0 && !!board;
+  /** 侧栏已有「全部帖子 / 板块名」，中间栏不再重复；仅搜索保留标题 */
+  const title = keyword ? `搜索：${keyword}` : '';
+  const TitleTag = titleAs;
 
   return (
-    <div className={`feed-head${keyword ? ' feed-head--solo' : ''}`}>
+    <div className={`feed-head${keyword ? ' feed-head--solo' : ' feed-head--stats-only'}`}>
       <div className="feed-head__title">
-        <TitleTag title={boardHint || undefined}>{title}</TitleTag>
+        {title ? <TitleTag>{title}</TitleTag> : null}
         {!keyword && inBoard && (
           <div className="feed-head__stats">
             <span className="feed-stat-chip">

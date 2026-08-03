@@ -19,6 +19,15 @@ func NewPostService(filter *SensitiveFilter, settings *ForumSettingsService) *Po
 	return &PostService{filter: filter, settings: settings}
 }
 
+func normalizePostType(raw string) string {
+	switch strings.TrimSpace(raw) {
+	case model.PostTypeQuestion:
+		return model.PostTypeQuestion
+	default:
+		return model.PostTypeNormal
+	}
+}
+
 type PostListQuery struct {
 	BoardID       uint
 	UserID        uint // >0 时仅返回该用户的帖子
@@ -321,10 +330,11 @@ func (s *PostService) GetByID(id uint) (*model.Post, error) {
 	return post, nil
 }
 
-func (s *PostService) Create(userID, boardID uint, title, content, tags string, isAdmin bool) (*model.Post, error) {
+func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, isAdmin bool) (*model.Post, error) {
 	title = s.filter.Filter(strings.TrimSpace(title))
 	content = s.filter.Filter(content)
 	tags = s.filter.Filter(strings.TrimSpace(tags))
+	postType = normalizePostType(postType)
 	if title == "" || content == "" {
 		return nil, errors.New("标题和内容不能为空")
 	}
@@ -345,19 +355,22 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags string, 
 		status = model.ContentStatusPublished
 	}
 	post := &model.Post{
-		BoardID:      boardID,
-		UserID:       userID,
-		Title:        title,
-		Content:      content,
-		ContentPlain: StripHTMLForSearch(content),
-		Tags:         tags,
-		Status:       status,
+		BoardID:          boardID,
+		UserID:           userID,
+		Title:            title,
+		Content:          content,
+		ContentPlain:     StripHTMLForSearch(content),
+		Tags:             tags,
+		PostType:         postType,
+		QuestionResolved: false,
+		Status:           status,
 	}
 	return post, model.DB.Create(post).Error
 }
 
 // Update 更新帖子。boardID>0 时可改板块；为 0 时保持原板块。
-func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, tags string, boardID uint) error {
+// postType 为空时保持原类型；改为非 question 时清除已解决标记。
+func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, tags, postType string, boardID uint) error {
 	var post model.Post
 	if err := model.DB.First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
@@ -387,6 +400,14 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 		}
 		nextBoardID = boardID
 	}
+	nextType := post.PostType
+	if strings.TrimSpace(postType) != "" {
+		nextType = normalizePostType(postType)
+	}
+	nextResolved := post.QuestionResolved
+	if nextType != model.PostTypeQuestion {
+		nextResolved = false
+	}
 	return model.DB.Transaction(func(tx *gorm.DB) error {
 		rev := model.PostRevision{
 			PostID: postID, EditorID: userID,
@@ -396,11 +417,13 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 			return err
 		}
 		updates := map[string]interface{}{
-			"board_id":      nextBoardID,
-			"title":         title,
-			"content":       content,
-			"content_plain": StripHTMLForSearch(content),
-			"tags":          tags,
+			"board_id":          nextBoardID,
+			"title":             title,
+			"content":           content,
+			"content_plain":     StripHTMLForSearch(content),
+			"tags":              tags,
+			"post_type":         nextType,
+			"question_resolved": nextResolved,
 		}
 		// 普通用户修改后重新进入审核
 		if !isAdmin {
@@ -657,6 +680,21 @@ func (s *PostService) SetPinned(postID uint, pinned bool) error {
 
 func (s *PostService) SetFeatured(postID uint, featured bool) error {
 	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("featured", featured).Error
+}
+
+// SetQuestionResolved 标记问答帖已解决 / 未解决（作者或管理员）
+func (s *PostService) SetQuestionResolved(userID, postID uint, isAdmin bool, resolved bool) error {
+	var post model.Post
+	if err := model.DB.First(&post, postID).Error; err != nil {
+		return ErrPostNotFound
+	}
+	if !isAdmin && post.UserID != userID {
+		return ErrPermissionDenied
+	}
+	if post.PostType != model.PostTypeQuestion {
+		return errors.New("仅问答帖可标记解决状态")
+	}
+	return model.DB.Model(&post).Update("question_resolved", resolved).Error
 }
 
 func (s *PostService) ToggleLike(userID, postID uint) (liked bool, err error) {

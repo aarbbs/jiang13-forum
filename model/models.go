@@ -21,6 +21,12 @@ const (
 	ContentStatusRejected  = "rejected"  // 未通过（仅作者与管理员可见）
 )
 
+// 帖子类型
+const (
+	PostTypeNormal   = "normal"   // 普通讨论
+	PostTypeQuestion = "question" // 问答（未解决 / 已解决）
+)
+
 // User 用户表
 // Email / Password / LastLogin* 默认不随帖子等嵌套 User 序列化；
 // 个人中心与后台列表请用 UserSelf / UserAdmin。
@@ -64,6 +70,8 @@ type Post struct {
 	Content      string         `gorm:"type:text;not null" json:"content"`
 	ContentPlain string         `gorm:"type:text" json:"-"` // 正文纯文本，供搜索索引
 	Tags         string         `gorm:"size:256" json:"tags"`
+	PostType     string         `gorm:"size:16;default:normal;index" json:"post_type"` // normal|question
+	QuestionResolved bool       `gorm:"default:false;index" json:"question_resolved"`  // 仅 question 有意义
 	Pinned     bool           `gorm:"default:false" json:"pinned"`
 	Featured   bool           `gorm:"default:false;index" json:"featured"` // 精华帖
 	EditLocked bool           `gorm:"default:false" json:"edit_locked"`

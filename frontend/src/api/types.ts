@@ -64,6 +64,10 @@ export interface PostItem {
   title: string;
   content?: string;
   tags: string;
+  /** normal=讨论 | question=问答 */
+  post_type?: 'normal' | 'question' | string;
+  /** 仅问答帖有意义 */
+  question_resolved?: boolean;
   pinned: boolean;
   featured?: boolean;
   edit_locked?: boolean;

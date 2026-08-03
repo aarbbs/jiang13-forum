@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
@@ -216,6 +216,26 @@ export default function PostDetailPage() {
     highlightTimer.current = setTimeout(() => setHighlightFloor(null), 2000);
   }, []);
 
+  /** 正文标题锚点：滚动容器是 pageRef，原生 hash 定位无效，需手动滚 */
+  const jumpToHeadingHash = useCallback((hash: string, smooth = false) => {
+    const id = decodeURIComponent((hash || '').replace(/^#/, '')).trim();
+    if (!id || /^floor-\d+$/.test(id)) return false;
+    const el = document.getElementById(id);
+    if (!el) return false;
+
+    const root = pageRef.current;
+    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
+    if (root) {
+      const rootRect = root.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const top = root.scrollTop + (elRect.top - rootRect.top) - 12;
+      root.scrollTo({ top: Math.max(0, top), behavior });
+    } else {
+      el.scrollIntoView({ behavior, block: 'start' });
+    }
+    return true;
+  }, []);
+
   // 从 #floor-N 定位到对应评论（右栏最新评论等入口）
   useEffect(() => {
     if (loading || !post) return;
@@ -226,6 +246,32 @@ export default function PostDetailPage() {
     const t = window.setTimeout(() => jumpToFloor(floor), 80);
     return () => clearTimeout(t);
   }, [loading, post, comments, location.hash, jumpToFloor]);
+
+  // 从 #heading-N（或任意标题 id）定位；等正文进 DOM 后重试，避免首屏 hash 失效
+  useEffect(() => {
+    if (loading || !post) return;
+    const hash = location.hash;
+    if (!hash || /^#floor-\d+$/.test(hash)) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer = 0;
+
+    const tryJump = () => {
+      if (cancelled) return;
+      if (jumpToHeadingHash(hash, false)) return;
+      attempts += 1;
+      if (attempts < 30) {
+        timer = window.setTimeout(tryJump, 50);
+      }
+    };
+
+    timer = window.setTimeout(tryJump, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loading, post, location.hash, jumpToHeadingHash, headings]);
 
   const requireLogin = (actionLabel: string) => {
     notify.warning(`登录后即可${actionLabel}`);
@@ -416,6 +462,20 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleToggleResolved = async () => {
+    if (!post || post.post_type !== 'question') return;
+    const next = !post.question_resolved;
+    try {
+      const r = await api.setQuestionResolved(postId, next);
+      setPost(p => p ? { ...p, question_resolved: r.question_resolved } : p);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
   const handleApprove = async () => {
     if (!post) return;
     try {
@@ -488,10 +548,6 @@ export default function PostDetailPage() {
     }
   };
 
-  const jumpToComments = () => {
-    commentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
     <article className="page-wrap post-detail-page" ref={pageRef}>
       <div className="post-detail-header">
@@ -518,10 +574,21 @@ export default function PostDetailPage() {
 
         <div className="post-detail-head">
           <h1 className="post-detail-title">
+            {post.pinned && (
+              <span className="post-pin-badge post-pin-badge--icon post-pin-badge--detail" title="置顶">
+                <PinnedIcon size={16} />
+              </span>
+            )}
+            {post.featured && <FeaturedIcon className="mr-2" size={18} />}
             {post.status === 'pending' && <Badge variant="orange" className="mr-2 align-middle">审核中</Badge>}
             {post.status === 'rejected' && <Badge variant="destructive" className="mr-2 align-middle">未通过</Badge>}
-            {post.featured && <FeaturedIcon className="mr-2" size={18} />}
-            {post.pinned && <PinnedIcon className="mr-2" size={18} />}
+            {post.post_type === 'question' && (
+              <span
+                className={`post-qa-badge post-qa-badge--detail${post.question_resolved ? ' post-qa-badge--resolved' : ' post-qa-badge--open'}`}
+              >
+                {post.question_resolved ? '已解决' : '未解决'}
+              </span>
+            )}
             {post.title}
           </h1>
           <div className="post-detail-author-row">
@@ -577,110 +644,121 @@ export default function PostDetailPage() {
         />
 
         <div className="post-detail-actions">
-          <Button
-            variant={liked ? 'default' : 'outline'}
-            size="sm"
-            onClick={handleLike}
-            title={!user ? '登录后即可点赞' : undefined}
-            className={!user ? 'post-action-guest' : undefined}
-          >
-            <ThumbsUp />
-            {!user ? '登录后点赞' : `点赞 ${post.like_count}`}
-          </Button>
-          <Button
-            variant={favorited ? 'default' : 'outline'}
-            size="sm"
-            onClick={handleFavorite}
-            title={!user ? '登录后即可收藏' : undefined}
-            className={!user ? 'post-action-guest' : undefined}
-          >
-            <Star />
-            {!user ? '登录后收藏' : (favorited ? '已收藏' : '收藏')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={jumpToComments}>
-            <MessageSquare />
-            评论 {comments.length}
-          </Button>
-          {user && user.id !== post.user_id && (
-            <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
-              <Flag />
-              举报
+          <div className="post-detail-actions-primary">
+            <Button
+              variant={liked ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleLike}
+              title={!user ? '登录后即可点赞' : undefined}
+            >
+              <ThumbsUp />
+              点赞 {post.like_count}
             </Button>
-          )}
-          {!user && (
-            <Button variant="outline" size="sm" onClick={() => requireLogin('举报')}>
-              <Flag />
-              举报
+            <Button
+              variant={favorited ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleFavorite}
+              title={!user ? '登录后即可收藏' : undefined}
+            >
+              <Star />
+              {favorited ? '已收藏' : '收藏'}
             </Button>
-          )}
-          {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => nav(`/post/${postId}/edit`)}>
-              <Pencil />
-              编辑
-            </Button>
-          )}
-          {isOwnerOrAdmin && isEdited && (
-            <Button variant="outline" size="sm" onClick={() => setShowRevisions(true)}>
-              <History />
-              编辑历史
-            </Button>
-          )}
-          {isAdmin && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={deletingPost}>
-                  <Trash2 />
-                  删除
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    帖子与评论将移入回收站，可在后台恢复或永久删除。普通用户不可自行删除内容。
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeletePost}>删除</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          {editRemaining && (
-            <span className="post-detail-edit-hint">{editRemaining}</span>
-          )}
-          {isOwnerOrAdmin && !canEdit && editBlockReason && (
-            <span className="post-detail-edit-hint" title={editBlockReason}>
-              {editBlockReason}
-            </span>
-          )}
-          {isAdmin && (
-            <>
-              {(post.status === 'pending' || post.status === 'rejected') && (
-                <Button variant="default" size="sm" onClick={handleApprove}>
-                  通过审核
+            {user && user.id !== post.user_id && (
+              <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+                <Flag />
+                举报
+              </Button>
+            )}
+            {!user && (
+              <Button variant="outline" size="sm" onClick={() => requireLogin('举报')}>
+                <Flag />
+                举报
+              </Button>
+            )}
+          </div>
+
+          {(isOwnerOrAdmin || canEdit || isAdmin) && (
+            <div className="post-detail-actions-manage">
+              {isOwnerOrAdmin && post.post_type === 'question' && (
+                <Button
+                  variant={post.question_resolved ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={handleToggleResolved}
+                >
+                  {post.question_resolved ? <CircleHelp /> : <CircleCheck />}
+                  {post.question_resolved ? '标为未解决' : '标为已解决'}
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleFeature}>
-                <Sparkles />
-                {post.featured ? '取消精华' : '设为精华'}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handlePin}>
-                <Pin />
-                {post.pinned ? '取消置顶' : '置顶'}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLock}>
-                <Lock />
-                {post.edit_locked ? '解锁编辑' : '锁定编辑'}
-              </Button>
-              {post.status !== 'rejected' && (
-                <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
-                  <Ban />
-                  拒绝并通知
+              {canEdit && (
+                <Button variant="outline" size="sm" onClick={() => nav(`/post/${postId}/edit`)}>
+                  <Pencil />
+                  编辑
                 </Button>
               )}
-            </>
+              {isOwnerOrAdmin && isEdited && (
+                <Button variant="outline" size="sm" onClick={() => setShowRevisions(true)}>
+                  <History />
+                  编辑历史
+                </Button>
+              )}
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={deletingPost}>
+                      <Trash2 />
+                      删除
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        帖子与评论将移入回收站，可在后台恢复或永久删除。普通用户不可自行删除内容。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeletePost}>删除</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {editRemaining && (
+                <span className="post-detail-edit-hint">{editRemaining}</span>
+              )}
+              {isOwnerOrAdmin && !canEdit && editBlockReason && (
+                <span className="post-detail-edit-hint" title={editBlockReason}>
+                  {editBlockReason}
+                </span>
+              )}
+              {isAdmin && (
+                <>
+                  {(post.status === 'pending' || post.status === 'rejected') && (
+                    <Button variant="default" size="sm" onClick={handleApprove}>
+                      通过审核
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleFeature}>
+                    <Sparkles />
+                    {post.featured ? '取消精华' : '设为精华'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handlePin}>
+                    <Pin />
+                    {post.pinned ? '取消置顶' : '置顶'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleLock}>
+                    <Lock />
+                    {post.edit_locked ? '解锁编辑' : '锁定编辑'}
+                  </Button>
+                  {post.status !== 'rejected' && (
+                    <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
+                      <Ban />
+                      拒绝并通知
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

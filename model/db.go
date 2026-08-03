@@ -47,6 +47,7 @@ func InitDB(dbPath string) error {
 	// 存量数据默认视为已公开，避免升级后内容全部进入待审
 	_ = db.Model(&Post{}).Where("status = '' OR status IS NULL").Update("status", ContentStatusPublished).Error
 	_ = db.Model(&Comment{}).Where("status = '' OR status IS NULL").Update("status", ContentStatusPublished).Error
+	_ = db.Model(&Post{}).Where("post_type = '' OR post_type IS NULL").Update("post_type", PostTypeNormal).Error
 
 	DB = db
 	log.Println("[model] SQLite 数据库初始化完成:", dbPath)

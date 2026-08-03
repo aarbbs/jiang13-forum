@@ -132,8 +132,20 @@ export function renderPostContentHtml(
 
   enhanceHeadingAnchors(doc.body);
   enhanceCodeBlocks(doc.body);
+  wrapContentTables(doc.body);
 
   return doc.body.innerHTML;
+}
+
+/** 表格外包一层，避免 display:block 时边框撑满而单元格背景偏窄 */
+function wrapContentTables(root: ParentNode): void {
+  root.querySelectorAll('table').forEach(table => {
+    if (table.parentElement?.classList.contains('md-table-wrap')) return;
+    const wrap = table.ownerDocument.createElement('div');
+    wrap.className = 'md-table-wrap';
+    table.replaceWith(wrap);
+    wrap.appendChild(table);
+  });
 }
 
 function isFloatDisplayImage(el: Element): boolean {

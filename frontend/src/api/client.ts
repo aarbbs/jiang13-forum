@@ -271,15 +271,16 @@ export const api = {
     fd.append('image', file);
     return request<{ url: string }>('/api/uploads/image', { method: 'POST', body: fd, headers: {} });
   },
-  createPost: (data: { board_id: string; title: string; content: string; tags?: string }) => {
+  createPost: (data: { board_id: string; title: string; content: string; tags?: string; post_type?: string }) => {
     const fd = new FormData();
     fd.append('board_id', data.board_id);
     fd.append('title', data.title);
     fd.append('content', data.content);
     fd.append('tags', data.tags || '');
+    fd.append('post_type', data.post_type || 'normal');
     return request<{ post_id: number; message?: string; status?: string }>('/api/posts', { method: 'POST', body: fd, headers: {} });
   },
-  updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number }) => {
+  updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number; post_type?: string }) => {
     const fd = new FormData();
     fd.append('title', data.title);
     fd.append('content', data.content);
@@ -287,7 +288,19 @@ export const api = {
     if (data.board_id != null && data.board_id !== '') {
       fd.append('board_id', String(data.board_id));
     }
+    if (data.post_type) {
+      fd.append('post_type', data.post_type);
+    }
     return request<{ message: string }>(`/api/posts/${id}`, { method: 'PUT', body: fd, headers: {} });
+  },
+  setQuestionResolved: (id: number, resolved: boolean) => {
+    const fd = new FormData();
+    fd.append('resolved', resolved ? '1' : '0');
+    return request<{ message: string; question_resolved: boolean }>(`/api/posts/${id}/resolve`, {
+      method: 'POST',
+      body: fd,
+      headers: {},
+    });
   },
   deletePost: (id: number) => request<{ message: string }>(`/api/posts/${id}`, { method: 'DELETE' }),
   login: (username: string, password: string) => {

@@ -1078,10 +1078,11 @@ img.site-brand-logo-img {
 }
 
 .article-outline-item {
+  position: relative;
   display: block;
   width: 100%;
   margin: 0;
-  padding: 7px 10px;
+  padding: 7px 10px 7px 12px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1093,8 +1094,7 @@ img.site-brand-logo-img {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-left: 2px solid transparent;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .article-outline-item:hover {
@@ -1106,14 +1106,26 @@ img.site-brand-logo-img {
   background: var(--j13-green-bg);
   color: var(--j13-green);
   font-weight: 600;
-  border-left-color: var(--j13-green);
 }
 
-.article-outline-item--l2 { padding-left: 18px; font-size: 12.5px; }
-.article-outline-item--l3 { padding-left: 26px; font-size: 12px; color: var(--color-text-3); }
+/* 当前节：左侧短竖条，呼应正文标题绿横线 */
+.article-outline-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  background: var(--j13-green);
+  border-radius: 1px;
+}
+
+.article-outline-item--l2 { padding-left: 20px; font-size: 12.5px; }
+.article-outline-item--l3 { padding-left: 28px; font-size: 12px; color: var(--color-text-3); }
 .article-outline-item--l4,
 .article-outline-item--l5,
-.article-outline-item--l6 { padding-left: 34px; font-size: 12px; color: var(--color-text-3); }
+.article-outline-item--l6 { padding-left: 36px; font-size: 12px; color: var(--color-text-3); }
 
 .article-outline-item--l3.active,
 .article-outline-item--l4.active,
@@ -1124,6 +1136,33 @@ img.site-brand-logo-img {
 
 .post-detail-content .post-heading-anchor {
   scroll-margin-top: 16px;
+}
+
+/* 标题旁 #：hover 显现，点击复制锚点链接 */
+.post-detail-content .post-heading-anchor-link {
+  margin-left: 0.4em;
+  font-weight: 500;
+  font-size: 0.82em;
+  line-height: 1;
+  color: var(--j13-green);
+  text-decoration: none !important;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  vertical-align: 0.05em;
+}
+
+.post-detail-content h1:hover .post-heading-anchor-link,
+.post-detail-content h2:hover .post-heading-anchor-link,
+.post-detail-content h3:hover .post-heading-anchor-link,
+.post-detail-content h4:hover .post-heading-anchor-link,
+.post-detail-content h5:hover .post-heading-anchor-link,
+.post-detail-content h6:hover .post-heading-anchor-link,
+.post-detail-content .post-heading-anchor-link:focus-visible {
+  opacity: 0.75;
+}
+
+.post-detail-content .post-heading-anchor-link:hover {
+  opacity: 1 !important;
 }
 
 .post-detail-toc-mobile {
@@ -1827,6 +1866,10 @@ img.site-brand-logo-img {
   padding-bottom: 8px;
 }
 
+.feed-head--stats-only .feed-head__title {
+  align-items: center;
+}
+
 .feed-head__title {
   display: flex;
   align-items: baseline;
@@ -2221,9 +2264,28 @@ img.site-brand-logo-img {
 }
 
 .post-pin-badge {
-  color: var(--j13-green);
-  background: var(--j13-green-bg);
-  border: 1px solid color-mix(in srgb, var(--j13-green) 16%, transparent);
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.22);
+}
+
+.post-pin-badge--icon {
+  width: 20px;
+  padding: 0;
+  justify-content: center;
+}
+
+.post-pin-badge--detail {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  vertical-align: -3px;
+}
+
+.dark .post-pin-badge {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.28);
 }
 
 .post-status-badge {
@@ -2247,6 +2309,39 @@ img.site-brand-logo-img {
   color: #be123c;
   background: rgba(244, 63, 94, 0.1);
   border: 1px solid rgba(244, 63, 94, 0.2);
+}
+
+/* 问答帖：未解决 / 已解决 */
+.post-qa-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.post-qa-badge--detail {
+  margin-right: 8px;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.post-qa-badge--open {
+  color: #c2410c;
+  background: rgba(234, 88, 12, 0.1);
+  border: 1px solid rgba(234, 88, 12, 0.22);
+}
+
+/* 已解决：绿色 */
+.post-qa-badge--resolved {
+  color: var(--j13-green);
+  background: var(--j13-green-bg);
+  border: 1px solid color-mix(in srgb, var(--j13-green) 20%, transparent);
 }
 
 .post-moderation-banner {
@@ -2298,18 +2393,34 @@ img.site-brand-logo-img {
   vertical-align: 0;
 }
 
+.post-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.post-title-row .post-qa-badge,
+.post-title-row .post-pin-badge,
+.post-title-row .post-feature-badge,
+.post-title-row .post-status-badge {
+  flex-shrink: 0;
+}
+
 .post-title {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.4;
   font-family: inherit;
   color: var(--color-text-1);
   text-decoration: none;
   transition: color 0.15s;
+  min-width: 0;
+  flex: 1;
 }
 
 a.post-title:visited {
@@ -3588,8 +3699,8 @@ a.post-title:visited {
 
 .post-detail-actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: 12px;
   margin-top: 28px;
   padding-top: 20px;
@@ -3597,6 +3708,21 @@ a.post-title:visited {
   /* 防止正文绕排 float 把操作栏卷到图片旁 */
   clear: both;
   position: relative;
+}
+
+.post-detail-actions-primary,
+.post-detail-actions-manage {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.post-detail-actions-manage {
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px dashed var(--j13-border-light);
 }
 
 .post-detail-content {
@@ -3622,6 +3748,26 @@ a.post-title:visited {
   margin: 1.55em 0 0.65em;
 }
 
+/*
+ * 标题下方绿色短横线：用文档流 block 而非 absolute+bottom，
+ * 避免空标题 / 有内容时行盒高度不同导致「忽高忽矮」；
+ * 高度一律整数 px，避免桌面非整数 DPR 下亚像素取整忽粗忽细。
+ */
+.post-detail-content h1::after,
+.post-detail-content h2::after,
+.post-detail-content h3::after,
+.post-detail-content h4::after,
+.post-detail-content h5::after,
+.post-detail-content h6::after {
+  content: '';
+  display: block;
+  box-sizing: border-box;
+  margin-top: 0.38em;
+  background: var(--j13-green);
+  border-radius: 1px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .post-detail-content > :first-child,
 .post-detail-content h1:first-child,
 .post-detail-content h2:first-child,
@@ -3634,22 +3780,35 @@ a.post-title:visited {
 
 .post-detail-content h1 {
   font-size: 1.7em;
-  padding-bottom: 0.35em;
-  border-bottom: 1px solid var(--j13-border-light);
 }
+.post-detail-content h1::after { width: 48px; height: 3px; }
+.post-detail-content h1:hover::after { width: 72px; }
+
 .post-detail-content h2 {
   font-size: 1.4em;
-  padding-bottom: 0.28em;
-  border-bottom: 1px solid var(--j13-border-light);
 }
+.post-detail-content h2::after { width: 40px; height: 2px; }
+.post-detail-content h2:hover::after { width: 60px; }
+
 .post-detail-content h3 { font-size: 1.22em; }
+.post-detail-content h3::after { width: 32px; height: 2px; }
+.post-detail-content h3:hover::after { width: 48px; }
+
 .post-detail-content h4 { font-size: 1.1em; }
+.post-detail-content h4::after { width: 26px; height: 2px; }
+.post-detail-content h4:hover::after { width: 40px; }
+
 .post-detail-content h5 { font-size: 1em; }
+.post-detail-content h5::after { width: 20px; height: 1px; }
+.post-detail-content h5:hover::after { width: 32px; }
+
 .post-detail-content h6 {
   font-size: 0.92em;
   color: var(--color-text-2);
   font-weight: 600;
 }
+.post-detail-content h6::after { width: 16px; height: 1px; }
+.post-detail-content h6:hover::after { width: 26px; }
 
 .post-detail-content ul,
 .post-detail-content ol {
@@ -4035,6 +4194,15 @@ a.post-title:visited {
 
 .post-detail-content p { margin: 0 0 1em; }
 .post-detail-content p:last-child { margin-bottom: 0; }
+
+/* 正文首段轻微强调（仅当首个子节点就是段落时） */
+.post-detail-content > p:first-child {
+  font-size: 1.06em;
+  line-height: 1.75;
+  letter-spacing: 0.015em;
+  color: var(--color-text-1);
+}
+
 .post-detail-content a {
   color: var(--j13-green);
   text-decoration: underline;
@@ -4051,19 +4219,49 @@ a.post-title:visited {
   background: color-mix(in srgb, var(--j13-green) 6%, var(--j13-bg-block-muted));
   color: var(--color-text-2);
   border-radius: 0 10px 10px 0;
+  transition:
+    border-left-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.28s ease,
+    padding-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.post-detail-content blockquote:hover {
+  border-left-width: 5px;
+  padding-left: calc(1em - 2px);
+  background: color-mix(in srgb, var(--j13-green) 11%, var(--j13-bg-block-muted));
 }
 .post-detail-content blockquote p:last-child { margin-bottom: 0; }
 
+/* 表格：按内容收缩，边框与表头背景同宽；宽表由外包层横向滚动 */
+.post-detail-content .md-table-wrap {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 1.1em 0;
+  overflow-x: auto;
+  border: 1px solid var(--j13-border-light);
+  border-radius: 10px;
+  background: var(--j13-bg-surface);
+}
+
 .post-detail-content table {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   margin: 1.1em 0;
   border-collapse: collapse;
   font-size: 14px;
-  overflow: hidden;
+  display: table;
   border: 1px solid var(--j13-border-light);
   border-radius: 10px;
-  display: block;
-  overflow-x: auto;
+  overflow: hidden;
+  background: var(--j13-bg-surface);
+}
+
+.post-detail-content .md-table-wrap table {
+  margin: 0;
+  max-width: none;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
 }
 .post-detail-content th,
 .post-detail-content td {
@@ -4816,10 +5014,6 @@ a.waline-comment-author:hover { color: var(--j13-green); }
   margin-top: 8px;
 }
 
-.post-action-guest {
-  opacity: 0.78;
-}
-
 @media (max-width: 768px) {
   .comment-box-wrap { padding: 12px 14px; }
   .comment-box-guest-fields { grid-template-columns: 1fr; }
@@ -4859,6 +5053,8 @@ a.waline-comment-author:hover { color: var(--j13-green); }
   .post-detail-header { padding: 12px 14px 16px; }
   .post-detail-title { font-size: 17px; }
   .post-detail-actions { margin-top: 20px; padding-top: 16px; gap: 10px; }
+  .post-detail-actions-primary,
+  .post-detail-actions-manage { gap: 8px; }
   .comment-section-bar { padding: 12px 14px 10px; }
   .comment-section-bar::after { left: 14px; width: 32px; }
   .comment-section:hover .comment-section-bar::after { width: 46px; }
@@ -5852,20 +6048,19 @@ button.profile-stat:hover strong {
 }
 
 .main-content--compose {
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* 编辑页占满主栏高度；滚动交给编辑区内层，底栏可始终贴底 */
+  overflow: hidden;
   background: var(--j13-bg-workspace);
 }
 
 .compose-page {
-  /* 与 .compose-header 实际高度对齐，供编辑器工具栏 sticky 偏移 */
+  /* 与 .compose-header 实际高度对齐（全屏等场景仍可能用到） */
   --compose-header-sticky-h: 57px;
-  /* 随正文增高，避免白底被视口高度裁切、粘性顶栏失效 */
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  overflow: visible;
+  overflow: hidden;
   background: var(--j13-bg-workspace);
 }
 
@@ -5932,16 +6127,17 @@ button.profile-stat:hover strong {
 }
 
 .compose-canvas {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
   /* 富文本：接近正文阅读宽度，避免宽行/表格撑出右侧；源码双栏另加宽 */
   max-width: calc(var(--j13-article-read-w) + 64px);
   width: 100%;
   margin: 0 auto;
-  padding: 16px 20px 24px;
+  padding: 16px 20px 16px;
   box-sizing: border-box;
+  overflow: hidden;
   transition: max-width 0.2s ease;
 }
 
@@ -5950,11 +6146,10 @@ button.profile-stat:hover strong {
 }
 
 .compose-shell {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  /* 短文填满可视区；长文随内容增高（勿用 min-height:0，否则白底被裁切） */
-  min-height: 100%;
   min-width: 0;
   max-width: 100%;
   width: 100%;
@@ -5962,24 +6157,23 @@ button.profile-stat:hover strong {
   border: 1px solid var(--j13-border-light);
   border-radius: 12px;
   box-shadow: var(--j13-shadow-card);
-  /* 顶栏 sticky 需 visible；横向溢出由 .compose-shell-body 承接 */
-  overflow: visible;
+  overflow: hidden;
 }
 
-/* 正文区单独限宽，避免表格/长词撑出白底 */
+/* 正文区：限宽 + 纵向填满，横向溢出由内层编辑区承接 */
 .compose-shell-body {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
   border-radius: 0 0 12px 12px;
 }
 
 .compose-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 40;
   display: flex;
   align-items: center;
@@ -5990,7 +6184,6 @@ button.profile-stat:hover strong {
   background: var(--j13-bg-surface);
   border-bottom: 1px solid var(--j13-border-light);
   border-radius: 12px 12px 0 0;
-  /* 长文下滚时顶栏与正文分层更清晰 */
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
 }
 
@@ -6083,6 +6276,7 @@ button.profile-stat:hover strong {
   padding: 14px 20px;
   border-bottom: 1px solid var(--j13-border-light);
   background: var(--j13-bg-surface);
+  flex-shrink: 0;
 }
 
 .compose-context-row {
@@ -6117,7 +6311,21 @@ button.profile-stat:hover strong {
   min-width: 0;
 }
 
-.compose-board-pill {
+.compose-type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compose-type-hint {
+  font-size: 12px;
+  color: var(--color-text-3);
+  align-self: center;
+}
+
+.compose-board-pill,
+.compose-type-pill {
   padding: 5px 12px;
   border: 1px solid var(--j13-border);
   border-radius: 999px;
@@ -6129,13 +6337,15 @@ button.profile-stat:hover strong {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.compose-board-pill:hover {
+.compose-board-pill:hover,
+.compose-type-pill:hover {
   border-color: var(--j13-green);
   color: var(--j13-green);
   background: var(--j13-green-bg);
 }
 
-.compose-board-pill.active {
+.compose-board-pill.active,
+.compose-type-pill.active {
   background: var(--j13-green);
   border-color: var(--j13-green);
   color: #fff;
@@ -6270,12 +6480,14 @@ button.profile-stat:hover strong {
 }
 
 .compose-document {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 100%;
   padding: 0;
+  overflow: hidden;
 }
 
 .compose-title {
@@ -6290,6 +6502,7 @@ button.profile-stat:hover strong {
   letter-spacing: -0.01em;
   color: var(--color-text-1);
   outline: none;
+  flex-shrink: 0;
 }
 
 .compose-title::placeholder {
@@ -6310,18 +6523,18 @@ button.profile-stat:hover strong {
 
 /* 文章编辑器 */
 .article-editor {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 100%;
   border-top: 1px solid var(--j13-border-light);
+  overflow: hidden;
 }
 
 .article-editor-bar {
-  position: sticky;
-  /* 停在发布栏下方，避免与 .compose-header 重叠 */
-  top: var(--compose-header-sticky-h, 0px);
+  position: relative;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -6481,31 +6694,31 @@ button.profile-stat:hover strong {
 }
 
 .article-editor-body {
-  flex: 1 0 auto;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   max-width: 100%;
-  min-height: 280px;
+  overflow: hidden;
 }
 
 /* 编辑面板 */
 .article-editor-pane {
   display: flex;
-  flex: 1 0 auto;
+  flex: 1;
   min-width: 0;
   max-width: 100%;
-  min-height: 320px;
+  min-height: 0;
   border: none;
   border-radius: 0;
-  /* 普通模式随正文增高，由外层 .main-content--compose 滚动 */
-  overflow: visible;
+  overflow: hidden;
   background: transparent;
   box-shadow: none;
 }
 
 .article-editor-pane--source {
-  min-height: 320px;
+  min-height: 0;
   border: 1px solid var(--j13-border-light);
   border-radius: 12px;
   background: var(--j13-bg-block);
@@ -6536,11 +6749,11 @@ button.profile-stat:hover strong {
 }
 
 .article-editor-scroll {
-  flex: 1 0 auto;
+  flex: 1;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: auto;
   background: transparent;
 }
 
@@ -6550,6 +6763,7 @@ button.profile-stat:hover strong {
 
 .article-editor-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -6559,7 +6773,7 @@ button.profile-stat:hover strong {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  min-height: 360px;
+  min-height: 200px;
   padding: 16px 24px 32px;
   outline: none;
   font-size: 15.5px;
@@ -6587,11 +6801,11 @@ button.profile-stat:hover strong {
 
 /* 源码双栏：充分利用加宽画布 */
 .article-editor--markdown .article-editor-body {
-  min-height: 480px;
+  min-height: 0;
 }
 
 .compose-page:has(.article-editor--markdown) .article-editor-markdown {
-  min-height: min(70vh, 720px);
+  min-height: 0;
 }
 
 .article-prosemirror p.is-editor-empty:first-child::before {
@@ -6894,8 +7108,7 @@ button.profile-stat:hover strong {
 }
 
 .article-editor-status {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -6905,7 +7118,7 @@ button.profile-stat:hover strong {
   padding: 10px 20px;
   border-top: 1px solid var(--j13-border-light);
   background: var(--j13-bg-surface);
-  box-shadow: none;
+  box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.04);
   font-size: 12px;
   color: var(--color-text-4);
   flex-shrink: 0;
@@ -7062,18 +7275,21 @@ button.profile-stat:hover strong {
 
 .article-editor-markdown {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0;
-  min-height: 420px;
   padding: 0;
   border-top: none;
+  overflow: hidden;
 }
 
 .article-editor--markdown .article-editor-pane--source {
   border: none;
   border-radius: 0;
   border-right: 1px solid var(--j13-border-light);
+  min-height: 0;
+  height: 100%;
 }
 
 .article-editor--markdown .article-editor-markdown-preview {
@@ -7099,7 +7315,8 @@ button.profile-stat:hover strong {
 .article-editor-markdown-preview {
   display: flex;
   flex-direction: column;
-  min-height: 320px;
+  min-height: 0;
+  height: 100%;
   background: var(--j13-bg-surface);
   border: 1px solid var(--j13-border);
   border-radius: 10px;
@@ -7186,7 +7403,7 @@ button.profile-stat:hover strong {
 
   .article-editor-markdown {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(240px, 1fr) minmax(240px, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .article-editor--markdown .article-editor-pane--source {
@@ -7195,7 +7412,7 @@ button.profile-stat:hover strong {
   }
 
   .article-editor-pane--source {
-    min-height: 240px;
+    min-height: 0;
   }
 
   .article-editor--fullscreen.article-editor--rich .article-editor-pane {
@@ -7209,7 +7426,7 @@ button.profile-stat:hover strong {
 
   .article-editor-content .tiptap,
   .article-prosemirror {
-    min-height: 280px;
+    min-height: 160px;
     padding: 12px 14px 20px;
   }
 
