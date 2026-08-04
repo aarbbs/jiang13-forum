@@ -9,7 +9,9 @@ import (
 
 var (
 	membersOnlyBlockRe = regexp.MustCompile(`(?is)<members-only\b[^>]*>([\s\S]*?)</members-only>`)
-	htmlTagRe          = regexp.MustCompile(`<[^>]+>`)
+	// style/script 内文本不能进搜索/摘要，否则会出现 "* {color:red}" 之类噪声
+	styleOrScriptRe = regexp.MustCompile(`(?is)<(style|script)\b[^>]*>[\s\S]*?</(style|script)>`)
+	htmlTagRe       = regexp.MustCompile(`<[^>]+>`)
 )
 
 // RedactMembersOnlyHTML 未登录时移除会员专属区块内的正文，保留长度提示供前端展示
@@ -41,6 +43,7 @@ func StripHTMLForSearch(html string) string {
 	if html == "" {
 		return ""
 	}
+	html = styleOrScriptRe.ReplaceAllString(html, " ")
 	text := htmlTagRe.ReplaceAllString(html, " ")
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
 	return strings.Join(strings.Fields(text), " ")

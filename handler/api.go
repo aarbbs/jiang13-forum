@@ -873,6 +873,8 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 	if c.Query("skip_view") != "1" && post.Status == model.ContentStatusPublished {
 		h.Post.RecordView(uint(id))
 	}
+	// 出口再消毒：兼容库内历史脏 HTML（如 <style>），避免旧帖污染整页
+	post.Content = service.SanitizePostHTML(post.Content)
 	if uid == 0 {
 		post.Content = service.RedactMembersOnlyHTML(post.Content)
 	}

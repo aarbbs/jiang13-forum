@@ -332,7 +332,7 @@ func (s *PostService) GetByID(id uint) (*model.Post, error) {
 
 func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, isAdmin bool) (*model.Post, error) {
 	title = s.filter.Filter(strings.TrimSpace(title))
-	content = s.filter.Filter(content)
+	content = s.filter.Filter(SanitizePostHTML(content))
 	tags = s.filter.Filter(strings.TrimSpace(tags))
 	postType = normalizePostType(postType)
 	if title == "" || content == "" {
@@ -382,7 +382,7 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 		return err
 	}
 	title = s.filter.Filter(strings.TrimSpace(title))
-	content = s.filter.Filter(content)
+	content = s.filter.Filter(SanitizePostHTML(content))
 	tags = s.filter.Filter(strings.TrimSpace(tags))
 	if err := s.settings.ValidateTextLength(title, s.settings.PostTitleMax(), ErrPostTitleTooLong); err != nil {
 		return err

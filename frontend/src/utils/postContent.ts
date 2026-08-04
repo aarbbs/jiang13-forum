@@ -3,7 +3,11 @@ import type { Config } from 'dompurify';
 import { enhanceCodeBlocks } from './enhanceCodeBlocks';
 import { enhanceHeadingAnchors } from './postHeadings';
 
-/** DOMPurify 配置：允许会员专属自定义标签与链接 target */
+/**
+ * DOMPurify 配置：允许会员专属自定义标签与链接 target。
+ * 注意：DOMPurify 3.x 默认放行 <style> 与 style=（只做 XSS 向 CSS 消毒），
+ * 全局选择器仍会污染整页，故显式禁止。
+ */
 export const POST_CONTENT_PURIFY_CONFIG: Config = {
   ADD_TAGS: ['members-only'],
   ADD_ATTR: [
@@ -13,6 +17,8 @@ export const POST_CONTENT_PURIFY_CONFIG: Config = {
     'data-clear-float',
     'class',
   ],
+  FORBID_TAGS: ['style', 'link', 'meta', 'base', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select'],
+  FORBID_ATTR: ['style'],
 };
 
 const LOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;

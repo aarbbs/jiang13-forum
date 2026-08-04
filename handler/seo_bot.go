@@ -107,7 +107,7 @@ func (h *Handlers) botHomeHTML(meta *embed_static.SPAPageMeta, brand service.Sit
 
 func (h *Handlers) botPostHTML(base, siteName, defaultImage, keywords string, post *model.Post) string {
 	meta := attachSiteSEO(h.postPageMeta(base, siteName, defaultImage, post), siteName, keywords)
-	content := service.RedactMembersOnlyHTML(post.Content)
+	content := service.SanitizePostHTML(service.RedactMembersOnlyHTML(post.Content))
 	author := service.DisplayName(&post.User)
 	var body strings.Builder
 	body.WriteString("<article>")
