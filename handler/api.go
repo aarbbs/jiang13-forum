@@ -875,8 +875,13 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 	}
 	// 出口再消毒：兼容库内历史脏 HTML（如 <style>），避免旧帖污染整页
 	post.Content = service.SanitizePostHTML(post.Content)
+	hasReplied := uid > 0 && h.Comment.HasUserReplied(uint(id), uid)
 	if uid == 0 {
 		post.Content = service.RedactMembersOnlyHTML(post.Content)
+		post.Content = service.RedactReplyOnlyHTML(post.Content)
+	} else if !isAdmin && post.UserID != uid && !hasReplied {
+		// 作者与管理员始终可见；其他用户需已回复
+		post.Content = service.RedactReplyOnlyHTML(post.Content)
 	}
 	comments, _ := h.Comment.ListByPost(uint(id), uid, isAdmin, post.UserID, h.parseGuestCommentIDs(c))
 	canEdit := h.Post.CanUserEdit(post, uid, isAdmin)
@@ -886,13 +891,14 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 	}
 	isEdited := post.UpdatedAt.Sub(post.CreatedAt) > time.Minute
 	c.JSON(http.StatusOK, gin.H{
-		"post":               post,
-		"comment_count":      len(comments),
-		"liked":              h.Post.IsLiked(uid, uint(id)),
-		"favorited":          h.Post.IsFavorited(uid, uint(id)),
-		"can_edit":           canEdit,
-		"edit_block_reason":  editReason,
-		"is_edited":          isEdited,
+		"post":                   post,
+		"comment_count":          len(comments),
+		"liked":                  h.Post.IsLiked(uid, uint(id)),
+		"favorited":              h.Post.IsFavorited(uid, uint(id)),
+		"has_replied":            hasReplied,
+		"can_edit":               canEdit,
+		"edit_block_reason":      editReason,
+		"is_edited":              isEdited,
 		"post_edit_window_hours": h.Settings.PostEditWindowHours(),
 	})
 }

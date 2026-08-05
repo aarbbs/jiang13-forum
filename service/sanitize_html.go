@@ -17,16 +17,16 @@ func postContentHTMLPolicy() *bluemonday.Policy {
 		p := bluemonday.UGCPolicy()
 
 		// TipTap / Markdown 转换会用到的结构
-		p.AllowElements("div", "span", "u", "s", "center", "members-only")
+		p.AllowElements("div", "span", "u", "s", "center", "members-only", "reply-only")
 		p.AllowAttrs("class").OnElements(
 			"p", "div", "span", "pre", "code", "img", "a",
 			"h1", "h2", "h3", "h4", "h5", "h6",
 			"blockquote", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td",
-			"members-only",
+			"members-only", "reply-only",
 		)
 		p.AllowAttrs("colspan", "rowspan").OnElements("th", "td")
 		p.AllowAttrs(
-			"data-locked", "data-length",
+			"data-locked", "data-length", "data-gate",
 			"data-code-copy", "data-code-fold", "data-lang", "data-full",
 			"data-code-style", "data-line-numbers", "data-collapsed",
 			"data-line-count", "data-lineno-digits",

@@ -34,11 +34,12 @@ func TestSanitizePostHTML_StripsInlineStyleAndScript(t *testing.T) {
 }
 
 func TestSanitizePostHTML_KeepsMembersOnlyAndImageGroup(t *testing.T) {
-	in := `<members-only data-locked="false"><p>密</p></members-only>` +
+	in := `<members-only data-gate="login"><p>密</p></members-only>` +
+		`<reply-only data-gate="reply"><p>回复可见</p></reply-only>` +
 		`<div data-image-group data-layout="cols-2" class="image-group"><img src="/uploads/posts/a.jpg" alt="x"></div>` +
 		`<p data-clear-float class="article-clear-float">清浮动</p>`
 	out := SanitizePostHTML(in)
-	for _, want := range []string{"members-only", "data-image-group", "data-layout", "data-clear-float", "清浮动"} {
+	for _, want := range []string{"members-only", "reply-only", "data-gate", "回复可见", "data-image-group", "data-layout", "data-clear-float", "清浮动"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("缺少 %q，得到: %q", want, out)
 		}

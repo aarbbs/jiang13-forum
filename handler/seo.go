@@ -312,7 +312,7 @@ func (h *Handlers) buildSPAPageMeta(c *gin.Context, path string, brand service.S
 
 func (h *Handlers) postPageMeta(base, siteName, defaultImage string, post *model.Post) *embed_static.SPAPageMeta {
 	permalink := h.Settings.Permalink()
-	content := service.RedactMembersOnlyHTML(post.Content)
+	content := service.RedactGatedPostHTML(post.Content)
 	plain := post.ContentPlain
 	if plain == "" {
 		plain = service.StripHTMLForSearch(content)

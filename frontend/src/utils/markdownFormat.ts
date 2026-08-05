@@ -82,9 +82,22 @@ export function insertMarkdownMembersOnly(
   onChange: ChangeHandler,
 ) {
   const { selectionStart, selectionEnd } = textarea;
-  const snippet = '\n\n<members-only>\n\n\n</members-only>\n\n';
+  const snippet = '\n\n<members-only data-gate="login">\n\n\n</members-only>\n\n';
   const next = value.slice(0, selectionStart) + snippet + value.slice(selectionEnd);
-  const cursor = selectionStart + '\n\n<members-only>\n\n'.length;
+  const cursor = selectionStart + '\n\n<members-only data-gate="login">\n\n'.length;
+  applyTextareaChange(textarea, next, cursor, cursor, onChange);
+}
+
+/** 插入回复可见区块模板 */
+export function insertMarkdownReplyOnly(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  onChange: ChangeHandler,
+) {
+  const { selectionStart, selectionEnd } = textarea;
+  const snippet = '\n\n<reply-only data-gate="reply">\n\n\n</reply-only>\n\n';
+  const next = value.slice(0, selectionStart) + snippet + value.slice(selectionEnd);
+  const cursor = selectionStart + '\n\n<reply-only data-gate="reply">\n\n'.length;
   applyTextareaChange(textarea, next, cursor, cursor, onChange);
 }
 

@@ -207,6 +207,25 @@ export default function PostDetailPage() {
     setComments(Array.isArray(comm.comments) ? comm.comments : []);
   }, [postId, user]);
 
+  /** 发评后重拉正文，解锁「回复可见」区块（跳过浏览计数） */
+  const reloadPostContent = useCallback(async () => {
+    try {
+      const detail = await api.post(postId, { skipView: true });
+      setPost(detail.post);
+    } catch {
+      // 评论已成功，正文刷新失败不阻断
+    }
+  }, [postId]);
+
+  const scrollToCommentBox = useCallback(() => {
+    const target = commentBoxRef.current || commentSectionRef.current;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => {
+      const ta = commentBoxRef.current?.querySelector('textarea');
+      ta?.focus({ preventScroll: true });
+    }, 320);
+  }, []);
+
   const jumpToFloor = useCallback((floor: number) => {
     const el = document.getElementById(`floor-${floor}`);
     if (!el) return;
@@ -338,7 +357,7 @@ export default function PostDetailPage() {
       setReplyTo(null);
       setSubmitCount(c => c + 1);
       notify.success(r.message || (r.status === 'pending' ? '评论已提交审核' : '评论成功'));
-      await reloadComments();
+      await Promise.all([reloadComments(), reloadPostContent()]);
       setTimeout(() => jumpToFloor(r.floor), 100);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '评论失败');
@@ -641,6 +660,7 @@ export default function PostDetailPage() {
           html={post.content || ''}
           isLoggedIn={!!user}
           onHeadingsChange={handleHeadingsChange}
+          onRequestReply={scrollToCommentBox}
         />
 
         <div className="post-detail-actions">

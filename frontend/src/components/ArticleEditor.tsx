@@ -15,6 +15,7 @@ import {
   FileCode, PenLine, Maximize2, Minimize2,
   Columns2, PanelLeft, PanelRight, StretchHorizontal,
   Table as TableIcon, BetweenHorizonalStart, BetweenVerticalStart, Rows3, Columns3,
+  MessageSquareLock,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
@@ -25,12 +26,14 @@ import {
   prefixMarkdownLines,
   cycleMarkdownHeading,
   insertMarkdownMembersOnly,
+  insertMarkdownReplyOnly,
   insertMarkdownLink,
 } from '../utils/markdownFormat';
 import { countWords } from '../utils/text';
 import { api } from '../api/client';
 import { notify } from '@/lib/notify';
 import { MembersOnly } from './editor/MembersOnlyExtension';
+import { ReplyOnly } from './editor/ReplyOnlyExtension';
 import { TabIndent } from './editor/TabIndentExtension';
 import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension';
 import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
@@ -76,6 +79,7 @@ interface ToolBtn {
 }
 
 const MEMBERS_ONLY_PLACEHOLDER = '在此输入仅登录用户可见的内容…';
+const REPLY_ONLY_PLACEHOLDER = '在此输入回复后可见的内容…';
 
 /** 按选项生成 Markdown 侧插入片段（围栏 meta，便于手写） */
 function buildMarkdownCodeBlockSnippet(opts: CodeBlockInsertOptions, body = '代码'): string {
@@ -257,11 +261,15 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
           if (node.type.name === 'paragraph' && node.parent?.type.name === 'membersOnly') {
             return MEMBERS_ONLY_PLACEHOLDER;
           }
+          if (node.type.name === 'paragraph' && node.parent?.type.name === 'replyOnly') {
+            return REPLY_ONLY_PLACEHOLDER;
+          }
           return placeholder;
         },
         includeChildren: true,
       }),
       MembersOnly,
+      ReplyOnly,
       TabIndent,
     ],
     content: sanitizeHtml(value) || '',
@@ -517,6 +525,22 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     editor.chain().focus().insertMembersOnly().run();
   }, [editor]);
 
+  const wrapReplyOnly = useCallback(() => {
+    if (!editor) return;
+
+    if (editor.isActive('replyOnly')) {
+      editor.chain().focus().exitReplyOnly().run();
+      return;
+    }
+
+    const { from, to, empty } = editor.state.selection;
+    if (!empty && from !== to) {
+      editor.chain().focus().wrapReplyOnly().run();
+      return;
+    }
+    editor.chain().focus().insertReplyOnly().run();
+  }, [editor]);
+
   const switchToMarkdown = useCallback(() => {
     if (!editor) return;
     const html = sanitizeHtml(editor.getHTML());
@@ -653,17 +677,27 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       );
     }
 
-    tools.push({
-      icon: <LockKeyhole size={15} />,
-      title: '登录可见',
-      hint: '插入或包裹；区块内 Ctrl+Enter 退出',
-      active: editor.isActive('membersOnly'),
-      className: 'article-tool-btn--members',
-      action: wrapMembersOnly,
-    });
+    tools.push(
+      {
+        icon: <LockKeyhole size={15} />,
+        title: '登录可见',
+        hint: '插入或包裹；区块内 Ctrl+Enter 退出',
+        active: editor.isActive('membersOnly'),
+        className: 'article-tool-btn--members',
+        action: wrapMembersOnly,
+      },
+      {
+        icon: <MessageSquareLock size={15} />,
+        title: '回复可见',
+        hint: '读者回复后才可见；区块内 Ctrl+Enter 退出',
+        active: editor.isActive('replyOnly'),
+        className: 'article-tool-btn--reply',
+        action: wrapReplyOnly,
+      },
+    );
 
     return tools;
-  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => [
     { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
@@ -685,6 +719,13 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       hint: '插入 <members-only> 区块',
       className: 'article-tool-btn--members',
       action: withMarkdown(insertMarkdownMembersOnly),
+    },
+    {
+      icon: <MessageSquareLock size={15} />,
+      title: '回复可见',
+      hint: '插入 <reply-only> 区块',
+      className: 'article-tool-btn--reply',
+      action: withMarkdown(insertMarkdownReplyOnly),
     },
   ], [withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, insertMarkdownImage]);
 

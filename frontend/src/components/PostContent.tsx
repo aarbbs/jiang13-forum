@@ -13,14 +13,17 @@ interface Props {
   className?: string;
   /** 正文标题树变化时回调（用于侧栏目录） */
   onHeadingsChange?: (headings: PostHeading[]) => void;
+  /** 点击「回复可见」门控的「去回复」 */
+  onRequestReply?: () => void;
 }
 
-/** 帖子正文渲染（含会员专属区块、代码块美化、图片灯箱） */
+/** 帖子正文渲染（含会员专属 / 回复可见区块、代码块美化、图片灯箱） */
 export default function PostContent({
   html,
   isLoggedIn,
   className = 'post-detail-content',
   onHeadingsChange,
+  onRequestReply,
 }: Props) {
   const nav = useNavigate();
   const { limits } = useForumLimits();
@@ -50,6 +53,11 @@ export default function PostContent({
 
   const handleClick = useCallback(async (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    if (target.closest('[data-reply-scroll]')) {
+      e.preventDefault();
+      onRequestReply?.();
+      return;
+    }
     if (target.closest('[data-members-login]')) {
       e.preventDefault();
       nav(loginPath());
@@ -116,7 +124,7 @@ export default function PostContent({
         notify.error('复制失败');
       }
     }
-  }, [nav, openLightbox]);
+  }, [nav, openLightbox, onRequestReply]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;

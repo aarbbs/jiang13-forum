@@ -29,7 +29,7 @@ export function htmlToDiffText(html: string): string {
     'text/html',
   );
   doc.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-  const blocks = doc.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote, pre, members-only');
+  const blocks = doc.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote, pre, members-only, reply-only');
   blocks.forEach(el => {
     el.prepend(doc.createTextNode('\n'));
     el.append(doc.createTextNode('\n'));

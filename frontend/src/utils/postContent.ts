@@ -9,9 +9,9 @@ import { enhanceHeadingAnchors } from './postHeadings';
  * 全局选择器仍会污染整页，故显式禁止。
  */
 export const POST_CONTENT_PURIFY_CONFIG: Config = {
-  ADD_TAGS: ['members-only'],
+  ADD_TAGS: ['members-only', 'reply-only'],
   ADD_ATTR: [
-    'data-locked', 'data-length', 'target', 'rel',
+    'data-locked', 'data-length', 'data-gate', 'target', 'rel',
     'data-code-copy', 'data-code-fold', 'data-lang', 'data-full',
     'data-code-style', 'data-line-numbers', 'data-collapsed', 'data-line-count', 'data-lineno-digits',
     'data-image-group', 'data-layout', 'data-display',
@@ -24,6 +24,8 @@ export const POST_CONTENT_PURIFY_CONFIG: Config = {
 };
 
 const LOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
+const REPLY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 15v4a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h10"/><path d="M20 7V3"/><path d="M22 5h-4"/></svg>`;
 
 /** 游客看到的锁定区块：流内嵌条 + 登录引导（精简高度） */
 function buildLockedGateHtml(charLength: number): string {
@@ -45,6 +47,41 @@ function buildLockedGateHtml(charLength: number): string {
     </div>
   </div>
 </div>`;
+}
+
+/** 回复可见锁定门控：游客引导登录，已登录引导去评论 */
+function buildReplyLockedGateHtml(charLength: number, isLoggedIn: boolean): string {
+  const lengthHint = charLength > 0
+    ? `约 ${charLength} 字`
+    : '隐藏内容';
+
+  const actions = isLoggedIn
+    ? `<button type="button" class="post-reply-only__gate-btn" data-reply-scroll>去回复</button>`
+    : `<button type="button" class="post-reply-only__gate-btn" data-members-login>登录后回复</button>
+       <button type="button" class="post-reply-only__gate-link" data-members-register>免费注册</button>`;
+
+  return `
+<div class="post-reply-only__locked-wrap">
+  <div class="post-reply-only__gate">
+    <span class="post-reply-only__gate-icon" aria-hidden="true">${REPLY_ICON_SVG}</span>
+    <div class="post-reply-only__gate-text">
+      <p class="post-reply-only__gate-title">回复后可见（${lengthHint}）</p>
+      <p class="post-reply-only__gate-desc">作者将此段设为回复本帖后可读</p>
+    </div>
+    <div class="post-reply-only__gate-actions">
+      ${actions}
+    </div>
+  </div>
+</div>`;
+}
+
+/** 提取门控区块正文 HTML（去掉编辑态 badge） */
+function extractGatedInnerHtml(el: Element, bodyClass: string, badgeClass: string): string {
+  return el.querySelector(`.${bodyClass}`)?.innerHTML
+    ?? Array.from(el.childNodes)
+      .filter(n => !(n instanceof Element && n.classList.contains(badgeClass)))
+      .map(n => (n instanceof Element ? n.outerHTML : n.textContent ?? ''))
+      .join('');
 }
 
 /** 判断 HTML 正文是否为空（忽略空段落等） */
@@ -81,15 +118,36 @@ export function renderPostContentHtml(
       return;
     }
 
-    const innerHtml = el.querySelector('.post-members-only__body')?.innerHTML
-      ?? Array.from(el.childNodes)
-        .filter(n => !(n instanceof Element && n.classList.contains('post-members-only__badge')))
-        .map(n => (n instanceof Element ? n.outerHTML : n.textContent ?? ''))
-        .join('');
+    const innerHtml = extractGatedInnerHtml(
+      el,
+      'post-members-only__body',
+      'post-members-only__badge',
+    );
 
     // 已登录：降噪，不展示醒目 badge，仅保留结构容器
     el.className = 'post-members-only post-members-only--visible';
     el.innerHTML = `<div class="post-members-only__body">${innerHtml}</div>`;
+  });
+
+  doc.querySelectorAll('reply-only').forEach(el => {
+    // 是否解锁由服务端 redact（data-locked）决定
+    const locked = el.getAttribute('data-locked') === 'true';
+
+    if (locked) {
+      const charLength = parseInt(el.getAttribute('data-length') || '0', 10) || 0;
+      el.className = 'post-reply-only post-reply-only--locked';
+      el.innerHTML = buildReplyLockedGateHtml(charLength, isLoggedIn);
+      return;
+    }
+
+    const innerHtml = extractGatedInnerHtml(
+      el,
+      'post-reply-only__body',
+      'post-reply-only__badge',
+    );
+
+    el.className = 'post-reply-only post-reply-only--visible';
+    el.innerHTML = `<div class="post-reply-only__body">${innerHtml}</div>`;
   });
 
   doc.querySelectorAll('img').forEach(img => {
@@ -169,7 +227,7 @@ function isBlankParagraph(el: Element): boolean {
   if (el.tagName !== 'P') return false;
   const text = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
   if (text.length > 0) return false;
-  return !el.querySelector('img, video, iframe, table, pre, blockquote, members-only');
+  return !el.querySelector('img, video, iframe, table, pre, blockquote, members-only, reply-only');
 }
 
 /**

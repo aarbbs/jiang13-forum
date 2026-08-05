@@ -9,6 +9,7 @@ import (
 
 var (
 	membersOnlyBlockRe = regexp.MustCompile(`(?is)<members-only\b[^>]*>([\s\S]*?)</members-only>`)
+	replyOnlyBlockRe   = regexp.MustCompile(`(?is)<reply-only\b[^>]*>([\s\S]*?)</reply-only>`)
 	// style/script 内文本不能进搜索/摘要，否则会出现 "* {color:red}" 之类噪声
 	styleOrScriptRe = regexp.MustCompile(`(?is)<(style|script)\b[^>]*>[\s\S]*?</(style|script)>`)
 	htmlTagRe       = regexp.MustCompile(`<[^>]+>`)
@@ -16,21 +17,39 @@ var (
 
 // RedactMembersOnlyHTML 未登录时移除会员专属区块内的正文，保留长度提示供前端展示
 func RedactMembersOnlyHTML(html string) string {
+	return redactGatedBlocks(html, membersOnlyBlockRe, "members-only")
+}
+
+// RedactReplyOnlyHTML 未回复时移除「回复可见」区块内的正文，保留长度提示供前端展示
+func RedactReplyOnlyHTML(html string) string {
+	return redactGatedBlocks(html, replyOnlyBlockRe, "reply-only")
+}
+
+// RedactGatedPostHTML 搜索/SEO 等场景：同时遮盖登录可见与回复可见正文
+func RedactGatedPostHTML(html string) string {
+	return RedactReplyOnlyHTML(RedactMembersOnlyHTML(html))
+}
+
+func redactGatedBlocks(html string, re *regexp.Regexp, tag string) string {
 	if html == "" {
 		return html
 	}
-	return membersOnlyBlockRe.ReplaceAllStringFunc(html, func(full string) string {
-		m := membersOnlyBlockRe.FindStringSubmatch(full)
+	return re.ReplaceAllStringFunc(html, func(full string) string {
+		m := re.FindStringSubmatch(full)
 		inner := ""
 		if len(m) > 1 {
 			inner = m[1]
 		}
-		length := membersContentLength(inner)
-		return `<members-only data-locked="true" data-length="` + strconv.Itoa(length) + `"></members-only>`
+		length := gatedContentLength(inner)
+		gate := "login"
+		if tag == "reply-only" {
+			gate = "reply"
+		}
+		return `<` + tag + ` data-gate="` + gate + `" data-locked="true" data-length="` + strconv.Itoa(length) + `"></` + tag + `>`
 	})
 }
 
-func membersContentLength(html string) int {
+func gatedContentLength(html string) int {
 	text := strings.TrimSpace(htmlTagRe.ReplaceAllString(html, ""))
 	if text == "" {
 		return 0

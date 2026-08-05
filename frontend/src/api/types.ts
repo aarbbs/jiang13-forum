@@ -107,6 +107,8 @@ export interface PostDetailResponse {
   comment_count: number;
   liked: boolean;
   favorited: boolean;
+  /** 当前用户是否已在本帖发表过评论（含审核中） */
+  has_replied?: boolean;
   can_edit?: boolean;
   edit_block_reason?: string;
   is_edited?: boolean;

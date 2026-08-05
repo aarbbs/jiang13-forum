@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { POST_CONTENT_PURIFY_CONFIG } from './postContent';
 import { parseFenceInfo, formatFenceInfo } from './codeBlockOptions';
 
-const MEMBERS_ONLY_BLOCK_RE = /<members-only>([\s\S]*?)<\/members-only>/gi;
+const GATED_BLOCK_RE = /<(members-only|reply-only)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
 
 const TURNDOWN_OPTIONS = {
   headingStyle: 'atx' as const,
@@ -212,27 +212,34 @@ function patchTurndownEscape(service: TurndownService): void {
   service.escape = (str: string) => original(str).replace(/(\d+)\\(\.)/g, '$1$2');
 }
 
-/** 登录可见区块转为 Markdown：逐子节点转换，保留首行缩进 */
+/** 将门控区块（登录可见 / 回复可见）转为 Markdown 标签 */
+function gatedBlockToMarkdown(tag: 'members-only' | 'reply-only', node: HTMLElement): string {
+  const parts: string[] = [];
+
+  node.childNodes.forEach(child => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = (child.textContent ?? '').trim();
+      if (text) parts.push(nbspToSpaces(text));
+      return;
+    }
+    if (child instanceof HTMLElement) {
+      parts.push(nbspToSpaces(contentTurndown.turndown(child.outerHTML).trim()));
+    }
+  });
+
+  const body = trimBlockBoundaryLines(parts.join('\n\n'));
+  const gate = tag === 'reply-only' ? 'reply' : 'login';
+  return `\n\n<${tag} data-gate="${gate}">\n\n${body}\n\n</${tag}>\n\n`;
+}
+
 turndown.addRule('membersOnly', {
   filter: 'members-only',
-  replacement: (_content, node) => {
-    const el = node as HTMLElement;
-    const parts: string[] = [];
+  replacement: (_content, node) => gatedBlockToMarkdown('members-only', node as HTMLElement),
+});
 
-    el.childNodes.forEach(child => {
-      if (child.nodeType === Node.TEXT_NODE) {
-        const text = (child.textContent ?? '').trim();
-        if (text) parts.push(nbspToSpaces(text));
-        return;
-      }
-      if (child instanceof HTMLElement) {
-        parts.push(nbspToSpaces(contentTurndown.turndown(child.outerHTML).trim()));
-      }
-    });
-
-    const body = trimBlockBoundaryLines(parts.join('\n\n'));
-    return `\n\n<members-only>\n\n${body}\n\n</members-only>\n\n`;
-  },
+turndown.addRule('replyOnly', {
+  filter: 'reply-only',
+  replacement: (_content, node) => gatedBlockToMarkdown('reply-only', node as HTMLElement),
 });
 
 marked.setOptions({
@@ -293,7 +300,10 @@ function parseMarkdownFragment(markdown: string): string {
 function prepareHtmlForMarkdown(html: string): string {
   const doc = new DOMParser().parseFromString(sanitizeContentHtml(html), 'text/html');
 
-  doc.querySelectorAll('.post-members-only__badge, .post-members-only__exit-btn, .post-members-only__unwrap-btn').forEach(el => {
+  doc.querySelectorAll([
+    '.post-members-only__badge', '.post-members-only__exit-btn', '.post-members-only__unwrap-btn',
+    '.post-reply-only__badge', '.post-reply-only__exit-btn', '.post-reply-only__unwrap-btn',
+  ].join(', ')).forEach(el => {
     el.remove();
   });
 
@@ -303,14 +313,22 @@ function prepareHtmlForMarkdown(html: string): string {
     el.innerHTML = splitParagraphBreaks(raw);
   });
 
+  doc.querySelectorAll('reply-only').forEach(el => {
+    const body = el.querySelector('.post-reply-only__body');
+    const raw = body ? body.innerHTML : el.innerHTML;
+    el.innerHTML = splitParagraphBreaks(raw);
+  });
+
   return doc.body.innerHTML;
 }
 
-/** 规范化 members-only 标签边界，避免闭合标签与正文粘连 */
-function normalizeMembersOnlyMarkdown(markdown: string): string {
+/** 规范化门控标签边界，避免闭合标签与正文粘连 */
+function normalizeGatedMarkdown(markdown: string): string {
   return markdown
     .replace(/<\/members-only>(?=[^\s\n])/g, '</members-only>\n\n')
-    .replace(/<members-only>\s*<\/members-only>/g, '<members-only>\n\n</members-only>');
+    .replace(/<members-only(?:\s[^>]*)?>\s*<\/members-only>/g, '<members-only data-gate="login">\n\n</members-only>')
+    .replace(/<\/reply-only>(?=[^\s\n])/g, '</reply-only>\n\n')
+    .replace(/<reply-only(?:\s[^>]*)?>\s*<\/reply-only>/g, '<reply-only data-gate="reply">\n\n</reply-only>');
 }
 
 /** 列表标记后统一为单个空格（Turndown 默认会输出两个及以上空格） */
@@ -330,13 +348,13 @@ export function htmlToMarkdown(html: string): string {
 
 /**
  * Markdown 源码转为编辑器 HTML。
- * 先提取 members-only 块再分别解析，避免闭合标签后同行文字被吞入区块。
+ * 先提取门控块再分别解析，避免闭合标签后同行文字被吞入区块。
  */
 export function markdownToHtml(markdown: string): string {
   if (!markdown.trim()) return '';
 
-  const normalized = normalizeMembersOnlyMarkdown(markdown);
-  const re = new RegExp(MEMBERS_ONLY_BLOCK_RE.source, 'gi');
+  const normalized = normalizeGatedMarkdown(markdown);
+  const re = new RegExp(GATED_BLOCK_RE.source, 'gi');
   let result = '';
   let lastIndex = 0;
   let match: RegExpExecArray | null = re.exec(normalized);
@@ -347,11 +365,13 @@ export function markdownToHtml(markdown: string): string {
       result += parseMarkdownFragment(before);
     }
 
-    const innerMd = trimBlockBoundaryLines(match[1]);
+    const tag = match[1];
+    const gate = tag === 'reply-only' ? 'reply' : 'login';
+    const innerMd = trimBlockBoundaryLines(match[2]);
     const innerHtml = innerMd.trim()
       ? splitParagraphBreaks(parseMarkdownFragment(innerMd))
       : '';
-    result += `<members-only>${innerHtml}</members-only>`;
+    result += `<${tag} data-gate="${gate}">${innerHtml}</${tag}>`;
     lastIndex = re.lastIndex;
     match = re.exec(normalized);
   }

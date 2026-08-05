@@ -19,6 +19,20 @@ func NewCommentService(filter *SensitiveFilter, settings *ForumSettingsService) 
 	return &CommentService{filter: filter, settings: settings}
 }
 
+// HasUserReplied 用户是否已在该帖发表过有效评论（已发布或审核中，不含被拒）
+func (s *CommentService) HasUserReplied(postID, userID uint) bool {
+	if postID == 0 || userID == 0 {
+		return false
+	}
+	var count int64
+	err := model.DB.Model(&model.Comment{}).
+		Where("post_id = ? AND user_id = ? AND status IN ?", postID, userID,
+			[]string{model.ContentStatusPublished, model.ContentStatusPending}).
+		Limit(1).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
 type CommentCreateInput struct {
 	UserID     uint
 	PostID     uint
