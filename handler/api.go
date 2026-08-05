@@ -29,8 +29,17 @@ func (h *Handlers) APIMe(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"user": nil})
 		return
 	}
+	if h.Badge != nil {
+		_ = h.Badge.EvaluateAuto(user.ID)
+	}
+	view := user.ToSelf()
+	if h.Badge != nil {
+		if badges, bErr := h.Badge.ListUserBadges(user.ID); bErr == nil {
+			view.Badges = service.BadgeViews(badges, 0)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user": user.ToSelf(),
+		"user": view,
 	})
 }
 
@@ -123,6 +132,9 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
 	model.DB.Model(&model.Board{}).Count(&boardCount)
 	model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPublished).Count(&commentCount)
+	pendingPosts, _ := h.Post.PendingPostCount()
+	pendingComments, _ := h.Comment.PendingCommentCount()
+	pendingReports, _ := h.Report.PendingCount()
 	recentPosts, _, _ := h.Post.List(service.PostListQuery{
 		Page: 1, Size: 8, ViewerIsAdmin: true, Status: "all",
 	})
@@ -132,7 +144,10 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
 		"comments": commentCount,
-		"recent_posts": recentPosts,
+		"pending_posts":    pendingPosts,
+		"pending_comments": pendingComments,
+		"pending_reports":  pendingReports,
+		"recent_posts":     recentPosts,
 	})
 }
 
@@ -375,7 +390,11 @@ func (h *Handlers) APIAdminCommentRevisions(c *gin.Context) {
 func (h *Handlers) APIAdminUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
-	users, total, err := h.User.ListUsers(page, size)
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	filter := strings.TrimSpace(c.DefaultQuery("filter", "all"))
+	users, total, err := h.User.ListUsers(service.UserListQuery{
+		Page: page, Size: size, Keyword: keyword, Filter: filter,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -386,6 +405,8 @@ func (h *Handlers) APIAdminUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"users": model.UsersToAdmin(users), "total": total, "page": page,
 		"total_pages": calcTotalPages(total, size),
+		"keyword":     keyword,
+		"filter":      filter,
 	})
 }
 
@@ -853,6 +874,15 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	if items == nil {
 		items = []service.PostListItem{}
 	}
+	if h.Badge != nil {
+		users := make([]*model.User, 0, len(items))
+		for i := range items {
+			if items[i].User.ID > 0 {
+				users = append(users, &items[i].User)
+			}
+		}
+		h.Badge.AttachBadgeSummaries(users, 2)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"posts": items,
 		"total": total,
@@ -889,7 +919,20 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		// 作者与管理员始终可见；其他用户需已回复
 		post.Content = service.RedactReplyOnlyHTML(post.Content)
 	}
+	// 积分解锁块：作者/站长全文；其他人按解锁记录 redact
+	if isAdmin || post.UserID == uid {
+		post.Content = service.RevealAllPointsOnly(post.Content)
+	} else {
+		unlocked, _ := service.ListUnlockedKeys(uid, uint(id))
+		post.Content = service.RedactPointsOnlyHTML(post.Content, unlocked)
+	}
 	comments, _ := h.Comment.ListByPost(uint(id), uid, isAdmin, post.UserID, h.parseGuestCommentIDs(c))
+	if h.Badge != nil {
+		if post.User.ID > 0 {
+			h.Badge.AttachBadgeSummaries([]*model.User{&post.User}, 3)
+		}
+		h.Badge.AttachBadgeSummariesOnComments(comments, 2)
+	}
 	canEdit := h.Post.CanUserEdit(post, uid, isAdmin)
 	editReason := ""
 	if !canEdit && uid > 0 {
@@ -930,6 +973,9 @@ func (h *Handlers) APIPostComments(c *gin.Context) {
 	}
 	if comments == nil {
 		comments = []model.Comment{}
+	}
+	if h.Badge != nil {
+		h.Badge.AttachBadgeSummariesOnComments(comments, 2)
 	}
 	c.JSON(http.StatusOK, gin.H{"comments": comments, "total": len(comments)})
 }

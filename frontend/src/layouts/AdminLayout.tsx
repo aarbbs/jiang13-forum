@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X,
+  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../hooks/useAuth';
@@ -14,17 +14,65 @@ import { loginPath } from '../utils/authRedirect';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
 import SiteBrandMark from '../components/SiteBrandMark';
+import { api } from '../api/client';
 
-const NAV = [
-  { to: '/admin/dashboard', label: '仪表盘', icon: LayoutDashboard },
-  { to: '/admin/boards', label: '板块管理', icon: FolderKanban },
-  { to: '/admin/posts', label: '帖子管理', icon: FileText },
-  { to: '/admin/comments', label: '评论管理', icon: MessageSquare },
-  { to: '/admin/reports', label: '举报管理', icon: Flag },
-  { to: '/admin/users', label: '用户管理', icon: Users },
-  { to: '/admin/media', label: '媒体库', icon: Images },
-  { to: '/admin/settings', label: '系统设置', icon: Settings },
+type BadgeKey = 'posts' | 'comments' | 'reports';
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badgeKey?: BadgeKey;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+/** 信息架构：概览 → 内容审核 → 社区 → 系统（2026 管理台常见分层） */
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: '概览',
+    items: [
+      { to: '/admin/dashboard', label: '仪表盘', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: '内容审核',
+    items: [
+      { to: '/admin/posts', label: '帖子管理', icon: FileText, badgeKey: 'posts' },
+      { to: '/admin/comments', label: '评论管理', icon: MessageSquare, badgeKey: 'comments' },
+      { to: '/admin/reports', label: '举报管理', icon: Flag, badgeKey: 'reports' },
+    ],
+  },
+  {
+    label: '社区',
+    items: [
+      { to: '/admin/boards', label: '板块管理', icon: FolderKanban },
+      { to: '/admin/users', label: '用户管理', icon: Users },
+      { to: '/admin/badges', label: '徽章管理', icon: Award },
+    ],
+  },
+  {
+    label: '系统',
+    items: [
+      { to: '/admin/media', label: '媒体库', icon: Images },
+      { to: '/admin/settings', label: '系统设置', icon: Settings },
+    ],
+  },
 ];
+
+type PendingCounts = {
+  posts: number;
+  comments: number;
+  reports: number;
+};
+
+function formatNavBadge(n: number) {
+  if (n <= 0) return null;
+  return n > 99 ? '99+' : String(n);
+}
 
 /** React 管理后台布局，与前台 SPA 风格统一 */
 export default function AdminLayout() {
@@ -34,7 +82,9 @@ export default function AdminLayout() {
   useNoIndexSEO('管理后台');
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
+  const [pending, setPending] = useState<PendingCounts>({ posts: 0, comments: 0, reports: 0 });
   const nav = useNavigate();
+  const location = useLocation();
   const drawerRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -42,6 +92,16 @@ export default function AdminLayout() {
   useOverlayA11y(isNarrow && navOpen, closeNav, drawerRef, {
     initialFocusRef: closeRef,
   });
+
+  const refreshPending = useCallback(() => {
+    api.adminDashboard()
+      .then(d => setPending({
+        posts: d.pending_posts ?? 0,
+        comments: d.pending_comments ?? 0,
+        reports: d.pending_reports ?? 0,
+      }))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -54,6 +114,11 @@ export default function AdminLayout() {
       nav('/');
     }
   }, [user, loading, nav]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+    refreshPending();
+  }, [user, location.pathname, refreshPending]);
 
   useEffect(() => {
     if (!isNarrow) setNavOpen(false);
@@ -71,17 +136,32 @@ export default function AdminLayout() {
   }
   if (!user || user.role !== 'admin') return null;
 
-  const navLinks = NAV.map(({ to, label, icon: Icon }) => (
-    <NavLink
-      key={to}
-      to={to}
-      className={({ isActive }) => cn('admin-nav-item', isActive && 'active')}
-      onClick={closeNav}
-    >
-      <Icon size={16} aria-hidden />
-      {label}
-    </NavLink>
-  ));
+  const renderNav = () => (
+    NAV_GROUPS.map(group => (
+      <div key={group.label} className="admin-nav-group">
+        <div className="admin-nav-group-label">{group.label}</div>
+        {group.items.map(({ to, label, icon: Icon, badgeKey }) => {
+          const badge = badgeKey ? formatNavBadge(pending[badgeKey]) : null;
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => cn('admin-nav-item', isActive && 'active')}
+              onClick={closeNav}
+            >
+              <Icon size={16} aria-hidden className="admin-nav-icon" />
+              <span className="admin-nav-text">{label}</span>
+              {badge && (
+                <span className="admin-nav-badge" aria-label={`${badge} 条待处理`}>
+                  {badge}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
+      </div>
+    ))
+  );
 
   return (
     <div className="admin-shell">
@@ -125,8 +205,8 @@ export default function AdminLayout() {
 
       <div className="admin-body">
         {!isNarrow && (
-          <aside className="admin-sidebar">
-            {navLinks}
+          <aside className="admin-sidebar" aria-label="管理导航">
+            {renderNav()}
           </aside>
         )}
         <main className="admin-main">
@@ -164,7 +244,7 @@ export default function AdminLayout() {
               </button>
             </div>
             <nav className="admin-nav-drawer-body">
-              {navLinks}
+              {renderNav()}
             </nav>
           </aside>
         </div>

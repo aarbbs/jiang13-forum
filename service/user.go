@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,12 +137,51 @@ func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, stor
 }
 
 // ListUsers 管理员列出用户
-func (s *UserService) ListUsers(page, size int) ([]model.User, int64, error) {
-	var users []model.User
+// UserListQuery 后台用户列表筛选
+type UserListQuery struct {
+	Page    int
+	Size    int
+	Keyword string // 匹配用户名/昵称/邮箱
+	Filter  string // all | verified | banned | admin
+}
+
+func (s *UserService) ListUsers(q UserListQuery) ([]model.User, int64, error) {
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	if q.Size < 1 {
+		q.Size = 20
+	}
+	if q.Size > 100 {
+		q.Size = 100
+	}
+
+	db := model.DB.Model(&model.User{})
+	kw := strings.TrimSpace(q.Keyword)
+	if kw != "" {
+		like := "%" + kw + "%"
+		if id, err := strconv.ParseUint(kw, 10, 64); err == nil {
+			db = db.Where("id = ? OR username LIKE ? OR nickname LIKE ? OR email LIKE ?", id, like, like, like)
+		} else {
+			db = db.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", like, like, like)
+		}
+	}
+	switch strings.TrimSpace(q.Filter) {
+	case "verified":
+		db = db.Where("verified = ? AND role <> ?", true, model.RoleAdmin)
+	case "banned":
+		db = db.Where("banned = ?", true)
+	case "admin":
+		db = db.Where("role = ?", model.RoleAdmin)
+	}
+
 	var total int64
-	model.DB.Model(&model.User{}).Count(&total)
-	offset := (page - 1) * size
-	err := model.DB.Order("id desc").Offset(offset).Limit(size).Find(&users).Error
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []model.User
+	offset := (q.Page - 1) * q.Size
+	err := db.Order("id desc").Offset(offset).Limit(q.Size).Find(&users).Error
 	return users, total, err
 }
 

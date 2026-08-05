@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus } from './types';
 
 const BASE = '';
 
@@ -217,14 +217,60 @@ export const api = {
   adminDeleteComment: (id: number) => request(`/api/admin/comments/${id}`, { method: 'DELETE' }),
   adminCommentRevisions: (id: number) =>
     request<{ revisions: CommentRevision[] }>(`/api/admin/comments/${id}/revisions`),
-  adminUsers: (page = 1) =>
-    request<{ users: User[]; total: number; page: number; total_pages: number }>(
-      `/api/admin/users?page=${page}`,
-    ),
+  adminUsers: (page = 1, opts?: { keyword?: string; filter?: string }) => {
+    const q = new URLSearchParams({ page: String(page) });
+    if (opts?.keyword?.trim()) q.set('keyword', opts.keyword.trim());
+    if (opts?.filter && opts.filter !== 'all') q.set('filter', opts.filter);
+    return request<{ users: User[]; total: number; page: number; total_pages: number }>(
+      `/api/admin/users?${q}`,
+    );
+  },
   adminBanUser: (id: number, banned: boolean) =>
     request<{ message: string; banned: boolean }>(`/api/admin/users/${id}/ban`, {
       method: 'POST', body: JSON.stringify({ banned }),
     }),
+  adminVerifyUser: (id: number, verified: boolean) =>
+    request<{ message: string; verified: boolean }>(`/api/admin/users/${id}/verify`, {
+      method: 'POST', body: JSON.stringify({ verified }),
+    }),
+  adminSetUserLevel: (id: number, level: number) =>
+    request<{ message: string; level: number; exp: number }>(`/api/admin/users/${id}/level`, {
+      method: 'POST', body: JSON.stringify({ level }),
+    }),
+  adminAdjustPoints: (id: number, delta: number, note?: string) =>
+    request<{ message: string; points: number }>(`/api/admin/users/${id}/points`, {
+      method: 'POST', body: JSON.stringify({ delta, note: note || '' }),
+    }),
+  adminListBadges: () => request<{ badges: BadgeDef[] }>('/api/admin/badges'),
+  adminUpsertBadge: (badge: Partial<BadgeDef>) =>
+    request<{ message: string; badge: BadgeDef }>('/api/admin/badges', {
+      method: 'POST', body: JSON.stringify(badge),
+    }),
+  adminAwardBadge: (userId: number, badgeId: number, revoke = false) =>
+    request<{ message: string }>(`/api/admin/users/${userId}/badges`, {
+      method: 'POST', body: JSON.stringify({ badge_id: badgeId, revoke }),
+    }),
+  mePoints: (page = 1) =>
+    request<{
+      points: number;
+      creator_income_total: number;
+      ledger: PointLedger[];
+      total: number;
+      page: number;
+      total_pages: number;
+      check_in: CheckInStatus;
+      lottery: LotteryStatus;
+    }>(`/api/me/points?page=${page}`),
+  checkIn: () =>
+    request<{ message: string; check_in: CheckInStatus; points: number }>('/api/me/check-in', { method: 'POST' }),
+  lotteryStatus: () => request<{ lottery: LotteryStatus }>('/api/me/lottery'),
+  lotteryDraw: () =>
+    request<{ message: string; lottery: LotteryStatus; points: number }>('/api/me/lottery', { method: 'POST' }),
+  unlockPostBlock: (postId: number, blockKey: string) =>
+    request<{ message: string; unlock: { block_key: string; cost: number; points_balance: number; inner_html: string } }>(
+      `/api/posts/${postId}/unlock`,
+      { method: 'POST', body: JSON.stringify({ block_key: blockKey }) },
+    ),
   adminMedia: (params?: { category?: string; page?: number; size?: number; q?: string }) => {
     const sp = new URLSearchParams();
     if (params?.category) sp.set('category', params.category);

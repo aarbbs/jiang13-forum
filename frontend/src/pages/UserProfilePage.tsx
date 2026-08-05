@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import UserBadges from '../components/UserBadges';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
@@ -150,7 +151,7 @@ export default function UserProfilePage() {
             <div className="profile-header-main">
               <div className="profile-name-row">
                 <h1 className="profile-display-name">{profile.nickname}</h1>
-                {profile.role === 'admin' && <Badge variant="green">管理员</Badge>}
+                <UserBadges user={profile} compact={false} maxAchievement={6} />
                 {profile.banned && <Badge variant="destructive">已禁言</Badge>}
               </div>
               <div className="profile-username">@{profile.username}</div>
@@ -198,6 +199,13 @@ export default function UserProfilePage() {
               )}
             </div>
           </div>
+
+          {!!profile.badges?.length && (
+            <div className="profile-badge-wall" aria-label="徽章墙">
+              <h3 className="profile-badge-wall-title">徽章</h3>
+              <UserBadges user={profile} compact={false} maxAchievement={20} showLevel={false} />
+            </div>
+          )}
 
           <div className="profile-stat-grid" aria-label="活动统计">
             <div className="profile-stat">

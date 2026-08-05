@@ -1,12 +1,19 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import type { UserBadge } from '../api/types';
 import { userPath } from '../utils/userPath';
+import UserBadges from './UserBadges';
 
 export type UserLinkUser = {
   id?: number;
   nickname?: string;
   avatar?: string;
+  role?: string;
+  verified?: boolean;
+  level?: number;
+  exp?: number;
+  badges?: UserBadge[];
 } | null | undefined;
 
 interface Props {
@@ -16,6 +23,7 @@ interface Props {
   nameClassName?: string;
   showAvatar?: boolean;
   showName?: boolean;
+  showBadges?: boolean;
   /** 嵌在可点击父级内时阻止冒泡（如帖子列表行） */
   stopPropagation?: boolean;
   children?: ReactNode;
@@ -30,6 +38,7 @@ export default function UserLink({
   nameClassName,
   showAvatar = false,
   showName = true,
+  showBadges = false,
   stopPropagation = false,
   children,
   title,
@@ -53,6 +62,7 @@ export default function UserLink({
         </span>
       )}
       {showName && <span className={cn('user-link-name', nameClassName)}>{nick}</span>}
+      {showBadges && showName && <UserBadges user={user} />}
     </>
   );
 

@@ -330,7 +330,7 @@ func (s *PostService) GetByID(id uint) (*model.Post, error) {
 	return post, nil
 }
 
-func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, isAdmin bool) (*model.Post, error) {
+func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, skipModeration bool) (*model.Post, error) {
 	title = s.filter.Filter(strings.TrimSpace(title))
 	content = s.filter.Filter(SanitizePostHTML(content))
 	tags = s.filter.Filter(strings.TrimSpace(tags))
@@ -351,7 +351,7 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags, postTyp
 		return nil, err
 	}
 	status := model.ContentStatusPending
-	if isAdmin {
+	if skipModeration {
 		status = model.ContentStatusPublished
 	}
 	post := &model.Post{
@@ -365,12 +365,18 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags, postTyp
 		QuestionResolved: false,
 		Status:           status,
 	}
-	return post, model.DB.Create(post).Error
+	if err := model.DB.Create(post).Error; err != nil {
+		return nil, err
+	}
+	if status == model.ContentStatusPublished {
+		AddExp(userID, 10)
+	}
+	return post, nil
 }
 
 // Update 更新帖子。boardID>0 时可改板块；为 0 时保持原板块。
 // postType 为空时保持原类型；改为非 question 时清除已解决标记。
-func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, tags, postType string, boardID uint) error {
+func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, title, content, tags, postType string, boardID uint) error {
 	var post model.Post
 	if err := model.DB.First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
@@ -425,8 +431,8 @@ func (s *PostService) Update(userID, postID uint, isAdmin bool, title, content, 
 			"post_type":         nextType,
 			"question_resolved": nextResolved,
 		}
-		// 普通用户修改后重新进入审核
-		if !isAdmin {
+		// 非免审用户修改后重新进入审核
+		if !skipModeration {
 			updates["status"] = model.ContentStatusPending
 		}
 		return tx.Model(&post).Updates(updates).Error
@@ -440,12 +446,21 @@ func (s *PostService) SetStatus(postID uint, status string) error {
 	default:
 		return errors.New("无效的审核状态")
 	}
+	var post model.Post
+	if err := model.DB.Select("id", "user_id", "status").First(&post, postID).Error; err != nil {
+		return ErrPostNotFound
+	}
+	prev := post.Status
 	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("status", status)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		return ErrPostNotFound
+	}
+	// 首次变为已发布时加经验
+	if status == model.ContentStatusPublished && prev != model.ContentStatusPublished {
+		AddExp(post.UserID, 10)
 	}
 	return nil
 }
@@ -698,6 +713,10 @@ func (s *PostService) SetQuestionResolved(userID, postID uint, isAdmin bool, res
 }
 
 func (s *PostService) ToggleLike(userID, postID uint) (liked bool, err error) {
+	var post model.Post
+	if err := model.DB.Select("id", "user_id").First(&post, postID).Error; err != nil {
+		return false, ErrPostNotFound
+	}
 	var like model.PostLike
 	result := model.DB.Where("post_id = ? AND user_id = ?", postID, userID).Limit(1).Find(&like)
 	if result.Error != nil {
@@ -713,6 +732,13 @@ func (s *PostService) ToggleLike(userID, postID uint) (liked bool, err error) {
 		return false, err
 	}
 	model.DB.Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
+	// 他人点赞给作者加经验；自赞不计
+	if userID != post.UserID {
+		AddExp(post.UserID, 1)
+		go func() {
+			_ = NewBadgeService().EvaluateAuto(post.UserID)
+		}()
+	}
 	return true, nil
 }
 

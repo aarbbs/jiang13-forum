@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FileText, Flag, MessageSquare } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { AdminDashboard } from '../../api/types';
+import { cn } from '@/lib/utils';
 
 export default function AdminDashboardPage() {
   const nav = useNavigate();
@@ -24,28 +26,97 @@ export default function AdminDashboardPage() {
   }
   if (!data) return null;
 
+  const pendingPosts = data.pending_posts ?? 0;
+  const pendingComments = data.pending_comments ?? 0;
+  const pendingReports = data.pending_reports ?? 0;
+  const pendingTotal = pendingPosts + pendingComments + pendingReports;
+
   const stats = [
-    { label: '注册用户', value: data.users, cls: 'admin-stat-users' },
-    { label: '帖子总数', value: data.posts, cls: 'admin-stat-posts' },
-    { label: '板块数量', value: data.boards, cls: 'admin-stat-boards' },
-    { label: '评论总数', value: data.comments, cls: 'admin-stat-comments' },
+    { label: '注册用户', value: data.users },
+    { label: '帖子总数', value: data.posts },
+    { label: '板块数量', value: data.boards },
+    { label: '评论总数', value: data.comments },
+  ];
+
+  const queues = [
+    {
+      key: 'posts',
+      label: '待审帖子',
+      count: pendingPosts,
+      hint: '新帖与修改待审核',
+      to: '/admin/posts',
+      icon: FileText,
+    },
+    {
+      key: 'comments',
+      label: '待审评论',
+      count: pendingComments,
+      hint: '评论与回复待审核',
+      to: '/admin/comments',
+      icon: MessageSquare,
+    },
+    {
+      key: 'reports',
+      label: '待处理举报',
+      count: pendingReports,
+      hint: '用户举报需人工处理',
+      to: '/admin/reports',
+      icon: Flag,
+    },
   ];
 
   return (
     <div className="admin-page">
       <div className="admin-page-head">
         <h1>仪表盘</h1>
-        <p>论坛运行概览与最新帖子</p>
+        <p>优先处理待办，再查看运行概览</p>
       </div>
 
-      <div className="admin-stat-grid">
-        {stats.map(s => (
-          <div key={s.label} className={`admin-stat-card ${s.cls}`}>
-            <div className="admin-stat-value">{s.value}</div>
-            <div className="admin-stat-label">{s.label}</div>
-          </div>
-        ))}
-      </div>
+      <section className="admin-queue-section" aria-label="待处理事项">
+        <div className="admin-section-label">
+          <span>待处理</span>
+          {pendingTotal > 0 ? (
+            <Badge variant="orange">{pendingTotal} 项</Badge>
+          ) : (
+            <span className="admin-section-muted">暂无积压</span>
+          )}
+        </div>
+        <div className="admin-queue-grid">
+          {queues.map(q => {
+            const Icon = q.icon;
+            const hasWork = q.count > 0;
+            return (
+              <button
+                key={q.key}
+                type="button"
+                className={cn('admin-queue-card', hasWork && 'has-work')}
+                onClick={() => nav(q.to)}
+              >
+                <div className="admin-queue-card-top">
+                  <Icon size={18} aria-hidden />
+                  <span className="admin-queue-count">{q.count}</span>
+                </div>
+                <div className="admin-queue-label">{q.label}</div>
+                <div className="admin-queue-hint">{q.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="admin-stat-section" aria-label="运行概览">
+        <div className="admin-section-label">
+          <span>运行概览</span>
+        </div>
+        <div className="admin-stat-grid">
+          {stats.map(s => (
+            <div key={s.label} className="admin-stat-card">
+              <div className="admin-stat-value">{s.value}</div>
+              <div className="admin-stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="admin-card">
         <div className="admin-card-head">

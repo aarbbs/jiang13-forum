@@ -248,6 +248,7 @@ function CommentItem({
             <UserLink
               user={c.user ?? { id: c.user_id, nickname: nick }}
               className="waline-comment-author"
+              showBadges
             />
           ) : (
             <span className="waline-comment-author">{nick}</span>

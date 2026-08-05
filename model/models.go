@@ -28,24 +28,44 @@ const (
 )
 
 // User 用户表
-// Email / Password / LastLogin* 默认不随帖子等嵌套 User 序列化；
+// Email / Password / LastLogin* / LastAccessAt 默认不随帖子等嵌套 User 序列化；
 // 个人中心与后台列表请用 UserSelf / UserAdmin。
 type User struct {
-	ID          uint           `gorm:"primaryKey" json:"id"`
-	Username    string         `gorm:"uniqueIndex;size:128;not null" json:"username"`
-	Email       string         `gorm:"index;size:128;default:''" json:"-"`
-	Password    string         `gorm:"size:128;not null" json:"-"`
-	Nickname    string         `gorm:"size:64" json:"nickname"`
-	Signature   string         `gorm:"size:512;default:''" json:"signature"` // 个人签名
-	Avatar      string         `gorm:"size:512" json:"avatar"` // 兼容 CDN / S3 较长绝对 URL
-	Role        Role           `gorm:"size:16;default:user" json:"role"`
-	Banned      bool           `gorm:"default:false" json:"banned"`
-	BannedAt    *time.Time     `json:"banned_at,omitempty"`
-	LastLoginAt *time.Time     `json:"-"`
-	LastLoginIP string         `gorm:"size:45;default:''" json:"-"` // 兼容 IPv6
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	Username     string         `gorm:"uniqueIndex;size:128;not null" json:"username"`
+	Email        string         `gorm:"index;size:128;default:''" json:"-"`
+	Password     string         `gorm:"size:128;not null" json:"-"`
+	Nickname     string         `gorm:"size:64" json:"nickname"`
+	Signature    string         `gorm:"size:512;default:''" json:"signature"` // 个人签名
+	Avatar       string         `gorm:"size:512" json:"avatar"`               // 兼容 CDN / S3 较长绝对 URL
+	Role         Role           `gorm:"size:16;default:user" json:"role"`
+	Verified     bool           `gorm:"default:false;index" json:"verified"` // 站长认证：免审发帖/评论
+	Exp          int            `gorm:"default:0" json:"exp"`               // 经验（不可消费）
+	Points       int            `gorm:"default:0" json:"points"`            // 可用积分
+	CreatorIncomeTotal int      `gorm:"default:0" json:"creator_income_total"` // 累计创作分成
+	Banned       bool           `gorm:"default:false" json:"banned"`
+	BannedAt     *time.Time     `json:"banned_at,omitempty"`
+	LastLoginAt  *time.Time     `json:"-"`
+	LastLoginIP  string         `gorm:"size:45;default:''" json:"-"` // 兼容 IPv6
+	LastAccessAt *time.Time     `json:"-"`                           // 最近一次带鉴权的访问（与登录分开）
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// 仅序列化展示用，不落库
+	Level  int             `gorm:"-" json:"level"`
+	Badges []UserBadgeView `gorm:"-" json:"badges,omitempty"`
+}
+
+// AfterFind 填充展示用等级
+func (u *User) AfterFind(tx *gorm.DB) (err error) {
+	u.Level = LevelFromExp(u.Exp)
+	return nil
+}
+
+// SkipsModeration 站长或认证用户发帖/评论免审
+func (u *User) SkipsModeration() bool {
+	return u != nil && (u.Role == RoleAdmin || u.Verified)
 }
 
 // Board 论坛板块
@@ -245,4 +265,94 @@ type Media struct {
 	UserID      *uint     `gorm:"index" json:"user_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// 积分流水原因
+const (
+	PointReasonCheckIn       = "check_in"
+	PointReasonLottery       = "lottery"
+	PointReasonUnlockSpend   = "unlock_spend"
+	PointReasonCreatorIncome = "creator_income"
+	PointReasonAdminAdjust   = "admin_adjust"
+)
+
+// PointLedger 积分流水
+type PointLedger struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"index;not null" json:"user_id"`
+	Delta     int       `gorm:"not null" json:"delta"`
+	Balance   int       `gorm:"not null" json:"balance"` // 变动后余额
+	Reason    string    `gorm:"size:32;index;not null" json:"reason"`
+	RefType   string    `gorm:"size:32;default:''" json:"ref_type"`
+	RefID     uint      `gorm:"default:0" json:"ref_id"`
+	Note      string    `gorm:"size:256;default:''" json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CheckIn 每日签到（用户+自然日唯一）
+type CheckIn struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"uniqueIndex:idx_checkin_user_day;not null" json:"user_id"`
+	Day       string    `gorm:"uniqueIndex:idx_checkin_user_day;size:10;not null" json:"day"` // YYYY-MM-DD
+	Points    int       `gorm:"not null" json:"points"`
+	Streak    int       `gorm:"default:1" json:"streak"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// LotteryDraw 每日抽奖记录
+type LotteryDraw struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"uniqueIndex:idx_lottery_user_day;not null" json:"user_id"`
+	Day       string    `gorm:"uniqueIndex:idx_lottery_user_day;size:10;not null" json:"day"`
+	Points    int       `gorm:"not null" json:"points"` // 抽中积分（可为 0）
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PostContentUnlock 帖子积分解锁记录
+type PostContentUnlock struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"uniqueIndex:idx_unlock_user_post_block;not null" json:"user_id"`
+	PostID    uint      `gorm:"uniqueIndex:idx_unlock_user_post_block;index;not null" json:"post_id"`
+	BlockKey  string    `gorm:"uniqueIndex:idx_unlock_user_post_block;size:64;not null" json:"block_key"`
+	Cost      int       `gorm:"not null" json:"cost"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// 徽章类型
+const (
+	BadgeKindAuto    = "auto"
+	BadgeKindLimited = "limited"
+)
+
+// 自动徽章指标
+const (
+	BadgeMetricTenureDays    = "tenure_days"
+	BadgeMetricLikesReceived = "likes_received"
+	BadgeMetricCreatorIncome = "creator_income"
+)
+
+// BadgeDef 徽章定义
+type BadgeDef struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Code        string    `gorm:"uniqueIndex;size:64;not null" json:"code"`
+	Name        string    `gorm:"size:64;not null" json:"name"`
+	Description string    `gorm:"size:256;default:''" json:"description"`
+	Icon        string    `gorm:"size:64;default:''" json:"icon"` // lucide / 固定 key
+	Kind        string    `gorm:"size:16;index;not null" json:"kind"` // auto|limited
+	Metric      string    `gorm:"size:32;default:''" json:"metric"`
+	Threshold   int       `gorm:"default:0" json:"threshold"`
+	SortOrder   int       `gorm:"default:0" json:"sort_order"`
+	Enabled     bool      `gorm:"default:true;index" json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// UserBadge 用户已获徽章
+type UserBadge struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	UserID     uint      `gorm:"uniqueIndex:idx_user_badge;not null" json:"user_id"`
+	BadgeID    uint      `gorm:"uniqueIndex:idx_user_badge;index;not null" json:"badge_id"`
+	AwardedAt  time.Time `json:"awarded_at"`
+	AwardedBy  uint      `gorm:"default:0" json:"awarded_by"` // 0=系统
+	Badge      BadgeDef  `gorm:"foreignKey:BadgeID" json:"badge,omitempty"`
 }

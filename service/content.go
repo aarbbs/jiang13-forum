@@ -25,9 +25,9 @@ func RedactReplyOnlyHTML(html string) string {
 	return redactGatedBlocks(html, replyOnlyBlockRe, "reply-only")
 }
 
-// RedactGatedPostHTML 搜索/SEO 等场景：同时遮盖登录可见与回复可见正文
+// RedactGatedPostHTML 搜索/SEO 等场景：同时遮盖登录可见、回复可见与积分解锁正文
 func RedactGatedPostHTML(html string) string {
-	return RedactReplyOnlyHTML(RedactMembersOnlyHTML(html))
+	return RedactPointsOnlyHTML(RedactReplyOnlyHTML(RedactMembersOnlyHTML(html)), nil)
 }
 
 func redactGatedBlocks(html string, re *regexp.Regexp, tag string) string {

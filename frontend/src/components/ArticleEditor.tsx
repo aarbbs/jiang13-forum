@@ -15,7 +15,7 @@ import {
   FileCode, PenLine, Maximize2, Minimize2,
   Columns2, PanelLeft, PanelRight, StretchHorizontal,
   Table as TableIcon, BetweenHorizonalStart, BetweenVerticalStart, Rows3, Columns3,
-  MessageSquareLock,
+  MessageSquareLock, Coins,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
@@ -34,6 +34,7 @@ import { api } from '../api/client';
 import { notify } from '@/lib/notify';
 import { MembersOnly } from './editor/MembersOnlyExtension';
 import { ReplyOnly } from './editor/ReplyOnlyExtension';
+import { PointsOnly } from './editor/PointsOnlyExtension';
 import { TabIndent } from './editor/TabIndentExtension';
 import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension';
 import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
@@ -264,12 +265,16 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
           if (node.type.name === 'paragraph' && node.parent?.type.name === 'replyOnly') {
             return REPLY_ONLY_PLACEHOLDER;
           }
+          if (node.type.name === 'paragraph' && node.parent?.type.name === 'pointsOnly') {
+            return '此处内容需积分解锁后可见…';
+          }
           return placeholder;
         },
         includeChildren: true,
       }),
       MembersOnly,
       ReplyOnly,
+      PointsOnly,
       TabIndent,
     ],
     content: sanitizeHtml(value) || '',
@@ -541,6 +546,20 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     editor.chain().focus().insertReplyOnly().run();
   }, [editor]);
 
+  const wrapPointsOnly = useCallback(() => {
+    if (!editor) return;
+    if (editor.isActive('pointsOnly')) {
+      editor.chain().focus().exitPointsOnly().run();
+      return;
+    }
+    const { from, to, empty } = editor.state.selection;
+    if (!empty && from !== to) {
+      editor.chain().focus().wrapPointsOnly(10).run();
+      return;
+    }
+    editor.chain().focus().insertPointsOnly(10).run();
+  }, [editor]);
+
   const switchToMarkdown = useCallback(() => {
     if (!editor) return;
     const html = sanitizeHtml(editor.getHTML());
@@ -694,10 +713,18 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         className: 'article-tool-btn--reply',
         action: wrapReplyOnly,
       },
+      {
+        icon: <Coins size={15} />,
+        title: '积分可见',
+        hint: '读者花费积分解锁；可设价格',
+        active: editor.isActive('pointsOnly'),
+        className: 'article-tool-btn--points',
+        action: wrapPointsOnly,
+      },
     );
 
     return tools;
-  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => [
     { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },

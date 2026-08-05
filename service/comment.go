@@ -215,7 +215,7 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 	}
 
 	status := model.ContentStatusPending
-	if user.Role == model.RoleAdmin {
+	if user.SkipsModeration() {
 		status = model.ContentStatusPublished
 	}
 
@@ -231,7 +231,13 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 		IsPrivate:  in.IsPrivate,
 		Status:     status,
 	}
-	return comment, model.DB.Create(comment).Error
+	if err := model.DB.Create(comment).Error; err != nil {
+		return nil, err
+	}
+	if status == model.ContentStatusPublished {
+		AddExp(in.UserID, 2)
+	}
+	return comment, nil
 }
 
 // SetStatus 设置评论审核状态
@@ -241,12 +247,20 @@ func (s *CommentService) SetStatus(commentID uint, status string) error {
 	default:
 		return errors.New("无效的审核状态")
 	}
+	var comment model.Comment
+	if err := model.DB.Select("id", "user_id", "status").First(&comment, commentID).Error; err != nil {
+		return ErrCommentNotFound
+	}
+	prev := comment.Status
 	res := model.DB.Model(&model.Comment{}).Where("id = ?", commentID).Update("status", status)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		return ErrCommentNotFound
+	}
+	if status == model.ContentStatusPublished && prev != model.ContentStatusPublished && comment.UserID > 0 {
+		AddExp(comment.UserID, 2)
 	}
 	return nil
 }
@@ -332,7 +346,7 @@ func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
 	return s.AdminDelete(commentID)
 }
 
-func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content string) (string, bool, error) {
+func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration bool, content string) (string, bool, error) {
 	var comment model.Comment
 	if err := model.DB.First(&comment, commentID).Error; err != nil {
 		return "", false, ErrCommentNotFound
@@ -369,7 +383,7 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content st
 			return err
 		}
 		updates := map[string]interface{}{"content": content}
-		if !isAdmin {
+		if !skipModeration {
 			updates["status"] = model.ContentStatusPending
 			enteredPending = true
 		}

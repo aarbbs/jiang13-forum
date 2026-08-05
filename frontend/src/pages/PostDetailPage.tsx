@@ -628,7 +628,7 @@ export default function PostDetailPage() {
                 : authorInitial}
             </UserLink>
             <div className="post-detail-author-info">
-              <UserLink user={post.user} className="post-detail-author-name" />
+              <UserLink user={post.user} className="post-detail-author-name" showBadges />
               <span className="post-detail-meta-line">
                 发布于 {formatDateTime(post.created_at)}
                 {showEdited && (
@@ -665,8 +665,10 @@ export default function PostDetailPage() {
         <PostContent
           html={post.content || ''}
           isLoggedIn={!!user}
+          postId={post.id}
           onHeadingsChange={handleHeadingsChange}
           onRequestReply={scrollToCommentBox}
+          onUnlocked={() => { void reloadPostContent(); }}
         />
 
         <div className="post-detail-actions">

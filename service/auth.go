@@ -2,11 +2,17 @@ package service
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"git.iioio.com/freefire/jiang13-forum/model"
 )
+
+// 最近访问写入节流，避免每次 API 都打库
+const lastAccessTouchInterval = 5 * time.Minute
+
+var lastAccessTouchCache sync.Map // userID(uint) -> time.Time
 
 const TokenExpire = 7 * 24 * time.Hour
 
@@ -100,7 +106,7 @@ func (s *AuthService) Login(username, password, clientIP string) (string, *model
 	return token, &user, err
 }
 
-// recordLogin 记录上次登录时间与 IP（失败不影响登录）
+// recordLogin 记录上次登录时间与 IP；登录同时视为一次访问（失败不影响登录）
 func (s *AuthService) recordLogin(user *model.User, clientIP string) {
 	now := time.Now()
 	ip := clientIP
@@ -108,11 +114,29 @@ func (s *AuthService) recordLogin(user *model.User, clientIP string) {
 		ip = ip[:45]
 	}
 	_ = model.DB.Model(user).Updates(map[string]interface{}{
-		"last_login_at": now,
-		"last_login_ip": ip,
+		"last_login_at":  now,
+		"last_login_ip":  ip,
+		"last_access_at": now,
 	}).Error
 	user.LastLoginAt = &now
 	user.LastLoginIP = ip
+	user.LastAccessAt = &now
+	lastAccessTouchCache.Store(user.ID, now)
+}
+
+// TouchLastAccess 记录最近访问时间（节流写入，失败忽略）
+func (s *AuthService) TouchLastAccess(userID uint) {
+	if userID == 0 {
+		return
+	}
+	now := time.Now()
+	if v, ok := lastAccessTouchCache.Load(userID); ok {
+		if t, ok := v.(time.Time); ok && now.Sub(t) < lastAccessTouchInterval {
+			return
+		}
+	}
+	lastAccessTouchCache.Store(userID, now)
+	_ = model.DB.Model(&model.User{}).Where("id = ?", userID).Update("last_access_at", now).Error
 }
 
 // GenerateToken 生成 JWT

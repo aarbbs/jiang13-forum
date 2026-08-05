@@ -1,3 +1,11 @@
+export interface UserBadge {
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  kind: string;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -6,10 +14,17 @@ export interface User {
   signature?: string;
   avatar: string;
   role: 'user' | 'admin';
+  verified?: boolean;
+  exp?: number;
+  level?: number;
+  points?: number;
+  creator_income_total?: number;
+  badges?: UserBadge[];
   banned?: boolean;
   banned_at?: string;
   last_login_at?: string;
   last_login_ip?: string;
+  last_access_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -22,6 +37,11 @@ export interface UserPublic {
   signature: string;
   avatar: string;
   role: 'user' | 'admin';
+  verified?: boolean;
+  exp?: number;
+  level?: number;
+  creator_income_total?: number;
+  badges?: UserBadge[];
   banned?: boolean;
   banned_at?: string;
   created_at: string;
@@ -144,6 +164,9 @@ export interface AdminDashboard {
   posts: number;
   boards: number;
   comments: number;
+  pending_posts?: number;
+  pending_comments?: number;
+  pending_reports?: number;
   recent_posts: PostItem[];
 }
 
@@ -411,4 +434,44 @@ export interface PostReport {
   comment?: Comment;
   reporter?: User;
   handler?: User;
+}
+
+export interface BadgeDef {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  kind: 'auto' | 'limited' | string;
+  metric: string;
+  threshold: number;
+  sort_order: number;
+  enabled: boolean;
+}
+
+export interface PointLedger {
+  id: number;
+  user_id: number;
+  delta: number;
+  balance: number;
+  reason: string;
+  ref_type: string;
+  ref_id: number;
+  note: string;
+  created_at: string;
+}
+
+export interface CheckInStatus {
+  checked_in: boolean;
+  streak: number;
+  today_points: number;
+  day: string;
+}
+
+export interface LotteryStatus {
+  drawn: boolean;
+  points: number;
+  day: string;
+  cost: number;
+  pool?: { points: number; weight: number }[];
 }

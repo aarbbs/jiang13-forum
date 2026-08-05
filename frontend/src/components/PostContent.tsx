@@ -1,10 +1,11 @@
 import { useMemo, useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { renderPostContentHtml } from '../utils/postContent';
 import { extractHeadingsFromHtml, type PostHeading } from '../utils/postHeadings';
 import { loginPath, registerPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { notify } from '@/lib/notify';
+import { api } from '../api/client';
 import ImageLightbox from './ImageLightbox';
 
 interface Props {
@@ -15,20 +16,28 @@ interface Props {
   onHeadingsChange?: (headings: PostHeading[]) => void;
   /** 点击「回复可见」门控的「去回复」 */
   onRequestReply?: () => void;
+  /** 积分解锁成功后刷新正文 */
+  onUnlocked?: () => void;
+  postId?: number;
 }
 
-/** 帖子正文渲染（含会员专属 / 回复可见区块、代码块美化、图片灯箱） */
+/** 帖子正文渲染（含会员专属 / 回复可见 / 积分可见、代码块美化、图片灯箱） */
 export default function PostContent({
   html,
   isLoggedIn,
   className = 'post-detail-content',
   onHeadingsChange,
   onRequestReply,
+  onUnlocked,
+  postId: postIdProp,
 }: Props) {
   const nav = useNavigate();
+  const params = useParams();
+  const postId = postIdProp || Number(params.id) || 0;
   const { limits } = useForumLimits();
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [lightboxAlt, setLightboxAlt] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
 
   const prepared = useMemo(() => {
     const rendered = renderPostContentHtml(html, isLoggedIn, {
@@ -66,6 +75,25 @@ export default function PostContent({
     if (target.closest('[data-members-register]')) {
       e.preventDefault();
       nav(registerPath());
+      return;
+    }
+    const unlockBtn = target.closest<HTMLElement>('[data-points-unlock]');
+    if (unlockBtn) {
+      e.preventDefault();
+      const blockKey = unlockBtn.getAttribute('data-block-key') || '';
+      const cost = unlockBtn.getAttribute('data-cost') || '';
+      if (!postId || !blockKey || unlocking) return;
+      if (!window.confirm(`确认花费 ${cost} 积分解锁该内容？`)) return;
+      setUnlocking(true);
+      try {
+        await api.unlockPostBlock(postId, blockKey);
+        notify.success('解锁成功');
+        onUnlocked?.();
+      } catch (err: unknown) {
+        notify.error(err instanceof Error ? err.message : '解锁失败');
+      } finally {
+        setUnlocking(false);
+      }
       return;
     }
     const zoomImg = target.closest<HTMLImageElement>('img.post-content-img--zoomable');
@@ -106,7 +134,6 @@ export default function PostContent({
     if (copyBtn) {
       e.preventDefault();
       const block = copyBtn.closest('.md-codeblock');
-      // 行号列不参与复制：取各行正文拼接
       const bodies = block?.querySelectorAll('.md-code-line__body');
       const text = bodies && bodies.length
         ? [...bodies].map(el => el.textContent ?? '').join('\n')
@@ -124,7 +151,7 @@ export default function PostContent({
         notify.error('复制失败');
       }
     }
-  }, [nav, openLightbox, onRequestReply]);
+  }, [nav, openLightbox, onRequestReply, onUnlocked, postId, unlocking]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;

@@ -17,6 +17,7 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import { loginPath } from '../utils/authRedirect';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
 import { parsePermalinkID, postPath } from '../utils/permalink';
+import { skipsModeration } from '../utils/userMeta';
 
 interface ComposeBaseline {
   title: string;
@@ -258,7 +259,7 @@ export default function ComposePage() {
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
-        notify.success(user?.role === 'admin' ? '帖子已更新' : '已更新并重新提交审核');
+        notify.success(skipsModeration(user) ? '帖子已更新' : '已更新并重新提交审核');
         markSaved();
         nav(postPath(editId!, limits));
       } else {

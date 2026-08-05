@@ -23,6 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import UserBadges from '../components/UserBadges';
+import PointsWalletPanel from '../components/PointsWalletPanel';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
@@ -389,7 +391,7 @@ export default function ProfilePage() {
             <div className="profile-header-main">
               <div className="profile-name-row">
                 <h2 className="profile-display-name">{user.nickname}</h2>
-                {user.role === 'admin' && <Badge variant="green">管理员</Badge>}
+                <UserBadges user={user} compact={false} maxAchievement={6} />
               </div>
               <div className="profile-username">@{user.username}</div>
               <div className="profile-id-row">
@@ -489,9 +491,11 @@ export default function ProfilePage() {
           onConfirm={onCropConfirm}
         />
 
+        <PointsWalletPanel />
+
         {user.role === 'admin' && (
           <div className="section-card admin-entry-card">
-            <div className="section-card-title">管理员入口</div>
+            <div className="section-card-title">站长入口</div>
             <p className="admin-entry-desc">
               管理板块、用户、帖子及系统设置
             </p>

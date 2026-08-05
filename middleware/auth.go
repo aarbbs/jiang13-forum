@@ -39,6 +39,7 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 					c.Set(CtxUserID, user.ID)
 					c.Set(CtxUsername, user.Username)
 					c.Set(CtxRole, user.Role)
+					m.auth.TouchLastAccess(user.ID)
 				}
 			}
 		}
@@ -71,6 +72,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		c.Set(CtxUserID, claims.UserID)
 		c.Set(CtxUsername, claims.Username)
 		c.Set(CtxRole, claims.Role)
+		m.auth.TouchLastAccess(claims.UserID)
 		c.Next()
 	}
 }

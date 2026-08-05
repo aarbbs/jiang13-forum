@@ -70,7 +70,6 @@ export default function PostAuthorCard({
   const nick = display.nickname || display.username || `用户 #${author.id}`;
   const initial = nick.charAt(0) || '?';
   const signature = (profile?.signature ?? author.signature ?? '').trim();
-  const isAdmin = display.role === 'admin';
   const isSelf = !!me && me.id === author.id;
   const profileHref = userPath(author.id);
 
@@ -102,8 +101,7 @@ export default function PostAuthorCard({
           </UserLink>
           <div className="widget-author-meta">
             <div className="widget-author-name-row">
-              <UserLink user={display} className="widget-author-name" />
-              {isAdmin && <Badge variant="green" className="widget-author-badge">管理员</Badge>}
+              <UserLink user={display} className="widget-author-name" showBadges />
               {display.banned && <Badge variant="destructive" className="widget-author-badge">已禁言</Badge>}
             </div>
             {signature ? (

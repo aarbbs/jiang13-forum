@@ -71,7 +71,7 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
       <div className="post-body">
         <div className="post-head">
           <div className="post-head-meta">
-            <UserLink user={post.user} stopPropagation className="post-author" />
+            <UserLink user={post.user} stopPropagation className="post-author" showBadges />
             <span className="post-head-dot" aria-hidden>·</span>
             <span className="post-time">{timeLabel}</span>
           </div>

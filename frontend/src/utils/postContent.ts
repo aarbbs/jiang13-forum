@@ -9,9 +9,9 @@ import { enhanceHeadingAnchors } from './postHeadings';
  * 全局选择器仍会污染整页，故显式禁止。
  */
 export const POST_CONTENT_PURIFY_CONFIG: Config = {
-  ADD_TAGS: ['members-only', 'reply-only'],
+  ADD_TAGS: ['members-only', 'reply-only', 'points-only'],
   ADD_ATTR: [
-    'data-locked', 'data-length', 'data-gate', 'target', 'rel',
+    'data-locked', 'data-length', 'data-gate', 'data-cost', 'data-block-key', 'target', 'rel',
     'data-code-copy', 'data-code-fold', 'data-lang', 'data-full',
     'data-code-style', 'data-line-numbers', 'data-collapsed', 'data-line-count', 'data-lineno-digits',
     'data-image-group', 'data-layout', 'data-display',
@@ -26,6 +26,29 @@ export const POST_CONTENT_PURIFY_CONFIG: Config = {
 const LOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
 const REPLY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 15v4a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h10"/><path d="M20 7V3"/><path d="M22 5h-4"/></svg>`;
+
+/** 积分解锁门控 */
+function buildPointsLockedGateHtml(charLength: number, cost: number, blockKey: string, isLoggedIn: boolean): string {
+  const lengthHint = charLength > 0 ? `约 ${charLength} 字` : '付费内容';
+  const actions = isLoggedIn
+    ? `<button type="button" class="post-points-only__gate-btn" data-points-unlock data-block-key="${blockKey}" data-cost="${cost}">花费 ${cost} 积分解锁</button>`
+    : `<button type="button" class="post-points-only__gate-btn" data-members-login>登录后解锁</button>
+       <button type="button" class="post-points-only__gate-link" data-members-register>免费注册</button>`;
+
+  return `
+<div class="post-points-only__locked-wrap">
+  <div class="post-points-only__gate">
+    <span class="post-points-only__gate-icon" aria-hidden="true">${LOCK_ICON_SVG}</span>
+    <div class="post-points-only__gate-text">
+      <p class="post-points-only__gate-title">积分可见（${lengthHint}）</p>
+      <p class="post-points-only__gate-desc">解锁需 ${cost} 积分，作者获得分成</p>
+    </div>
+    <div class="post-points-only__gate-actions">
+      ${actions}
+    </div>
+  </div>
+</div>`;
+}
 
 /** 游客看到的锁定区块：流内嵌条 + 登录引导（精简高度） */
 function buildLockedGateHtml(charLength: number): string {
@@ -148,6 +171,27 @@ export function renderPostContentHtml(
 
     el.className = 'post-reply-only post-reply-only--visible';
     el.innerHTML = `<div class="post-reply-only__body">${innerHtml}</div>`;
+  });
+
+  doc.querySelectorAll('points-only').forEach(el => {
+    const locked = el.getAttribute('data-locked') === 'true';
+    const cost = parseInt(el.getAttribute('data-cost') || '10', 10) || 10;
+    const blockKey = el.getAttribute('data-block-key') || '';
+
+    if (locked) {
+      const charLength = parseInt(el.getAttribute('data-length') || '0', 10) || 0;
+      el.className = 'post-points-only post-points-only--locked';
+      el.innerHTML = buildPointsLockedGateHtml(charLength, cost, blockKey, isLoggedIn);
+      return;
+    }
+
+    const innerHtml = extractGatedInnerHtml(
+      el,
+      'post-points-only__body',
+      'post-points-only__badge',
+    );
+    el.className = 'post-points-only post-points-only--visible';
+    el.innerHTML = `<div class="post-points-only__body">${innerHtml}</div>`;
   });
 
   doc.querySelectorAll('img').forEach(img => {

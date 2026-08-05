@@ -112,8 +112,10 @@ export default function AdminReportsPage() {
 
   return (
     <div className="admin-page">
-      <h1 className="admin-page-title">举报管理</h1>
-      <p className="admin-page-desc">处理用户对帖子与评论的举报；拒绝时将通过站内私信通知作者。</p>
+      <div className="admin-page-head">
+        <h1>举报管理</h1>
+        <p>处理用户对帖子与评论的举报；拒绝时将通过站内私信通知作者。</p>
+      </div>
 
       <div className="admin-tabs">
         {tabs.map((t) => (

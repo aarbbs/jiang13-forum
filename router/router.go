@@ -84,6 +84,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
+		Points: service.NewPointsService(), Badge: service.NewBadgeService(),
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
@@ -159,6 +160,11 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/comments/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreateCommentReport)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 		api.PUT("/comments/:id", h.APIUpdateComment)
+		api.GET("/me/points", h.APIMePoints)
+		api.POST("/me/check-in", h.APIMeCheckIn)
+		api.GET("/me/lottery", h.APIMeLotteryGet)
+		api.POST("/me/lottery", h.APIMeLotteryDraw)
+		api.POST("/posts/:id/unlock", middleware.RateLimitMiddleware(limiter, "post"), h.APIUnlockPostBlock)
 	}
 
 	// 管理员 API（React SPA 后台统一使用 JSON）
@@ -204,6 +210,12 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.DELETE("/comments/:id", h.APIAdminDeleteComment)
 		adminAPI.GET("/users", h.APIAdminUsers)
 		adminAPI.POST("/users/:id/ban", h.APIAdminBanUser)
+		adminAPI.POST("/users/:id/verify", h.APIAdminVerifyUser)
+		adminAPI.POST("/users/:id/level", h.APIAdminSetUserLevel)
+		adminAPI.POST("/users/:id/points", h.APIAdminAdjustPoints)
+		adminAPI.POST("/users/:id/badges", h.APIAdminAwardBadge)
+		adminAPI.GET("/badges", h.APIAdminListBadges)
+		adminAPI.POST("/badges", h.APIAdminUpsertBadge)
 		adminAPI.GET("/media", h.APIAdminMedia)
 		adminAPI.POST("/media/delete", h.APIAdminDeleteMedia)
 		adminAPI.POST("/backup", h.APIAdminBackup)
@@ -220,7 +232,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 		{
 			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-			for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "media", "settings"} {
+			for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
 				adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
 			}
 		}

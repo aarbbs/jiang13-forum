@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,6 +36,8 @@ type Handlers struct {
 	EmailCode *service.EmailCodeService
 	OIDC      *service.OIDCService
 	Gitea     *service.GiteaService
+	Points    *service.PointsService
+	Badge     *service.BadgeService
 }
 
 func (h *Handlers) setAuthCookie(c *gin.Context, token string) {
@@ -53,6 +56,23 @@ func (h *Handlers) isAdmin(c *gin.Context) bool {
 		return v == model.RoleAdmin
 	}
 	return false
+}
+
+// loadCurrentUser 加载当前登录用户完整资料（含认证/积分）
+func (h *Handlers) loadCurrentUser(c *gin.Context) (*model.User, error) {
+	uid := h.currentUserID(c)
+	if uid == 0 {
+		return nil, errors.New("未登录")
+	}
+	return h.User.GetByID(uid)
+}
+
+func (h *Handlers) skipsModeration(c *gin.Context) bool {
+	u, err := h.loadCurrentUser(c)
+	if err != nil {
+		return h.isAdmin(c)
+	}
+	return u.SkipsModeration()
 }
 
 func (h *Handlers) parseGuestCommentIDs(c *gin.Context) []uint {
@@ -226,8 +246,15 @@ func (h *Handlers) APIUserPublic(c *gin.Context) {
 	if viewerID != user.ID {
 		st.FavoriteCount = 0
 	}
+	view := user.ToPublic()
+	if h.Badge != nil {
+		_ = h.Badge.EvaluateAuto(user.ID)
+		if badges, bErr := h.Badge.ListUserBadges(user.ID); bErr == nil {
+			view.Badges = service.BadgeViews(badges, 0)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user":  user.ToPublic(),
+		"user":  view,
 		"stats": st,
 	})
 }
@@ -315,7 +342,8 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 	content := c.PostForm("content")
 	tags := c.PostForm("tags")
 	postType := c.PostForm("post_type")
-	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, postType, h.isAdmin(c))
+	skip := h.skipsModeration(c)
+	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, postType, skip)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -334,14 +362,15 @@ func (h *Handlers) APIUpdatePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
 	isAdmin := h.isAdmin(c)
-	err := h.Post.Update(h.currentUserID(c), uint(id), isAdmin,
+	skip := h.skipsModeration(c)
+	err := h.Post.Update(h.currentUserID(c), uint(id), isAdmin, skip,
 		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), c.PostForm("post_type"), uint(boardID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// 普通用户修改后重新进入审核
-	if !isAdmin && h.Notify != nil {
+	// 非免审用户修改后重新进入审核
+	if !skip && h.Notify != nil {
 		if post, getErr := h.Post.FindByID(uint(id)); getErr == nil {
 			h.Notify.AsyncNotifyPendingPost(post)
 		}
@@ -461,7 +490,8 @@ func (h *Handlers) APIDeleteComment(c *gin.Context) {
 func (h *Handlers) APIUpdateComment(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	content := c.PostForm("content")
-	saved, enteredPending, err := h.Comment.Update(h.currentUserID(c), uint(id), h.isAdmin(c), content)
+	skip := h.skipsModeration(c)
+	saved, enteredPending, err := h.Comment.Update(h.currentUserID(c), uint(id), h.isAdmin(c), skip, content)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

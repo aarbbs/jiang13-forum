@@ -457,7 +457,9 @@ export default function MainLayout() {
                     onCloseAutoFocus={(e) => e.preventDefault()}
                   >
                     <DropdownMenuItem onClick={() => nav(userPath(user.id))}>个人主页</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav('/profile')}>账号设置</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav('/profile')}>
+                      账号设置{typeof user.points === 'number' ? ` · ${user.points} 积分` : ''}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/messages')}>
                       站内私信{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
                     </DropdownMenuItem>
