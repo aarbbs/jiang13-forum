@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Inbox, SearchX } from 'lucide-react';
@@ -8,6 +8,7 @@ import PostListSkeleton from './PostListSkeleton';
 import FeedPagination from './FeedPagination';
 import { InFlowSiteFooter } from './SiteFooter';
 import { useAuth } from '../hooks/useAuth';
+import { useMediaQuery } from '../hooks/useTheme';
 import { loginPath } from '../utils/authRedirect';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
@@ -39,6 +40,11 @@ interface Props {
   noBoards?: boolean;
 }
 
+/** 手机 Feed 整栏滚动时的容器 */
+function getMobileFeedScrollEl(): HTMLElement | null {
+  return document.querySelector('.main-content--feed-mobile-scroll');
+}
+
 export default function VirtualPostList({
   posts,
   sort = 'latest',
@@ -61,6 +67,7 @@ export default function VirtualPostList({
 }: Props) {
   const nav = useNavigate();
   const { user } = useAuth();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const parentRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
   const onScrollTopChangeRef = useRef(onScrollTopChange);
@@ -68,11 +75,50 @@ export default function VirtualPostList({
   onScrollTopChangeRef.current = onScrollTopChange;
   onScrollRestoredRef.current = onScrollRestored;
 
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  const getScrollElement = useCallback(() => {
+    if (isMobile) {
+      return getMobileFeedScrollEl() ?? parentRef.current;
+    }
+    return parentRef.current;
+  }, [isMobile]);
+
+  /** 列表相对整栏滚动容器顶部的偏移，供虚拟列表对齐 */
+  useLayoutEffect(() => {
+    if (!isMobile) {
+      setScrollMargin(0);
+      return;
+    }
+    const main = getMobileFeedScrollEl();
+    const list = parentRef.current;
+    if (!main || !list) return;
+
+    const update = () => {
+      // 相对 main 内容顶（含当前 scrollTop），避免 offsetParent 链不准
+      const next = Math.max(
+        0,
+        Math.round(list.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop),
+      );
+      setScrollMargin(prev => (prev === next ? prev : next));
+    };
+    update();
+
+    const ro = new ResizeObserver(update);
+    ro.observe(main);
+    const boardBar = main.querySelector('.mobile-board-bar');
+    const feedTop = main.querySelector('.feed-top');
+    if (boardBar) ro.observe(boardBar);
+    if (feedTop) ro.observe(feedTop);
+    return () => ro.disconnect();
+  }, [isMobile, posts.length, loading, keyword, boardId]);
+
   const virtualizer = useVirtualizer({
     count: posts.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement,
     estimateSize: () => 108,
     overscan: 8,
+    scrollMargin: isMobile ? scrollMargin : 0,
     measureElement:
       typeof window !== 'undefined' && !navigator.userAgent.includes('Firefox')
         ? (el) => el.getBoundingClientRect().height
@@ -88,35 +134,40 @@ export default function VirtualPostList({
 
   useLayoutEffect(() => {
     if (resetScrollKey <= 0) return;
-    const el = parentRef.current;
+    const el = getScrollElement();
     if (el) {
       el.scrollTop = 0;
       virtualizer.scrollToOffset(0);
     }
     restoredRef.current = true;
     onScrollTopChangeRef.current?.(0);
-  }, [resetScrollKey, virtualizer]);
+  }, [resetScrollKey, virtualizer, getScrollElement]);
 
   useLayoutEffect(() => {
     if (restoreScrollTop == null || restoredRef.current || posts.length === 0) return;
-    virtualizer.scrollToOffset(restoreScrollTop);
+    const el = getScrollElement();
+    if (el) {
+      el.scrollTop = restoreScrollTop;
+    } else {
+      virtualizer.scrollToOffset(restoreScrollTop);
+    }
     restoredRef.current = true;
     onScrollRestoredRef.current?.();
-  }, [restoreScrollTop, posts.length, virtualizer]);
+  }, [restoreScrollTop, posts.length, virtualizer, getScrollElement]);
 
   useEffect(() => {
     restoredRef.current = false;
   }, [restoreScrollTop]);
 
   useEffect(() => {
-    const el = parentRef.current;
+    const el = getScrollElement();
     if (!el) return;
     const onScroll = () => {
       onScrollTopChangeRef.current?.(el.scrollTop);
     };
-    el.addEventListener('scroll', onScroll);
+    el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [getScrollElement, isMobile]);
 
   const emptyActions = (
     <div className="empty-feed-actions">
@@ -193,6 +244,8 @@ export default function VirtualPostList({
             {virtualizer.getVirtualItems().map(vi => {
               const post = posts[vi.index];
               if (!post) return null;
+              // scrollMargin 模式下 start 含偏移，需减回才能在列表内绝对定位
+              const offsetY = isMobile ? vi.start - scrollMargin : vi.start;
               return (
                 <div
                   key={vi.key}
@@ -203,7 +256,7 @@ export default function VirtualPostList({
                     top: 0,
                     left: 0,
                     width: '100%',
-                    transform: `translateY(${vi.start}px)`,
+                    transform: `translateY(${offsetY}px)`,
                   }}
                 >
                   <PostListItem post={post} sort={sort} onSelect={onSelect} />

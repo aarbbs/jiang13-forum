@@ -1,7 +1,7 @@
 # 路线图 ROADMAP
 
 > 姜十三论坛仍在积极开发中，功能尚未完善。  
-> 欢迎通过 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues) 反馈问题或认领任务。
+> 演示站：[https://bbs.iioio.com/](https://bbs.iioio.com/) · 欢迎通过本仓库 Issues 反馈问题或认领任务。
 
 **图例：** ✅ 已完成 · 🚧 进行中 · 📋 计划中 · 🐛 已知缺陷
 
@@ -20,7 +20,7 @@
 
 ## 🐛 已知缺陷（Bug）
 
-_当前无已记录缺陷。发现新问题请提交 [Issue](https://git.iioio.com/freefire/jiang13-forum/issues/new/choose)。_
+_当前无已记录缺陷。发现新问题请在本仓库提交 Issue。_
 
 ---
 
@@ -65,10 +65,10 @@ _当前无公开认领任务。_
 
 ## 如何参与
 
-1. 在 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues) 挑选任务（预填内容见 [docs/issue-templates.md](docs/issue-templates.md)）
+1. 在 Issues 挑选任务（预填内容见 [docs/issue-templates.md](docs/issue-templates.md)）
 2. Fork → 分支 → PR，详见 [CONTRIBUTING.md](CONTRIBUTING.md)
 3. 有新想法先开 Issue 讨论，避免重复劳动
 
 ---
 
-_最后更新：2026-06-16_
+_最后更新：2026-08-05_

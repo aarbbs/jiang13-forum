@@ -1,6 +1,6 @@
 # Issue 预填模板
 
-以下两条可直接复制到 [Gitea Issues](https://git.iioio.com/freefire/jiang13-forum/issues/new) 创建，或使用仓库自带的 Issue 模板。
+以下两条可直接复制到本仓库 Issues 创建，或使用仓库自带的 Issue 模板。
 
 ---
 

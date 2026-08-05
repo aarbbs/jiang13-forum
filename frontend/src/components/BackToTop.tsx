@@ -10,10 +10,18 @@ const BIND_RETRY_MS = 50;
 
 /**
  * 定位当前真正滚动的容器。
- * 前台：.post-list-scroll / .page-wrap / .main-content--compose
+ * 前台：手机 Feed 整栏 / .post-list-scroll / .page-wrap / .main-content--compose
  * 后台：.admin-main
  */
 function pickScrollEl(scope: ParentNode): HTMLElement | null {
+  // 手机首页：板块条 + 排序栏随列表滚动，滚动根是 main
+  if (scope instanceof HTMLElement && scope.classList.contains('main-content--feed-mobile-scroll')) {
+    return scope;
+  }
+  const mobileFeed = scope.querySelector?.('.main-content--feed-mobile-scroll')
+    ?? document.querySelector('.main-content--feed-mobile-scroll');
+  if (mobileFeed instanceof HTMLElement) return mobileFeed;
+
   const list = scope.querySelector<HTMLElement>('.post-list-scroll');
   if (list) return list;
   const page = scope.querySelector<HTMLElement>('.page-wrap');
@@ -24,7 +32,8 @@ function pickScrollEl(scope: ParentNode): HTMLElement | null {
 }
 
 function findScrollScope(): ParentNode | null {
-  return document.querySelector('.main-content')
+  return document.querySelector('.main-content--feed-mobile-scroll')
+    ?? document.querySelector('.main-content')
     ?? document.querySelector('.admin-shell');
 }
 

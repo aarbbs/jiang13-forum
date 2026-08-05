@@ -6,10 +6,10 @@
 
 **要求：** Go 1.26+、Node.js 18+
 
-```powershell
-# Windows：一键启动后端 + 前端热更新
-.\build.ps1 -Target dev
-# 浏览器访问 http://localhost:5173
+```bat
+REM Windows：一键启动后端 + 前端热更新（请用 build.bat）
+build.bat -Target dev
+REM 浏览器访问 http://localhost:5173
 ```
 
 ```bash
@@ -27,21 +27,25 @@ make dev
 
 发布单二进制前需先构建前端并 embed：
 
-```powershell
-.\build.ps1          # Windows
+```bat
+build.bat            REM Windows
+```
+
+```bash
 make build           # Linux / macOS
 ```
 
 ## 报告问题
 
-在 [Issues](https://git.iioio.com/freefire/jiang13-forum/issues) 中描述（也可使用仓库自带的 Issue 模板）：
+在本仓库 Issues 中描述（也可参考 [docs/issue-templates.md](docs/issue-templates.md)）：
 
 1. 复现步骤
 2. 期望行为 vs 实际行为
 3. 环境信息（系统、浏览器、Go/Node 版本）
 4. 截图或日志（如有）
 
-已知问题与计划功能见 [ROADMAP.md](../ROADMAP.md)。
+演示站：[https://bbs.iioio.com/](https://bbs.iioio.com/)  
+已知问题与计划功能见 [ROADMAP.md](ROADMAP.md)。
 
 ## 行为准则
 

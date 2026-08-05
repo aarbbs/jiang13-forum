@@ -13,6 +13,10 @@ const ARM_DELTA = 10;
  * SPA 使用内部滚动（body overflow:hidden），原生下拉刷新不可用，需挂到此容器。
  */
 function pickScrollEl(): HTMLElement | null {
+  // 手机 Feed 整栏滚动（板块 / 排序栏可滚走）
+  const mobileFeed = document.querySelector<HTMLElement>('.main-content--feed-mobile-scroll');
+  if (mobileFeed) return mobileFeed;
+
   const list = document.querySelector<HTMLElement>('.post-list-scroll');
   if (list) return list;
 

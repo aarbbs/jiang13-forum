@@ -506,7 +506,12 @@ export default function MainLayout() {
           isCompose && 'content-workspace--compose',
           hideAside && !isCompose && 'content-workspace--aside-hidden',
         )}>
-        <main className={`main-content${isCompose ? ' main-content--compose' : ''}`}>
+        <main className={cn(
+          'main-content',
+          isCompose && 'main-content--compose',
+          // 手机 Feed：整栏滚动，板块条 / 排序栏可滚出视口，多露出帖子列表
+          isMobile && !isCompose && isFeedHome && 'main-content--feed-mobile-scroll',
+        )}>
           {isMobile && !isCompose && isFeedHome && (
             <div
               ref={boardBarRef}

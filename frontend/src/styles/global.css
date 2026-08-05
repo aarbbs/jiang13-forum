@@ -2131,6 +2131,47 @@ img.site-brand-logo-img {
     border-radius: 0;
     box-shadow: none;
   }
+
+  /*
+   * 手机 Feed：主栏整页滚动，板块条 / 最新发帖·回复排序栏随列表滚走，
+   * 避免它们占住视口上半，给帖子列表更多空间。
+   */
+  .main-content--feed-mobile-scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .main-content--feed-mobile-scroll .page-wrap--feed {
+    overflow: visible;
+    flex: 0 0 auto;
+    min-height: auto;
+    height: auto;
+  }
+
+  .main-content--feed-mobile-scroll .feed-panel {
+    overflow: visible;
+    flex: 0 0 auto;
+    min-height: auto;
+    height: auto;
+  }
+
+  .main-content--feed-mobile-scroll .feed-top {
+    flex-shrink: 0;
+  }
+
+  .main-content--feed-mobile-scroll .post-list-scroll {
+    overflow: visible;
+    flex: 0 0 auto;
+    min-height: auto;
+    height: auto;
+  }
+
+  .main-content--feed-mobile-scroll .mobile-board-bar {
+    flex-shrink: 0;
+    position: static;
+  }
 }
 
 .post-list-bar {
