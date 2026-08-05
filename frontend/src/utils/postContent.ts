@@ -16,6 +16,7 @@ export const POST_CONTENT_PURIFY_CONFIG: Config = {
     'data-code-style', 'data-line-numbers', 'data-collapsed', 'data-line-count', 'data-lineno-digits',
     'data-image-group', 'data-layout', 'data-display',
     'data-clear-float',
+    'colspan', 'rowspan',
     'class',
   ],
   FORBID_TAGS: ['style', 'link', 'meta', 'base', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select'],

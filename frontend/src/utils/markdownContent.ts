@@ -143,6 +143,42 @@ function addTurndownContentRules(service: TurndownService): void {
     replacement: () => '\n\n---\n\n',
   });
 
+  // HTML 表格 → GFM 管道表，便于富文本与源码来回切换
+  service.addRule('table', {
+    filter: 'table',
+    replacement: (_content, node) => {
+      const table = node as HTMLTableElement;
+      const rows = [...table.querySelectorAll('tr')];
+      if (!rows.length) return '';
+
+      const cellText = (cell: Element) =>
+        (cell.textContent || '')
+          .replace(/\u00A0/g, ' ')
+          .trim()
+          .replace(/\|/g, '\\|')
+          .replace(/\n+/g, ' ');
+
+      const matrix = rows
+        .map(tr => [...tr.querySelectorAll('th, td')].map(cellText))
+        .filter(row => row.length > 0);
+      if (!matrix.length) return '';
+
+      const colCount = Math.max(...matrix.map(r => r.length));
+      if (!colCount) return '';
+
+      const pad = (row: string[]) => {
+        const next = [...row];
+        while (next.length < colCount) next.push('');
+        return next.slice(0, colCount);
+      };
+
+      const lines = matrix.map(row => `| ${pad(row).join(' | ')} |`);
+      const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
+      lines.splice(1, 0, sep);
+      return `\n\n${lines.join('\n')}\n\n`;
+    },
+  });
+
   service.addRule('anchor', {
     filter: (node) => {
       if (node.nodeName !== 'A') return false;

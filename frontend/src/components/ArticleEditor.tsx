@@ -7,12 +7,14 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import { TableKit } from '@tiptap/extension-table';
 import DOMPurify from 'dompurify';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Link as LinkIcon, Code, Quote,
   List, ListOrdered, Image as ImageIcon, Minus, LockKeyhole,
   FileCode, PenLine, Maximize2, Minimize2,
   Columns2, PanelLeft, PanelRight, StretchHorizontal,
+  Table as TableIcon, BetweenHorizonalStart, BetweenVerticalStart, Rows3, Columns3,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
@@ -37,6 +39,10 @@ import { ArticleLinkDialog } from './editor/ArticleLinkDialog';
 import { ArticleCodeBlockDialog } from './editor/ArticleCodeBlockDialog';
 import { ArticleCodeBlock } from './editor/ArticleCodeBlockExtension';
 import {
+  ArticleTableDialog,
+  type TableInsertOptions,
+} from './editor/ArticleTableDialog';
+import {
   formatFenceInfo,
   type CodeBlockInsertOptions,
 } from '../utils/codeBlockOptions';
@@ -57,6 +63,7 @@ interface Props {
 type EditorMode = 'rich' | 'markdown';
 type LinkTarget = 'rich' | 'markdown';
 type CodeBlockTarget = 'rich' | 'markdown';
+type TableTarget = 'rich' | 'markdown';
 
 interface ToolBtn {
   icon: ReactNode;
@@ -75,6 +82,22 @@ function buildMarkdownCodeBlockSnippet(opts: CodeBlockInsertOptions, body = '代
   const info = formatFenceInfo(opts);
   const fence = info ? `\`\`\`${info}` : '```';
   return `\n${fence}\n${body}\n\`\`\`\n`;
+}
+
+/** 生成 GFM 管道表；源码侧始终带表头分隔行 */
+function buildMarkdownTableSnippet(opts: TableInsertOptions): string {
+  const cols = Math.max(1, opts.cols);
+  const totalRows = Math.max(1, opts.rows);
+  const bodyRows = Math.max(0, totalRows - 1);
+  const headerCells = Array.from({ length: cols }, (_, i) => `列${i + 1}`);
+  const sepCells = Array.from({ length: cols }, () => '---');
+  const emptyCells = Array.from({ length: cols }, () => ' ');
+  const lines = [
+    `| ${headerCells.join(' | ')} |`,
+    `| ${sepCells.join(' | ')} |`,
+    ...Array.from({ length: bodyRows }, () => `| ${emptyCells.join(' | ')} |`),
+  ];
+  return `\n\n${lines.join('\n')}\n\n`;
 }
 
 /** 净化编辑器 HTML，保留 members-only 自定义标签 */
@@ -197,6 +220,9 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const [codeBlockTarget, setCodeBlockTarget] = useState<CodeBlockTarget>('rich');
   const [codeBlockEditing, setCodeBlockEditing] = useState(false);
   const [codeBlockInitial, setCodeBlockInitial] = useState<Partial<CodeBlockInsertOptions> | null>(null);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [tableTarget, setTableTarget] = useState<TableTarget>('rich');
+  const [tableEditing, setTableEditing] = useState(false);
   const markdownRef = useRef<HTMLTextAreaElement>(null);
 
   const editor = useEditor({
@@ -210,6 +236,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         underline: false,
       }),
       ArticleCodeBlock,
+      TableKit.configure({
+        table: {
+          resizable: false,
+          HTMLAttributes: { class: 'article-table' },
+        },
+      }),
       ClearFloatParagraph,
       ClearFloatSync,
       Underline,
@@ -398,6 +430,34 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     }
   }, [editor]);
 
+  const openTableDialog = useCallback((target: TableTarget) => {
+    setTableTarget(target);
+    setTableEditing(target === 'rich' && Boolean(editor?.isActive('table')));
+    setTableDialogOpen(true);
+  }, [editor]);
+
+  const applyTable = useCallback((opts: TableInsertOptions) => {
+    if (tableTarget === 'markdown') {
+      const textarea = markdownRef.current;
+      if (!textarea) return;
+      insertAtCursor(textarea, markdownSource, buildMarkdownTableSnippet(opts), handleMarkdownChange);
+      return;
+    }
+    if (!editor) return;
+    editor.chain().focus().insertTable({
+      rows: opts.rows,
+      cols: opts.cols,
+      withHeaderRow: opts.withHeaderRow,
+    }).run();
+  }, [tableTarget, editor, markdownSource, handleMarkdownChange]);
+
+  const removeTable = useCallback(() => {
+    if (!editor) return;
+    if (editor.isActive('table')) {
+      editor.chain().focus().deleteTable().run();
+    }
+  }, [editor]);
+
   const applyLink = useCallback((url: string) => {
     if (linkTarget === 'markdown') {
       const textarea = markdownRef.current;
@@ -524,6 +584,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       { icon: <List size={15} />, title: '无序列表', active: editor.isActive('bulletList'), action: () => editor.chain().focus().toggleBulletList().run() },
       { icon: <ListOrdered size={15} />, title: '有序列表', active: editor.isActive('orderedList'), action: () => editor.chain().focus().toggleOrderedList().run() },
       { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', active: editor.isActive('codeBlock'), action: () => openCodeBlockDialog('rich') },
+      { icon: <TableIcon size={15} />, title: '表格', hint: '插入表格；表内可增删行列', active: editor.isActive('table'), action: () => openTableDialog('rich') },
       { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: () => openLinkDialog('rich') },
       {
         icon: <ImageIcon size={15} />,
@@ -539,6 +600,33 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         action: wrapSelectedAsGroup,
       },
     ];
+
+    if (editor.isActive('table')) {
+      tools.push(
+        {
+          icon: <BetweenHorizonalStart size={15} />,
+          title: '下方插入行',
+          action: () => editor.chain().focus().addRowAfter().run(),
+        },
+        {
+          icon: <BetweenVerticalStart size={15} />,
+          title: '右侧插入列',
+          action: () => editor.chain().focus().addColumnAfter().run(),
+        },
+        {
+          icon: <Rows3 size={15} />,
+          title: '删除行',
+          hint: '删除当前行',
+          action: () => editor.chain().focus().deleteRow().run(),
+        },
+        {
+          icon: <Columns3 size={15} />,
+          title: '删除列',
+          hint: '删除当前列',
+          action: () => editor.chain().focus().deleteColumn().run(),
+        },
+      );
+    }
 
     if (imageActive && !groupActive) {
       tools.push(
@@ -575,7 +663,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     });
 
     return tools;
-  }, [editor, openLinkDialog, openCodeBlockDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => [
     { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
@@ -588,6 +676,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     { icon: <List size={15} />, title: '无序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '- ', ch)) },
     { icon: <ListOrdered size={15} />, title: '有序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '1. ', ch)) },
     { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', action: () => openCodeBlockDialog('markdown') },
+    { icon: <TableIcon size={15} />, title: '表格', hint: '插入 GFM 管道表', action: () => openTableDialog('markdown') },
     { icon: <LinkIcon size={15} />, title: '链接', action: () => openLinkDialog('markdown') },
     { icon: <ImageIcon size={15} />, title: '上传图片', action: insertMarkdownImage },
     {
@@ -597,7 +686,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       className: 'article-tool-btn--members',
       action: withMarkdown(insertMarkdownMembersOnly),
     },
-  ], [withMarkdown, openLinkDialog, openCodeBlockDialog, insertMarkdownImage]);
+  ], [withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, insertMarkdownImage]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'
@@ -706,6 +795,13 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         editing={codeBlockEditing}
         onConfirm={applyCodeBlock}
         onRemove={codeBlockEditing ? removeCodeBlock : undefined}
+      />
+      <ArticleTableDialog
+        open={tableDialogOpen}
+        onOpenChange={setTableDialogOpen}
+        editing={tableEditing}
+        onConfirm={applyTable}
+        onRemove={tableEditing ? removeTable : undefined}
       />
     </div>
   );
