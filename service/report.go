@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	ErrReportNotFound      = errors.New("举报不存在")
-	ErrReportAlreadyExists = errors.New("你已举报过该帖子，请等待处理")
-	ErrCannotReportOwnPost = errors.New("不能举报自己的帖子")
+	ErrReportNotFound         = errors.New("举报不存在")
+	ErrReportAlreadyExists    = errors.New("你已举报过该内容，请等待处理")
+	ErrCannotReportOwnPost    = errors.New("不能举报自己的帖子")
+	ErrCannotReportOwnComment = errors.New("不能举报自己的评论")
 )
 
 type ReportService struct {
@@ -22,6 +23,7 @@ type ReportService struct {
 	settings *ForumSettingsService
 	messages *MessageService
 	posts    *PostService
+	comments *CommentService
 }
 
 func NewReportService(
@@ -29,8 +31,9 @@ func NewReportService(
 	settings *ForumSettingsService,
 	messages *MessageService,
 	posts *PostService,
+	comments *CommentService,
 ) *ReportService {
-	return &ReportService{filter: filter, settings: settings, messages: messages, posts: posts}
+	return &ReportService{filter: filter, settings: settings, messages: messages, posts: posts, comments: comments}
 }
 
 func normalizeReportReason(reason string) (string, error) {
@@ -107,6 +110,52 @@ func (s *ReportService) Create(reporterID, postID uint, reason, detail string) (
 	return rep, nil
 }
 
+// CreateCommentReport 用户举报评论
+func (s *ReportService) CreateCommentReport(reporterID, commentID uint, reason, detail string) (*model.PostReport, error) {
+	reason, err := normalizeReportReason(reason)
+	if err != nil {
+		return nil, err
+	}
+	detail = strings.TrimSpace(detail)
+	if utf8.RuneCountInString(detail) > 500 {
+		return nil, errors.New("补充说明过长")
+	}
+	if s.filter != nil && detail != "" {
+		detail = s.filter.Filter(detail)
+	}
+
+	comment, err := s.comments.GetByID(commentID)
+	if err != nil {
+		return nil, err
+	}
+	if comment.UserID > 0 && comment.UserID == reporterID {
+		return nil, ErrCannotReportOwnComment
+	}
+
+	var existing int64
+	model.DB.Model(&model.PostReport{}).
+		Where("comment_id = ? AND reporter_id = ? AND status = ?", commentID, reporterID, model.ReportStatusPending).
+		Count(&existing)
+	if existing > 0 {
+		return nil, ErrReportAlreadyExists
+	}
+
+	cid := commentID
+	rep := &model.PostReport{
+		PostID:     comment.PostID,
+		CommentID:  &cid,
+		ReporterID: reporterID,
+		Reason:     reason,
+		Detail:     detail,
+		Status:     model.ReportStatusPending,
+	}
+	if err := model.DB.Create(rep).Error; err != nil {
+		return nil, err
+	}
+	_ = model.DB.Preload("Post").Preload("Comment").Preload("Reporter").First(rep, rep.ID).Error
+	return rep, nil
+}
+
 type ReportListQuery struct {
 	Status string
 	Page   int
@@ -133,7 +182,9 @@ func (s *ReportService) ListAdmin(q ReportListQuery) ([]model.PostReport, int64,
 	var list []model.PostReport
 	err := db.Preload("Post", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
-	}).Preload("Post.User").Preload("Reporter").Preload("Handler").
+	}).Preload("Post.User").Preload("Comment", func(tx *gorm.DB) *gorm.DB {
+		return tx.Unscoped()
+	}).Preload("Comment.User").Preload("Reporter").Preload("Handler").
 		Order("CASE WHEN status = 'pending' THEN 0 ELSE 1 END, id DESC").
 		Offset((q.Page - 1) * q.Size).
 		Limit(q.Size).
@@ -151,17 +202,19 @@ func (s *ReportService) PendingCount() (int64, error) {
 }
 
 type HandleReportInput struct {
-	ReportID   uint
-	HandlerID  uint
-	Action     string // dismiss | resolve | reject_post
-	HandleNote string
-	RejectReason string // reject_post 时必填，发给作者
+	ReportID     uint
+	HandlerID    uint
+	Action       string // dismiss | resolve | reject_post | reject_comment
+	HandleNote   string
+	RejectReason string // reject_post / reject_comment 时发给作者
 }
 
 // Handle 处理举报
 func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) {
 	var rep model.PostReport
 	if err := model.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
+		return tx.Unscoped()
+	}).Preload("Comment", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).First(&rep, in.ReportID).Error; err != nil {
 		return nil, ErrReportNotFound
@@ -188,6 +241,13 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		postTitle = rep.Post.Title
 		authorID = rep.Post.UserID
 	}
+	isCommentReport := rep.CommentID != nil && *rep.CommentID > 0
+	commentAuthorID := uint(0)
+	commentFloor := 0
+	if isCommentReport && rep.Comment != nil {
+		commentAuthorID = rep.Comment.UserID
+		commentFloor = rep.Comment.Floor
+	}
 
 	switch in.Action {
 	case "dismiss":
@@ -195,6 +255,9 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 	case "resolve":
 		rep.Status = model.ReportStatusResolved
 	case "reject_post":
+		if isCommentReport {
+			return nil, errors.New("评论举报请使用「拒绝该评论」")
+		}
 		reason := strings.TrimSpace(in.RejectReason)
 		if reason == "" {
 			return nil, errors.New("请填写拒绝原因（将私信通知作者）")
@@ -221,6 +284,37 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 				&rid,
 			)
 		}
+	case "reject_comment":
+		if !isCommentReport {
+			return nil, errors.New("仅评论举报可拒绝评论")
+		}
+		reason := strings.TrimSpace(in.RejectReason)
+		if reason == "" {
+			return nil, errors.New("请填写拒绝原因（将私信通知作者）")
+		}
+		if utf8.RuneCountInString(reason) > 1000 {
+			return nil, errors.New("拒绝原因过长")
+		}
+		if err := s.comments.SetStatus(*rep.CommentID, model.ContentStatusRejected); err != nil {
+			return nil, err
+		}
+		rep.Status = model.ReportStatusResolved
+		if note == "" {
+			rep.HandleNote = "已拒绝该评论并通知作者"
+		}
+		if commentAuthorID > 0 {
+			pid := postID
+			rid := rep.ID
+			body := fmt.Sprintf("你在帖子《%s》下的评论（#%d）未通过审核。\n\n原因：\n%s", postTitle, commentFloor, reason)
+			_, _ = s.messages.SendSystem(
+				commentAuthorID,
+				fmt.Sprintf("评论未通过审核 · 《%s》", postTitle),
+				body,
+				model.MessageKindReject,
+				&pid,
+				&rid,
+			)
+		}
 	default:
 		return nil, errors.New("无效的处理操作")
 	}
@@ -232,16 +326,20 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 	// 通知举报人处理结果
 	resultText := "已忽略"
 	if rep.Status == model.ReportStatusResolved {
-		if in.Action == "reject_post" {
+		switch in.Action {
+		case "reject_post":
 			resultText = "已核实并下架该帖"
-		} else {
+		case "reject_comment":
+			resultText = "已核实并处理该评论"
+		default:
 			resultText = "已处理"
 		}
 	}
-	content := fmt.Sprintf(
-		"你举报的帖子《%s》（#%d）已处理：%s。",
-		postTitle, postID, resultText,
-	)
+	targetDesc := fmt.Sprintf("帖子《%s》（#%d）", postTitle, postID)
+	if isCommentReport {
+		targetDesc = fmt.Sprintf("帖子《%s》下的评论（#%d）", postTitle, commentFloor)
+	}
+	content := fmt.Sprintf("你举报的%s已处理：%s。", targetDesc, resultText)
 	if note != "" {
 		content += "\n\n管理员备注：\n" + note
 	}
@@ -257,6 +355,8 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 	)
 
 	_ = model.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
+		return tx.Unscoped()
+	}).Preload("Comment", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).Preload("Reporter").Preload("Handler").First(&rep, rep.ID).Error
 	return &rep, nil

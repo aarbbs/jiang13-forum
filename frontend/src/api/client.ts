@@ -107,7 +107,7 @@ export const api = {
     }>(`/api/admin/reports${qs ? `?${qs}` : ''}`);
   },
   adminHandleReport: (id: number, body: {
-    action: 'dismiss' | 'resolve' | 'reject_post';
+    action: 'dismiss' | 'resolve' | 'reject_post' | 'reject_comment';
     handle_note?: string;
     reject_reason?: string;
   }) =>
@@ -333,9 +333,14 @@ export const api = {
   captcha: () => request<{ id: string; image: string }>('/api/captcha'),
   logout: () => request('/api/logout', { method: 'POST' }),
   like: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/posts/${id}/like`, { method: 'POST' }),
+  likeComment: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/comments/${id}/like`, { method: 'POST' }),
   favorite: (id: number) => request<{ favorited: boolean }>(`/api/posts/${id}/favorite`, { method: 'POST' }),
   reportPost: (id: number, body: { reason: ReportReason; detail?: string }) =>
     request<{ message: string; report: PostReport }>(`/api/posts/${id}/report`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  reportComment: (id: number, body: { reason: ReportReason; detail?: string }) =>
+    request<{ message: string; report: PostReport }>(`/api/comments/${id}/report`, {
       method: 'POST', body: JSON.stringify(body),
     }),
   messageConversations: (params?: { page?: number; size?: number }) => {

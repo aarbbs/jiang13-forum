@@ -29,6 +29,25 @@ func (h *Handlers) APICreatePostReport(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "举报已提交，感谢反馈", "report": rep})
 }
 
+// APICreateCommentReport 举报评论
+func (h *Handlers) APICreateCommentReport(c *gin.Context) {
+	commentID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Reason string `json:"reason"`
+		Detail string `json:"detail"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	rep, err := h.Report.CreateCommentReport(h.currentUserID(c), uint(commentID), req.Reason, req.Detail)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "举报已提交，感谢反馈", "report": rep})
+}
+
 // APIAdminReports 举报列表
 func (h *Handlers) APIAdminReports(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

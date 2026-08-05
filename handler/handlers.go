@@ -370,6 +370,16 @@ func (h *Handlers) APIToggleLike(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"liked": liked, "like_count": post.LikeCount})
 }
 
+func (h *Handlers) APIToggleCommentLike(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	liked, likeCount, err := h.Comment.ToggleLike(h.currentUserID(c), uint(id))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"liked": liked, "like_count": likeCount})
+}
+
 func (h *Handlers) APIToggleFavorite(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	faved, err := h.Post.ToggleFavorite(h.currentUserID(c), uint(id))

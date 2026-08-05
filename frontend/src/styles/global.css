@@ -3766,6 +3766,38 @@ a.post-title:visited {
   border-top: 1px dashed var(--j13-border-light);
 }
 
+.post-detail-more-btn {
+  min-width: 36px;
+  padding-inline: 10px;
+}
+
+/* 举报「更多」菜单：紧凑居中 */
+.report-more-menu {
+  min-width: 0 !important;
+  width: max-content;
+  padding: 4px;
+}
+
+.report-more-menu__item {
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  color: hsl(var(--destructive));
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.report-more-menu__item:focus,
+.report-more-menu__item:hover {
+  color: hsl(var(--destructive));
+  background: color-mix(in srgb, hsl(var(--destructive)) 10%, transparent);
+}
+
+.report-more-menu__item svg {
+  width: 14px;
+  height: 14px;
+}
+
 .post-detail-content {
   font-size: 15.5px;
   line-height: 1.8;
@@ -5328,6 +5360,7 @@ a.post-title:visited {
   font-weight: 400;
   color: var(--color-text-1);
   text-decoration: none;
+  min-width: 0;
 }
 
 a.waline-comment-author:hover {
@@ -5335,12 +5368,39 @@ a.waline-comment-author:hover {
   text-decoration: none;
 }
 
-.waline-comment-floor {
+.waline-comment-like {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 2px 4px;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-3);
+  cursor: pointer;
   flex-shrink: 0;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.waline-comment-like:hover {
+  color: var(--j13-green);
+  background: var(--j13-green-bg);
+}
+
+.waline-comment-like.is-liked {
+  color: var(--j13-green);
+}
+
+.waline-comment-like:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.waline-comment-floor {
+  display: none;
 }
 
 .waline-comment-bubble {

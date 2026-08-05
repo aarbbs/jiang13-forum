@@ -130,6 +130,8 @@ export interface Comment {
   is_private?: boolean;
   status?: 'pending' | 'published' | 'rejected' | string;
   content_hidden?: boolean;
+  like_count?: number;
+  liked?: boolean;
   created_at: string;
   updated_at?: string;
   user?: User;
@@ -392,10 +394,11 @@ export interface MessageConversation {
 export type ReportReason = 'spam' | 'abuse' | 'illegal' | 'irrelevant' | 'other';
 export type ReportStatus = 'pending' | 'resolved' | 'dismissed';
 
-/** 帖子举报 */
+/** 帖子/评论举报（有 comment_id 时为评论举报） */
 export interface PostReport {
   id: number;
   post_id: number;
+  comment_id?: number;
   reporter_id: number;
   reason: ReportReason | string;
   detail: string;
@@ -405,6 +408,7 @@ export interface PostReport {
   created_at: string;
   handled_at?: string;
   post?: PostItem;
+  comment?: Comment;
   reporter?: User;
   handler?: User;
 }

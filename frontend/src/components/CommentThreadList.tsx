@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Check, Clock, History, MessageSquare, X, Pencil, Trash2 } from 'lucide-react';
+import {
+  Check, Clock, History, MessageSquare, X, Pencil, Trash2,
+  ThumbsUp, MoreHorizontal, Flag,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Comment, User } from '../api/types';
+import type { Comment, ReportReason, User } from '../api/types';
+import { api } from '../api/client';
 import CommentContent from './CommentContent';
 import CommentRevisionDialog from './CommentRevisionDialog';
 import {
@@ -16,6 +20,22 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { notify } from '@/lib/notify';
+import {
   commentNick,
   commentInitial,
   formatCommentDate,
@@ -24,9 +44,11 @@ import {
   type CommentNode,
 } from '../utils/comment';
 import { isTimeDiffSignificant } from '../utils/content';
+import { REPORT_REASON_OPTIONS } from '../utils/report';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { Tooltip } from './ui/Tooltip';
 import UserLink from './UserLink';
+import { cn } from '@/lib/utils';
 
 function isCommentAuthor(c: Comment, user?: User | null): boolean {
   return !!user && c.user_id > 0 && c.user_id === user.id;
@@ -56,6 +78,8 @@ interface ItemProps {
   onSaveEdit: (comment: Comment, content: string) => Promise<void>;
   onDelete: (comment: Comment) => Promise<void>;
   onApprove?: (comment: Comment) => Promise<void>;
+  onRequireLogin?: (actionLabel: string) => void;
+  onLikeUpdate?: (commentId: number, liked: boolean, likeCount: number) => void;
   renderReplyBox?: (comment: Comment) => ReactNode;
 }
 
@@ -74,6 +98,8 @@ function CommentItem({
   onSaveEdit,
   onDelete,
   onApprove,
+  onRequireLogin,
+  onLikeUpdate,
   renderReplyBox,
 }: ItemProps) {
   const { limits } = useForumLimits();
@@ -105,15 +131,28 @@ function CommentItem({
     && (c.status === 'pending' || c.status === 'rejected')
     && !!onApprove;
   const showEdited = !hidden && !!c.updated_at && isTimeDiffSignificant(c.created_at, c.updated_at);
+  const canReport = !hidden && !isEditing && !isCommentAuthor(c, currentUser);
   const [editText, setEditText] = useState(c.content);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [liking, setLiking] = useState(false);
+  const [liked, setLiked] = useState(!!c.liked);
+  const [likeCount, setLikeCount] = useState(c.like_count ?? 0);
   const [revOpen, setRevOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason>('spam');
+  const [reportDetail, setReportDetail] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     if (isEditing) setEditText(c.content);
   }, [isEditing, c.content, c.id]);
+
+  useEffect(() => {
+    setLiked(!!c.liked);
+    setLikeCount(c.like_count ?? 0);
+  }, [c.id, c.liked, c.like_count]);
 
   const handleSave = async () => {
     const next = editText.trim();
@@ -123,6 +162,51 @@ function CommentItem({
       await onSaveEdit(c, next);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!currentUser) {
+      onRequireLogin?.('点赞');
+      return;
+    }
+    if (liking) return;
+    setLiking(true);
+    try {
+      const r = await api.likeComment(c.id);
+      setLiked(r.liked);
+      setLikeCount(r.like_count);
+      onLikeUpdate?.(c.id, r.liked, r.like_count);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '点赞失败');
+    } finally {
+      setLiking(false);
+    }
+  };
+
+  const openReport = () => {
+    if (!currentUser) {
+      onRequireLogin?.('举报');
+      return;
+    }
+    setReportReason('spam');
+    setReportDetail('');
+    setReportOpen(true);
+  };
+
+  const handleReport = async () => {
+    setReporting(true);
+    try {
+      const r = await api.reportComment(c.id, {
+        reason: reportReason,
+        detail: reportDetail.trim() || undefined,
+      });
+      notify.success(r.message);
+      setReportOpen(false);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '举报失败');
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -168,10 +252,18 @@ function CommentItem({
           ) : (
             <span className="waline-comment-author">{nick}</span>
           )}
-          {!c.reply_to && (
-            <span className="waline-comment-floor" aria-label={`第 ${c.floor} 楼`}>
-              #{c.floor}
-            </span>
+          {!hidden && (
+            <button
+              type="button"
+              className={cn('waline-comment-like', liked && 'is-liked')}
+              disabled={liking}
+              aria-label={liked ? '取消点赞' : '点赞'}
+              aria-pressed={liked}
+              onClick={handleLike}
+            >
+              <ThumbsUp size={14} strokeWidth={2} />
+              <span>{likeCount}</span>
+            </button>
           )}
         </div>
 
@@ -295,11 +387,69 @@ function CommentItem({
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {canReport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="waline-comment-reply-btn waline-comment-more"
+                  aria-label="更多操作"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="report-more-menu">
+                <DropdownMenuItem
+                  className="report-more-menu__item"
+                  onSelect={openReport}
+                >
+                  <Flag size={14} />
+                  举报
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {isAdmin && (
           <CommentRevisionDialog open={revOpen} onOpenChange={setRevOpen} comment={c} />
         )}
+
+        <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>举报评论</DialogTitle>
+              <DialogDescription>请选择原因，管理员将尽快处理。</DialogDescription>
+            </DialogHeader>
+            <div className="pm-compose-fields">
+              <label className="pm-field">
+                <span>举报原因</span>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value as ReportReason)}
+                >
+                  {REPORT_REASON_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="pm-field">
+                <span>补充说明（可选）</span>
+                <textarea
+                  value={reportDetail}
+                  onChange={(e) => setReportDetail(e.target.value)}
+                  rows={4}
+                  maxLength={500}
+                  placeholder="补充更多细节…"
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReportOpen(false)}>取消</Button>
+              <Button loading={reporting} onClick={handleReport}>提交举报</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {isReplying && renderReplyBox && (
           <div id={`reply-box-${c.id}`} className="comment-box-wrap inline">
@@ -325,6 +475,8 @@ function CommentItem({
                 onSaveEdit={onSaveEdit}
                 onDelete={onDelete}
                 onApprove={onApprove}
+                onRequireLogin={onRequireLogin}
+                onLikeUpdate={onLikeUpdate}
                 renderReplyBox={renderReplyBox}
               />
             ))}
@@ -348,6 +500,8 @@ interface Props {
   onSaveEdit: (comment: Comment, content: string) => Promise<void>;
   onDelete: (comment: Comment) => Promise<void>;
   onApprove?: (comment: Comment) => Promise<void>;
+  onRequireLogin?: (actionLabel: string) => void;
+  onLikeUpdate?: (commentId: number, liked: boolean, likeCount: number) => void;
   renderReplyBox?: (comment: Comment) => ReactNode;
 }
 
@@ -365,6 +519,8 @@ export default function CommentThreadList({
   onSaveEdit,
   onDelete,
   onApprove,
+  onRequireLogin,
+  onLikeUpdate,
   renderReplyBox,
 }: Props) {
   const tree = buildCommentTree(comments);
@@ -386,6 +542,8 @@ export default function CommentThreadList({
           onSaveEdit={onSaveEdit}
           onDelete={onDelete}
           onApprove={onApprove}
+          onRequireLogin={onRequireLogin}
+          onLikeUpdate={onLikeUpdate}
           renderReplyBox={renderReplyBox}
         />
       ))}

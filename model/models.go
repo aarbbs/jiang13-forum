@@ -130,6 +130,7 @@ type Comment struct {
 	GuestURL    string       `gorm:"size:256" json:"guest_url,omitempty"`
 	IsPrivate   bool         `gorm:"default:false" json:"is_private"`
 	Status      string       `gorm:"size:16;default:published;index" json:"status"` // pending|published|rejected
+	LikeCount   int          `gorm:"default:0" json:"like_count"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
@@ -140,6 +141,7 @@ type Comment struct {
 	// ThreadParentID 嵌套展示用父评论（父评论不可见时回挂到最近可见祖先）
 	ThreadParentID *uint `gorm:"-" json:"thread_parent_id,omitempty"`
 	ContentHidden  bool  `gorm:"-" json:"content_hidden"`
+	Liked          bool  `gorm:"-" json:"liked"`
 }
 
 // PostLike 帖子点赞
@@ -147,6 +149,14 @@ type PostLike struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	PostID    uint      `gorm:"uniqueIndex:idx_post_user;not null" json:"post_id"`
 	UserID    uint      `gorm:"uniqueIndex:idx_post_user;not null" json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CommentLike 评论点赞
+type CommentLike struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CommentID uint      `gorm:"uniqueIndex:idx_comment_user;not null" json:"comment_id"`
+	UserID    uint      `gorm:"uniqueIndex:idx_comment_user;not null" json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -203,10 +213,11 @@ const (
 	ReportReasonOther      = "other"
 )
 
-// PostReport 帖子举报
+// PostReport 帖子/评论举报（CommentID 有值时为评论举报）
 type PostReport struct {
 	ID         uint       `gorm:"primaryKey" json:"id"`
 	PostID     uint       `gorm:"index;not null" json:"post_id"`
+	CommentID  *uint      `gorm:"index" json:"comment_id,omitempty"`
 	ReporterID uint       `gorm:"index;not null" json:"reporter_id"`
 	Reason     string     `gorm:"size:32;not null" json:"reason"`
 	Detail     string     `gorm:"size:1000" json:"detail"`
@@ -216,9 +227,10 @@ type PostReport struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	HandledAt  *time.Time `json:"handled_at,omitempty"`
 
-	Post     Post  `gorm:"foreignKey:PostID" json:"post,omitempty"`
-	Reporter User  `gorm:"foreignKey:ReporterID" json:"reporter,omitempty"`
-	Handler  *User `gorm:"foreignKey:HandlerID" json:"handler,omitempty"`
+	Post     Post      `gorm:"foreignKey:PostID" json:"post,omitempty"`
+	Comment  *Comment  `gorm:"foreignKey:CommentID" json:"comment,omitempty"`
+	Reporter User      `gorm:"foreignKey:ReporterID" json:"reporter,omitempty"`
+	Handler  *User     `gorm:"foreignKey:HandlerID" json:"handler,omitempty"`
 }
 
 // Media 上传媒体索引（真实文件在本地 uploads 或 S3；本表供后台列表与统计）

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -683,18 +689,39 @@ export default function PostDetailPage() {
               <Star />
               {favorited ? '已收藏' : '收藏'}
             </Button>
-            {user && user.id !== post.user_id && (
-              <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
-                <Flag />
-                举报
+            {!user ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="post-detail-more-btn"
+                aria-label="更多操作"
+                onClick={() => requireLogin('举报')}
+              >
+                <MoreHorizontal />
               </Button>
-            )}
-            {!user && (
-              <Button variant="outline" size="sm" onClick={() => requireLogin('举报')}>
-                <Flag />
-                举报
-              </Button>
-            )}
+            ) : user.id !== post.user_id ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="post-detail-more-btn"
+                    aria-label="更多操作"
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="report-more-menu">
+                  <DropdownMenuItem
+                    className="report-more-menu__item"
+                    onSelect={() => setReportOpen(true)}
+                  >
+                    <Flag size={14} />
+                    举报
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
           </div>
 
           {(isOwnerOrAdmin || canEdit || isAdmin) && (
@@ -889,6 +916,12 @@ export default function PostDetailPage() {
               onSaveEdit={handleSaveComment}
               onDelete={handleDeleteComment}
               onApprove={user?.role === 'admin' ? handleApproveComment : undefined}
+              onRequireLogin={requireLogin}
+              onLikeUpdate={(commentId, liked, likeCount) => {
+                setComments(list => list.map(item => (
+                  item.id === commentId ? { ...item, liked, like_count: likeCount } : item
+                )));
+              }}
               renderReplyBox={(c) => (
                 <CommentBox
                   key={c.id}

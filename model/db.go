@@ -35,7 +35,7 @@ func InitDB(dbPath string) error {
 
 	if err := db.AutoMigrate(
 		&User{}, &Board{}, &Post{}, &Comment{},
-		&PostLike{}, &PostFavorite{}, &PostRevision{}, &CommentRevision{}, &ForumSetting{},
+		&PostLike{}, &CommentLike{}, &PostFavorite{}, &PostRevision{}, &CommentRevision{}, &ForumSetting{},
 		&OAuthClient{}, &OAuthAuthCode{},
 		&GiteaRepo{},
 		&PrivateMessage{}, &PostReport{},

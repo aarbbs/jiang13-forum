@@ -48,7 +48,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	postSvc := service.NewPostService(filter, settingsSvc)
 	commentSvc := service.NewCommentService(filter, settingsSvc)
 	messageSvc := service.NewMessageService(filter, settingsSvc)
-	reportSvc := service.NewReportService(filter, settingsSvc, messageSvc, postSvc)
+	reportSvc := service.NewReportService(filter, settingsSvc, messageSvc, postSvc, commentSvc)
 	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
 	limiter := service.NewRateLimiter(settingsSvc)
 	captchaSvc := service.NewCaptchaService()
@@ -155,6 +155,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/messages/conversations/:peerId/read", h.APIMarkConversationRead)
 		api.POST("/messages", middleware.RateLimitMiddleware(limiter, "message"), h.APISendMessage)
 		api.POST("/messages/read-all", h.APIMarkAllMessagesRead)
+		api.POST("/comments/:id/like", h.APIToggleCommentLike)
+		api.POST("/comments/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreateCommentReport)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 		api.PUT("/comments/:id", h.APIUpdateComment)
 	}

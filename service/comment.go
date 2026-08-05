@@ -140,6 +140,7 @@ func (s *CommentService) ListByPost(postID, viewerID uint, isAdmin bool, postAut
 			rt.ContentHidden = true
 		}
 	}
+	s.fillLiked(visible, viewerID)
 	return visible, nil
 }
 
@@ -257,6 +258,64 @@ func (s *CommentService) GetByID(id uint) (*model.Comment, error) {
 		return nil, ErrCommentNotFound
 	}
 	return &c, nil
+}
+
+// fillLiked 批量标记当前用户是否已点赞
+func (s *CommentService) fillLiked(comments []model.Comment, viewerID uint) {
+	if viewerID == 0 || len(comments) == 0 {
+		return
+	}
+	ids := make([]uint, 0, len(comments))
+	for _, c := range comments {
+		ids = append(ids, c.ID)
+	}
+	var likes []model.CommentLike
+	model.DB.Where("user_id = ? AND comment_id IN ?", viewerID, ids).Find(&likes)
+	likedSet := make(map[uint]struct{}, len(likes))
+	for _, l := range likes {
+		likedSet[l.CommentID] = struct{}{}
+	}
+	for i := range comments {
+		_, comments[i].Liked = likedSet[comments[i].ID]
+	}
+}
+
+// ToggleLike 切换评论点赞
+func (s *CommentService) ToggleLike(userID, commentID uint) (liked bool, likeCount int, err error) {
+	var comment model.Comment
+	if err := model.DB.Select("id", "like_count").First(&comment, commentID).Error; err != nil {
+		return false, 0, ErrCommentNotFound
+	}
+	var like model.CommentLike
+	result := model.DB.Where("comment_id = ? AND user_id = ?", commentID, userID).Limit(1).Find(&like)
+	if result.Error != nil {
+		return false, 0, result.Error
+	}
+	if result.RowsAffected > 0 {
+		if err := model.DB.Delete(&like).Error; err != nil {
+			return false, 0, err
+		}
+		model.DB.Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END"))
+		_ = model.DB.Select("like_count").First(&comment, commentID)
+		return false, comment.LikeCount, nil
+	}
+	like = model.CommentLike{CommentID: commentID, UserID: userID}
+	if err := model.DB.Create(&like).Error; err != nil {
+		return false, 0, err
+	}
+	model.DB.Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
+	_ = model.DB.Select("like_count").First(&comment, commentID)
+	return true, comment.LikeCount, nil
+}
+
+// IsLiked 用户是否已点赞该评论
+func (s *CommentService) IsLiked(userID, commentID uint) bool {
+	if userID == 0 || commentID == 0 {
+		return false
+	}
+	var count int64
+	model.DB.Model(&model.CommentLike{}).Where("comment_id = ? AND user_id = ?", commentID, userID).Count(&count)
+	return count > 0
 }
 
 // PendingCommentCount 待审评论数
