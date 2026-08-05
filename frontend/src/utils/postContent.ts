@@ -12,7 +12,8 @@ export const POST_CONTENT_PURIFY_CONFIG: Config = {
   ADD_TAGS: ['members-only'],
   ADD_ATTR: [
     'data-locked', 'data-length', 'target', 'rel',
-    'data-code-copy', 'data-lang', 'data-full',
+    'data-code-copy', 'data-code-fold', 'data-lang', 'data-full',
+    'data-code-style', 'data-line-numbers', 'data-collapsed', 'data-line-count', 'data-lineno-digits',
     'data-image-group', 'data-layout', 'data-display',
     'data-clear-float',
     'class',

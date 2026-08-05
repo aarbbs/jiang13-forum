@@ -80,11 +80,29 @@ export default function PostContent({
       }
       return;
     }
+    const foldBtn = target.closest<HTMLElement>('[data-code-fold]');
+    if (foldBtn) {
+      e.preventDefault();
+      const block = foldBtn.closest('.md-codeblock');
+      if (!block) return;
+      const collapsed = block.classList.toggle('md-codeblock--collapsed');
+      const lineCount = parseInt(block.getAttribute('data-line-count') || '0', 10)
+        || block.querySelectorAll('.md-code-line').length
+        || 1;
+      if (collapsed && lineCount <= 5) block.classList.add('md-codeblock--short');
+      else block.classList.remove('md-codeblock--short');
+      foldBtn.textContent = collapsed ? '展开' : '收起';
+      return;
+    }
     const copyBtn = target.closest<HTMLElement>('[data-code-copy]');
     if (copyBtn) {
       e.preventDefault();
       const block = copyBtn.closest('.md-codeblock');
-      const text = block?.querySelector('pre')?.textContent ?? '';
+      // 行号列不参与复制：取各行正文拼接
+      const bodies = block?.querySelectorAll('.md-code-line__body');
+      const text = bodies && bodies.length
+        ? [...bodies].map(el => el.textContent ?? '').join('\n')
+        : (block?.querySelector('pre')?.textContent ?? '');
       try {
         await navigator.clipboard.writeText(text);
         const prev = copyBtn.textContent;

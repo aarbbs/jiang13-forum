@@ -17,7 +17,7 @@ import {
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
 import PostContent from './PostContent';
-import { handleMarkdownTabKey, insertAtCursor } from '../utils/markdownIndent';
+import { handleMarkdownTabKey, insertAtCursor, applyTextareaChange } from '../utils/markdownIndent';
 import {
   wrapMarkdownSelection,
   prefixMarkdownLines,
@@ -34,6 +34,12 @@ import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension'
 import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
 import { ClearFloatParagraph, ClearFloatSync } from './editor/ClearFloatParagraph';
 import { ArticleLinkDialog } from './editor/ArticleLinkDialog';
+import { ArticleCodeBlockDialog } from './editor/ArticleCodeBlockDialog';
+import { ArticleCodeBlock } from './editor/ArticleCodeBlockExtension';
+import {
+  formatFenceInfo,
+  type CodeBlockInsertOptions,
+} from '../utils/codeBlockOptions';
 import { Tooltip } from './ui/Tooltip';
 
 export interface ArticleEditorHandle {
@@ -50,6 +56,7 @@ interface Props {
 
 type EditorMode = 'rich' | 'markdown';
 type LinkTarget = 'rich' | 'markdown';
+type CodeBlockTarget = 'rich' | 'markdown';
 
 interface ToolBtn {
   icon: ReactNode;
@@ -62,6 +69,13 @@ interface ToolBtn {
 }
 
 const MEMBERS_ONLY_PLACEHOLDER = '在此输入仅登录用户可见的内容…';
+
+/** 按选项生成 Markdown 侧插入片段（围栏 meta，便于手写） */
+function buildMarkdownCodeBlockSnippet(opts: CodeBlockInsertOptions, body = '代码'): string {
+  const info = formatFenceInfo(opts);
+  const fence = info ? `\`\`\`${info}` : '```';
+  return `\n${fence}\n${body}\n\`\`\`\n`;
+}
 
 /** 净化编辑器 HTML，保留 members-only 自定义标签 */
 function sanitizeHtml(html: string): string {
@@ -179,6 +193,10 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState('');
   const [linkTarget, setLinkTarget] = useState<LinkTarget>('rich');
+  const [codeBlockDialogOpen, setCodeBlockDialogOpen] = useState(false);
+  const [codeBlockTarget, setCodeBlockTarget] = useState<CodeBlockTarget>('rich');
+  const [codeBlockEditing, setCodeBlockEditing] = useState(false);
+  const [codeBlockInitial, setCodeBlockInitial] = useState<Partial<CodeBlockInsertOptions> | null>(null);
   const markdownRef = useRef<HTMLTextAreaElement>(null);
 
   const editor = useEditor({
@@ -186,7 +204,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       StarterKit.configure({
         heading: { levels: [2, 3, 4, 5, 6] },
         paragraph: false,
+        codeBlock: false,
+        // StarterKit v3 已内置；下面单独配置，需先关掉避免重复
+        link: false,
+        underline: false,
       }),
+      ArticleCodeBlock,
       ClearFloatParagraph,
       ClearFloatSync,
       Underline,
@@ -328,6 +351,53 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     setLinkDialogOpen(true);
   }, [editor]);
 
+  const openCodeBlockDialog = useCallback((target: CodeBlockTarget) => {
+    setCodeBlockTarget(target);
+    if (target === 'rich' && editor?.isActive('codeBlock')) {
+      const attrs = editor.getAttributes('codeBlock');
+      setCodeBlockEditing(true);
+      setCodeBlockInitial({
+        language: (attrs.language as string) || '',
+        lineNumbers: Boolean(attrs.lineNumbers),
+        collapsed: Boolean(attrs.collapsed),
+      });
+    } else {
+      setCodeBlockEditing(false);
+      setCodeBlockInitial(null);
+    }
+    setCodeBlockDialogOpen(true);
+  }, [editor]);
+
+  const applyCodeBlock = useCallback((opts: CodeBlockInsertOptions) => {
+    if (codeBlockTarget === 'markdown') {
+      const textarea = markdownRef.current;
+      if (!textarea) return;
+      const { selectionStart, selectionEnd } = textarea;
+      const selected = markdownSource.slice(selectionStart, selectionEnd);
+      const body = selected || '代码';
+      const snippet = buildMarkdownCodeBlockSnippet(opts, body);
+      const next = markdownSource.slice(0, selectionStart) + snippet + markdownSource.slice(selectionEnd);
+      const bodyOffset = snippet.indexOf(body);
+      const newStart = bodyOffset >= 0 ? selectionStart + bodyOffset : selectionStart + snippet.length;
+      const newEnd = bodyOffset >= 0 ? newStart + body.length : newStart;
+      applyTextareaChange(textarea, next, newStart, newEnd, handleMarkdownChange);
+      return;
+    }
+    if (!editor) return;
+    editor.chain().focus().setArticleCodeBlock({
+      language: opts.language || null,
+      lineNumbers: opts.lineNumbers,
+      collapsed: opts.collapsed,
+    }).run();
+  }, [codeBlockTarget, editor, markdownSource, handleMarkdownChange]);
+
+  const removeCodeBlock = useCallback(() => {
+    if (!editor) return;
+    if (editor.isActive('codeBlock')) {
+      editor.chain().focus().toggleCodeBlock().run();
+    }
+  }, [editor]);
+
   const applyLink = useCallback((url: string) => {
     if (linkTarget === 'markdown') {
       const textarea = markdownRef.current;
@@ -453,7 +523,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       { icon: <Quote size={15} />, title: '引用', active: editor.isActive('blockquote'), action: () => editor.chain().focus().toggleBlockquote().run() },
       { icon: <List size={15} />, title: '无序列表', active: editor.isActive('bulletList'), action: () => editor.chain().focus().toggleBulletList().run() },
       { icon: <ListOrdered size={15} />, title: '有序列表', active: editor.isActive('orderedList'), action: () => editor.chain().focus().toggleOrderedList().run() },
-      { icon: <Code size={15} />, title: '代码块', active: editor.isActive('codeBlock'), action: () => editor.chain().focus().toggleCodeBlock().run() },
+      { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', active: editor.isActive('codeBlock'), action: () => openCodeBlockDialog('rich') },
       { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: () => openLinkDialog('rich') },
       {
         icon: <ImageIcon size={15} />,
@@ -505,7 +575,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     });
 
     return tools;
-  }, [editor, openLinkDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, openLinkDialog, openCodeBlockDialog, setImage, wrapMembersOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => [
     { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
@@ -517,7 +587,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     { icon: <Quote size={15} />, title: '引用', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '> ', ch)) },
     { icon: <List size={15} />, title: '无序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '- ', ch)) },
     { icon: <ListOrdered size={15} />, title: '有序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '1. ', ch)) },
-    { icon: <Code size={15} />, title: '代码块', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '```\n', '\n```', '代码', ch)) },
+    { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', action: () => openCodeBlockDialog('markdown') },
     { icon: <LinkIcon size={15} />, title: '链接', action: () => openLinkDialog('markdown') },
     { icon: <ImageIcon size={15} />, title: '上传图片', action: insertMarkdownImage },
     {
@@ -527,7 +597,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       className: 'article-tool-btn--members',
       action: withMarkdown(insertMarkdownMembersOnly),
     },
-  ], [withMarkdown, openLinkDialog, insertMarkdownImage]);
+  ], [withMarkdown, openLinkDialog, openCodeBlockDialog, insertMarkdownImage]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'
@@ -628,6 +698,14 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         initialUrl={linkDialogUrl}
         onConfirm={applyLink}
         onRemove={linkTarget === 'rich' && linkDialogUrl ? removeLink : undefined}
+      />
+      <ArticleCodeBlockDialog
+        open={codeBlockDialogOpen}
+        onOpenChange={setCodeBlockDialogOpen}
+        initial={codeBlockInitial}
+        editing={codeBlockEditing}
+        onConfirm={applyCodeBlock}
+        onRemove={codeBlockEditing ? removeCodeBlock : undefined}
       />
     </div>
   );

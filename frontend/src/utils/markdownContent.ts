@@ -2,6 +2,7 @@ import TurndownService from 'turndown';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { POST_CONTENT_PURIFY_CONFIG } from './postContent';
+import { parseFenceInfo, formatFenceInfo } from './codeBlockOptions';
 
 const MEMBERS_ONLY_BLOCK_RE = /<members-only>([\s\S]*?)<\/members-only>/gi;
 
@@ -50,6 +51,39 @@ function splitParagraphBreaks(html: string): string {
 
 /** 为 Turndown 注册通用正文规则（不含 members-only） */
 function addTurndownContentRules(service: TurndownService): void {
+  // TipTap 列表项内是 <li><p>…</p></li>：默认 paragraph 规则会塞多余空行，
+  // 导致列表结构异常；列表内段落只输出内容本身。
+  service.addRule('paragraphInListItem', {
+    filter: (node) =>
+      node.nodeName === 'P' && Boolean(node.parentNode && node.parentNode.nodeName === 'LI'),
+    replacement: (content) => content.trim(),
+  });
+
+  // 代码块统一输出围栏，展示选项写入 info 串：```js lines collapsed
+  service.addRule('fencedCodeBlock', {
+    filter: (node) => node.nodeName === 'PRE',
+    replacement: (_content, node) => {
+      const pre = node as HTMLElement;
+      const codeEl = pre.querySelector('code') || pre;
+      // 行号装饰 span 时仍取纯文本
+      const text = codeEl.textContent || '';
+      const langMatch = (codeEl.getAttribute('class') || '').match(/(?:language|lang)-([a-z0-9_+-]+)/i);
+      const wrap = pre.closest('.md-codeblock') as HTMLElement | null;
+      const language = (
+        pre.getAttribute('data-lang')
+        || wrap?.getAttribute('data-lang')
+        || langMatch?.[1]
+        || ''
+      ).trim().toLowerCase();
+      const lineNumbers = pre.getAttribute('data-line-numbers') === 'true'
+        || wrap?.getAttribute('data-line-numbers') === 'true';
+      const collapsed = pre.getAttribute('data-collapsed') === 'true'
+        || wrap?.getAttribute('data-collapsed') === 'true';
+      const info = formatFenceInfo({ language, lineNumbers, collapsed });
+      return `\n\n\`\`\`${info}\n${text}\n\`\`\`\n\n`;
+    },
+  });
+
   service.addRule('imageGroup', {
     filter: (node) =>
       node.nodeName === 'DIV' && (node as HTMLElement).hasAttribute('data-image-group'),
@@ -127,9 +161,20 @@ function addTurndownContentRules(service: TurndownService): void {
 /** 子节点转 Markdown 专用，避免 members-only 规则递归 */
 const contentTurndown = new TurndownService(TURNDOWN_OPTIONS);
 addTurndownContentRules(contentTurndown);
+patchTurndownEscape(contentTurndown);
 
 const turndown = new TurndownService(TURNDOWN_OPTIONS);
 addTurndownContentRules(turndown);
+patchTurndownEscape(turndown);
+
+/**
+ * Turndown 默认会把「行首 1. 」转义成 1\. ，避免被当成列表。
+ * 富文本有序列表 / 用户手写序号在源码里都应保持 1. ，故去掉该转义。
+ */
+function patchTurndownEscape(service: TurndownService): void {
+  const original = service.escape.bind(service);
+  service.escape = (str: string) => original(str).replace(/(\d+)\\(\.)/g, '$1$2');
+}
 
 /** 登录可见区块转为 Markdown：逐子节点转换，保留首行缩进 */
 turndown.addRule('membersOnly', {
@@ -159,11 +204,32 @@ marked.setOptions({
   breaks: true,
 });
 
-/** 禁用缩进代码块，Tab/空格缩进仅作正文排版；围栏 ``` 代码块不受影响 */
+/** HTML 转义代码正文 */
+function escapeCodeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 禁用缩进代码块；围栏支持 lines/collapsed 简写（旧 style=* 解析时忽略） */
 marked.use({
   tokenizer: {
     code() {
       return undefined;
+    },
+  },
+  renderer: {
+    code({ text, lang, escaped }) {
+      const opts = parseFenceInfo(lang || '');
+      const attrs: string[] = [];
+      if (opts.lineNumbers) attrs.push('data-line-numbers="true"');
+      if (opts.collapsed) attrs.push('data-collapsed="true"');
+      const preOpen = attrs.length ? `<pre ${attrs.join(' ')}>` : '<pre>';
+      const classAttr = opts.language ? ` class="language-${opts.language}"` : '';
+      const body = escaped ? text : escapeCodeHtml(text);
+      return `${preOpen}<code${classAttr}>${body}</code></pre>\n`;
     },
   },
 });
