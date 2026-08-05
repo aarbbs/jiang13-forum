@@ -32,7 +32,8 @@ func (s *ForumSettingsService) SitePublicBaseURL(requestOrigin string) string {
 	return strings.TrimRight(root, "/")
 }
 
-// AbsoluteURL 将相对路径拼成绝对 URL
+// AbsoluteURL 将相对路径拼成绝对 URL。
+// base 为空或非 http(s) 时返回空串，避免邮件等场景出现无法点击的相对路径。
 func AbsoluteURL(base, pathOrURL string) string {
 	pathOrURL = strings.TrimSpace(pathOrURL)
 	if pathOrURL == "" {
@@ -41,7 +42,10 @@ func AbsoluteURL(base, pathOrURL string) string {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
 		return pathOrURL
 	}
-	base = strings.TrimRight(base, "/")
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if base == "" || (!strings.HasPrefix(base, "http://") && !strings.HasPrefix(base, "https://")) {
+		return ""
+	}
 	if !strings.HasPrefix(pathOrURL, "/") {
 		pathOrURL = "/" + pathOrURL
 	}

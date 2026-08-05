@@ -24,6 +24,7 @@ type Handlers struct {
 	Post      *service.PostService
 	Comment   *service.CommentService
 	Message   *service.MessageService
+	Notify    *service.NotifyService
 	Report    *service.ReportService
 	Backup    *service.BackupService
 	Filter    *service.SensitiveFilter
@@ -322,6 +323,9 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 	msg := "发帖成功"
 	if post.Status == model.ContentStatusPending {
 		msg = "已提交审核，通过后将公开显示"
+		if h.Notify != nil {
+			h.Notify.AsyncNotifyPendingPost(post)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg, "post_id": post.ID, "status": post.Status})
 }
@@ -329,11 +333,18 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 func (h *Handlers) APIUpdatePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
-	err := h.Post.Update(h.currentUserID(c), uint(id), h.isAdmin(c),
+	isAdmin := h.isAdmin(c)
+	err := h.Post.Update(h.currentUserID(c), uint(id), isAdmin,
 		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), c.PostForm("post_type"), uint(boardID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	// 普通用户修改后重新进入审核
+	if !isAdmin && h.Notify != nil {
+		if post, getErr := h.Post.FindByID(uint(id)); getErr == nil {
+			h.Notify.AsyncNotifyPendingPost(post)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "帖子已更新"})
 }
@@ -414,7 +425,15 @@ func (h *Handlers) APICreateComment(c *gin.Context) {
 		return
 	}
 	msg := "评论成功"
-	if comment.Status == model.ContentStatusPending {
+	if h.Notify != nil {
+		switch comment.Status {
+		case model.ContentStatusPublished:
+			h.Notify.AsyncNotifyCommentPublished(comment)
+		case model.ContentStatusPending:
+			msg = "评论已提交，审核通过后公开显示"
+			h.Notify.AsyncNotifyPendingComment(comment)
+		}
+	} else if comment.Status == model.ContentStatusPending {
 		msg = "评论已提交，审核通过后公开显示"
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg, "floor": comment.Floor, "id": comment.ID, "status": comment.Status})
@@ -432,7 +451,7 @@ func (h *Handlers) APIDeleteComment(c *gin.Context) {
 func (h *Handlers) APIUpdateComment(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	content := c.PostForm("content")
-	saved, err := h.Comment.Update(h.currentUserID(c), uint(id), h.isAdmin(c), content)
+	saved, enteredPending, err := h.Comment.Update(h.currentUserID(c), uint(id), h.isAdmin(c), content)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -443,6 +462,9 @@ func (h *Handlers) APIUpdateComment(c *gin.Context) {
 		status = comment.Status
 		if status == model.ContentStatusPending && !h.isAdmin(c) {
 			msg = "评论已更新，审核通过后公开显示"
+		}
+		if enteredPending && h.Notify != nil {
+			h.Notify.AsyncNotifyPendingComment(comment)
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg, "content": saved, "status": status})

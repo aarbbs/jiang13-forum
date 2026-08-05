@@ -166,6 +166,8 @@ const (
 	MessageKindSystem       = "system"        // 系统通知
 	MessageKindReject       = "reject"        // 帖子被拒/下架
 	MessageKindReportResult = "report_result" // 举报处理结果
+	MessageKindReply        = "reply"         // 帖子/评论被回复
+	MessageKindModeration   = "moderation"    // 新内容待审核（通知管理员）
 )
 
 // PrivateMessage 站内私信

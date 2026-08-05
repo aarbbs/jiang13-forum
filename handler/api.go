@@ -303,6 +303,12 @@ func (h *Handlers) APIAdminApproveComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if h.Notify != nil {
+		if comment, err := h.Comment.GetByID(uint(id)); err == nil {
+			comment.Status = model.ContentStatusPublished
+			h.Notify.AsyncNotifyCommentPublished(comment)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "评论已通过审核", "status": model.ContentStatusPublished})
 }
 

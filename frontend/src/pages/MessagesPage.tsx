@@ -19,6 +19,8 @@ function kindLabel(kind: string) {
   switch (kind) {
     case 'reject': return '拒帖通知';
     case 'report_result': return '举报结果';
+    case 'reply': return '回复提醒';
+    case 'moderation': return '待审提醒';
     case 'system': return '系统通知';
     default: return '';
   }

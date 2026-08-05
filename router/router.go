@@ -54,6 +54,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	captchaSvc := service.NewCaptchaService()
 	mailSvc := service.NewMailService(settingsSvc)
 	emailCodeSvc := service.NewEmailCodeService(mailSvc)
+	notifySvc := service.NewNotifyService(messageSvc, mailSvc, settingsSvc)
 	oidcSvc, err := service.NewOIDCService(cfg, settingsSvc)
 	if err != nil {
 		return nil, err
@@ -78,7 +79,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 
 	h := &handler.Handlers{
 		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
-		Post: postSvc, Comment: commentSvc, Message: messageSvc, Report: reportSvc,
+		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
 		Backup: backupSvc,
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,

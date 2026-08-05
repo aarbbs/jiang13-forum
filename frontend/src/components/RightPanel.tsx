@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { PostItem, RecentComment, TagCount, User } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useSiteBranding } from '../hooks/useSiteBranding';
+import { formatShortDateTime } from '../utils/content';
 import TagCloud from './TagCloud';
 import UserLink from './UserLink';
 import ArticleOutline from './ArticleOutline';
@@ -213,7 +214,7 @@ export default function RightPanel({
                   onClick={() => onPostClick(item.post_id, item.floor > 0 ? { floor: item.floor } : undefined)}
                 >
                   <span className="widget-item-title">{item.excerpt}</span>
-                  <span className="widget-item-time">{item.created_at}</span>
+                  <span className="widget-item-time">{formatShortDateTime(item.created_at)}</span>
                 </button>
               </div>
             ))}

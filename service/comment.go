@@ -273,32 +273,33 @@ func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
 	return s.AdminDelete(commentID)
 }
 
-func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content string) (string, error) {
+func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content string) (string, bool, error) {
 	var comment model.Comment
 	if err := model.DB.First(&comment, commentID).Error; err != nil {
-		return "", ErrCommentNotFound
+		return "", false, ErrCommentNotFound
 	}
 	if !isAdmin && (comment.UserID == 0 || comment.UserID != userID) {
-		return "", ErrPermissionDenied
+		return "", false, ErrPermissionDenied
 	}
 	if !isAdmin {
 		window := s.settings.CommentEditWindowMinutes()
 		if window > 0 && time.Since(comment.CreatedAt) > time.Duration(window)*time.Minute {
-			return "", errors.New("已超过可编辑时限")
+			return "", false, errors.New("已超过可编辑时限")
 		}
 	}
 
 	content = s.filter.Filter(strings.TrimSpace(content))
 	if content == "" {
-		return "", errors.New("评论内容不能为空")
+		return "", false, errors.New("评论内容不能为空")
 	}
 	if err := s.settings.ValidateTextLength(content, s.settings.CommentMax(), ErrCommentTooLong); err != nil {
-		return "", err
+		return "", false, err
 	}
 	if content == comment.Content {
-		return content, nil
+		return content, false, nil
 	}
 
+	enteredPending := false
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		rev := model.CommentRevision{
 			CommentID: commentID,
@@ -311,13 +312,14 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content st
 		updates := map[string]interface{}{"content": content}
 		if !isAdmin {
 			updates["status"] = model.ContentStatusPending
+			enteredPending = true
 		}
 		return tx.Model(&comment).Updates(updates).Error
 	})
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return content, nil
+	return content, enteredPending, nil
 }
 
 func (s *CommentService) AdminDelete(commentID uint) error {
@@ -401,7 +403,8 @@ func (s *CommentService) ListRecentPublic(limit int) ([]RecentCommentItem, error
 			Avatar:    avatar,
 			Excerpt:   excerpt,
 			PostTitle: c.Post.Title,
-			CreatedAt: c.CreatedAt.Format("01-02 15:04"),
+			// 返回 UTC ISO，由前端按本地时区展示（避免与后台差 8 小时）
+			CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339),
 		})
 		if len(out) >= limit {
 			break

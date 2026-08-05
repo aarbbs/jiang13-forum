@@ -43,6 +43,14 @@ export function formatDateTime(iso: string) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 短日期时间（本地时区）：MM-DD HH:mm，用于右栏最新评论等 */
+export function formatShortDateTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** 判断两个 ISO 时间是否相差超过 1 分钟 */
 export function isTimeDiffSignificant(a: string, b: string) {
   const da = new Date(a).getTime();
