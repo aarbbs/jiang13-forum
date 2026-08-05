@@ -282,8 +282,8 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin bool, content st
 		return "", ErrPermissionDenied
 	}
 	if !isAdmin {
-		window := s.settings.CommentEditWindowHours()
-		if window > 0 && time.Since(comment.CreatedAt) > time.Duration(window)*time.Hour {
+		window := s.settings.CommentEditWindowMinutes()
+		if window > 0 && time.Since(comment.CreatedAt) > time.Duration(window)*time.Minute {
 			return "", errors.New("已超过可编辑时限")
 		}
 	}

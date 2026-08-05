@@ -7,7 +7,7 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   post_tags_max: 256,
   post_content_max: 50000,
   comment_max: 5000,
-  comment_edit_window_hours: 24,
+  comment_edit_window_minutes: 3,
   search_keyword_min: 1,
   search_keyword_max: 50,
   page_size_default: 30,

@@ -25,20 +25,21 @@ import {
 } from '../utils/comment';
 import { isTimeDiffSignificant } from '../utils/content';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { Tooltip } from './ui/Tooltip';
 import UserLink from './UserLink';
 
 function isCommentAuthor(c: Comment, user?: User | null): boolean {
   return !!user && c.user_id > 0 && c.user_id === user.id;
 }
 
-function canEditComment(c: Comment, user: User | null | undefined, windowHours: number): boolean {
+function canEditComment(c: Comment, user: User | null | undefined, windowMinutes: number): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true;
   if (!isCommentAuthor(c, user)) return false;
-  if (windowHours <= 0) return true;
+  if (windowMinutes <= 0) return true;
   const created = new Date(c.created_at).getTime();
   if (Number.isNaN(created)) return false;
-  return Date.now() - created <= windowHours * 3600_000;
+  return Date.now() - created <= windowMinutes * 60_000;
 }
 
 interface ItemProps {
@@ -84,7 +85,21 @@ function CommentItem({
   const isReplying = replyToId === c.id;
   const isEditing = editingId === c.id;
   const isAdmin = currentUser?.role === 'admin';
-  const canEdit = canEditComment(c, currentUser, limits.comment_edit_window_hours ?? 24);
+  const editWindowMinutes = limits.comment_edit_window_minutes ?? 3;
+  // 到期后强制重渲染，使「编辑」按钮自动消失
+  const [, setEditExpireTick] = useState(0);
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'admin') return;
+    if (!isCommentAuthor(c, currentUser)) return;
+    if (editWindowMinutes <= 0) return;
+    const created = new Date(c.created_at).getTime();
+    if (Number.isNaN(created)) return;
+    const remaining = created + editWindowMinutes * 60_000 - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setEditExpireTick(n => n + 1), remaining + 30);
+    return () => window.clearTimeout(timer);
+  }, [c.created_at, c.id, c.user_id, currentUser, editWindowMinutes]);
+  const canEdit = canEditComment(c, currentUser, editWindowMinutes);
   const canDelete = isAdmin;
   const canApprove = isAdmin
     && (c.status === 'pending' || c.status === 'rejected')
@@ -153,6 +168,11 @@ function CommentItem({
           ) : (
             <span className="waline-comment-author">{nick}</span>
           )}
+          {!c.reply_to && (
+            <span className="waline-comment-floor" aria-label={`第 ${c.floor} 楼`}>
+              #{c.floor}
+            </span>
+          )}
         </div>
 
         {hidden ? (
@@ -184,9 +204,6 @@ function CommentItem({
           </div>
         ) : (
           <div className="waline-comment-bubble">
-            {c.reply_target && (
-              <span className="waline-reply-at">@{commentNick(c.reply_target)}</span>
-            )}
             <CommentContent content={c.content} />
           </div>
         )}
@@ -195,10 +212,13 @@ function CommentItem({
           <span className="waline-comment-date">
             <Clock size={14} />
             {formatCommentDate(c.created_at)}
-            {showEdited && <span className="waline-comment-edited"> · 已编辑</span>}
+            {isAdmin && showEdited && <span className="waline-comment-edited"> · 已编辑</span>}
             {c.status === 'pending' && <span className="waline-comment-status waline-comment-status--pending"> · 审核中</span>}
             {c.status === 'rejected' && <span className="waline-comment-status waline-comment-status--rejected"> · 未通过</span>}
           </span>
+          {c.reply_target && (
+            <span className="waline-reply-at">@{commentNick(c.reply_target)}</span>
+          )}
           {!hidden && !isEditing && canApprove && (
             <button
               type="button"
@@ -224,10 +244,12 @@ function CommentItem({
                 取消
               </button>
             ) : (
-              <button type="button" className="waline-comment-reply-btn" onClick={() => onReply(c)}>
-                <MessageSquare size={14} />
-                回复
-              </button>
+              <Tooltip content={`回复给 ${nick}`} side="top">
+                <button type="button" className="waline-comment-reply-btn" onClick={() => onReply(c)}>
+                  <MessageSquare size={14} />
+                  回复
+                </button>
+              </Tooltip>
             )
           )}
           {!hidden && !isEditing && canEdit && (

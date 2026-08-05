@@ -13,8 +13,8 @@ import (
 
 // 论坛设置键名
 const (
-	SettingPostEditWindowHours    = "post_edit_window_hours"
-	SettingCommentEditWindowHours = "comment_edit_window_hours"
+	SettingPostEditWindowHours     = "post_edit_window_hours"
+	SettingCommentEditWindowMinutes = "comment_edit_window_minutes"
 
 	SettingRateLimitPost     = "rate_limit_post"
 	SettingRateLimitComment  = "rate_limit_comment"
@@ -91,8 +91,8 @@ const (
 
 // ForumLimits 论坛可配置限制（API 传输结构）
 type ForumLimits struct {
-	PostEditWindowHours    int `json:"post_edit_window_hours"`
-	CommentEditWindowHours int `json:"comment_edit_window_hours"`
+	PostEditWindowHours      int `json:"post_edit_window_hours"`
+	CommentEditWindowMinutes int `json:"comment_edit_window_minutes"`
 
 	RateLimitPost      int `json:"rate_limit_post"`
 	RateLimitComment   int `json:"rate_limit_comment"`
@@ -135,7 +135,7 @@ type ForumLimitsPublic struct {
 	AvatarMaxMB      int `json:"avatar_max_mb"`
 	SignatureMax     int `json:"signature_max"`
 
-	CommentEditWindowHours int `json:"comment_edit_window_hours"`
+	CommentEditWindowMinutes int `json:"comment_edit_window_minutes"`
 
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
@@ -153,7 +153,7 @@ type settingDef struct {
 
 var forumSettingDefs = []settingDef{
 	{SettingPostEditWindowHours, "24", 0, 0},
-	{SettingCommentEditWindowHours, "24", 0, 0},
+	{SettingCommentEditWindowMinutes, "3", 0, 0},
 
 	{SettingRateLimitPost, "10", 1, 1000},
 	{SettingRateLimitComment, "10", 1, 1000},
@@ -427,8 +427,8 @@ func (s *ForumSettingsService) setInt(key string, value int) error {
 func (s *ForumSettingsService) Limits() ForumLimits {
 	permalink := s.Permalink()
 	return ForumLimits{
-		PostEditWindowHours:    s.PostEditWindowHours(),
-		CommentEditWindowHours: s.CommentEditWindowHours(),
+		PostEditWindowHours:      s.PostEditWindowHours(),
+		CommentEditWindowMinutes: s.CommentEditWindowMinutes(),
 
 		RateLimitPost:      s.RateLimitFor("post"),
 		RateLimitComment:   s.RateLimitFor("comment"),
@@ -473,7 +473,7 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		AvatarMaxMB:      limits.AvatarMaxMB,
 		SignatureMax:     limits.SignatureMax,
 
-		CommentEditWindowHours: limits.CommentEditWindowHours,
+		CommentEditWindowMinutes: limits.CommentEditWindowMinutes,
 
 		OpenPostsInNewTab:        limits.OpenPostsInNewTab,
 		OpenContentLinksInNewTab: limits.OpenContentLinksInNewTab,
@@ -485,8 +485,8 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 
 func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 	updates := map[string]int{
-		SettingPostEditWindowHours:    in.PostEditWindowHours,
-		SettingCommentEditWindowHours: in.CommentEditWindowHours,
+		SettingPostEditWindowHours:      in.PostEditWindowHours,
+		SettingCommentEditWindowMinutes: in.CommentEditWindowMinutes,
 		SettingRateLimitPost:          in.RateLimitPost,
 		SettingRateLimitComment:    in.RateLimitComment,
 		SettingRateLimitRegister:   in.RateLimitRegister,
@@ -539,8 +539,8 @@ func (s *ForumSettingsService) PostEditWindowHours() int {
 	return s.getInt(SettingPostEditWindowHours, 24)
 }
 
-func (s *ForumSettingsService) CommentEditWindowHours() int {
-	return s.getInt(SettingCommentEditWindowHours, 24)
+func (s *ForumSettingsService) CommentEditWindowMinutes() int {
+	return s.getInt(SettingCommentEditWindowMinutes, 3)
 }
 
 func (s *ForumSettingsService) RateLimitFor(action string) int {

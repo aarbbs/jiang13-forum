@@ -3160,7 +3160,7 @@ a.post-title:visited {
 
 .post-detail-author-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text-1);
 }
 
@@ -5230,7 +5230,12 @@ a.post-title:visited {
   border-bottom: 1px solid var(--j13-border-light);
 }
 
+/* 回复：头像与昵称同行，正文从头像下方起铺满，避免逐级挤窄 */
 .waline-comment.nested {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 6px 10px;
+  align-items: start;
   padding: 12px 0 0;
   border-bottom: none;
 }
@@ -5249,9 +5254,38 @@ a.post-title:visited {
 }
 
 .waline-comment.nested .waline-comment-avatar {
+  grid-column: 1;
+  grid-row: 1;
   width: 32px;
   height: 32px;
   font-size: 13px;
+}
+
+/* 让子元素直接参与 grid，正文/回复可跨列铺满 */
+.waline-comment.nested .waline-comment-main {
+  display: contents;
+}
+
+.waline-comment.nested .waline-comment-head {
+  grid-column: 2;
+  grid-row: 1;
+  margin-bottom: 0;
+  align-self: center;
+  min-width: 0;
+}
+
+.waline-comment.nested .waline-comment-bubble,
+.waline-comment.nested .waline-comment-private-mask,
+.waline-comment.nested .waline-comment-edit,
+.waline-comment.nested .waline-comment-meta,
+.waline-comment.nested .comment-box-wrap.inline,
+.waline-comment.nested .waline-replies {
+  grid-column: 1 / -1;
+}
+
+/* 更深层级与第一层回复左对齐，不再继续右移 */
+.waline-comment.nested .waline-replies {
+  margin-top: 4px;
 }
 
 .waline-comment-avatar {
@@ -5291,12 +5325,23 @@ a.post-title:visited {
 
 .waline-comment-author {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text-1);
   text-decoration: none;
 }
 
-a.waline-comment-author:hover { color: var(--j13-green); }
+a.waline-comment-author:hover {
+  color: var(--j13-green);
+  text-decoration: none;
+}
+
+.waline-comment-floor {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-3);
+  flex-shrink: 0;
+}
 
 .waline-comment-bubble {
   padding: 10px 14px;
@@ -5309,10 +5354,8 @@ a.waline-comment-author:hover { color: var(--j13-green); }
 }
 
 .waline-reply-at {
-  display: block;
-  color: #27c;
-  font-weight: 600;
-  margin-bottom: 4px;
+  color: inherit;
+  font-weight: 400;
   line-height: 1.5;
 }
 
@@ -5429,7 +5472,7 @@ a.waline-comment-author:hover { color: var(--j13-green); }
   .waline-comment { padding: 12px 14px; }
 }
 
-.mention { color: var(--j13-green); font-weight: 600; }
+.mention { color: var(--j13-green); font-weight: 400; }
 
 .quote-block {
   border-left: 3px solid var(--j13-green);
@@ -5928,6 +5971,7 @@ a.waline-comment-author:hover { color: var(--j13-green); }
 .user-link:hover,
 .user-link:focus-visible {
   color: var(--j13-green);
+  text-decoration: none;
 }
 
 .user-link--static {
@@ -5950,11 +5994,11 @@ a.user-link--avatar-only:focus-visible {
 
 .post-detail-author-name.user-link {
   font-size: inherit;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .waline-comment-author.user-link {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .widget-item--comment {
