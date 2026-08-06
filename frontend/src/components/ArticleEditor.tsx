@@ -50,6 +50,7 @@ import {
   formatFenceInfo,
   type CodeBlockInsertOptions,
 } from '../utils/codeBlockOptions';
+import { fenceLengthForContent } from '../utils/markdownFences';
 import { Tooltip } from './ui/Tooltip';
 
 export interface ArticleEditorHandle {
@@ -85,8 +86,9 @@ const REPLY_ONLY_PLACEHOLDER = '在此输入回复后可见的内容…';
 /** 按选项生成 Markdown 侧插入片段（围栏 meta，便于手写） */
 function buildMarkdownCodeBlockSnippet(opts: CodeBlockInsertOptions, body = '代码'): string {
   const info = formatFenceInfo(opts);
-  const fence = info ? `\`\`\`${info}` : '```';
-  return `\n${fence}\n${body}\n\`\`\`\n`;
+  const fence = '`'.repeat(fenceLengthForContent(body));
+  const open = info ? `${fence}${info}` : fence;
+  return `\n${open}\n${body}\n${fence}\n`;
 }
 
 /** 生成 GFM 管道表；源码侧始终带表头分隔行 */

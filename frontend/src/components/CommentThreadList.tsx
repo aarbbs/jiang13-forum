@@ -368,7 +368,9 @@ function CommentItem({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>确定删除该评论？</AlertDialogTitle>
-                  <AlertDialogDescription>删除后不可恢复。</AlertDialogDescription>
+                  <AlertDialogDescription>
+                    将同时移入回收站其下所有回复，可在后台恢复或永久删除。
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>取消</AlertDialogCancel>

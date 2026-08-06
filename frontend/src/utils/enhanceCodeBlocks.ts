@@ -40,9 +40,47 @@ function readDisplayOptions(pre: Element) {
   };
 }
 
+/**
+ * 在换行处闭合并重开跨行 <span>，使每行 HTML 片段自包含。
+ * hljs token 常跨多行，直接按 \\n 切开会破坏标签导致行号布局叠字。
+ */
+function balanceHighlightLines(highlightedHtml: string): string[] {
+  const openTags: string[] = [];
+  let balanced = '';
+  const tokenRe = /(<span\b[^>]*>)|(<\/span>)|(\n)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenRe.exec(highlightedHtml)) !== null) {
+    balanced += highlightedHtml.slice(lastIndex, match.index);
+    lastIndex = tokenRe.lastIndex;
+
+    if (match[3] !== undefined) {
+      // 换行：先闭合当前栈，再于下一行重开
+      for (let i = openTags.length - 1; i >= 0; i--) balanced += '</span>';
+      balanced += '\n';
+      for (const tag of openTags) balanced += tag;
+      continue;
+    }
+
+    if (match[2] !== undefined) {
+      openTags.pop();
+      balanced += match[2];
+      continue;
+    }
+
+    // 开标签
+    openTags.push(match[1]);
+    balanced += match[1];
+  }
+
+  balanced += highlightedHtml.slice(lastIndex);
+  return balanced.split('\n');
+}
+
 /** 为高亮后的 HTML 按行包一层，便于行号与折叠计数 */
 function wrapCodeLines(highlightedHtml: string, withLineNumbers: boolean): string {
-  const lines = highlightedHtml.split('\n');
+  const lines = balanceHighlightLines(highlightedHtml);
   return lines
     .map((line, i) => {
       const num = i + 1;

@@ -22,6 +22,22 @@ export function isGuestComment(c: Comment): boolean {
   return !c.user_id || c.user_id === 0;
 }
 
+/** 收集评论及其 reply_to 后代的 ID（含自身） */
+export function collectCommentSubtreeIds(comments: Comment[], rootId: number): Set<number> {
+  const ids = new Set<number>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const c of comments) {
+      if (!ids.has(c.id) && c.reply_to != null && ids.has(c.reply_to)) {
+        ids.add(c.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
+}
+
 /** 构建嵌套评论树（优先 thread_parent_id，回退 reply_to） */
 export function buildCommentTree(comments: Comment[]): CommentNode[] {
   const map = new Map<number, CommentNode>();

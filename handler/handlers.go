@@ -484,7 +484,7 @@ func (h *Handlers) APIDeleteComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "评论已删除"})
+	c.JSON(http.StatusOK, gin.H{"message": "评论已移入回收站"})
 }
 
 func (h *Handlers) APIUpdateComment(c *gin.Context) {

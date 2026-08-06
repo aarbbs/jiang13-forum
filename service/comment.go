@@ -395,12 +395,137 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration 
 	return content, enteredPending, nil
 }
 
+// collectReplySubtreeIDs 沿 reply_to BFS 收集子树 ID（含 rootID）
+// softDeletedOnly 为 true 时仅收集已软删节点（用于回收站恢复/永久删除）
+func collectReplySubtreeIDs(db *gorm.DB, rootID uint, softDeletedOnly bool) ([]uint, error) {
+	q := db
+	if softDeletedOnly {
+		q = db.Unscoped()
+	}
+	ids := []uint{rootID}
+	seen := map[uint]struct{}{rootID: {}}
+	frontier := []uint{rootID}
+	for len(frontier) > 0 {
+		childQ := q.Model(&model.Comment{}).Select("id").Where("reply_to IN ?", frontier)
+		if softDeletedOnly {
+			childQ = childQ.Where("deleted_at IS NOT NULL")
+		}
+		var children []model.Comment
+		if err := childQ.Find(&children).Error; err != nil {
+			return nil, err
+		}
+		frontier = frontier[:0]
+		for _, c := range children {
+			if _, ok := seen[c.ID]; ok {
+				continue
+			}
+			seen[c.ID] = struct{}{}
+			ids = append(ids, c.ID)
+			frontier = append(frontier, c.ID)
+		}
+	}
+	return ids, nil
+}
+
+// AdminDelete 软删除评论及其回复树（进入回收站）；修订与点赞保留以便恢复
 func (s *CommentService) AdminDelete(commentID uint) error {
+	var root model.Comment
+	if err := model.DB.First(&root, commentID).Error; err != nil {
+		return ErrCommentNotFound
+	}
+	ids, err := collectReplySubtreeIDs(model.DB, commentID, false)
+	if err != nil {
+		return err
+	}
+	return model.DB.Where("id IN ?", ids).Delete(&model.Comment{}).Error
+}
+
+// TrashCommentItem 评论回收站列表项
+type TrashCommentItem struct {
+	model.Comment
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+// ListTrash 列出已软删评论（不含随帖子一并删除的评论，那些在帖子回收站处理）
+func (s *CommentService) ListTrash(page, size int, keyword string) ([]TrashCommentItem, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	size = s.settings.NormalizePageSize(size)
+	db := model.DB.Unscoped().Model(&model.Comment{}).
+		Where("comments.deleted_at IS NOT NULL").
+		Joins("JOIN posts ON posts.id = comments.post_id AND posts.deleted_at IS NULL").
+		Preload("User").Preload("Post")
+	if keyword != "" {
+		kw, err := s.settings.NormalizeSearchKeyword(keyword)
+		if err != nil {
+			return nil, 0, err
+		}
+		like := "%" + kw + "%"
+		db = db.Where("comments.content LIKE ? OR posts.title LIKE ?", like, like)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var comments []model.Comment
+	if err := db.Order("comments.deleted_at DESC").Offset((page - 1) * size).Limit(size).Find(&comments).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]TrashCommentItem, len(comments))
+	for i, c := range comments {
+		out[i] = TrashCommentItem{Comment: c}
+		if c.DeletedAt.Valid {
+			out[i].DeletedAt = c.DeletedAt.Time
+		}
+	}
+	return out, total, nil
+}
+
+// Restore 从回收站恢复评论及其已软删的回复树
+func (s *CommentService) Restore(commentID uint) error {
+	var comment model.Comment
+	if err := model.DB.Unscoped().First(&comment, commentID).Error; err != nil {
+		return ErrCommentNotFound
+	}
+	if !comment.DeletedAt.Valid {
+		return errors.New("评论未被删除")
+	}
+	// 所属帖子必须仍存在且未删除
+	var post model.Post
+	if err := model.DB.First(&post, comment.PostID).Error; err != nil {
+		return errors.New("所属帖子不存在或已在回收站，请先恢复帖子")
+	}
+	ids, err := collectReplySubtreeIDs(model.DB, commentID, true)
+	if err != nil {
+		return err
+	}
+	return model.DB.Unscoped().Model(&model.Comment{}).
+		Where("id IN ?", ids).
+		Update("deleted_at", nil).Error
+}
+
+// Purge 永久删除回收站中的评论及其已软删回复（含修订、点赞）
+func (s *CommentService) Purge(commentID uint) error {
+	var comment model.Comment
+	if err := model.DB.Unscoped().First(&comment, commentID).Error; err != nil {
+		return ErrCommentNotFound
+	}
+	if !comment.DeletedAt.Valid {
+		return errors.New("仅可彻底删除回收站中的评论，请先删除评论")
+	}
+	ids, err := collectReplySubtreeIDs(model.DB, commentID, true)
+	if err != nil {
+		return err
+	}
 	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("comment_id = ?", commentID).Delete(&model.CommentRevision{}).Error; err != nil {
+		if err := tx.Where("comment_id IN ?", ids).Delete(&model.CommentRevision{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&model.Comment{}, commentID).Error
+		if err := tx.Where("comment_id IN ?", ids).Delete(&model.CommentLike{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Where("id IN ?", ids).Delete(&model.Comment{}).Error
 	})
 }
 

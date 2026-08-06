@@ -3,6 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { POST_CONTENT_PURIFY_CONFIG } from './postContent';
 import { parseFenceInfo, formatFenceInfo } from './codeBlockOptions';
+import { mapOutsideFences, wrapFencedCode } from './markdownFences';
 
 const GATED_BLOCK_RE = /<(members-only|reply-only)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
 
@@ -80,7 +81,7 @@ function addTurndownContentRules(service: TurndownService): void {
       const collapsed = pre.getAttribute('data-collapsed') === 'true'
         || wrap?.getAttribute('data-collapsed') === 'true';
       const info = formatFenceInfo({ language, lineNumbers, collapsed });
-      return `\n\n\`\`\`${info}\n${text}\n\`\`\`\n\n`;
+      return wrapFencedCode(info, text);
     },
   });
 
@@ -284,10 +285,9 @@ function sanitizeContentHtml(html: string): string {
 
 /** 将行首空格转为不换行空格，避免 HTML 折叠缩进；跳过围栏代码块 */
 function preserveLeadingIndent(markdown: string): string {
-  return markdown.split(/(```[\s\S]*?```)/g).map((part, index) => {
-    if (index % 2 === 1) return part;
-    return part.replace(/^( +)(?=\S)/gm, (_match, spaces: string) => '\u00A0'.repeat(spaces.length));
-  }).join('');
+  return mapOutsideFences(markdown, (outside) =>
+    outside.replace(/^( +)(?=\S)/gm, (_match, spaces: string) => '\u00A0'.repeat(spaces.length)),
+  );
 }
 
 /** 将普通 Markdown 片段转为 HTML */

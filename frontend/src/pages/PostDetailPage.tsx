@@ -45,6 +45,7 @@ import { useAuth } from '../hooks/useAuth';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { getCachedSiteBranding } from '../hooks/useSiteBranding';
 import { formatDateTime, isTimeDiffSignificant } from '../utils/content';
+import { collectCommentSubtreeIds } from '../utils/comment';
 import { loadMyCommentIds } from '../utils/guest';
 import { clearAllFeedCache } from '../utils/feedCache';
 import { useGlobalWheelScroll } from '../hooks/useGlobalWheelScroll';
@@ -395,10 +396,11 @@ export default function PostDetailPage() {
   const handleDeleteComment = async (comment: Comment) => {
     try {
       await api.deleteComment(comment.id);
-      setComments(list => list.filter(c => c.id !== comment.id));
-      if (replyTo?.id === comment.id) setReplyTo(null);
-      if (editingCommentId === comment.id) setEditingCommentId(null);
-      notify.success('评论已删除');
+      const removeIds = collectCommentSubtreeIds(comments, comment.id);
+      setComments(list => list.filter(c => !removeIds.has(c.id)));
+      if (replyTo && removeIds.has(replyTo.id)) setReplyTo(null);
+      if (editingCommentId != null && removeIds.has(editingCommentId)) setEditingCommentId(null);
+      notify.success('评论已移入回收站');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '删除失败');
       throw e;

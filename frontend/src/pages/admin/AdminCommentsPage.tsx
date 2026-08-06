@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -16,7 +17,8 @@ import type { Comment } from '../../api/types';
 import CommentRevisionDialog from '../../components/CommentRevisionDialog';
 import { isTimeDiffSignificant } from '../../utils/content';
 
-type Tab = 'pending' | 'all';
+type Tab = 'pending' | 'all' | 'trash';
+type TrashComment = Comment & { deleted_at: string };
 
 function statusLabel(status?: string) {
   switch (status) {
@@ -27,18 +29,28 @@ function statusLabel(status?: string) {
   }
 }
 
+function formatAdminTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
 export default function AdminCommentsPage() {
   const nav = useNavigate();
   const { ready } = useAdminGuard();
   const [tab, setTab] = useState<Tab>('pending');
   const [comments, setComments] = useState<Comment[]>([]);
+  const [trash, setTrash] = useState<TrashComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pendingCount, setPendingCount] = useState(0);
   const [revComment, setRevComment] = useState<Comment | null>(null);
 
-  const load = (p = page, st: Tab = tab) => {
+  const loadList = (p = page, st: Tab = tab) => {
     setLoading(true);
     api.adminComments({ page: p, status: st === 'pending' ? 'pending' : 'all' })
       .then(d => {
@@ -49,6 +61,28 @@ export default function AdminCommentsPage() {
       })
       .catch(e => notify.error(e.message))
       .finally(() => setLoading(false));
+  };
+
+  const loadTrash = (p = page) => {
+    setLoading(true);
+    api.adminTrashComments({ page: p })
+      .then(d => {
+        setTrash(d.comments ?? []);
+        setPage(d.page);
+        setTotalPages(d.total_pages);
+      })
+      .catch(e => notify.error(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  const load = (p = page, st: Tab = tab) => {
+    if (st === 'trash') loadTrash(p);
+    else loadList(p, st);
+  };
+
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    setPage(1);
   };
 
   useEffect(() => {
@@ -81,10 +115,30 @@ export default function AdminCommentsPage() {
   const remove = async (id: number) => {
     try {
       await api.adminDeleteComment(id);
-      notify.success('评论已删除');
+      notify.success('评论已移入回收站');
       load();
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '删除失败');
+    }
+  };
+
+  const restore = async (id: number) => {
+    try {
+      await api.adminRestoreComment(id);
+      notify.success('评论已恢复');
+      loadTrash(page);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '恢复失败');
+    }
+  };
+
+  const purge = async (id: number) => {
+    try {
+      await api.adminPurgeComment(id);
+      notify.success('评论已永久删除');
+      loadTrash(page);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '永久删除失败');
     }
   };
 
@@ -94,29 +148,108 @@ export default function AdminCommentsPage() {
     <div className="admin-page">
       <div className="admin-page-head">
         <h1>评论管理</h1>
-        <p>审核普通用户评论；通过后公开，拒绝后仅作者可见并私信通知。</p>
+        <p>
+          {tab === 'trash'
+            ? '回收站中的评论可恢复或永久删除；永久删除后不可撤销'
+            : '审核普通用户评论；通过后公开，拒绝后仅作者可见并私信通知。删除将移入回收站。'}
+        </p>
       </div>
 
       <div className="admin-tabs" role="tablist">
         <button
           type="button"
           className={cn('admin-tab', tab === 'pending' && 'active')}
-          onClick={() => setTab('pending')}
+          onClick={() => switchTab('pending')}
         >
           待审核{pendingCount > 0 ? ` (${pendingCount})` : ''}
         </button>
         <button
           type="button"
           className={cn('admin-tab', tab === 'all' && 'active')}
-          onClick={() => setTab('all')}
+          onClick={() => switchTab('all')}
         >
           全部评论
+        </button>
+        <button
+          type="button"
+          aria-selected={tab === 'trash'}
+          className={cn('admin-tab', tab === 'trash' && 'active')}
+          onClick={() => switchTab('trash')}
+        >
+          <Trash2 size={14} aria-hidden />
+          回收站
         </button>
       </div>
 
       <div className="admin-card">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        ) : tab === 'trash' ? (
+          <>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>楼层</th>
+                  <th>帖子</th>
+                  <th>作者</th>
+                  <th>内容</th>
+                  <th>删除时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trash.map(c => (
+                  <tr key={c.id}>
+                    <td>{c.id}</td>
+                    <td>#{c.floor}</td>
+                    <td>
+                      <button type="button" className="admin-text-link" onClick={() => nav(`/post/${c.post_id}`)}>
+                        {c.post?.title ?? `#${c.post_id}`}
+                      </button>
+                    </td>
+                    <td>
+                      {c.user_id && c.user ? c.user.nickname : (c.guest_nick || '游客')}
+                    </td>
+                    <td className="max-w-[200px] truncate">{c.content}</td>
+                    <td className="text-sm whitespace-nowrap">{formatAdminTime(c.deleted_at)}</td>
+                    <td>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => restore(c.id)}>
+                          <RotateCcw size={14} /> 恢复
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="text-destructive">永久删除</Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>永久删除该评论？</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                将彻底清除该评论及其已删回复、修订与点赞，此操作不可恢复。
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>取消</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => purge(c.id)}>永久删除</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {trash.length === 0 && <div className="admin-empty">回收站为空</div>}
+            {totalPages > 1 && (
+              <div className="admin-pagination">
+                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => loadTrash(page - 1)}>上一页</Button>
+                <span>{page} / {totalPages}</span>
+                <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => loadTrash(page + 1)}>下一页</Button>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <table className="admin-table">
@@ -157,7 +290,7 @@ export default function AdminCommentsPage() {
                       </Badge>
                     </td>
                     <td>{c.is_private ? <Badge variant="secondary">是</Badge> : '—'}</td>
-                    <td>{new Date(c.created_at).toLocaleString('zh-CN')}</td>
+                    <td>{formatAdminTime(c.created_at)}</td>
                     <td>
                       <div className="flex gap-1 flex-wrap">
                         {(c.status === 'pending' || c.status === 'rejected') && (
@@ -175,12 +308,14 @@ export default function AdminCommentsPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>确定删除该评论？</AlertDialogTitle>
-                              <AlertDialogDescription>删除后不可恢复。</AlertDialogDescription>
+                              <AlertDialogTitle>移入回收站？</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                将同时移入其下所有回复，可随时恢复；永久删除请到回收站操作。
+                              </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>取消</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => remove(c.id)}>删除</AlertDialogAction>
+                              <AlertDialogAction onClick={() => remove(c.id)}>移入回收站</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>

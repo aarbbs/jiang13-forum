@@ -215,6 +215,22 @@ export const api = {
       method: 'POST', body: JSON.stringify({ reason: reason || '' }),
     }),
   adminDeleteComment: (id: number) => request(`/api/admin/comments/${id}`, { method: 'DELETE' }),
+  adminTrashComments: (params?: { page?: number; keyword?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.keyword) q.set('keyword', params.keyword);
+    const qs = q.toString();
+    return request<{
+      comments: (Comment & { deleted_at: string })[];
+      total: number;
+      page: number;
+      total_pages: number;
+    }>(`/api/admin/comments/trash${qs ? `?${qs}` : ''}`);
+  },
+  adminRestoreComment: (id: number) =>
+    request<{ message: string }>(`/api/admin/comments/${id}/restore`, { method: 'POST' }),
+  adminPurgeComment: (id: number) =>
+    request<{ message: string }>(`/api/admin/comments/${id}/purge`, { method: 'DELETE' }),
   adminCommentRevisions: (id: number) =>
     request<{ revisions: CommentRevision[] }>(`/api/admin/comments/${id}/revisions`),
   adminUsers: (page = 1, opts?: { keyword?: string; filter?: string }) => {

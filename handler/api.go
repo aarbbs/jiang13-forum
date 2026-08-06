@@ -365,14 +365,53 @@ func (h *Handlers) APIAdminRejectComment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "已拒绝该评论并通知作者", "status": model.ContentStatusRejected})
 }
 
-// APIAdminDeleteComment 管理员删除评论
+// APIAdminDeleteComment 管理员软删除评论（进入回收站）
 func (h *Handlers) APIAdminDeleteComment(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.Comment.AdminDelete(uint(id)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "评论已删除"})
+	c.JSON(http.StatusOK, gin.H{"message": "评论已移入回收站"})
+}
+
+// APIAdminTrashComments 评论回收站列表
+func (h *Handlers) APIAdminTrashComments(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	comments, total, err := h.Comment.ListTrash(page, size, keyword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if comments == nil {
+		comments = []service.TrashCommentItem{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"comments": comments, "total": total, "page": page,
+		"total_pages": calcTotalPages(total, size),
+	})
+}
+
+// APIAdminRestoreComment 从回收站恢复评论
+func (h *Handlers) APIAdminRestoreComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Comment.Restore(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "评论已恢复"})
+}
+
+// APIAdminPurgeComment 永久删除回收站评论
+func (h *Handlers) APIAdminPurgeComment(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.Comment.Purge(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "评论已永久删除"})
 }
 
 // APIAdminCommentRevisions 管理员查看评论编辑历史
