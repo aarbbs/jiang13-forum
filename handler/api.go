@@ -198,7 +198,7 @@ func (h *Handlers) APIAdminLockPost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg, "edit_locked": req.Locked})
 }
 
-// APIAdminPinPost 置顶/取消置顶（JSON）
+// APIAdminPinPost 全局置顶/取消全局置顶（JSON）
 func (h *Handlers) APIAdminPinPost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	var req struct {
@@ -212,11 +212,32 @@ func (h *Handlers) APIAdminPinPost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	msg := "已取消置顶"
+	msg := "已取消全局置顶"
 	if req.Pinned {
-		msg = "已置顶"
+		msg = "已全局置顶"
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg, "pinned": req.Pinned})
+}
+
+// APIAdminBoardPinPost 板块内置顶/取消板块内置顶（JSON）
+func (h *Handlers) APIAdminBoardPinPost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		BoardPinned bool `json:"board_pinned"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Post.SetBoardPinned(uint(id), req.BoardPinned); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已取消板块置顶"
+	if req.BoardPinned {
+		msg = "已板块置顶"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "board_pinned": req.BoardPinned})
 }
 
 // APIAdminFeaturePost 设为精华/取消精华（JSON）

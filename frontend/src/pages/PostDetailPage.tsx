@@ -475,6 +475,19 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleBoardPin = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminBoardPinPost(postId, !post.board_pinned);
+      setPost(p => p ? { ...p, board_pinned: r.board_pinned } : p);
+      clearAllFeedCache();
+      window.dispatchEvent(new Event('posts-refresh'));
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
   const handleFeature = async () => {
     if (!post) return;
     try {
@@ -601,7 +614,10 @@ export default function PostDetailPage() {
         <div className="post-detail-head">
           <h1 className="post-detail-title">
             {post.pinned && (
-              <span className="post-pin-badge post-pin-badge--detail" title="置顶">置顶</span>
+              <span className="post-pin-badge post-pin-badge--detail" title="全局置顶">全局置顶</span>
+            )}
+            {post.board_pinned && (
+              <span className="post-pin-badge post-pin-badge--board post-pin-badge--detail" title="板块置顶">板块置顶</span>
             )}
             {post.featured && <FeaturedIcon className="mr-2" size={18} />}
             {post.status === 'pending' && <Badge variant="orange" className="mr-2 align-middle">审核中</Badge>}
@@ -792,7 +808,11 @@ export default function PostDetailPage() {
                   </Button>
                   <Button variant="outline" size="sm" onClick={handlePin}>
                     <Pin />
-                    {post.pinned ? '取消置顶' : '置顶'}
+                    {post.pinned ? '取消全局置顶' : '全局置顶'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleBoardPin}>
+                    <Pin />
+                    {post.board_pinned ? '取消板块置顶' : '板块置顶'}
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleLock}>
                     <Lock />

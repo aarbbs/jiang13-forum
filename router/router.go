@@ -194,6 +194,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/posts", h.APIAdminPosts)
 		adminAPI.GET("/posts/trash", h.APIAdminTrashPosts)
 		adminAPI.POST("/posts/:id/pin", h.APIAdminPinPost)
+		adminAPI.POST("/posts/:id/board-pin", h.APIAdminBoardPinPost)
 		adminAPI.POST("/posts/:id/feature", h.APIAdminFeaturePost)
 		adminAPI.POST("/posts/:id/lock", h.APIAdminLockPost)
 		adminAPI.POST("/posts/:id/approve", h.APIAdminApprovePost)

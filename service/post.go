@@ -275,6 +275,9 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	db.Count(&total)
 	var posts []model.Post
 	db = db.Order("pinned desc")
+	if q.BoardID > 0 {
+		db = db.Order("board_pinned desc")
+	}
 	switch normalizePostSort(q.Sort) {
 	case "reply":
 		// 有回复的帖子优先，按最后回复时间倒序；无回复的帖子沉底（仅计已公开评论）
@@ -691,6 +694,10 @@ func (s *PostService) Purge(postID uint) error {
 
 func (s *PostService) SetPinned(postID uint, pinned bool) error {
 	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("pinned", pinned).Error
+}
+
+func (s *PostService) SetBoardPinned(postID uint, boardPinned bool) error {
+	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("board_pinned", boardPinned).Error
 }
 
 func (s *PostService) SetFeatured(postID uint, featured bool) error {

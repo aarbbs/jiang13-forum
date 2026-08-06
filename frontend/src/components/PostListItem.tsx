@@ -78,7 +78,10 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
 
         <div className="post-title-row">
           {post.pinned && (
-            <span className="post-pin-badge" title="置顶">置顶</span>
+            <span className="post-pin-badge" title="全局置顶">全局置顶</span>
+          )}
+          {post.board_pinned && (
+            <span className="post-pin-badge post-pin-badge--board" title="板块置顶">板块置顶</span>
           )}
           {post.featured && (
             <span className="post-feature-badge" title="精华">

@@ -2321,6 +2321,13 @@ body:has(.admin-topbar) .ptr-indicator {
   border: 1px solid rgba(220, 38, 38, 0.22);
 }
 
+/* 板块置顶：与全局置顶同结构，用偏暖橙区分 */
+.post-pin-badge--board {
+  color: #c2410c;
+  background: rgba(234, 88, 12, 0.1);
+  border-color: rgba(234, 88, 12, 0.22);
+}
+
 .post-pin-badge--detail {
   margin-right: 8px;
   height: 22px;
@@ -2333,6 +2340,12 @@ body:has(.admin-topbar) .ptr-indicator {
   color: #f87171;
   background: rgba(248, 113, 113, 0.14);
   border-color: rgba(248, 113, 113, 0.28);
+}
+
+.dark .post-pin-badge--board {
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.14);
+  border-color: rgba(251, 146, 60, 0.28);
 }
 
 .post-status-badge {

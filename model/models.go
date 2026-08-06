@@ -92,8 +92,9 @@ type Post struct {
 	Tags         string         `gorm:"size:256" json:"tags"`
 	PostType     string         `gorm:"size:16;default:normal;index" json:"post_type"` // normal|question
 	QuestionResolved bool       `gorm:"default:false;index" json:"question_resolved"`  // 仅 question 有意义
-	Pinned     bool           `gorm:"default:false" json:"pinned"`
-	Featured   bool           `gorm:"default:false;index" json:"featured"` // 精华帖
+	Pinned      bool           `gorm:"default:false" json:"pinned"`       // 全局置顶
+	BoardPinned bool           `gorm:"default:false" json:"board_pinned"` // 板块内置顶
+	Featured    bool           `gorm:"default:false;index" json:"featured"` // 精华帖
 	EditLocked bool           `gorm:"default:false" json:"edit_locked"`
 	Status     string         `gorm:"size:16;default:published;index" json:"status"` // pending|published|rejected
 	LikeCount  int            `gorm:"default:0" json:"like_count"`

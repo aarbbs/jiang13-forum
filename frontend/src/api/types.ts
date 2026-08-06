@@ -89,6 +89,8 @@ export interface PostItem {
   /** 仅问答帖有意义 */
   question_resolved?: boolean;
   pinned: boolean;
+  /** 板块内置顶（仅板块列表抬升，首页不抬升） */
+  board_pinned?: boolean;
   featured?: boolean;
   edit_locked?: boolean;
   status?: 'pending' | 'published' | 'rejected' | string;

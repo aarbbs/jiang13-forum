@@ -81,6 +81,10 @@ export const api = {
     request<{ message: string; pinned: boolean }>(`/api/admin/posts/${id}/pin`, {
       method: 'POST', body: JSON.stringify({ pinned }),
     }),
+  adminBoardPinPost: (id: number, boardPinned: boolean) =>
+    request<{ message: string; board_pinned: boolean }>(`/api/admin/posts/${id}/board-pin`, {
+      method: 'POST', body: JSON.stringify({ board_pinned: boardPinned }),
+    }),
   adminFeaturePost: (id: number, featured: boolean) =>
     request<{ message: string; featured: boolean }>(`/api/admin/posts/${id}/feature`, {
       method: 'POST', body: JSON.stringify({ featured }),
