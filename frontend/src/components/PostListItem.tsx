@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Eye, Image as ImageIcon, MessageCircle, ThumbsUp } from 'lucide-react';
 import BoardBadge from '@/components/BoardBadge';
 import FeaturedIcon from '@/components/FeaturedIcon';
-import PinnedIcon from '@/components/PinnedIcon';
 import UserLink from '@/components/UserLink';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
@@ -79,9 +78,7 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
 
         <div className="post-title-row">
           {post.pinned && (
-            <span className="post-pin-badge post-pin-badge--icon" title="置顶">
-              <PinnedIcon size={13} />
-            </span>
+            <span className="post-pin-badge" title="置顶">置顶</span>
           )}
           {post.featured && (
             <span className="post-feature-badge" title="精华">

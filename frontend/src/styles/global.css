@@ -1512,14 +1512,25 @@ img.site-brand-logo-img {
 /* 手机端自定义下拉刷新指示器（原生 PTR 依赖 document 滚动） */
 .ptr-indicator {
   position: fixed;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   left: 0;
   right: 0;
-  z-index: 200;
+  z-index: 90;
   display: flex;
   justify-content: center;
   pointer-events: none;
-  transition: transform 0.12s ease-out;
+  will-change: transform;
+}
+
+/* 有顶栏时从顶栏下方露出，避免叠在导航上造成「气泡错位」 */
+body:has(.app-header) .ptr-indicator,
+body:has(.admin-topbar) .ptr-indicator {
+  top: calc(var(--j13-header-h) + env(safe-area-inset-top, 0px));
+}
+
+/* 仅松手回弹 / 进入刷新态时过渡，拖动跟手不加 transition */
+.ptr-indicator--settling {
+  transition: transform 0.2s ease-out;
 }
 
 .ptr-indicator__chip {
@@ -2297,7 +2308,7 @@ img.site-brand-logo-img {
   gap: 3px;
   flex-shrink: 0;
   height: 20px;
-  padding: 0 7px 0 5px;
+  padding: 0 7px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
@@ -2310,17 +2321,12 @@ img.site-brand-logo-img {
   border: 1px solid rgba(220, 38, 38, 0.22);
 }
 
-.post-pin-badge--icon {
-  width: 20px;
-  padding: 0;
-  justify-content: center;
-}
-
 .post-pin-badge--detail {
-  width: 24px;
-  height: 24px;
   margin-right: 8px;
-  vertical-align: -3px;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  vertical-align: middle;
 }
 
 .dark .post-pin-badge {
@@ -2417,6 +2423,7 @@ img.site-brand-logo-img {
 .waline-comment-status--rejected { color: #e11d48; }
 
 .post-feature-badge {
+  padding: 0 7px 0 5px;
   color: #b45309;
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.22);
@@ -2428,7 +2435,6 @@ img.site-brand-logo-img {
   border-color: rgba(251, 191, 36, 0.22);
 }
 
-.post-pin-badge .post-pinned-icon,
 .post-feature-badge .post-featured-icon {
   color: inherit;
   vertical-align: 0;
@@ -2529,14 +2535,6 @@ a.post-title:visited {
 
 .post-stat--media {
   opacity: 0.8;
-}
-
-.post-pinned-icon {
-  display: inline-block;
-  vertical-align: -0.15em;
-  flex-shrink: 0;
-  color: var(--j13-green);
-  stroke-width: 1.75;
 }
 
 .post-featured-icon {
@@ -5789,9 +5787,9 @@ a.waline-comment-author:hover {
     "avatar info"
     "stats stats";
   align-items: start;
-  gap: 20px 24px;
-  padding: 24px;
-  margin-bottom: 16px;
+  gap: 16px 20px;
+  padding: 20px;
+  margin-bottom: 12px;
   background: var(--j13-bg-block);
   border: 1px solid var(--j13-border-light);
   border-radius: 12px;
@@ -5927,7 +5925,7 @@ a.waline-comment-author:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .profile-id-chip {
@@ -5991,7 +5989,7 @@ a.waline-comment-author:hover {
 }
 
 .profile-signature {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.55;
   color: var(--color-text-2);
@@ -6004,9 +6002,94 @@ a.waline-comment-author:hover {
   font-style: italic;
 }
 
+button.profile-signature--editable {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 8px;
+  margin-left: -8px;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+button.profile-signature--editable:hover,
+button.profile-signature--editable:focus-visible {
+  background: var(--j13-green-bg);
+  border-color: color-mix(in srgb, var(--j13-green) 35%, transparent);
+  color: var(--j13-green);
+  outline: none;
+}
+
+button.profile-signature--editable.profile-signature--empty {
+  align-items: center;
+  color: var(--color-text-3);
+  font-style: normal;
+}
+
+button.profile-signature--editable.profile-signature--empty:hover,
+button.profile-signature--editable.profile-signature--empty:focus-visible {
+  color: var(--j13-green);
+}
+
+.profile-signature-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.profile-signature-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-4);
+  opacity: 0.85;
+}
+
+button.profile-signature--editable:hover .profile-signature-edit,
+button.profile-signature--editable:focus-visible .profile-signature-edit {
+  color: var(--j13-green);
+  opacity: 1;
+}
+
+.profile-settings-lead {
+  margin: -4px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-3);
+}
+
+.section-card-title--sub {
+  margin-top: 0;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-readonly-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-form--readonly {
+  gap: 14px;
+}
+
 .profile-form-divider {
   height: 1px;
-  margin: 24px 0;
+  margin: 20px 0;
   background: var(--j13-border-light);
 }
 
@@ -6167,12 +6250,18 @@ button.profile-stat:hover strong {
 .profile-tabs {
   display: flex;
   gap: 4px;
-  margin: 4px 0 16px;
+  margin: 0 0 16px;
   padding: 4px;
   border: 1px solid var(--j13-border-light);
   border-radius: 12px;
   background: var(--j13-bg-block);
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.profile-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .profile-tab {
@@ -6192,6 +6281,11 @@ button.profile-stat:hover strong {
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
+}
+
+.profile-tab-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .profile-tab:hover {
@@ -6217,6 +6311,10 @@ button.profile-stat:hover strong {
 
 .profile-panel {
   margin-bottom: 24px;
+}
+
+.profile-panel--points .points-wallet {
+  margin-top: 0;
 }
 
 .profile-avatar-actions {
@@ -6282,6 +6380,12 @@ button.profile-stat:hover strong {
     justify-content: center;
   }
 
+  button.profile-signature--editable {
+    margin-left: 0;
+    justify-content: center;
+    text-align: center;
+  }
+
   .profile-meta-list {
     width: 100%;
     text-align: left;
@@ -6290,6 +6394,24 @@ button.profile-stat:hover strong {
   .profile-stat-grid {
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-tab {
+    padding: 9px 8px;
+    font-size: 12px;
+  }
+
+  .admin-entry-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-entry-bar-actions {
+    width: 100%;
+  }
+
+  .admin-entry-bar-actions > * {
+    flex: 1;
   }
 
   .profile-form-footer {
@@ -6348,6 +6470,35 @@ button.profile-stat:hover strong {
 .admin-entry-card {
   border-color: color-mix(in srgb, var(--j13-green) 25%, var(--j13-border));
   background: var(--j13-bg-block-accent);
+}
+
+/* 个人中心：站长入口紧凑条（避免挡在资料 Tab 前） */
+.admin-entry-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--j13-green) 22%, var(--j13-border-light));
+  border-radius: 10px;
+  background: var(--j13-bg-block-accent);
+}
+
+.admin-entry-bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--j13-green);
+}
+
+.admin-entry-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* 通用懒加载占位：非 Feed 页勿用首页鱼骨骨架 */

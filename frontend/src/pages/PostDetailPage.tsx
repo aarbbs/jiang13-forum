@@ -2,7 +2,6 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
-import PinnedIcon from '@/components/PinnedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import BoardBadge from '@/components/BoardBadge';
@@ -600,9 +599,7 @@ export default function PostDetailPage() {
         <div className="post-detail-head">
           <h1 className="post-detail-title">
             {post.pinned && (
-              <span className="post-pin-badge post-pin-badge--icon post-pin-badge--detail" title="置顶">
-                <PinnedIcon size={16} />
-              </span>
+              <span className="post-pin-badge post-pin-badge--detail" title="置顶">置顶</span>
             )}
             {post.featured && <FeaturedIcon className="mr-2" size={18} />}
             {post.status === 'pending' && <Badge variant="orange" className="mr-2 align-middle">审核中</Badge>}

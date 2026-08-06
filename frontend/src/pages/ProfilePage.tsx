@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Camera,
   Check,
+  Coins,
   Copy,
   FileText,
   Hash,
@@ -22,7 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import UserBadges from '../components/UserBadges';
 import PointsWalletPanel from '../components/PointsWalletPanel';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -63,10 +64,10 @@ const pwdSchema = (minLen: number) => z.object({
 type NickValues = z.infer<typeof nickSchema>;
 type SigValues = z.infer<ReturnType<typeof sigSchema>>;
 type PwdValues = z.infer<ReturnType<typeof pwdSchema>>;
-type ProfileTab = 'posts' | 'settings' | 'security';
+type ProfileTab = 'posts' | 'points' | 'settings' | 'security';
 
 function parseTab(raw: string | null): ProfileTab {
-  if (raw === 'settings' || raw === 'security' || raw === 'posts') return raw;
+  if (raw === 'settings' || raw === 'security' || raw === 'points' || raw === 'posts') return raw;
   return 'posts';
 }
 
@@ -96,6 +97,8 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout>>();
+  const sigSectionRef = useRef<HTMLDivElement>(null);
+  const pendingFocusSig = useRef(false);
 
   const { limits } = useForumLimits();
   const pageSize = limits.page_size_default > 0 ? limits.page_size_default : 20;
@@ -123,6 +126,38 @@ export default function ProfilePage() {
     else nextParams.set('tab', next);
     setParams(nextParams, { replace: true });
   };
+
+  const focusSignatureField = useCallback(() => {
+    sigSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => {
+      sigSectionRef.current?.querySelector('textarea')?.focus();
+    }, 80);
+  }, []);
+
+  /** 顶部签名 /「编辑资料」：跳到资料 Tab 并聚焦签名框 */
+  const goEditSignature = () => {
+    if (tab !== 'settings') {
+      pendingFocusSig.current = true;
+      setTab('settings');
+      return;
+    }
+    focusSignatureField();
+  };
+
+  const goEditProfile = () => {
+    if (tab !== 'settings') {
+      setTab('settings');
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (tab !== 'settings' || !pendingFocusSig.current) return;
+    pendingFocusSig.current = false;
+    const t = window.setTimeout(focusSignatureField, 40);
+    return () => window.clearTimeout(t);
+  }, [tab, focusSignatureField]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -334,8 +369,9 @@ export default function ProfilePage() {
 
   const tabs: { key: ProfileTab; label: string; count?: number }[] = [
     { key: 'posts', label: '我的帖子', count: stats?.post_count },
-    { key: 'settings', label: '资料设置' },
-    { key: 'security', label: '安全设置' },
+    { key: 'points', label: '积分' },
+    { key: 'settings', label: '资料' },
+    { key: 'security', label: '安全' },
   ];
 
   return (
@@ -415,29 +451,38 @@ export default function ProfilePage() {
                 >
                   公开主页
                 </button>
+                <button
+                  type="button"
+                  className="profile-id-copy"
+                  onClick={goEditProfile}
+                >
+                  <PenLine size={13} aria-hidden />
+                  编辑资料
+                </button>
               </div>
               {user.signature?.trim() ? (
-                <p className="profile-signature">{user.signature}</p>
+                <button
+                  type="button"
+                  className="profile-signature profile-signature--editable"
+                  onClick={goEditSignature}
+                  title="编辑个性签名"
+                >
+                  <span className="profile-signature-text">{user.signature}</span>
+                  <span className="profile-signature-edit">
+                    <PenLine size={13} aria-hidden />
+                    编辑
+                  </span>
+                </button>
               ) : (
-                <p className="profile-signature profile-signature--empty">尚未设置签名</p>
+                <button
+                  type="button"
+                  className="profile-signature profile-signature--empty profile-signature--editable"
+                  onClick={goEditSignature}
+                >
+                  <PenLine size={14} aria-hidden />
+                  点击设置个性签名
+                </button>
               )}
-              <dl className="profile-meta-list">
-                <div>
-                  <dt>用户名</dt>
-                  <dd>{user.username}</dd>
-                </div>
-                <div>
-                  <dt>邮箱</dt>
-                  <dd>{user.email || '未设置'}</dd>
-                </div>
-                {joinedAt && (
-                  <div>
-                    <dt>注册时间</dt>
-                    <dd>{joinedAt}</dd>
-                  </div>
-                )}
-              </dl>
-              <p className="profile-avatar-tip">点击头像选择图片，或拖拽到此处更换</p>
             </div>
             {pendingAvatar && (
               <div className="profile-avatar-actions">
@@ -491,22 +536,19 @@ export default function ProfilePage() {
           onConfirm={onCropConfirm}
         />
 
-        <PointsWalletPanel />
-
         {user.role === 'admin' && (
-          <div className="section-card admin-entry-card">
-            <div className="section-card-title">站长入口</div>
-            <p className="admin-entry-desc">
-              管理板块、用户、帖子及系统设置
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => nav('/admin/boards')}>
-                <Settings />
+          <div className="admin-entry-bar">
+            <span className="admin-entry-bar-label">
+              <Settings size={14} aria-hidden />
+              站长
+            </span>
+            <div className="admin-entry-bar-actions">
+              <Button size="sm" variant="outline" onClick={() => nav('/admin/boards')}>
                 管理板块
               </Button>
-              <Button onClick={() => nav('/admin/dashboard')}>
-                <LayoutDashboard />
-                进入系统后台
+              <Button size="sm" onClick={() => nav('/admin/dashboard')}>
+                <LayoutDashboard size={14} />
+                系统后台
               </Button>
             </div>
           </div>
@@ -522,6 +564,7 @@ export default function ProfilePage() {
               className={`profile-tab${tab === t.key ? ' active' : ''}`}
               onClick={() => setTab(t.key)}
             >
+              {t.key === 'points' && <Coins size={14} aria-hidden className="profile-tab-icon" />}
               {t.label}
               {typeof t.count === 'number' && (
                 <span className="profile-tab-count">{t.count}</span>
@@ -565,29 +608,20 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {tab === 'points' && (
+          <div className="profile-panel profile-panel--points">
+            <PointsWalletPanel />
+          </div>
+        )}
+
         {tab === 'settings' && (
           <div className="section-card">
-            <div className="section-card-title">基本资料</div>
+            <div className="section-card-title">展示资料</div>
+            <p className="profile-settings-lead">
+              昵称与个性签名会显示在公开主页和帖子旁
+            </p>
             <Form {...nickForm}>
               <form onSubmit={nickForm.handleSubmit(onUpdateNick)} className="profile-form">
-                <FormItem>
-                  <FormLabel>用户 ID</FormLabel>
-                  <FormControl>
-                    <Input value={String(user.id)} disabled />
-                  </FormControl>
-                </FormItem>
-                <FormItem>
-                  <FormLabel>用户名</FormLabel>
-                  <FormControl>
-                    <Input value={user.username} disabled />
-                  </FormControl>
-                </FormItem>
-                <FormItem>
-                  <FormLabel>邮箱</FormLabel>
-                  <FormControl>
-                    <Input value={user.email || '未设置'} disabled />
-                  </FormControl>
-                </FormItem>
                 <FormField
                   control={nickForm.control}
                   name="nickname"
@@ -603,7 +637,7 @@ export default function ProfilePage() {
                 />
                 <div className="profile-form-footer">
                   <span className="profile-form-hint">
-                    用户名与 ID 不可修改；头像支持 JPG / PNG / GIF / WebP，服务端保留原图并生成 WebP，裁剪后不超过 {limits.avatar_max_mb}MB
+                    头像可在上方点击或拖拽更换；支持 JPG / PNG / GIF / WebP，裁剪后不超过 {limits.avatar_max_mb}MB
                   </span>
                   <Button type="submit" loading={nickLoading}>保存昵称</Button>
                 </div>
@@ -612,34 +646,61 @@ export default function ProfilePage() {
 
             <div className="profile-form-divider" />
 
-            <Form {...sigForm}>
-              <form onSubmit={sigForm.handleSubmit(onUpdateSig)} className="profile-form">
-                <FormField
-                  control={sigForm.control}
-                  name="signature"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>个人签名</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          rows={3}
-                          maxLength={sigMax}
-                          placeholder="写一句介绍自己的话，会显示在公开主页"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="profile-form-footer">
-                  <span className="profile-form-hint">
-                    {(sigForm.watch('signature') || '').length}/{sigMax}
-                  </span>
-                  <Button type="submit" loading={sigLoading}>保存签名</Button>
+            <div ref={sigSectionRef} id="profile-signature">
+              <Form {...sigForm}>
+                <form onSubmit={sigForm.handleSubmit(onUpdateSig)} className="profile-form">
+                  <FormField
+                    control={sigForm.control}
+                    name="signature"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>个性签名</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            maxLength={sigMax}
+                            placeholder="写一句介绍自己的话，会显示在公开主页与个人中心顶部"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="profile-form-footer">
+                    <span className="profile-form-hint">
+                      {(sigForm.watch('signature') || '').length}/{sigMax}
+                    </span>
+                    <Button type="submit" loading={sigLoading}>保存签名</Button>
+                  </div>
+                </form>
+              </Form>
+            </div>
+
+            <div className="profile-form-divider" />
+
+            <div className="section-card-title section-card-title--sub">账号信息</div>
+            <div className="profile-form profile-form--readonly">
+              <div className="profile-readonly-field">
+                <Label htmlFor="profile-readonly-id">用户 ID</Label>
+                <Input id="profile-readonly-id" value={String(user.id)} disabled />
+              </div>
+              <div className="profile-readonly-field">
+                <Label htmlFor="profile-readonly-username">用户名</Label>
+                <Input id="profile-readonly-username" value={user.username} disabled />
+              </div>
+              <div className="profile-readonly-field">
+                <Label htmlFor="profile-readonly-email">邮箱</Label>
+                <Input id="profile-readonly-email" value={user.email || '未设置'} disabled />
+              </div>
+              {joinedAt && (
+                <div className="profile-readonly-field">
+                  <Label htmlFor="profile-readonly-joined">注册时间</Label>
+                  <Input id="profile-readonly-joined" value={joinedAt} disabled />
                 </div>
-              </form>
-            </Form>
+              )}
+              <p className="profile-form-hint">用户名与 ID 注册后不可修改</p>
+            </div>
           </div>
         )}
 
