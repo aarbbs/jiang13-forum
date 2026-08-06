@@ -35,6 +35,8 @@ type PostListQuery struct {
 	Size          int
 	Keyword       string
 	Tag           string // 精确标签筛选（整枚匹配，不走 keyword LIKE）
+	Author        string // 作者用户名或昵称（解析为 UserID）
+	TitleOnly     bool   // 关键词仅匹配标题
 	Sort          string // latest | reply | hot
 	ViewerID      uint   // 当前查看者（用于 pending 仅作者可见）
 	ViewerIsAdmin bool
@@ -127,14 +129,29 @@ func parseSQLiteTime(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// HotPosts 近期活跃讨论（近 7 日有公开回复，按最后回复时间倒序）
 func (s *PostService) HotPosts(limit int) ([]PostListItem, error) {
 	if limit <= 0 {
 		limit = 10
 	}
+	since := time.Now().Add(-7 * 24 * time.Hour)
 	var posts []model.Post
 	err := model.DB.Preload("User").Preload("Board").
 		Where("status = ?", model.ContentStatusPublished).
-		Order("like_count desc, view_count desc").Limit(limit).Find(&posts).Error
+		Where(`EXISTS (
+			SELECT 1 FROM comments
+			WHERE comments.post_id = posts.id
+			AND comments.deleted_at IS NULL
+			AND comments.status = ?
+			AND comments.created_at >= ?
+		)`, model.ContentStatusPublished, since).
+		Order(`(
+			SELECT MAX(created_at) FROM comments
+			WHERE comments.post_id = posts.id
+			AND comments.deleted_at IS NULL
+			AND comments.status = 'published'
+		) DESC`).
+		Limit(limit).Find(&posts).Error
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +160,14 @@ func (s *PostService) HotPosts(limit int) ([]PostListItem, error) {
 		ids[i] = p.ID
 	}
 	countMap := s.commentCountMap(ids)
+	replyMap := s.lastReplyMap(ids)
 	items := make([]PostListItem, len(posts))
 	for i, p := range posts {
-		items[i] = PostListItem{Post: p, CommentCount: countMap[p.ID]}
+		items[i] = PostListItem{
+			Post:         p,
+			CommentCount: countMap[p.ID],
+			LastReplyAt:  replyMap[p.ID],
+		}
 	}
 	return items, nil
 }
@@ -260,6 +282,15 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 		}
 		q.Keyword = kw
 	}
+	if q.UserID == 0 {
+		if author := strings.TrimSpace(q.Author); author != "" {
+			if uid, ok := resolveAuthorUserID(author); ok {
+				q.UserID = uid
+			} else {
+				return []model.Post{}, 0, nil
+			}
+		}
+	}
 	db := model.DB.Model(&model.Post{}).Preload("User").Preload("Board")
 	db = applyPostVisibility(db, q)
 	if q.BoardID > 0 {
@@ -270,7 +301,11 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	}
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"
-		db = db.Where("title LIKE ? OR content_plain LIKE ? OR tags LIKE ?", kw, kw, kw)
+		if q.TitleOnly {
+			db = db.Where("title LIKE ?", kw)
+		} else {
+			db = db.Where("title LIKE ? OR content_plain LIKE ? OR tags LIKE ?", kw, kw, kw)
+		}
 	}
 	if tag := strings.TrimSpace(q.Tag); tag != "" {
 		// 整枚标签匹配：逗号/中文逗号分隔，忽略标签两侧空格，大小写不敏感
@@ -323,6 +358,22 @@ func escapeLikePattern(s string) string {
 	s = strings.ReplaceAll(s, `%`, `\%`)
 	s = strings.ReplaceAll(s, `_`, `\_`)
 	return s
+}
+
+// resolveAuthorUserID 按用户名精确匹配，否则按昵称精确匹配（优先用户名）
+func resolveAuthorUserID(author string) (uint, bool) {
+	author = strings.TrimSpace(author)
+	if author == "" {
+		return 0, false
+	}
+	var u model.User
+	if err := model.DB.Select("id").Where("username = ?", author).First(&u).Error; err == nil {
+		return u.ID, true
+	}
+	if err := model.DB.Select("id").Where("nickname = ?", author).First(&u).Error; err == nil {
+		return u.ID, true
+	}
+	return 0, false
 }
 
 func (s *PostService) FindByID(id uint) (*model.Post, error) {

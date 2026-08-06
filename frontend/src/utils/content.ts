@@ -9,10 +9,13 @@ function escapeWithBreaks(text: string): string {
     .replace(/\n/g, '<br>');
 }
 
-/** @用户名 高亮（仅用于评论正文中用户主动输入的 @） */
-export function highlightMentions(text: string, _onClick?: (name: string) => void): string {
+/** @用户名 高亮（data-name 供点击跳转用户主页） */
+export function highlightMentions(text: string): string {
   return escapeWithBreaks(text)
-    .replace(/@([\w\u4e00-\u9fa5_-]+)/g, '<span class="mention">@$1</span>');
+    .replace(
+      /@([\w\u4e00-\u9fa5_-]+)/g,
+      '<span class="mention" data-name="$1" role="link" tabindex="0">@$1</span>',
+    );
 }
 
 /** 相对时间：刚刚 / N分钟前 / N小时前 / N天前；更早用具体日期 */

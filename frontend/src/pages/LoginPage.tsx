@@ -92,6 +92,8 @@ export default function LoginPage() {
           </form>
         </Form>
         <p className="auth-footer">
+          <Link to="/forgot-password">忘记密码</Link>
+          <span className="auth-footer-sep" aria-hidden>·</span>
           没有账号？<Link to={registerPath(redirectTo === '/' ? undefined : redirectTo)}>注册</Link>
         </p>
         <Link to="/" className="auth-back">

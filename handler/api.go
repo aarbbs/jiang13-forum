@@ -364,6 +364,7 @@ func (h *Handlers) APIAdminApproveComment(c *gin.Context) {
 		if comment, err := h.Comment.GetByID(uint(id)); err == nil {
 			comment.Status = model.ContentStatusPublished
 			h.Notify.AsyncNotifyCommentPublished(comment)
+			h.Notify.AsyncNotifyCommentMentions(comment)
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "评论已通过审核", "status": model.ContentStatusPublished})
@@ -933,6 +934,8 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	userID, _ := strconv.ParseUint(c.Query("user_id"), 10, 64)
 	keyword := c.Query("keyword")
 	tag := strings.TrimSpace(c.Query("tag"))
+	author := strings.TrimSpace(c.Query("author"))
+	titleOnly := c.Query("title_only") == "1" || strings.EqualFold(c.Query("title_only"), "true")
 
 	q := service.PostListQuery{
 		BoardID:       uint(boardID),
@@ -941,6 +944,8 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		Size:          size,
 		Keyword:       keyword,
 		Tag:           tag,
+		Author:        author,
+		TitleOnly:     titleOnly,
 		Sort:          c.DefaultQuery("sort", "latest"),
 		ViewerID:      h.currentUserID(c),
 		ViewerIsAdmin: h.isAdmin(c),
@@ -1063,7 +1068,7 @@ func (h *Handlers) APIPostComments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"comments": comments, "total": len(comments)})
 }
 
-// APIHotPosts 热门 TOP
+// APIHotPosts 近期活跃讨论（近 7 日有回复）
 func (h *Handlers) APIHotPosts(c *gin.Context) {
 	items, err := h.Post.HotPosts(10)
 	if err != nil {

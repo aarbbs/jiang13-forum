@@ -155,6 +155,77 @@ func (h *Handlers) APISendRegisterEmailCode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "验证码已发送"})
 }
 
+// APISendResetEmailCode 发送重置密码验证码
+func (h *Handlers) APISendResetEmailCode(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" form:"email" binding:"required"`
+	}
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if !h.Settings.MailReady() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrMailNotConfigured.Error()})
+		return
+	}
+	if err := h.EmailCode.SendResetCode(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "若该邮箱已注册，验证码将发送到邮箱"})
+}
+
+// APIResetPassword 邮箱验证码重置密码
+func (h *Handlers) APIResetPassword(c *gin.Context) {
+	var req struct {
+		Email       string `json:"email" form:"email" binding:"required"`
+		EmailCode   string `json:"email_code" form:"email_code" binding:"required"`
+		NewPassword string `json:"new_password" form:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if !h.Settings.MailReady() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrMailNotConfigured.Error()})
+		return
+	}
+	if !h.EmailCode.VerifyPurpose(service.EmailCodePurposeReset, req.Email, req.EmailCode) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrEmailCodeInvalid.Error()})
+		return
+	}
+	if err := h.User.ResetPasswordByEmail(req.Email, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "密码已重置，请使用新密码登录"})
+}
+
+// APISearchUsers 用户搜索（@补全）
+func (h *Handlers) APISearchUsers(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusOK, gin.H{"users": []any{}})
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "8"))
+	users, err := h.User.SearchUsersBrief(q, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	out := make([]gin.H, 0, len(users))
+	for _, u := range users {
+		out = append(out, gin.H{
+			"id":       u.ID,
+			"username": u.Username,
+			"nickname": u.Nickname,
+			"avatar":   u.Avatar,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"users": out})
+}
+
 func (h *Handlers) APIRegister(c *gin.Context) {
 	var req struct {
 		Username  string `json:"username" form:"username" binding:"required"`
@@ -468,6 +539,7 @@ func (h *Handlers) APICreateComment(c *gin.Context) {
 		switch comment.Status {
 		case model.ContentStatusPublished:
 			h.Notify.AsyncNotifyCommentPublished(comment)
+			h.Notify.AsyncNotifyCommentMentions(comment)
 		case model.ContentStatusPending:
 			msg = "评论已提交，审核通过后公开显示"
 			h.Notify.AsyncNotifyPendingComment(comment)

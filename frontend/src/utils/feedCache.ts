@@ -15,18 +15,40 @@ export type FeedCache = {
 /** 仅存内存：SPA 内返回可恢复，浏览器刷新自动清空 */
 const store = new Map<string, FeedCache>();
 
-function cacheKey(boardId: number, keyword: string, sort: FeedSort, tag = '') {
-  return `${boardId}:${keyword}:${tag}:${sort}`;
+function cacheKey(
+  boardId: number,
+  keyword: string,
+  sort: FeedSort,
+  tag = '',
+  author = '',
+  titleOnly = false,
+) {
+  return `${boardId}:${keyword}:${tag}:${author}:${titleOnly ? 1 : 0}:${sort}`;
 }
 
 /** 读取帖子列表缓存（从详情页返回时恢复浏览位置） */
-export function getFeedCache(boardId: number, keyword: string, sort: FeedSort, tag = ''): FeedCache | null {
-  return store.get(cacheKey(boardId, keyword, sort, tag)) ?? null;
+export function getFeedCache(
+  boardId: number,
+  keyword: string,
+  sort: FeedSort,
+  tag = '',
+  author = '',
+  titleOnly = false,
+): FeedCache | null {
+  return store.get(cacheKey(boardId, keyword, sort, tag, author, titleOnly)) ?? null;
 }
 
 /** 保存帖子列表缓存 */
-export function setFeedCache(boardId: number, keyword: string, sort: FeedSort, data: FeedCache, tag = '') {
-  store.set(cacheKey(boardId, keyword, sort, tag), data);
+export function setFeedCache(
+  boardId: number,
+  keyword: string,
+  sort: FeedSort,
+  data: FeedCache,
+  tag = '',
+  author = '',
+  titleOnly = false,
+) {
+  store.set(cacheKey(boardId, keyword, sort, tag, author, titleOnly), data);
 }
 
 /** 清除所有帖子列表缓存 */

@@ -72,6 +72,57 @@ func (s *UserService) GetByUsername(username string) (*model.User, error) {
 	return &user, nil
 }
 
+// GetByEmail 按邮箱查询
+func (s *UserService) GetByEmail(email string) (*model.User, error) {
+	email = NormalizeEmail(email)
+	var user model.User
+	if err := model.DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// ResetPasswordByEmail 通过邮箱重置密码（已通过验证码校验）
+func (s *UserService) ResetPasswordByEmail(email, newPass string) error {
+	if err := ValidatePassword(newPass, s.settings.PasswordMinLen()); err != nil {
+		return err
+	}
+	user, err := s.GetByEmail(email)
+	if err != nil {
+		return errors.New("用户不存在")
+	}
+	hash, err := HashPassword(newPass)
+	if err != nil {
+		return err
+	}
+	return model.DB.Model(&model.User{}).Where("id = ?", user.ID).Update("password", hash).Error
+}
+
+// SearchUsersBrief 公开用户搜索（@补全）：匹配用户名/昵称，不含邮箱
+func (s *UserService) SearchUsersBrief(keyword string, limit int) ([]model.User, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return []model.User{}, nil
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 8
+	}
+	like := "%" + keyword + "%"
+	var users []model.User
+	err := model.DB.Select("id", "username", "nickname", "avatar", "role", "verified").
+		Where("username LIKE ? OR nickname LIKE ?", like, like).
+		Order("username ASC").
+		Limit(limit).
+		Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	if users == nil {
+		users = []model.User{}
+	}
+	return users, nil
+}
+
 // UpdateNickname 修改昵称
 func (s *UserService) UpdateNickname(userID uint, nickname string) error {
 	nickname = strings.TrimSpace(nickname)

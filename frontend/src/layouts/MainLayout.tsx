@@ -68,6 +68,10 @@ export default function MainLayout() {
   const asideEverLoaded = useRef(false);
   const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
+  const [searchAuthor, setSearchAuthor] = useState(params.get('author') || '');
+  const [searchTitleOnly, setSearchTitleOnly] = useState(params.get('title_only') === '1');
+  const [searchInBoard, setSearchInBoard] = useState(!!params.get('board') && !!params.get('keyword'));
+  const [searchAdvanced, setSearchAdvanced] = useState(false);
   const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
 
@@ -96,7 +100,12 @@ export default function MainLayout() {
   });
 
   useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
-  useEffect(() => { setKeyword(params.get('keyword') || ''); }, [params]);
+  useEffect(() => {
+    setKeyword(params.get('keyword') || '');
+    setSearchAuthor(params.get('author') || '');
+    setSearchTitleOnly(params.get('title_only') === '1');
+    setSearchInBoard(!!params.get('board') && (!!params.get('keyword') || !!params.get('author')));
+  }, [params]);
   useEffect(() => {
     setAsideOpen(false);
     setSidebarOpen(false);
@@ -226,24 +235,39 @@ export default function MainLayout() {
 
   const doSearch = () => {
     const kw = keyword.trim();
-    const active = (params.get('keyword') || '').trim();
-    if (!kw) {
-      // 输入已空：仅当 URL 仍带搜索时才回到全部帖子
-      if (active) navigateFeed(nav, '/');
+    const author = searchAuthor.trim();
+    const activeKw = (params.get('keyword') || '').trim();
+    const activeAuthor = (params.get('author') || '').trim();
+    const activeTitleOnly = params.get('title_only') === '1';
+    const activeBoard = Number(params.get('board')) || 0;
+    if (!kw && !author) {
+      if (activeKw || activeAuthor) navigateFeed(nav, '/');
       return;
     }
-    const len = [...kw].length;
-    if (forumLimits.search_keyword_min > 0 && len < forumLimits.search_keyword_min) {
-      notify.warning(`搜索关键词至少 ${forumLimits.search_keyword_min} 个字`);
-      return;
+    if (kw) {
+      const len = [...kw].length;
+      if (forumLimits.search_keyword_min > 0 && len < forumLimits.search_keyword_min) {
+        notify.warning(`搜索关键词至少 ${forumLimits.search_keyword_min} 个字`);
+        return;
+      }
+      if (forumLimits.search_keyword_max > 0 && len > forumLimits.search_keyword_max) {
+        notify.warning(`搜索关键词最多 ${forumLimits.search_keyword_max} 个字`);
+        return;
+      }
     }
-    if (forumLimits.search_keyword_max > 0 && len > forumLimits.search_keyword_max) {
-      notify.warning(`搜索关键词最多 ${forumLimits.search_keyword_max} 个字`);
-      return;
-    }
-    const target = `/?keyword=${encodeURIComponent(kw)}`;
-    // 相同关键词再次回车：强制刷新，避免命中错误缓存或被当成空导航
-    if (active === kw && loc.pathname === '/') {
+    const scopeBoard = searchInBoard && boardId > 0 ? boardId : 0;
+    const target = buildHomeUrl(scopeBoard, 'latest', {
+      keyword: kw,
+      author,
+      titleOnly: !!kw && searchTitleOnly,
+    });
+    const same =
+      loc.pathname === '/'
+      && activeKw === kw
+      && activeAuthor === author
+      && activeTitleOnly === (!!kw && searchTitleOnly)
+      && activeBoard === scopeBoard;
+    if (same) {
       navigateFeed(nav, target);
       return;
     }
@@ -259,9 +283,10 @@ export default function MainLayout() {
   const isFeedHome = loc.pathname === '/';
   const outletKeyword = params.get('keyword') || '';
   const outletTag = params.get('tag') || '';
+  const outletAuthor = params.get('author') || '';
   // 搜索/标签结果页不选中任何板块芯片（避免看起来仍停在「全部」）
   const mobileActiveBoard =
-    isNeutralSidebarRoute(loc.pathname) || !!outletKeyword || !!outletTag
+    isNeutralSidebarRoute(loc.pathname) || !!outletKeyword || !!outletTag || !!outletAuthor
       ? -1
       : boardId;
 
@@ -346,7 +371,7 @@ export default function MainLayout() {
 
           {!isCompose && (!isMobile || searchExpanded) && (
           <form
-            className={`header-search-wrap${isMobile && searchExpanded ? ' header-search-wrap--expanded' : ''}`}
+            className={`header-search-wrap${isMobile && searchExpanded ? ' header-search-wrap--expanded' : ''}${searchAdvanced ? ' header-search-wrap--advanced' : ''}`}
             role="search"
             onSubmit={e => {
               e.preventDefault();
@@ -354,34 +379,80 @@ export default function MainLayout() {
               if (isMobile) setSearchExpanded(false);
             }}
           >
-            <Search className="header-search-icon" size={16} aria-hidden />
-            <input
-              ref={searchInputRef}
-              className="header-search-input"
-              type="search"
-              placeholder="搜索帖子..."
-              aria-label="搜索帖子"
-              value={keyword}
-              onChange={e => setKeyword(e.target.value)}
-              maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
-              enterKeyHint="search"
-            />
-            {keyword && (
+            <div className="header-search-row">
+              <Search className="header-search-icon" size={16} aria-hidden />
+              <input
+                ref={searchInputRef}
+                className="header-search-input"
+                type="search"
+                placeholder="搜索帖子..."
+                aria-label="搜索帖子"
+                value={keyword}
+                onChange={e => setKeyword(e.target.value)}
+                maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
+                enterKeyHint="search"
+              />
               <button
                 type="button"
-                className="header-search-clear"
-                onClick={() => { setKeyword(''); navigateFeed(nav, '/'); }}
-                aria-label="清除搜索"
-              >×</button>
-            )}
-            {isMobile && searchExpanded && (
-              <button
-                type="button"
-                className="header-search-cancel"
-                onClick={() => setSearchExpanded(false)}
+                className={cn('header-search-adv-toggle', searchAdvanced && 'active')}
+                onClick={() => setSearchAdvanced((v) => !v)}
+                aria-expanded={searchAdvanced}
+                title="高级搜索"
               >
-                取消
+                筛选
               </button>
+              {(keyword || searchAuthor) && (
+                <button
+                  type="button"
+                  className="header-search-clear"
+                  onClick={() => {
+                    setKeyword('');
+                    setSearchAuthor('');
+                    setSearchTitleOnly(false);
+                    navigateFeed(nav, '/');
+                  }}
+                  aria-label="清除搜索"
+                >×</button>
+              )}
+              {isMobile && searchExpanded && (
+                <button
+                  type="button"
+                  className="header-search-cancel"
+                  onClick={() => setSearchExpanded(false)}
+                >
+                  取消
+                </button>
+              )}
+            </div>
+            {searchAdvanced && (
+              <div className="header-search-advanced">
+                <label className="header-search-opt">
+                  <input
+                    type="checkbox"
+                    checked={searchTitleOnly}
+                    onChange={(e) => setSearchTitleOnly(e.target.checked)}
+                  />
+                  仅标题
+                </label>
+                {boardId > 0 && (
+                  <label className="header-search-opt">
+                    <input
+                      type="checkbox"
+                      checked={searchInBoard}
+                      onChange={(e) => setSearchInBoard(e.target.checked)}
+                    />
+                    当前板块
+                  </label>
+                )}
+                <input
+                  className="header-search-author"
+                  type="text"
+                  placeholder="作者用户名/昵称"
+                  aria-label="作者"
+                  value={searchAuthor}
+                  onChange={(e) => setSearchAuthor(e.target.value)}
+                />
+              </div>
             )}
           </form>
           )}

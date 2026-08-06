@@ -6,6 +6,8 @@ interface Props {
   boardId: number;
   keyword: string;
   tag?: string;
+  author?: string;
+  titleOnly?: boolean;
   boards: Board[];
   stats: ForumStats | null;
   postTotal: number;
@@ -13,14 +15,32 @@ interface Props {
   titleAs?: 'h1' | 'h2';
 }
 
-export default function FeedHeader({ boardId, keyword, tag = '', boards, stats, postTotal, titleAs = 'h1' }: Props) {
+export default function FeedHeader({
+  boardId,
+  keyword,
+  tag = '',
+  author = '',
+  titleOnly = false,
+  boards,
+  stats,
+  postTotal,
+  titleAs = 'h1',
+}: Props) {
   const nav = useNavigate();
   const board = boards.find(b => b.id === boardId);
 
-  const filtered = !!(keyword || tag);
+  const filtered = !!(keyword || tag || author);
   const inBoard = !filtered && boardId > 0 && !!board;
   /** 侧栏已有「全部帖子 / 板块名」，中间栏不再重复；仅搜索/标签保留标题 */
-  const title = tag ? `标签：${tag}` : (keyword ? `搜索：${keyword}` : '');
+  let title = '';
+  if (tag) title = `标签：${tag}`;
+  else if (keyword || author) {
+    const parts: string[] = [];
+    if (keyword) parts.push(titleOnly ? `标题含「${keyword}」` : `搜索：${keyword}`);
+    if (author) parts.push(`作者 ${author}`);
+    if (boardId && board) parts.push(`板块 ${board.name}`);
+    title = parts.join(' · ');
+  }
   const TitleTag = titleAs;
 
   return (

@@ -30,15 +30,22 @@ export function parseFeedSort(raw: string | null): FeedSort {
 export function buildHomeUrl(
   boardId: number,
   sort: FeedSort = 'latest',
-  opts?: { keyword?: string; tag?: string },
+  opts?: { keyword?: string; tag?: string; author?: string; titleOnly?: boolean },
 ) {
   const p = new URLSearchParams();
   if (boardId) p.set('board', String(boardId));
   const tag = opts?.tag?.trim();
   const keyword = opts?.keyword?.trim();
+  const author = opts?.author?.trim();
   // 标签筛选与关键词搜索互斥：有 tag 时不带 keyword
   if (tag) p.set('tag', tag);
-  else if (keyword) p.set('keyword', keyword);
+  else if (keyword) {
+    p.set('keyword', keyword);
+    if (opts?.titleOnly) p.set('title_only', '1');
+    if (author) p.set('author', author);
+  } else if (author) {
+    p.set('author', author);
+  }
   if (sort !== 'latest') p.set('sort', sort);
   const qs = p.toString();
   return qs ? `/?${qs}` : '/';

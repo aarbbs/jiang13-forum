@@ -400,6 +400,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
+  sendResetEmailCode: (email: string) =>
+    request<{ message: string }>('/api/password-reset/email-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (data: { email: string; emailCode: string; newPassword: string }) =>
+    request<{ message: string }>('/api/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: data.email,
+        email_code: data.emailCode,
+        new_password: data.newPassword,
+      }),
+    }),
+  searchUsers: (q: string, limit = 8) => {
+    const sp = new URLSearchParams({ q, limit: String(limit) });
+    return request<{ users: Array<{ id: number; username: string; nickname: string; avatar?: string }> }>(
+      `/api/users/search?${sp}`,
+    );
+  },
   captcha: () => request<{ id: string; image: string }>('/api/captcha'),
   logout: () => request('/api/logout', { method: 'POST' }),
   like: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/posts/${id}/like`, { method: 'POST' }),

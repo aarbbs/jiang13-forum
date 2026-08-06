@@ -23,6 +23,7 @@ const HomePage = lazyWithRetry(() => import('./pages/HomePage'));
 const PostDetailPage = lazyWithRetry(() => import('./pages/PostDetailPage'));
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage'));
 const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage'));
 const ComposePage = lazyWithRetry(() => import('./pages/ComposePage'));
 const BoardsManagePage = lazyWithRetry(() => import('./pages/BoardsManagePage'));
 const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage'));
@@ -45,6 +46,7 @@ const router = createBrowserRouter(
     <Route errorElement={<AppRouteError />}>
       <Route path="/login" element={<Suspense fallback={<AuthPageFallback />}><LoginPage /></Suspense>} />
       <Route path="/register" element={<Suspense fallback={<AuthPageFallback />}><RegisterPage /></Suspense>} />
+      <Route path="/forgot-password" element={<Suspense fallback={<AuthPageFallback />}><ForgotPasswordPage /></Suspense>} />
       <Route path="/boards" element={<Navigate to="/admin/boards" replace />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />

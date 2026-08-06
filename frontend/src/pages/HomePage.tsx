@@ -33,14 +33,16 @@ export default function HomePage() {
   const boardId = Number(params.get('board')) || ctx?.boardId || 0;
   const keyword = params.get('keyword') || '';
   const tag = params.get('tag') || '';
+  const author = params.get('author') || '';
+  const titleOnly = params.get('title_only') === '1';
   const sort = parseFeedSort(params.get('sort'));
   const board = (ctx?.boards ?? []).find(b => b.id === boardId);
-  const isSiteHome = !boardId && !keyword && !tag;
+  const isSiteHome = !boardId && !keyword && !tag && !author;
   const siteIntro = siteMetaDescription(branding);
   const feedTitle = tag
     ? `标签：${tag}`
-    : keyword
-      ? `搜索：${keyword}`
+    : keyword || author
+      ? `搜索：${keyword || ''}${author ? (keyword ? ` · 作者 ${author}` : `作者 ${author}`) : ''}${titleOnly ? '（仅标题）' : ''}`
       : (boardId && board ? board.name : '');
   usePageSEO({
     title: feedTitle || undefined,
@@ -67,7 +69,7 @@ export default function HomePage() {
   const pageRef = useRef(1);
   pageRef.current = page;
   // 与当前筛选一致的列表快照（供卸载/切换筛选时写入缓存）
-  const feedSnapRef = useRef({ boardId, keyword, tag, sort, posts, postTotal, page });
+  const feedSnapRef = useRef({ boardId, keyword, tag, author, titleOnly, sort, posts, postTotal, page });
 
   const totalPages = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
   const showPagination = totalPages > 1 && posts.length > 0;
@@ -96,6 +98,8 @@ export default function HomePage() {
         board_id: boardId || '',
         keyword: tag ? '' : keyword,
         tag: tag || '',
+        author: tag ? '' : author,
+        title_only: !tag && titleOnly ? '1' : '',
         sort: sort === 'latest' ? '' : sort,
       });
       const batch = Array.isArray(data.posts) ? data.posts : [];
@@ -114,7 +118,7 @@ export default function HomePage() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [boardId, keyword, tag, sort, pageSize]);
+  }, [boardId, keyword, tag, author, titleOnly, sort, pageSize]);
 
   const loadFirst = useCallback(() => fetchPage(1), [fetchPage]);
 
@@ -142,7 +146,7 @@ export default function HomePage() {
       return;
     }
 
-    const cached = getFeedCache(boardId, keyword, sort, tag);
+    const cached = getFeedCache(boardId, keyword, sort, tag, author, titleOnly);
     if (cached && cached.posts.length > 0) {
       setPosts(cached.posts);
       setPostTotal(cached.postTotal);
@@ -163,6 +167,8 @@ export default function HomePage() {
     boardId,
     keyword,
     tag,
+    author,
+    titleOnly,
     sort,
     location.key,
     location.state,
@@ -175,15 +181,17 @@ export default function HomePage() {
     feedSnapRef.current.boardId === boardId
     && feedSnapRef.current.keyword === keyword
     && feedSnapRef.current.tag === tag
+    && feedSnapRef.current.author === author
+    && feedSnapRef.current.titleOnly === titleOnly
     && feedSnapRef.current.sort === sort
   ) {
-    feedSnapRef.current = { boardId, keyword, tag, sort, posts, postTotal, page };
+    feedSnapRef.current = { boardId, keyword, tag, author, titleOnly, sort, posts, postTotal, page };
   }
 
   // 仅在筛选变化 / 卸载时缓存；勿把 posts 放进 deps（否则会用旧列表污染新 keyword）
   useEffect(() => {
     // cleanup 先保存上一档；再把快照重置为当前筛选的空占位
-    feedSnapRef.current = { boardId, keyword, tag, sort, posts: [], postTotal: 0, page: 1 };
+    feedSnapRef.current = { boardId, keyword, tag, author, titleOnly, sort, posts: [], postTotal: 0, page: 1 };
     return () => {
       if (skipCacheSaveRef.current) return;
       const snap = feedSnapRef.current;
@@ -193,9 +201,9 @@ export default function HomePage() {
         postTotal: snap.postTotal,
         page: snap.page,
         scrollTop: scrollTopRef.current,
-      }, snap.tag);
+      }, snap.tag, snap.author, snap.titleOnly);
     };
-  }, [boardId, keyword, tag, sort]);
+  }, [boardId, keyword, tag, author, titleOnly, sort]);
 
   useEffect(() => {
     if (!loading && posts.length > 0) skipCacheSaveRef.current = false;
@@ -222,10 +230,10 @@ export default function HomePage() {
       loadFirst();
       return;
     }
-    navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag }));
+    navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly }));
   };
 
-  const showSortBar = !keyword && !tag;
+  const showSortBar = !keyword && !tag && !author;
 
   // 首屏用同构骨架，避免标题/列表分区先后出现造成闪动
   if ((loading || limitsLoading) && posts.length === 0) {
@@ -241,6 +249,8 @@ export default function HomePage() {
               boardId={boardId}
               keyword={keyword}
               tag={tag}
+              author={author}
+              titleOnly={titleOnly}
               boards={ctx?.boards ?? []}
               stats={ctx?.stats ?? null}
               postTotal={postTotal}
@@ -266,7 +276,7 @@ export default function HomePage() {
           resetScrollKey={listResetKey}
           onScrollTopChange={(top) => { scrollTopRef.current = top; }}
           onScrollRestored={() => setRestoreScrollTop(null)}
-          keyword={keyword || tag}
+          keyword={keyword || tag || author}
           boardId={boardId}
           boardName={ctx?.boards?.find(b => b.id === boardId)?.name || ''}
           noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}

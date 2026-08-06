@@ -43,6 +43,15 @@ func (s *NotifyService) AsyncNotifyCommentPublished(comment *model.Comment) {
 	s.goNotify(func() { s.NotifyCommentPublished(&cp) })
 }
 
+// AsyncNotifyCommentMentions 异步：评论公开后通知被 @ 的用户
+func (s *NotifyService) AsyncNotifyCommentMentions(comment *model.Comment) {
+	if s == nil || comment == nil {
+		return
+	}
+	cp := *comment
+	s.goNotify(func() { s.NotifyCommentMentions(&cp) })
+}
+
 // AsyncNotifyPendingPost 异步：待审帖通知管理员
 func (s *NotifyService) AsyncNotifyPendingPost(post *model.Post) {
 	if s == nil || post == nil {
@@ -90,6 +99,41 @@ func (s *NotifyService) NotifyCommentPublished(comment *model.Comment) {
 	_, _ = s.messages.SendSystem(toUserID, subject, content, model.MessageKindReply, &pid, nil)
 
 	s.sendReplyMail(toUserID, authorName, title, comment.PostID, displayFloor, isNested, comment.Content)
+}
+
+// NotifyCommentMentions 评论公开后通知被 @提及的用户（跳过已收到回复通知的人）
+func (s *NotifyService) NotifyCommentMentions(comment *model.Comment) {
+	if s == nil || comment == nil || comment.Status != model.ContentStatusPublished {
+		return
+	}
+	names := ExtractMentionNames(comment.Content)
+	ids := ResolveMentionUserIDs(names, comment.UserID)
+	if len(ids) == 0 {
+		return
+	}
+
+	post, err := s.loadPost(comment.PostID)
+	if err != nil {
+		return
+	}
+	// 已作为回复对象收到通知的用户不再重复发 mention
+	replyTo, _ := s.resolveReplyRecipient(comment, post)
+	authorName := s.commentAuthorName(comment)
+	title := post.Title
+	if title == "" {
+		title = "未知帖子"
+	}
+	displayFloor := s.resolveDisplayFloor(comment)
+	pid := comment.PostID
+	subject := "有人 @了你"
+	content := FormatMentionContent(authorName, title, displayFloor)
+
+	for _, uid := range ids {
+		if uid == 0 || uid == comment.UserID || uid == replyTo {
+			continue
+		}
+		_, _ = s.messages.SendSystem(uid, subject, content, model.MessageKindMention, &pid, nil)
+	}
 }
 
 // NotifyPendingPost 新帖进入待审时通知全部管理员
@@ -293,6 +337,11 @@ func FormatReplyContent(authorName, postTitle string, displayFloor int, isNested
 		return fmt.Sprintf("%s 在《%s》#%d 楼下回复了你。", authorName, postTitle, displayFloor)
 	}
 	return fmt.Sprintf("%s 在《%s》发表了 #%d 楼。", authorName, postTitle, displayFloor)
+}
+
+// FormatMentionContent @提及站内通知正文
+func FormatMentionContent(authorName, postTitle string, displayFloor int) string {
+	return fmt.Sprintf("%s 在《%s》#%d 楼中提到了你。", authorName, postTitle, displayFloor)
 }
 
 // FormatPendingPostContent 待审帖站内私信正文

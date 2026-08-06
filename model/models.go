@@ -199,6 +199,7 @@ const (
 	MessageKindReject       = "reject"        // 帖子被拒/下架
 	MessageKindReportResult = "report_result" // 举报处理结果
 	MessageKindReply        = "reply"         // 帖子/评论被回复
+	MessageKindMention      = "mention"       // 被 @提及
 	MessageKindModeration   = "moderation"    // 新内容待审核（通知管理员）
 )
 

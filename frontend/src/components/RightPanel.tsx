@@ -1,10 +1,10 @@
-import { Flame, ListTree, MessageCircle, Tags, Sparkles } from 'lucide-react';
+import { ListTree, MessageCircle, MessagesSquare, Tags, Sparkles } from 'lucide-react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PostItem, RecentComment, TagCount, User } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useSiteBranding } from '../hooks/useSiteBranding';
-import { formatShortDateTime } from '../utils/content';
+import { formatShortDateTime, formatTime } from '../utils/content';
 import TagCloud from './TagCloud';
 import UserLink from './UserLink';
 import ArticleOutline from './ArticleOutline';
@@ -31,20 +31,13 @@ interface Props {
   postDetail?: PostDetailAside | null;
 }
 
-function hotRankClass(index: number): string {
-  if (index === 0) return 'widget-rank widget-rank--1';
-  if (index === 1) return 'widget-rank widget-rank--2';
-  if (index === 2) return 'widget-rank widget-rank--3';
-  return 'widget-rank';
-}
-
-function HotSkeleton() {
+function ActiveSkeleton() {
   return (
-    <div className="widget-skeleton" aria-busy="true" aria-label="热门加载中">
+    <div className="widget-skeleton" aria-busy="true" aria-label="正在聊加载中">
       {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="widget-item widget-item--skeleton">
-          <Skeleton className="skeleton--widget-rank" />
+        <div key={i} className="widget-item widget-item--active widget-item--skeleton">
           <Skeleton className="skeleton--widget-title" style={{ width: `${62 + (i % 4) * 8}%` }} />
+          <Skeleton className="skeleton--widget-time" />
         </div>
       ))}
     </div>
@@ -84,14 +77,15 @@ export default function RightPanel({
   const isSiteHome = loc.pathname === '/'
     && !params.get('board')
     && !params.get('keyword')
-    && !params.get('tag');
+    && !params.get('tag')
+    && !params.get('author');
   const description = branding.description?.trim() || '';
   const slogan = branding.slogan?.trim() || '';
   // 有独立简介时展示简介；否则用欢迎语，避免与页脚 slogan 三连重复
   const aboutText = description || '欢迎参与讨论，发帖、评论，一起把小圈子聊热。';
-  // 帖子很少时热门几乎等于主列表，改显示欢迎引导
-  const showHot = loading || hotList.length >= 4;
-  const showWelcome = !loading && hotList.length > 0 && hotList.length < 4;
+  // 有近期讨论则展示「正在聊」；否则显示欢迎引导
+  const showActive = loading || hotList.length > 0;
+  const showWelcome = !loading && hotList.length === 0;
   const isPostDetail = !!postDetail;
 
   return (
@@ -137,28 +131,38 @@ export default function RightPanel({
         </div>
       )}
 
-      {!isPostDetail && showHot && (
+      {!isPostDetail && showActive && (
         <div className="widget-card">
           <div className="widget-card-head">
-            <Flame className="widget-card-icon widget-card-icon--hot" aria-hidden />
-            热门帖子
+            <MessagesSquare className="widget-card-icon widget-card-icon--hot" aria-hidden />
+            正在聊
           </div>
           <div className="widget-card-body">
             {loading && hotList.length === 0 ? (
-              <HotSkeleton />
+              <ActiveSkeleton />
             ) : hotList.length === 0 ? (
-              <div className="widget-empty">暂无数据</div>
-            ) : hotList.map((item, i) => (
-              <button
-                key={item.id}
-                type="button"
-                className="widget-item"
-                onClick={() => onPostClick(item.id)}
-              >
-                <span className={hotRankClass(i)}>{i + 1}</span>
-                <span className="widget-item-title">{item.title}</span>
-              </button>
-            ))}
+              <div className="widget-empty">近 7 日暂无新回复</div>
+            ) : hotList.map((item) => {
+              const replyLabel = item.last_reply_at
+                ? `${formatTime(item.last_reply_at)}有人回`
+                : '近期有讨论';
+              const count = item.comment_count ?? 0;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="widget-item widget-item--active"
+                  onClick={() => onPostClick(item.id)}
+                  title={item.title}
+                >
+                  <span className="widget-item-title">{item.title}</span>
+                  <span className="widget-item-meta">
+                    <span className="widget-item-time">{replyLabel}</span>
+                    {count > 0 && <span className="widget-item-count">{count} 评</span>}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

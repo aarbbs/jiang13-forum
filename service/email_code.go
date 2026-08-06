@@ -2,6 +2,7 @@ package service
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
@@ -14,9 +15,12 @@ const (
 	emailCodeLen      = 6
 	emailCodeTTL      = 10 * time.Minute
 	emailCodeCooldown = 60 * time.Second
+
+	EmailCodePurposeRegister = "register"
+	EmailCodePurposeReset    = "reset"
 )
 
-// EmailCodeLen 注册邮箱验证码位数（供 API 告知前端）
+// EmailCodeLen 邮箱验证码位数（供 API 告知前端）
 const EmailCodeLen = emailCodeLen
 
 type emailCodeEntry struct {
@@ -25,7 +29,7 @@ type emailCodeEntry struct {
 	sentAt    time.Time
 }
 
-// EmailCodeService 注册邮箱验证码
+// EmailCodeService 邮箱验证码（按 purpose 隔离）
 type EmailCodeService struct {
 	mu      sync.Mutex
 	entries map[string]emailCodeEntry
@@ -41,20 +45,45 @@ func NewEmailCodeService(mail *MailService) *EmailCodeService {
 	return s
 }
 
-// SendRegisterCode 向邮箱发送注册验证码
+func emailCodeKey(purpose, email string) string {
+	return purpose + ":" + NormalizeEmail(email)
+}
+
+// SendRegisterCode 向邮箱发送注册验证码（邮箱须未注册）
 func (s *EmailCodeService) SendRegisterCode(email string) error {
+	return s.sendCode(EmailCodePurposeRegister, email)
+}
+
+// SendResetCode 向邮箱发送重置密码验证码（邮箱须已注册；不存在时仍返回成功以防枚举）
+func (s *EmailCodeService) SendResetCode(email string) error {
+	return s.sendCode(EmailCodePurposeReset, email)
+}
+
+func (s *EmailCodeService) sendCode(purpose, email string) error {
 	email = NormalizeEmail(email)
 	if err := ValidateEmail(email); err != nil {
 		return err
 	}
 
 	var exist model.User
-	if err := model.DB.Where("email = ?", email).First(&exist).Error; err == nil {
-		return ErrEmailExists
+	found := model.DB.Where("email = ?", email).First(&exist).Error == nil
+	switch purpose {
+	case EmailCodePurposeRegister:
+		if found {
+			return ErrEmailExists
+		}
+	case EmailCodePurposeReset:
+		if !found {
+			// 防邮箱枚举：假装已发送
+			return nil
+		}
+	default:
+		return errors.New("无效的验证码用途")
 	}
 
+	key := emailCodeKey(purpose, email)
 	s.mu.Lock()
-	if prev, ok := s.entries[email]; ok && time.Since(prev.sentAt) < emailCodeCooldown {
+	if prev, ok := s.entries[key]; ok && time.Since(prev.sentAt) < emailCodeCooldown {
 		s.mu.Unlock()
 		return ErrEmailCodeCooldown
 	}
@@ -69,13 +98,18 @@ func (s *EmailCodeService) SendRegisterCode(email string) error {
 	if s.mail != nil && s.mail.settings != nil {
 		siteName = s.mail.settings.SiteBranding().Name
 	}
-	subject, textBody, htmlBody := BuildRegisterCodeMail(siteName, code, int(emailCodeTTL.Minutes()))
+	var subject, textBody, htmlBody string
+	if purpose == EmailCodePurposeReset {
+		subject, textBody, htmlBody = BuildResetCodeMail(siteName, code, int(emailCodeTTL.Minutes()))
+	} else {
+		subject, textBody, htmlBody = BuildRegisterCodeMail(siteName, code, int(emailCodeTTL.Minutes()))
+	}
 	if err := s.mail.SendHTML(email, subject, textBody, htmlBody); err != nil {
 		return err
 	}
 
 	s.mu.Lock()
-	s.entries[email] = emailCodeEntry{
+	s.entries[key] = emailCodeEntry{
 		code:      code,
 		expiresAt: time.Now().Add(emailCodeTTL),
 		sentAt:    time.Now(),
@@ -84,20 +118,26 @@ func (s *EmailCodeService) SendRegisterCode(email string) error {
 	return nil
 }
 
-// Verify 校验邮箱验证码（一次性）
+// Verify 校验邮箱验证码（一次性）；兼容旧调用 Verify(email, code) 视为注册用途
 func (s *EmailCodeService) Verify(email, code string) bool {
+	return s.VerifyPurpose(EmailCodePurposeRegister, email, code)
+}
+
+// VerifyPurpose 按用途校验验证码（一次性）
+func (s *EmailCodeService) VerifyPurpose(purpose, email, code string) bool {
 	email = NormalizeEmail(email)
 	code = strings.TrimSpace(code)
-	if email == "" || code == "" {
+	if purpose == "" || email == "" || code == "" {
 		return false
 	}
+	key := emailCodeKey(purpose, email)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entry, ok := s.entries[email]
+	entry, ok := s.entries[key]
 	if !ok {
 		return false
 	}
-	delete(s.entries, email)
+	delete(s.entries, key)
 	if time.Now().After(entry.expiresAt) {
 		return false
 	}
@@ -109,9 +149,9 @@ func (s *EmailCodeService) cleanup() {
 	for range ticker.C {
 		now := time.Now()
 		s.mu.Lock()
-		for email, entry := range s.entries {
+		for key, entry := range s.entries {
 			if now.After(entry.expiresAt) {
-				delete(s.entries, email)
+				delete(s.entries, key)
 			}
 		}
 		s.mu.Unlock()

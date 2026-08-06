@@ -20,6 +20,7 @@ type MsgTab = 'dm' | 'notify';
 const NOTIFY_KINDS = [
   { key: 'all', label: '全部' },
   { key: 'reply', label: '回复' },
+  { key: 'mention', label: '@提及' },
   { key: 'moderation', label: '待审' },
   { key: 'reject', label: '拒帖' },
   { key: 'report_result', label: '举报' },
@@ -31,6 +32,7 @@ function kindLabel(kind: string) {
     case 'reject': return '拒帖通知';
     case 'report_result': return '举报结果';
     case 'reply': return '回复提醒';
+    case 'mention': return '@提及';
     case 'moderation': return '待审提醒';
     case 'system': return '系统通知';
     default: return '通知';
