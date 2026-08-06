@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, MessageSquare, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, LockOpen, MessageSquare, MessageSquareOff, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -587,6 +587,21 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleCommentsLock = async () => {
+    if (!post) return;
+    try {
+      const r = await api.adminCommentsLockPost(postId, !post.comments_locked);
+      setPost(p => p ? { ...p, comments_locked: r.comments_locked } : p);
+      if (r.comments_locked) {
+        setReplyTo(null);
+        setEditingCommentId(null);
+      }
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
   return (
     <article className="page-wrap post-detail-page" ref={pageRef}>
       <div className="post-detail-header">
@@ -652,7 +667,12 @@ export default function PostDetailPage() {
                 {' · '}{post.view_count} 次浏览
                 {post.edit_locked && (
                   <span className="post-detail-locked-tag" title="管理员已锁定编辑">
-                    <Lock size={12} /> 已锁定
+                    <Lock size={12} /> 编辑锁定
+                  </span>
+                )}
+                {post.comments_locked && (
+                  <span className="post-detail-locked-tag" title="管理员已锁定讨论">
+                    <MessageSquareOff size={12} /> 讨论锁定
                   </span>
                 )}
               </span>
@@ -662,7 +682,16 @@ export default function PostDetailPage() {
 
         {tags.length > 0 && (
           <div className="post-detail-tags">
-            {tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+            {tags.map(t => (
+              <button
+                key={t}
+                type="button"
+                className="post-detail-tag-btn"
+                onClick={() => nav(`/?tag=${encodeURIComponent(t)}`)}
+              >
+                <Badge variant="secondary">{t}</Badge>
+              </button>
+            ))}
           </div>
         )}
 
@@ -818,6 +847,10 @@ export default function PostDetailPage() {
                     <Lock />
                     {post.edit_locked ? '解锁编辑' : '锁定编辑'}
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleCommentsLock}>
+                    {post.comments_locked ? <LockOpen /> : <MessageSquareOff />}
+                    {post.comments_locked ? '开放讨论' : '锁定讨论'}
+                  </Button>
                   {post.status !== 'rejected' && (
                     <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
                       <Ban />
@@ -908,7 +941,12 @@ export default function PostDetailPage() {
           <span className="comment-section-count">{comments.length} 条评论</span>
         </div>
 
-        {!replyTo && (
+        {post.comments_locked ? (
+          <div className="comment-locked-banner" role="status">
+            <MessageSquareOff size={16} aria-hidden />
+            该帖子已锁定讨论，暂不可发表新评论
+          </div>
+        ) : !replyTo && (
           <div className="comment-box-wrap" ref={commentBoxRef}>
             <CommentBox {...commentBoxProps} />
           </div>
@@ -918,16 +956,20 @@ export default function PostDetailPage() {
           {comments.length === 0 && !replyTo ? (
             <div className="comment-empty">
               <MessageSquare className="comment-empty-icon" aria-hidden size={32} strokeWidth={1.5} />
-              <p>{user ? '暂无评论，来抢沙发吧' : '暂无评论，登录后来抢沙发吧'}</p>
+              <p>
+                {post.comments_locked
+                  ? '暂无评论'
+                  : user ? '暂无评论，来抢沙发吧' : '暂无评论，登录后来抢沙发吧'}
+              </p>
             </div>
           ) : (
             <CommentThreadList
               comments={comments}
               highlightFloor={highlightFloor}
-              replyToId={replyTo?.id ?? null}
+              replyToId={post.comments_locked ? null : (replyTo?.id ?? null)}
               editingId={editingCommentId}
               currentUser={user}
-              onReply={handleReplyTo}
+              onReply={post.comments_locked ? () => undefined : handleReplyTo}
               onCancelReply={() => setReplyTo(null)}
               onStartEdit={(c) => {
                 setReplyTo(null);
@@ -943,7 +985,7 @@ export default function PostDetailPage() {
                   item.id === commentId ? { ...item, liked, like_count: likeCount } : item
                 )));
               }}
-              renderReplyBox={(c) => (
+              renderReplyBox={post.comments_locked ? undefined : (c) => (
                 <CommentBox
                   key={c.id}
                   {...commentBoxProps}

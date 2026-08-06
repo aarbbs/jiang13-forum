@@ -95,8 +95,9 @@ type Post struct {
 	Pinned      bool           `gorm:"default:false" json:"pinned"`       // 全局置顶
 	BoardPinned bool           `gorm:"default:false" json:"board_pinned"` // 板块内置顶
 	Featured    bool           `gorm:"default:false;index" json:"featured"` // 精华帖
-	EditLocked bool           `gorm:"default:false" json:"edit_locked"`
-	Status     string         `gorm:"size:16;default:published;index" json:"status"` // pending|published|rejected
+	EditLocked     bool           `gorm:"default:false" json:"edit_locked"`
+	CommentsLocked bool           `gorm:"default:false" json:"comments_locked"` // 禁止评论（结贴）
+	Status         string         `gorm:"size:16;default:published;index" json:"status"` // pending|published|rejected
 	LikeCount  int            `gorm:"default:0" json:"like_count"`
 	ViewCount  int            `gorm:"default:0" json:"view_count"`
 	CreatedAt  time.Time      `json:"created_at"`

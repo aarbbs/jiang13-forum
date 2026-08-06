@@ -102,7 +102,7 @@ export default function TagCloud({ tags, loading = false, activeTag = '' }: Prop
               active && 'active',
             )}
             title={`${tag.name} · ${tag.count} 篇`}
-            onClick={() => nav(`/?keyword=${encodeURIComponent(tag.name)}`)}
+            onClick={() => nav(active ? '/' : `/?tag=${encodeURIComponent(tag.name)}`)}
           >
             <span className="tag-cloud-item__name">{tag.name}</span>
             {tier >= 3 && <span className="tag-cloud-item__count">{tag.count}</span>}

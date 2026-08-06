@@ -198,6 +198,27 @@ func (h *Handlers) APIAdminLockPost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg, "edit_locked": req.Locked})
 }
 
+// APIAdminCommentsLockPost 锁定/解锁讨论（禁止新评论）
+func (h *Handlers) APIAdminCommentsLockPost(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Locked bool `json:"locked"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.Post.SetCommentsLocked(uint(id), req.Locked); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已开放讨论"
+	if req.Locked {
+		msg = "已锁定讨论"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "comments_locked": req.Locked})
+}
+
 // APIAdminPinPost 全局置顶/取消全局置顶（JSON）
 func (h *Handlers) APIAdminPinPost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -911,6 +932,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	boardID, _ := strconv.ParseUint(c.Query("board_id"), 10, 64)
 	userID, _ := strconv.ParseUint(c.Query("user_id"), 10, 64)
 	keyword := c.Query("keyword")
+	tag := strings.TrimSpace(c.Query("tag"))
 
 	q := service.PostListQuery{
 		BoardID:       uint(boardID),
@@ -918,6 +940,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		Page:          page,
 		Size:          size,
 		Keyword:       keyword,
+		Tag:           tag,
 		Sort:          c.DefaultQuery("sort", "latest"),
 		ViewerID:      h.currentUserID(c),
 		ViewerIsAdmin: h.isAdmin(c),

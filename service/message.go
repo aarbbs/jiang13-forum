@@ -130,6 +130,59 @@ func (s *MessageService) UnreadCount(userID uint) (int64, error) {
 	return n, err
 }
 
+// UnreadCounts 未读总数，以及私信 / 系统通知分项
+func (s *MessageService) UnreadCounts(userID uint) (total, dm, notify int64, err error) {
+	err = model.DB.Model(&model.PrivateMessage{}).
+		Where("to_user_id = ? AND is_read = ?", userID, false).
+		Count(&total).Error
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	err = model.DB.Model(&model.PrivateMessage{}).
+		Where("to_user_id = ? AND is_read = ? AND from_user_id = 0", userID, false).
+		Count(&notify).Error
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	dm = total - notify
+	if dm < 0 {
+		dm = 0
+	}
+	return total, dm, notify, nil
+}
+
+// ListNotifications 系统通知列表（按时间倒序，非聊天气泡）
+func (s *MessageService) ListNotifications(userID uint, page, size int, kind string) ([]model.PrivateMessage, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	size = s.settings.NormalizePageSize(size)
+	db := model.DB.Model(&model.PrivateMessage{}).
+		Where("from_user_id = 0 AND to_user_id = ?", userID)
+	kind = strings.TrimSpace(kind)
+	if kind != "" && kind != "all" {
+		db = db.Where("kind = ?", kind)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.PrivateMessage
+	err := db.Order("id desc").Offset((page - 1) * size).Limit(size).Find(&list).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	if list == nil {
+		list = []model.PrivateMessage{}
+	}
+	return list, total, nil
+}
+
+// MarkNotificationsRead 将系统通知全部标为已读
+func (s *MessageService) MarkNotificationsRead(userID uint) error {
+	return s.MarkConversationRead(userID, 0)
+}
+
 // MessageConversation 按对方聚合的会话摘要
 type MessageConversation struct {
 	PeerUserID  uint                 `json:"peer_user_id"` // 0 = 系统通知

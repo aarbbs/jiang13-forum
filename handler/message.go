@@ -94,14 +94,46 @@ func (h *Handlers) APIMarkConversationRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "已标为已读"})
 }
 
-// APIMessageUnreadCount 未读私信数
+// APIMessageUnreadCount 未读私信数（含私信/通知分项）
 func (h *Handlers) APIMessageUnreadCount(c *gin.Context) {
-	n, err := h.Message.UnreadCount(h.currentUserID(c))
+	total, dm, notify, err := h.Message.UnreadCounts(h.currentUserID(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"count": n})
+	c.JSON(http.StatusOK, gin.H{
+		"count":        total,
+		"dm_count":     dm,
+		"notify_count": notify,
+	})
+}
+
+// APIMessageNotifications 系统通知列表
+func (h *Handlers) APIMessageNotifications(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "30"))
+	kind := c.Query("kind")
+	uid := h.currentUserID(c)
+	list, total, err := h.Message.ListNotifications(uid, page, size, kind)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": list,
+		"total":         total,
+		"page":          page,
+		"kind":          kind,
+	})
+}
+
+// APIMarkNotificationsRead 系统通知全部已读
+func (h *Handlers) APIMarkNotificationsRead(c *gin.Context) {
+	if err := h.Message.MarkNotificationsRead(h.currentUserID(c)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "通知已全部标为已读"})
 }
 
 // APISendMessage 发送私信

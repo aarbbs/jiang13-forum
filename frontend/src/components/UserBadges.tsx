@@ -2,7 +2,8 @@ import { BadgeCheck, Crown, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserBadge } from '../api/types';
 import { badgeIcon } from '../utils/badgeIcons';
-import { resolveUserLevel } from '../utils/userMeta';
+import { levelToneFromLevel, resolveUserLevel } from '../utils/userMeta';
+import LevelEmblem from './LevelEmblem';
 
 type BadgeUser = {
   role?: string;
@@ -37,7 +38,7 @@ export default function UserBadges({
 
   if (!isAdmin && !isVerified && !showLevel && achievements.length === 0) return null;
 
-  const levelTone = level >= 9 ? 'gold' : level >= 7 ? 'amber' : level >= 4 ? 'blue' : 'muted';
+  const levelTone = levelToneFromLevel(level);
 
   return (
     <span className={cn('user-badges', compact && 'user-badges--compact', className)}>
@@ -54,8 +55,12 @@ export default function UserBadges({
         </span>
       )}
       {showLevel && (
-        <span className={cn('user-badge user-badge--level', `user-badge--level-${levelTone}`)} title={`经验 ${user.exp ?? 0}`}>
-          Lv.{level}
+        <span
+          className={cn('user-badge user-badge--level', `user-badge--level-${levelTone}`)}
+          title={`经验 ${user.exp ?? 0}`}
+        >
+          <LevelEmblem level={level} tone={levelTone} size={compact ? 12 : 14} />
+          <span className="user-badge__level-text">Lv.{level}</span>
         </span>
       )}
       {achievements.map(b => {

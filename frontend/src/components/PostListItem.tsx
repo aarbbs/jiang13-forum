@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, Image as ImageIcon, MessageCircle, ThumbsUp } from 'lucide-react';
 import BoardBadge from '@/components/BoardBadge';
 import FeaturedIcon from '@/components/FeaturedIcon';
@@ -8,6 +9,7 @@ import type { FeedSort } from './FeedSortBar';
 import { formatTime } from '../utils/content';
 import { postPath } from '../utils/permalink';
 import { excerptFromHTML, firstImageFromHTML } from '../utils/seoText';
+import { parseTags } from './TagInput';
 
 interface Props {
   post: PostItem;
@@ -16,6 +18,7 @@ interface Props {
 }
 
 function PostListItem({ post, sort = 'latest', onSelect }: Props) {
+  const nav = useNavigate();
   const initial = post.user?.nickname?.[0] || '?';
   const timeLabel = sort === 'reply'
     ? (post.last_reply_at
@@ -28,6 +31,7 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
   const href = postPath(post.id);
   const excerpt = excerptFromHTML(post.content || '', 72);
   const hasImage = !!firstImageFromHTML(post.content || '');
+  const tagList = parseTags(post.tags || '').slice(0, 3);
 
   const openPost = () => onSelect(post.id);
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -113,6 +117,20 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
         <div className="post-foot">
           <div className="post-foot-left">
             {post.board && <BoardBadge board={post.board} />}
+            {tagList.map(t => (
+              <button
+                key={t}
+                type="button"
+                className="post-list-tag"
+                title={`筛选标签：${t}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nav(`/?tag=${encodeURIComponent(t)}`);
+                }}
+              >
+                {t}
+              </button>
+            ))}
           </div>
           <div className="post-stats">
             {hasImage && (

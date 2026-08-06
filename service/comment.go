@@ -194,6 +194,11 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 		return nil, errors.New("账号已被禁言")
 	}
 
+	// 讨论锁定：管理员亦不可强评（避免结贴后仍被顶楼）
+	if post.CommentsLocked {
+		return nil, ErrPostCommentsLocked
+	}
+
 	// 未公开帖仅作者/管理员可评论
 	if post.Status != model.ContentStatusPublished && post.Status != "" {
 		if user.Role != model.RoleAdmin && post.UserID != in.UserID {

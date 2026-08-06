@@ -330,7 +330,7 @@ function CommentItem({
               {approving ? '通过中…' : '通过'}
             </button>
           )}
-          {!hidden && !isEditing && (
+          {!hidden && !isEditing && !!renderReplyBox && (
             isReplying ? (
               <button type="button" className="waline-comment-reply-btn cancel" onClick={onCancelReply}>
                 <X size={14} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Lock, LockOpen, Trash2, RotateCcw } from 'lucide-react';
+import { Search, Lock, LockOpen, MessageSquareOff, Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -163,6 +163,16 @@ export default function AdminPostsPage() {
     }
   };
 
+  const toggleCommentsLock = async (post: PostItem) => {
+    try {
+      const r = await api.adminCommentsLockPost(post.id, !post.comments_locked);
+      notify.success(r.message);
+      load(page);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
   const remove = async (id: number) => {
     try {
       await api.adminDeletePost(id);
@@ -208,7 +218,7 @@ export default function AdminPostsPage() {
             ? '回收站中的帖子可恢复或永久删除；永久删除后不可撤销'
             : tab === 'pending'
               ? '审核普通用户提交的帖子；通过后公开，拒绝后仅作者可见并私信通知'
-              : '精华、全局置顶、板块置顶、锁定编辑、删除（移入回收站）；支持按标题、标签或正文搜索'}
+              : '精华、全局置顶、板块置顶、锁定编辑/讨论、删除（移入回收站）；支持按标题、标签或正文搜索'}
         </p>
       </div>
 
@@ -330,7 +340,8 @@ export default function AdminPostsPage() {
                   <th>精华</th>
                   <th>全局置顶</th>
                   <th>板块置顶</th>
-                  <th>锁定</th>
+                  <th>编辑锁</th>
+                  <th>讨论锁</th>
                   <th>点赞</th>
                   <th>浏览</th>
                   <th>时间</th>
@@ -363,6 +374,7 @@ export default function AdminPostsPage() {
                     <td>{p.pinned ? <Badge variant="green">是</Badge> : '—'}</td>
                     <td>{p.board_pinned ? <Badge variant="green">是</Badge> : '—'}</td>
                     <td>{p.edit_locked ? <Badge variant="destructive">是</Badge> : '—'}</td>
+                    <td>{p.comments_locked ? <Badge variant="destructive">是</Badge> : '—'}</td>
                     <td>{p.like_count}</td>
                     <td>{p.view_count}</td>
                     <td className="text-sm whitespace-nowrap">
@@ -393,7 +405,12 @@ export default function AdminPostsPage() {
                           {p.board_pinned ? '取消板块置顶' : '板块置顶'}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => toggleLock(p)}>
-                          {p.edit_locked ? <><LockOpen size={14} /> 解锁</> : <><Lock size={14} /> 锁定</>}
+                          {p.edit_locked ? <><LockOpen size={14} /> 解锁编辑</> : <><Lock size={14} /> 锁定编辑</>}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => toggleCommentsLock(p)}>
+                          {p.comments_locked
+                            ? <><LockOpen size={14} /> 开放讨论</>
+                            : <><MessageSquareOff size={14} /> 锁定讨论</>}
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>

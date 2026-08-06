@@ -93,6 +93,10 @@ export const api = {
     request<{ message: string; edit_locked: boolean }>(`/api/admin/posts/${id}/lock`, {
       method: 'POST', body: JSON.stringify({ locked }),
     }),
+  adminCommentsLockPost: (id: number, locked: boolean) =>
+    request<{ message: string; comments_locked: boolean }>(`/api/admin/posts/${id}/comments-lock`, {
+      method: 'POST', body: JSON.stringify({ locked }),
+    }),
   adminRejectPost: (id: number, reason: string) =>
     request<{ message: string; notified: boolean }>(`/api/admin/posts/${id}/reject`, {
       method: 'POST', body: JSON.stringify({ reason }),
@@ -433,7 +437,20 @@ export const api = {
   },
   markConversationRead: (peerId: number) =>
     request<{ message: string }>(`/api/messages/conversations/${peerId}/read`, { method: 'POST' }),
-  messageUnreadCount: () => request<{ count: number }>('/api/messages/unread-count'),
+  messageUnreadCount: () =>
+    request<{ count: number; dm_count?: number; notify_count?: number }>('/api/messages/unread-count'),
+  messageNotifications: (params?: { page?: number; size?: number; kind?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.size) q.set('size', String(params.size));
+    if (params?.kind) q.set('kind', params.kind);
+    const qs = q.toString();
+    return request<{ notifications: PrivateMessage[]; total: number; page: number; kind: string }>(
+      `/api/messages/notifications${qs ? `?${qs}` : ''}`,
+    );
+  },
+  markNotificationsRead: () =>
+    request<{ message: string }>('/api/messages/notifications/read', { method: 'POST' }),
   sendMessage: (body: { to_user_id: number; subject?: string; content: string }) =>
     request<{ message: PrivateMessage }>('/api/messages', {
       method: 'POST', body: JSON.stringify(body),

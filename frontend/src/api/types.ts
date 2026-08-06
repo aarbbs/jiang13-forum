@@ -93,6 +93,8 @@ export interface PostItem {
   board_pinned?: boolean;
   featured?: boolean;
   edit_locked?: boolean;
+  /** 禁止新评论（结贴） */
+  comments_locked?: boolean;
   status?: 'pending' | 'published' | 'rejected' | string;
   like_count: number;
   view_count: number;

@@ -5,6 +5,7 @@ import type { Board, ForumStats } from '../api/types';
 interface Props {
   boardId: number;
   keyword: string;
+  tag?: string;
   boards: Board[];
   stats: ForumStats | null;
   postTotal: number;
@@ -12,20 +13,21 @@ interface Props {
   titleAs?: 'h1' | 'h2';
 }
 
-export default function FeedHeader({ boardId, keyword, boards, stats, postTotal, titleAs = 'h1' }: Props) {
+export default function FeedHeader({ boardId, keyword, tag = '', boards, stats, postTotal, titleAs = 'h1' }: Props) {
   const nav = useNavigate();
   const board = boards.find(b => b.id === boardId);
 
-  const inBoard = !keyword && boardId > 0 && !!board;
-  /** 侧栏已有「全部帖子 / 板块名」，中间栏不再重复；仅搜索保留标题 */
-  const title = keyword ? `搜索：${keyword}` : '';
+  const filtered = !!(keyword || tag);
+  const inBoard = !filtered && boardId > 0 && !!board;
+  /** 侧栏已有「全部帖子 / 板块名」，中间栏不再重复；仅搜索/标签保留标题 */
+  const title = tag ? `标签：${tag}` : (keyword ? `搜索：${keyword}` : '');
   const TitleTag = titleAs;
 
   return (
-    <div className={`feed-head${keyword ? ' feed-head--solo' : ' feed-head--stats-only'}`}>
+    <div className={`feed-head${filtered ? ' feed-head--solo' : ' feed-head--stats-only'}`}>
       <div className="feed-head__title">
         {title ? <TitleTag>{title}</TitleTag> : null}
-        {!keyword && inBoard && (
+        {!filtered && inBoard && (
           <div className="feed-head__stats">
             <span className="feed-stat-chip">
               <FileText aria-hidden />
@@ -38,7 +40,7 @@ export default function FeedHeader({ boardId, keyword, boards, stats, postTotal,
             )}
           </div>
         )}
-        {!keyword && !inBoard && stats && (
+        {!filtered && !inBoard && stats && (
           <div className="feed-head__stats">
             <span className="feed-stat-chip">
               <Users aria-hidden />
@@ -55,16 +57,16 @@ export default function FeedHeader({ boardId, keyword, boards, stats, postTotal,
           </div>
         )}
       </div>
-      {keyword && (
+      {filtered && (
         <button
           type="button"
           className="feed-head__clear"
           onClick={() => nav('/')}
         >
-          清除搜索
+          {tag ? '清除标签' : '清除搜索'}
         </button>
       )}
-      {keyword && (
+      {filtered && (
         <span className="feed-toolbar__count">共 {postTotal} 条</span>
       )}
     </div>

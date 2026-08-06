@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Send, Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
@@ -18,6 +18,12 @@ import { loginPath } from '../utils/authRedirect';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
 import { parsePermalinkID, postPath } from '../utils/permalink';
 import { skipsModeration } from '../utils/userMeta';
+import {
+  clearComposeDraft,
+  composeDraftHasContent,
+  loadComposeDraft,
+  saveComposeDraft,
+} from '../utils/composeDraft';
 
 interface ComposeBaseline {
   title: string;
@@ -74,6 +80,9 @@ export default function ComposePage() {
   );
   const [baseline, setBaseline] = useState<ComposeBaseline | null>(null);
   const [editWindowHint, setEditWindowHint] = useState('');
+  const [draftHint, setDraftHint] = useState('');
+  /** 新建帖：是否已处理过本地草稿恢复 */
+  const draftHandledRef = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -137,16 +146,43 @@ export default function ComposePage() {
 
     const applyNewBaseline = (list: Board[], initialBoardId: string) => {
       setBoards(list);
-      if (!defaultBoard) setBoardId(initialBoardId);
       const boardForBaseline = defaultBoard || initialBoardId;
-      setBoardId(prev => prev || boardForBaseline);
-      setBaseline({
+      const emptyBaseline: ComposeBaseline = {
         title: '',
         tags: '',
         content: '',
         boardId: boardForBaseline,
         postType: 'normal',
-      });
+      };
+
+      // 首次进入新建页：若有本地草稿则询问是否恢复
+      if (!draftHandledRef.current) {
+        draftHandledRef.current = true;
+        const draft = loadComposeDraft();
+        if (composeDraftHasContent(draft) && draft) {
+          const when = new Date(draft.savedAt).toLocaleString('zh-CN', {
+            month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          });
+          const restore = window.confirm(`发现 ${when} 的未发帖草稿，是否恢复？\n选「取消」将丢弃该草稿。`);
+          if (restore) {
+            const boardIdOk = list.some(b => String(b.id) === draft.boardId)
+              ? draft.boardId
+              : boardForBaseline;
+            setBoardId(boardIdOk);
+            setTitle(draft.title);
+            setTags(draft.tags);
+            setContent(draft.content);
+            setPostType(draft.postType);
+            setBaseline(emptyBaseline);
+            setDraftHint('已恢复本地草稿，编辑中将自动保存');
+            return;
+          }
+          clearComposeDraft();
+        }
+      }
+
+      setBoardId(prev => prev || boardForBaseline);
+      setBaseline(emptyBaseline);
     };
 
     const list = resolveBoards(layoutCtx?.boards);
@@ -180,13 +216,35 @@ export default function ComposePage() {
     );
   }, [baseline, title, tags, content, boardId, postType, isEdit, boards.length]);
 
+  // 新建帖：防抖写入本地草稿
+  useEffect(() => {
+    if (isEdit || !baseline) return;
+    if (!isDirty) return;
+    const timer = window.setTimeout(() => {
+      saveComposeDraft({
+        title,
+        tags: serializeTags(parseTags(tags)),
+        content,
+        boardId,
+        postType,
+      });
+      setDraftHint('草稿已自动保存到本机');
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [isEdit, baseline, isDirty, title, tags, content, boardId, postType]);
+
   const {
     dialogOpen,
     stayOnPage,
-    discardAndLeave,
+    discardAndLeave: discardAndLeaveRaw,
     requestLeave,
     markSaved,
   } = useUnsavedChangesGuard({ isDirty });
+
+  const discardAndLeave = () => {
+    if (!isEdit) clearComposeDraft();
+    discardAndLeaveRaw();
+  };
 
   const leaveTo = (path: string) => {
     markSaved();
@@ -264,6 +322,7 @@ export default function ComposePage() {
         nav(postPath(editId!, limits));
       } else {
         const res = await api.createPost(payload);
+        clearComposeDraft();
         notify.success(res.message || (res.status === 'pending' ? '已提交审核' : '发帖成功'));
         markSaved();
         nav(postPath(res.post_id, limits));
@@ -296,6 +355,11 @@ export default function ComposePage() {
               {editWindowHint && (
                 <span className="compose-draft-hint" title={editWindowHint}>
                   {editWindowHint}
+                </span>
+              )}
+              {!isEdit && draftHint && (
+                <span className="compose-draft-hint" title={draftHint}>
+                  {draftHint}
                 </span>
               )}
             </div>

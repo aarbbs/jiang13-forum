@@ -25,6 +25,7 @@ var (
 	ErrPermissionDenied      = errors.New("无权操作")
 	ErrBoardNotFound         = errors.New("板块不存在")
 	ErrPostEditLocked        = errors.New("帖子已被管理员锁定，无法编辑")
+	ErrPostCommentsLocked    = errors.New("该帖子已锁定讨论，无法评论")
 	ErrPostEditExpired       = errors.New("已超过可编辑时限")
 	ErrRevisionNotFound      = errors.New("历史版本不存在")
 	ErrInvalidSetting        = errors.New("无效的设置值")

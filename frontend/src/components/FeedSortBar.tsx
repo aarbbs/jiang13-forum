@@ -27,9 +27,18 @@ export function parseFeedSort(raw: string | null): FeedSort {
   return 'latest';
 }
 
-export function buildHomeUrl(boardId: number, sort: FeedSort = 'latest') {
+export function buildHomeUrl(
+  boardId: number,
+  sort: FeedSort = 'latest',
+  opts?: { keyword?: string; tag?: string },
+) {
   const p = new URLSearchParams();
   if (boardId) p.set('board', String(boardId));
+  const tag = opts?.tag?.trim();
+  const keyword = opts?.keyword?.trim();
+  // 标签筛选与关键词搜索互斥：有 tag 时不带 keyword
+  if (tag) p.set('tag', tag);
+  else if (keyword) p.set('keyword', keyword);
   if (sort !== 'latest') p.set('sort', sort);
   const qs = p.toString();
   return qs ? `/?${qs}` : '/';

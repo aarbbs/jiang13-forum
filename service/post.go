@@ -34,6 +34,7 @@ type PostListQuery struct {
 	Page          int
 	Size          int
 	Keyword       string
+	Tag           string // 精确标签筛选（整枚匹配，不走 keyword LIKE）
 	Sort          string // latest | reply | hot
 	ViewerID      uint   // 当前查看者（用于 pending 仅作者可见）
 	ViewerIsAdmin bool
@@ -271,6 +272,12 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 		kw := "%" + q.Keyword + "%"
 		db = db.Where("title LIKE ? OR content_plain LIKE ? OR tags LIKE ?", kw, kw, kw)
 	}
+	if tag := strings.TrimSpace(q.Tag); tag != "" {
+		// 整枚标签匹配：逗号/中文逗号分隔，忽略标签两侧空格，大小写不敏感
+		escaped := escapeLikePattern(strings.ToLower(tag))
+		normalized := "LOWER(',' || REPLACE(REPLACE(REPLACE(IFNULL(tags,''), '，', ','), ', ', ','), ' ,', ',') || ',')"
+		db = db.Where(normalized+" LIKE ? ESCAPE '\\'", "%,"+escaped+",%")
+	}
 	var total int64
 	db.Count(&total)
 	var posts []model.Post
@@ -308,6 +315,14 @@ func normalizePostSort(sort string) string {
 	default:
 		return "latest"
 	}
+}
+
+// escapeLikePattern 转义 LIKE 通配符，配合 ESCAPE '\'
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 func (s *PostService) FindByID(id uint) (*model.Post, error) {
@@ -526,6 +541,18 @@ func (s *PostService) UserEditBlockReason(post *model.Post, userID uint, isAdmin
 
 func (s *PostService) SetEditLocked(postID uint, locked bool) error {
 	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("edit_locked", locked)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrPostNotFound
+	}
+	return nil
+}
+
+// SetCommentsLocked 锁定/解锁讨论（禁止新评论）
+func (s *PostService) SetCommentsLocked(postID uint, locked bool) error {
+	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("comments_locked", locked)
 	if res.Error != nil {
 		return res.Error
 	}

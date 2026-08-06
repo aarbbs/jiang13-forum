@@ -258,9 +258,10 @@ export default function MainLayout() {
   const userInitial = user?.nickname?.charAt(0) || '?';
   const isFeedHome = loc.pathname === '/';
   const outletKeyword = params.get('keyword') || '';
-  // 搜索结果页不选中任何板块芯片（避免看起来仍停在「全部」）
+  const outletTag = params.get('tag') || '';
+  // 搜索/标签结果页不选中任何板块芯片（避免看起来仍停在「全部」）
   const mobileActiveBoard =
-    isNeutralSidebarRoute(loc.pathname) || !!outletKeyword
+    isNeutralSidebarRoute(loc.pathname) || !!outletKeyword || !!outletTag
       ? -1
       : boardId;
 
@@ -434,8 +435,8 @@ export default function MainLayout() {
                 <button
                   type="button"
                   className="header-icon-btn header-msg-btn"
-                  title={unreadMessages > 0 ? `${unreadMessages} 条未读私信` : '站内私信'}
-                  aria-label={unreadMessages > 0 ? `站内私信，${unreadMessages} 条未读` : '站内私信'}
+                  title={unreadMessages > 0 ? `${unreadMessages} 条未读消息` : '站内消息'}
+                  aria-label={unreadMessages > 0 ? `站内消息，${unreadMessages} 条未读` : '站内消息'}
                   onClick={() => nav('/messages')}
                 >
                   <Mail size={18} aria-hidden />
@@ -461,7 +462,7 @@ export default function MainLayout() {
                       账号设置{typeof user.points === 'number' ? ` · ${user.points} 积分` : ''}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/messages')}>
-                      站内私信{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
+                      站内消息{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => nav('/favorites')}>我的收藏</DropdownMenuItem>
                     {isMobile && (

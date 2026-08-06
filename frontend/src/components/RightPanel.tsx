@@ -77,11 +77,14 @@ export default function RightPanel({
   const { branding } = useSiteBranding();
   const loc = useLocation();
   const [params] = useSearchParams();
-  const activeTag = params.get('keyword') || '';
+  const activeTag = params.get('tag') || '';
   const hotList = hot?.slice(0, 8) ?? [];
   const commentList = recentComments?.slice(0, 6) ?? [];
   // 站点首页：右侧品牌块承担唯一 h1；板块/搜索等页面由 Feed 标题作 h1
-  const isSiteHome = loc.pathname === '/' && !params.get('board') && !params.get('keyword');
+  const isSiteHome = loc.pathname === '/'
+    && !params.get('board')
+    && !params.get('keyword')
+    && !params.get('tag');
   const description = branding.description?.trim() || '';
   const slogan = branding.slogan?.trim() || '';
   // 有独立简介时展示简介；否则用欢迎语，避免与页脚 slogan 三连重复
