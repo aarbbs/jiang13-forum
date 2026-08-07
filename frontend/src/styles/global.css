@@ -4447,7 +4447,7 @@ a.post-title:visited {
   font-style: italic;
 }
 
-.post-detail-content img {
+.post-detail-content img:not([src*="/stickers/"]) {
   max-width: 100%;
   height: auto;
   border-radius: 10px;
@@ -5266,7 +5266,7 @@ a.post-title:visited {
 }
 
 .comment-box-input-wrap:focus-within {
-  border-color: rgb(var(--primary-6));
+  border-color: var(--j13-green);
 }
 
 .comment-box-input-wrap.private-mode {
@@ -5294,9 +5294,7 @@ a.post-title:visited {
 .comment-box-textarea::placeholder { color: var(--color-text-4); }
 
 .comment-box-send {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
+  margin-left: auto;
   width: 32px;
   height: 32px;
   border: none;
@@ -5309,6 +5307,7 @@ a.post-title:visited {
   justify-content: center;
   font-size: 14px;
   transition: background 0.15s, opacity 0.15s;
+  flex-shrink: 0;
 }
 
 .comment-box-send:hover:not(:disabled) { background: #1a9bd8; }
@@ -5459,6 +5458,190 @@ a.post-title:visited {
 
 .emoji-picker-item:focus-visible {
   box-shadow: inset 0 0 0 2px var(--j13-green);
+}
+
+/* 贴纸选择器 */
+.sticker-picker {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  border: 1px solid var(--j13-border-light);
+  border-radius: 8px;
+  background: var(--j13-bg-surface);
+  max-height: 280px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 30;
+}
+
+.sticker-picker-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--j13-border-light);
+  padding: 0 8px;
+}
+
+.sticker-picker-tab {
+  border: none;
+  background: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sticker-picker-tab:hover { color: var(--color-text-1); }
+
+.sticker-picker-tab.active {
+  color: var(--j13-green);
+  border-bottom-color: var(--j13-green);
+}
+
+.sticker-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.sticker-picker-item {
+  border: none;
+  background: none;
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.1s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sticker-picker-item:hover {
+  background: var(--color-fill-2);
+  transform: scale(1.15);
+}
+
+.sticker-picker-item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--j13-green);
+}
+
+.sticker-picker-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 24px;
+  color: var(--color-text-4);
+  font-size: 13px;
+}
+
+/* 评论富文本编辑器（精简 Tiptap，复用 .article-editor-* 类） */
+.comment-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.comment-editor .article-editor-bar {
+  padding: 4px 8px;
+  gap: 6px;
+  background: transparent;
+  border-bottom: 1px solid var(--j13-border-light);
+  box-shadow: none;
+}
+
+.comment-editor .article-editor-tools { gap: 1px; flex-wrap: nowrap; }
+
+.comment-editor .article-tool-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+}
+
+.comment-editor .article-tool-btn strong { font-size: 11px; }
+
+/* OwO 文本按钮：与 SVG 图标视觉对齐 */
+.article-tool-btn__owo {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(-0.5px);
+  height: 12px;
+}
+
+.comment-editor .article-editor-body {
+  background: transparent;
+}
+
+.comment-editor .article-editor-scroll {
+  max-height: 320px;
+}
+
+.comment-editor .article-editor-content .tiptap,
+.comment-editor .article-prosemirror {
+  min-height: 80px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 评论正文中的贴纸 img */
+.floor-body img[src*="/stickers/"],
+.comment-body img[src*="/stickers/"] {
+  display: inline-block !important;
+  vertical-align: middle;
+  width: 28px;
+  height: 28px;
+  max-width: 28px;
+  margin: 0 1px !important;
+  background: transparent;
+  border-radius: 4px;
+  box-shadow: none !important;
+  object-fit: contain;
+  clear: none !important;
+}
+
+/* 编辑器内贴纸 img 尺寸约束 */
+.comment-editor .article-prosemirror img[src*="/stickers/"],
+.comment-editor .article-editor-content img[src*="/stickers/"] {
+  display: inline-block !important;
+  width: 28px;
+  height: 28px;
+  max-width: 28px;
+  vertical-align: middle;
+  margin: 0 1px !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  object-fit: contain;
+  clear: none !important;
+}
+
+/* 选择器中颜文字纯文本样式 */
+.sticker-picker-text {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 14px;
+  line-height: 1.4;
+  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Sans Mono', monospace;
+  color: var(--color-text-1);
+  word-break: break-all;
+  text-align: center;
+  padding: 2px;
+}
+
+/* 移动端：贴纸选择器 4 列 */
+@media (max-width: 640px) {
+  .sticker-picker { max-height: 240px; }
+  .sticker-picker-grid { grid-template-columns: repeat(4, 1fr); }
+  .sticker-picker-tab { padding: 6px 10px; font-size: 12px; }
+  .comment-editor .article-tool-btn { width: 30px; height: 30px; }
 }
 
 /* Waline 嵌套评论列表 — 与正文共用 .page-wrap 滚动 */
@@ -5704,6 +5887,20 @@ a.waline-comment-author:hover {
 
 .waline-comment-edit {
   margin-top: 4px;
+  border: 1px solid var(--j13-border-light);
+  border-radius: 10px;
+  background: var(--j13-bg-block);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.waline-comment-edit:focus-within {
+  border-color: var(--j13-green);
+}
+
+/* 覆盖 ProseMirror 默认黑色 outline */
+.comment-editor .article-prosemirror,
+.comment-editor .ProseMirror {
+  outline: none !important;
 }
 
 .waline-comment-edit-input {

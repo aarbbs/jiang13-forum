@@ -170,7 +170,8 @@ func resolveThreadParent(replyTo *uint, visibleIDs map[uint]struct{}, allByID ma
 }
 
 func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
-	content := s.filter.Filter(strings.TrimSpace(in.Content))
+	content := SanitizePostHTML(strings.TrimSpace(in.Content))
+	content = s.filter.Filter(content)
 	if content == "" {
 		return nil, errors.New("评论内容不能为空")
 	}
@@ -366,7 +367,8 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration 
 		}
 	}
 
-	content = s.filter.Filter(strings.TrimSpace(content))
+	content = SanitizePostHTML(strings.TrimSpace(content))
+	content = s.filter.Filter(content)
 	if content == "" {
 		return "", false, errors.New("评论内容不能为空")
 	}

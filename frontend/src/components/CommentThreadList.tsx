@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import type { Comment, ReportReason, User } from '../api/types';
 import { api } from '../api/client';
 import CommentContent from './CommentContent';
+import CommentEditor from './CommentEditor';
 import CommentRevisionDialog from './CommentRevisionDialog';
 import {
   AlertDialog,
@@ -46,6 +47,7 @@ import {
 import { isTimeDiffSignificant } from '../utils/content';
 import { REPORT_REASON_OPTIONS } from '../utils/report';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { isHtmlEmpty } from '../utils/postContent';
 import { Tooltip } from './ui/Tooltip';
 import UserLink from './UserLink';
 import { cn } from '@/lib/utils';
@@ -274,12 +276,10 @@ function CommentItem({
           </div>
         ) : isEditing ? (
           <div className="waline-comment-edit">
-            <textarea
-              className="waline-comment-edit-input"
+            <CommentEditor
               value={editText}
-              onChange={e => setEditText(e.target.value)}
-              rows={3}
-              maxLength={limits.comment_max > 0 ? limits.comment_max : undefined}
+              onChange={setEditText}
+              placeholder="编辑评论…"
             />
             <div className="waline-comment-edit-actions">
               <button type="button" className="waline-comment-reply-btn cancel" onClick={onCancelEdit} disabled={saving}>
@@ -289,7 +289,7 @@ function CommentItem({
                 type="button"
                 className="waline-comment-reply-btn"
                 onClick={handleSave}
-                disabled={saving || !editText.trim()}
+                disabled={saving || isHtmlEmpty(editText)}
               >
                 {saving ? '保存中…' : '保存'}
               </button>

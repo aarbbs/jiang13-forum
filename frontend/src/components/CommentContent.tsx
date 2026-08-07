@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { highlightMentions } from '../utils/content';
+import { renderCommentContent } from '../utils/content';
 import { userPath } from '../utils/userPath';
 
 interface Props {
@@ -47,7 +47,7 @@ export default function CommentContent({ content }: Props) {
         void openMention(name);
       }}
       dangerouslySetInnerHTML={{
-        __html: highlightMentions(content),
+        __html: renderCommentContent(content),
       }}
     />
   );

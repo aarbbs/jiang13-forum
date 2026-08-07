@@ -107,14 +107,18 @@ function extractGatedInnerHtml(el: Element, bodyClass: string, badgeClass: strin
       .join('');
 }
 
-/** 判断 HTML 正文是否为空（忽略空段落等） */
+/** 判断 HTML 正文是否为空（忽略空段落等，含图片/视频视为非空） */
 export function isHtmlEmpty(html: string): boolean {
   if (!html.trim()) return true;
   const doc = new DOMParser().parseFromString(
     DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG) as string,
     'text/html',
   );
-  return (doc.body.textContent ?? '').trim().length === 0;
+  // 有文本内容
+  if ((doc.body.textContent ?? '').trim().length > 0) return false;
+  // 有图片、视频等媒体节点
+  if (doc.body.querySelector('img, video, iframe')) return false;
+  return true;
 }
 
 /** 根据登录状态渲染帖子正文 HTML */

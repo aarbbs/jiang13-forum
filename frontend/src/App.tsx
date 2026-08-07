@@ -70,8 +70,8 @@ const router = createBrowserRouter(
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/user/:id" element={<UserProfilePage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
-        <Route path="/messages" element={<MessagesPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/messages" element={<MessagesPage />} />
         <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Suspense fallback={<PageLoader fullScreen />}><NotFoundPage standalone /></Suspense>} />

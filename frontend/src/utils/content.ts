@@ -1,3 +1,6 @@
+import DOMPurify from 'dompurify';
+import { POST_CONTENT_PURIFY_CONFIG } from './postContent';
+
 /** 转义 HTML 并保留换行 */
 function escapeWithBreaks(text: string): string {
   return text
@@ -16,6 +19,54 @@ export function highlightMentions(text: string): string {
       /@([\w\u4e00-\u9fa5_-]+)/g,
       '<span class="mention" data-name="$1" role="link" tabindex="0">@$1</span>',
     );
+}
+
+/** 判断内容是否为 HTML（包含常见 HTML 标签） */
+function isHtmlContent(text: string): boolean {
+  return /<(?:p|div|span|br|h[1-6]|ul|ol|li|pre|code|blockquote|a|img|table|strong|em|u|s)\b/i.test(text);
+}
+
+/** 在 HTML 文本节点中高亮 @ 提及（DOM 遍历，避免破坏标签） */
+function processMentionsInHtml(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    textNodes.push(node as Text);
+  }
+  for (const textNode of textNodes) {
+    const text = textNode.textContent ?? '';
+    if (!/@[\w\u4e00-\u9fa5_-]/.test(text)) continue;
+    const frag = document.createDocumentFragment();
+    const parts = text.split(/(@[\w\u4e00-\u9fa5_-]+)/);
+    for (const part of parts) {
+      const m = part.match(/^@([\w\u4e00-\u9fa5_-]+)$/);
+      if (m) {
+        const span = document.createElement('span');
+        span.className = 'mention';
+        span.setAttribute('data-name', m[1]);
+        span.setAttribute('role', 'link');
+        span.setAttribute('tabindex', '0');
+        span.textContent = part;
+        frag.appendChild(span);
+      } else if (part) {
+        frag.appendChild(document.createTextNode(part));
+      }
+    }
+    textNode.parentNode?.replaceChild(frag, textNode);
+  }
+  return div.innerHTML;
+}
+
+/** 渲染评论内容：HTML 净化 + @提及高亮，兼容旧版纯文本 */
+export function renderCommentContent(content: string): string {
+  if (isHtmlContent(content)) {
+    const sanitized = DOMPurify.sanitize(content, POST_CONTENT_PURIFY_CONFIG) as string;
+    return processMentionsInHtml(sanitized);
+  }
+  return highlightMentions(content);
 }
 
 /** 相对时间：刚刚 / N分钟前 / N小时前 / N天前；更早用具体日期 */
