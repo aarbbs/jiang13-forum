@@ -774,14 +774,36 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       <div className="article-editor-body">
         {mode === 'rich' ? (
           <div className="article-editor-pane article-editor-pane--rich">
-            <div className="article-editor-scroll">
+            <div
+              className="article-editor-scroll"
+              onPointerDown={e => {
+                // 点击编辑器外空白区域时，聚焦并将光标置于文末
+                if (editor && (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('article-editor-content'))) {
+                  e.preventDefault();
+                  editor.chain().focus('end').run();
+                }
+              }}
+            >
               <EditorContent editor={editor} className="article-editor-content" />
             </div>
           </div>
         ) : (
           <div className="article-editor-markdown">
             <div className="article-editor-pane article-editor-pane--source">
-              <div className="article-editor-scroll">
+              <div
+                className="article-editor-scroll"
+                onPointerDown={e => {
+                  if (e.target === e.currentTarget) {
+                    e.preventDefault();
+                    const ta = markdownRef.current;
+                    if (ta) {
+                      ta.focus();
+                      const len = ta.value.length;
+                      ta.setSelectionRange(len, len);
+                    }
+                  }
+                }}
+              >
                 <textarea
                   ref={markdownRef}
                   className="article-editor-markdown-input"

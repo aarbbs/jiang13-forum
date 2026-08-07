@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Send, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -8,10 +8,12 @@ import type { Board } from '../api/types';
 import { isHtmlEmpty } from '../utils/postContent';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
-import ArticleEditor from '../components/ArticleEditor';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
-import TagInput, { serializeTags, parseTags } from '../components/TagInput';
+import { serializeTags, parseTags } from '../components/TagInput';
 import { Spinner } from '@/components/ui/spinner';
+import ComposeHeader from '../components/compose/ComposeHeader';
+import ComposeContextBar, { type PostType } from '../components/compose/ComposeContextBar';
+import ComposeDocument from '../components/compose/ComposeDocument';
 import { getCachedBoards } from '../utils/layoutCache';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import { loginPath } from '../utils/authRedirect';
@@ -30,7 +32,7 @@ interface ComposeBaseline {
   tags: string;
   content: string;
   boardId: string;
-  postType: 'normal' | 'question';
+  postType: PostType;
 }
 
 function resolveBoards(ctxBoards?: Board[]): Board[] {
@@ -71,7 +73,7 @@ export default function ComposePage() {
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
-  const [postType, setPostType] = useState<'normal' | 'question'>('normal');
+  const [postType, setPostType] = useState<PostType>('normal');
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   /** 新建帖：板块列表是否已就绪（避免请求中误显空态） */
@@ -338,115 +340,39 @@ export default function ComposePage() {
     <div className="compose-page">
       <div className="compose-canvas">
         <div className="compose-shell">
-          <header className="compose-header">
-            <div className="compose-header-left">
-              <button
-                type="button"
-                className="compose-back"
-                onClick={() => requestLeave(() => {
-                  if (isEdit) nav(postPath(editId!, limits));
-                  else nav(-1);
-                })}
-              >
-                <ArrowLeft size={16} />
-                <span>返回</span>
-              </button>
-              <h1 className="compose-header-title">{isEdit ? '编辑帖子' : '写新帖'}</h1>
-              {editWindowHint && (
-                <span className="compose-draft-hint" title={editWindowHint}>
-                  {editWindowHint}
-                </span>
-              )}
-              {!isEdit && draftHint && (
-                <span className="compose-draft-hint" title={draftHint}>
-                  {draftHint}
-                </span>
-              )}
-            </div>
-            <div className="compose-header-actions">
-              <button
-                type="button"
-                className="compose-publish-btn"
-                disabled={publishing}
-                onClick={handleSubmit}
-              >
-                <Send size={16} />
-                {publishing ? (isEdit ? '保存中…' : '发布中…') : (isEdit ? '保存修改' : '发布')}
-              </button>
-            </div>
-          </header>
+          <ComposeHeader
+            isEdit={isEdit}
+            publishing={publishing}
+            editWindowHint={editWindowHint}
+            draftHint={draftHint}
+            onBack={() => requestLeave(() => {
+              if (isEdit) nav(postPath(editId!, limits));
+              else nav(-1);
+            })}
+            onPublish={handleSubmit}
+          />
 
           <div className="compose-shell-body">
-          <section className="compose-context" aria-label="发布设置">
-            <div className="compose-context-row">
-              <span className="compose-context-label">类型</span>
-              <div className="compose-type-pills" role="radiogroup" aria-label="帖子类型">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={postType === 'normal'}
-                  className={`compose-type-pill${postType === 'normal' ? ' active' : ''}`}
-                  onClick={() => setPostType('normal')}
-                >
-                  讨论
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={postType === 'question'}
-                  className={`compose-type-pill${postType === 'question' ? ' active' : ''}`}
-                  onClick={() => setPostType('question')}
-                >
-                  问答
-                </button>
-              </div>
-              {postType === 'question' && (
-                <span className="compose-type-hint">可标记未解决 / 已解决</span>
-              )}
-            </div>
-            <div className="compose-context-row">
-              <span className="compose-context-label">板块</span>
-              <div className="compose-board-pills" role="listbox" aria-label={isEdit ? '修改板块' : '选择板块'}>
-                {boards.map(b => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    role="option"
-                    aria-selected={String(b.id) === boardId}
-                    className={`compose-board-pill${String(b.id) === boardId ? ' active' : ''}`}
-                    onClick={() => setBoardId(String(b.id))}
-                  >
-                    {b.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="compose-context-row compose-context-row--tags">
-              <span className="compose-context-label">标签</span>
-              <TagInput
-                value={tags}
-                onChange={setTags}
-                placeholder="添加标签，回车确认"
-                maxLength={limits.post_tags_max > 0 ? limits.post_tags_max : undefined}
+            <ComposeDocument
+              postType={postType}
+              title={title}
+              onTitleChange={setTitle}
+              content={content}
+              onContentChange={setContent}
+              limits={limits}
+            >
+              <ComposeContextBar
+                isEdit={isEdit}
+                postType={postType}
+                onPostTypeChange={setPostType}
+                boards={boards}
+                boardId={boardId}
+                onBoardChange={setBoardId}
+                tags={tags}
+                onTagsChange={setTags}
+                limits={limits}
               />
-            </div>
-          </section>
-
-          <div className="compose-document">
-            <input
-              className="compose-title"
-              type="text"
-              placeholder={postType === 'question' ? '用一句话描述你的问题…' : '输入文章标题…'}
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              maxLength={limits.post_title_max > 0 ? limits.post_title_max : undefined}
-            />
-            <ArticleEditor
-              value={content}
-              onChange={setContent}
-              placeholder="开始写作。按回车分段，选中文字后用工具栏设置格式。"
-            />
-          </div>
+            </ComposeDocument>
           </div>
         </div>
       </div>

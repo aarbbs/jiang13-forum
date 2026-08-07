@@ -30,6 +30,8 @@ type Config struct {
 	LogFile string
 	// 系统服务控制动作：install|uninstall|start|stop|restart|status，空表示正常运行
 	ServiceAction string
+	// 开发模式：后端代理前端请求到 Vite 开发服务器（非内嵌静态资源）
+	DevMode bool
 }
 
 // Parse 解析命令行与 app.ini，并初始化数据目录
@@ -42,6 +44,7 @@ func Parse() (*Config, error) {
 	dataFlag := flag.String("data", "", "数据存储目录（覆盖配置文件）")
 	jwtFlag := flag.String("jwt-secret", "", "JWT 签名密钥（覆盖配置文件；留空则自动生成）")
 	serviceFlag := flag.String("service", "", "系统服务控制：install|uninstall|start|stop|restart|status")
+	devFlag := flag.Bool("dev", false, "开发模式：代理前端到 Vite 开发服务器（默认 http://localhost:5173）")
 	flag.Parse()
 
 	action := strings.ToLower(strings.TrimSpace(*serviceFlag))
@@ -96,6 +99,7 @@ func Parse() (*Config, error) {
 		JWTSecret:     jwtSecret,
 		LogFile:       filepath.Join(absData, "jiang13.log"),
 		ServiceAction: action,
+		DevMode:       *devFlag,
 	}
 
 	needDirs := action == "" || action == "install"

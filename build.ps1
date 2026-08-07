@@ -91,17 +91,17 @@ switch ($Target) {
     'dev' {
         $root = (Get-Location).Path
         Write-Host ''
-        Write-Host '[dev] 前端热更新: http://localhost:5173' -ForegroundColor Green
-        Write-Host '[dev] 后端 API  : http://localhost:3000' -ForegroundColor Green
-        Write-Host '[dev] 后台管理  : http://localhost:3000/admin/dashboard' -ForegroundColor Green
-        Write-Host '[dev] 正在新窗口启动 Go 后端...' -ForegroundColor Cyan
+        Write-Host '[dev] 前端开发  : http://localhost:5173  (Vite HMR)' -ForegroundColor Green
+        Write-Host '[dev] 后端 API  : http://localhost:3000  (Go)' -ForegroundColor Green
+        Write-Host '[dev] 提示     : 请访问 5173 端口，Vite 会自动代理 API 到 3000' -ForegroundColor Yellow
+        Write-Host '[dev] 正在新窗口启动 Go 后端 (仅 API)...' -ForegroundColor Cyan
         Start-Process powershell -ArgumentList @(
             '-NoExit', '-Command',
-            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg"
+            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg --dev"
         ) | Out-Null
         Start-Sleep -Seconds 2
         Push-Location frontend
-    90|        try {
+        try {
             if (-not (Test-Path node_modules)) { npm install }
             npm run dev
         } finally {

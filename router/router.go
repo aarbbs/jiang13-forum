@@ -21,8 +21,14 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 
-	if err := embed_static.SetupEmbed(r); err != nil {
-		return nil, err
+	// dev 模式：跳过内嵌静态资源，前端由 Vite 开发服务器(:5173)提供
+	// 用户应访问 5173 端口，Vite 通过 proxy 将 /api 等请求转发到本服务(:3000)
+	if !cfg.DevMode {
+		if err := embed_static.SetupEmbed(r); err != nil {
+			return nil, err
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "[dev] 后端仅提供 API，前端请访问 http://localhost:5173\n")
 	}
 
 	filter := service.NewSensitiveFilter()
@@ -234,30 +240,43 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	}
 
 	// 后台管理页面由 React SPA 渲染（JSON API 见上方 /api/admin）
-	admin := r.Group("/admin")
-	{
-		admin.GET("/login", func(c *gin.Context) {
-			c.Redirect(http.StatusFound, "/login")
-		})
-
-		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
+	// dev 模式下前端由 Vite 提供，后台页面路由不在此注册
+	if !cfg.DevMode {
+		admin := r.Group("/admin")
 		{
-			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-			for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
-				adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
+			admin.GET("/login", func(c *gin.Context) {
+				c.Redirect(http.StatusFound, "/login")
+			})
+
+			adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
+			{
+				adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
+				for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
+					adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
+				}
 			}
 		}
 	}
 
-	// React SPA 入口（公开页注入 SEO meta / JSON-LD / 预渲染摘要）
-	r.GET("/", h.ServePublicSPA)
-	r.NoRoute(func(c *gin.Context) {
-		if embed_static.IsSPARoute(c.Request.URL.Path) {
-			h.ServePublicSPA(c)
-			return
-		}
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-	})
+	// React SPA 入口
+	// dev 模式：前端由 Vite(:5173) 提供，非 API 请求返回开发提示
+	// 生产模式：注入 SEO meta / JSON-LD / 预渲染摘要
+	if cfg.DevMode {
+		r.NoRoute(func(c *gin.Context) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "dev 模式下前端由 Vite 提供，请访问 http://localhost:5173",
+			})
+		})
+	} else {
+		r.GET("/", h.ServePublicSPA)
+		r.NoRoute(func(c *gin.Context) {
+			if embed_static.IsSPARoute(c.Request.URL.Path) {
+				h.ServePublicSPA(c)
+				return
+			}
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		})
+	}
 
 	return r, nil
 }

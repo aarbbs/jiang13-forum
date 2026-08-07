@@ -42,6 +42,8 @@ export default defineConfig({
       '/api': apiTarget,
       '/uploads': apiTarget,
       '/media': apiTarget,
+      '/oauth': apiTarget,
+      '/.well-known': apiTarget,
     },
   },
 });
