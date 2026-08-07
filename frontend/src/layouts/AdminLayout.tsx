@@ -13,6 +13,7 @@ import BackToTop from '../components/BackToTop';
 import { loginPath } from '../utils/authRedirect';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import SiteBrandMark from '../components/SiteBrandMark';
 import { api } from '../api/client';
 
@@ -80,6 +81,7 @@ export default function AdminLayout() {
   const { theme, toggle } = useTheme();
   const { branding } = useSiteBranding();
   useNoIndexSEO('管理后台');
+  useScrollRestoration();
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
   const [pending, setPending] = useState<PendingCounts>({ posts: 0, comments: 0, reports: 0 });

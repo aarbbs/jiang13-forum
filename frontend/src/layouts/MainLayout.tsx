@@ -21,6 +21,7 @@ import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
 import BackToTop from '../components/BackToTop';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
 import { notify } from '@/lib/notify';
@@ -74,6 +75,7 @@ export default function MainLayout() {
   const [searchAdvanced, setSearchAdvanced] = useState(false);
   const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
+  useScrollRestoration();
 
   const asideDrawerRef = useRef<HTMLElement>(null);
   const asideCloseRef = useRef<HTMLButtonElement>(null);
