@@ -30,6 +30,7 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
   const [content, setContent] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const editorRef = useRef<CommentEditorHandle>(null);
+  const prevSubmitCountRef = useRef<number>(submitCount);
 
   useEffect(() => {
     if (inline && replyTo) {
@@ -38,6 +39,9 @@ export default function CommentBox({ user, replyTo, inline, submitting, submitCo
   }, [replyTo?.id, inline]);
 
   useEffect(() => {
+    // 跳过首次挂载，仅在 submitCount 真正变化（评论成功提交）时清空并聚焦
+    if (prevSubmitCountRef.current === submitCount) return;
+    prevSubmitCountRef.current = submitCount;
     setContent('');
     setIsPrivate(false);
     editorRef.current?.focus();

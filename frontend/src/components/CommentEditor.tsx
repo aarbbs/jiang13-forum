@@ -26,7 +26,7 @@ import type { Sticker } from '../data/stickers';
 export interface CommentEditorHandle {
   getHTML: () => string;
   isEmpty: () => boolean;
-  focus: () => void;
+  focus: (options?: { preventScroll?: boolean }) => void;
 }
 
 interface Props {
@@ -160,7 +160,7 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
   useImperativeHandle(ref, () => ({
     getHTML: () => editor ? sanitizeHtml(editor.getHTML()) : value,
     isEmpty: () => editor ? isEditorEmpty(editor) : !value.trim(),
-    focus: () => { editor?.commands.focus(); },
+    focus: (options?: { preventScroll?: boolean }) => { editor?.commands.focus(options); },
   }), [editor, value]);
 
   const insertSticker = useCallback((sticker: Sticker) => {
