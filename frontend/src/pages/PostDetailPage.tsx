@@ -234,11 +234,51 @@ export default function PostDetailPage() {
 
   const jumpToFloor = useCallback((floor: number) => {
     const el = document.getElementById(`floor-${floor}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el) return false;
+
+    const root = pageRef.current;
+    if (!root) return false;
+
+    // 直接计算目标滚动位置
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const relativeTop = elRect.top - rootRect.top;
+    const initialMaxScrollTop = root.scrollHeight - root.clientHeight;
+    const targetTop = root.scrollTop + relativeTop - 24;
+
+    // 如果 relativeTop 非常异常（如 NaN 或 Infinity），说明布局可能还没完成
+    if (!isFinite(targetTop) || targetTop < -500) return false;
+
+    const clampedTop = Math.max(0, Math.min(targetTop, initialMaxScrollTop));
+
+    // 直接设置滚动位置（不使用平滑滚动，避免动画干扰）
+    root.scrollTop = clampedTop;
+
+    // 验证滚动结果，如果不准确则再次调整
+    // 注意：使用动态计算的 currentMaxScrollTop，因为评论可能在之后才渲染完成
+    const verifyAndFix = () => {
+      const currentElRect = el.getBoundingClientRect();
+      const currentRootRect = root.getBoundingClientRect();
+      const currentRelativeTop = currentElRect.top - currentRootRect.top;
+      const currentMaxScrollTop = root.scrollHeight - root.clientHeight;
+
+      // 如果元素在视口内但位置不准确，进行修正
+      if (root.scrollTop > 0 && Math.abs(currentRelativeTop - 24) > 10) {
+        const correction = currentRelativeTop - 24;
+        const newTarget = Math.max(0, Math.min(root.scrollTop + correction, currentMaxScrollTop));
+        root.scrollTop = newTarget;
+      }
+    };
+
+    // 在多个时间点验证和调整
+    requestAnimationFrame(verifyAndFix);
+    setTimeout(verifyAndFix, 50);
+    setTimeout(verifyAndFix, 150);
+
     setHighlightFloor(floor);
     clearTimeout(highlightTimer.current);
     highlightTimer.current = setTimeout(() => setHighlightFloor(null), 2000);
+    return true;
   }, []);
 
   /** 正文标题锚点：滚动容器是 pageRef，原生 hash 定位无效，需手动滚 */
@@ -249,27 +289,72 @@ export default function PostDetailPage() {
     if (!el) return false;
 
     const root = pageRef.current;
-    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
-    if (root) {
-      const rootRect = root.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const top = root.scrollTop + (elRect.top - rootRect.top) - 12;
-      root.scrollTo({ top: Math.max(0, top), behavior });
-    } else {
-      el.scrollIntoView({ behavior, block: 'start' });
+    if (!root) return false;
+
+    // 直接计算目标滚动位置
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const relativeTop = elRect.top - rootRect.top;
+    const initialMaxScrollTop = root.scrollHeight - root.clientHeight;
+    const targetTop = root.scrollTop + relativeTop - 12;
+
+    // 如果 relativeTop 非常异常（如 NaN 或 Infinity），说明布局可能还没完成
+    if (!isFinite(targetTop) || targetTop < -500) return false;
+
+    const clampedTop = Math.max(0, Math.min(targetTop, initialMaxScrollTop));
+
+    // 直接设置滚动位置
+    root.scrollTop = clampedTop;
+
+    // 验证滚动结果，如果不准确则再次调整
+    const verifyAndFix = () => {
+      const currentElRect = el.getBoundingClientRect();
+      const currentRootRect = root.getBoundingClientRect();
+      const currentRelativeTop = currentElRect.top - currentRootRect.top;
+      const currentMaxScrollTop = root.scrollHeight - root.clientHeight;
+
+      if (root.scrollTop > 0 && Math.abs(currentRelativeTop - 12) > 10) {
+        const correction = currentRelativeTop - 12;
+        const newTarget = Math.max(0, Math.min(root.scrollTop + correction, currentMaxScrollTop));
+        root.scrollTop = newTarget;
+      }
+    };
+
+    requestAnimationFrame(verifyAndFix);
+    if (smooth) {
+      setTimeout(verifyAndFix, 50);
+      setTimeout(verifyAndFix, 150);
     }
+
     return true;
   }, []);
 
-  // 从 #floor-N 定位到对应评论（右栏最新评论等入口）
+  // 从 #floor-N 定位到对应评论（右栏最新评论等入口）；等评论进 DOM 后重试，避免首屏 hash 失效
   useEffect(() => {
     if (loading || !post) return;
     const m = location.hash.match(/^#floor-(\d+)$/);
     if (!m) return;
     const floor = Number(m[1]);
     if (!floor) return;
-    const t = window.setTimeout(() => jumpToFloor(floor), 80);
-    return () => clearTimeout(t);
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer = 0;
+
+    const tryJump = () => {
+      if (cancelled) return;
+      if (jumpToFloor(floor)) return;
+      attempts += 1;
+      if (attempts < 30) {
+        timer = window.setTimeout(tryJump, 50);
+      }
+    };
+
+    timer = window.setTimeout(tryJump, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [loading, post, comments, location.hash, jumpToFloor]);
 
   // 从 #heading-N（或任意标题 id）定位；等正文进 DOM 后重试，避免首屏 hash 失效
