@@ -8,7 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import DOMPurify from 'dompurify';
 import {
-  Bold, Italic, Underline as UnderlineIcon, Strikethrough, Quote,
+  Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, Code, Link as LinkIcon, Image as ImageIcon,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
@@ -229,28 +229,17 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
     return <div className="comment-editor"><div className="article-editor-bar" /><div className="article-editor-body" /></div>;
   }
 
-  const tools: { icon: React.ReactNode; title: string; active?: boolean; action: () => void }[] = [
-    { icon: <strong>H</strong>, title: '标题', active: editor.isActive('heading'), action: () => {
-      for (let l = 2; l <= 4; l++) {
-        if (editor.isActive('heading', { level: l })) {
-          if (l === 4) editor.chain().focus().setParagraph().run();
-          else editor.chain().focus().toggleHeading({ level: (l + 1) as 2 | 3 | 4 }).run();
-          return;
-        }
-      }
-      editor.chain().focus().toggleHeading({ level: 2 }).run();
-    }},
+  const tools: { icon: React.ReactNode; title: string; active?: boolean; action: () => void; className?: string }[] = [
     { icon: <Bold size={15} />, title: '加粗', active: editor.isActive('bold'), action: () => editor.chain().focus().toggleBold().run() },
     { icon: <Italic size={15} />, title: '斜体', active: editor.isActive('italic'), action: () => editor.chain().focus().toggleItalic().run() },
     { icon: <UnderlineIcon size={15} />, title: '下划线', active: editor.isActive('underline'), action: () => editor.chain().focus().toggleUnderline().run() },
     { icon: <Strikethrough size={15} />, title: '删除线', active: editor.isActive('strike'), action: () => editor.chain().focus().toggleStrike().run() },
-    { icon: <Quote size={15} />, title: '引用', active: editor.isActive('blockquote'), action: () => editor.chain().focus().toggleBlockquote().run() },
     { icon: <List size={15} />, title: '无序列表', active: editor.isActive('bulletList'), action: () => editor.chain().focus().toggleBulletList().run() },
     { icon: <ListOrdered size={15} />, title: '有序列表', active: editor.isActive('orderedList'), action: () => editor.chain().focus().toggleOrderedList().run() },
     { icon: <Code size={15} />, title: '代码块', active: editor.isActive('codeBlock'), action: openCodeBlockDialog },
     { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: setLink },
     { icon: <ImageIcon size={15} />, title: '上传图片', action: setImage },
-    { icon: <span className="article-tool-btn__owo">OwO</span>, title: '表情 OwO', active: showSticker, action: () => setShowSticker(v => !v) },
+    { icon: <span className="article-tool-btn__owo">OwO</span>, title: '表情 OwO', active: showSticker, action: () => setShowSticker(v => !v), className: 'article-tool-btn--owo' },
   ];
 
   return (
@@ -262,7 +251,7 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
               <button
                 ref={i === tools.length - 1 ? stickerBtnRef : undefined}
                 type="button"
-                className={`article-tool-btn${t.active ? ' active' : ''}`}
+                className={`article-tool-btn${t.active ? ' active' : ''}${t.className ? ` ${t.className}` : ''}`}
                 onMouseDown={e => e.preventDefault()}
                 onClick={t.action}
                 aria-label={t.title}

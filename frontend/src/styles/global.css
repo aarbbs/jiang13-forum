@@ -5561,19 +5561,24 @@ a.post-title:visited {
   width: 28px;
   height: 28px;
   border-radius: 5px;
+  padding: 0;
 }
 
-.comment-editor .article-tool-btn strong { font-size: 11px; }
+.comment-editor .article-tool-btn--owo {
+  width: auto;
+  min-width: 28px;
+  padding: 0 8px;
+}
 
-/* OwO 文本按钮：与 SVG 图标视觉对齐 */
+/* OwO 文本按钮：与 SVG 图标视觉对齐，fill button area for consistent focus ring */
 .article-tool-btn__owo {
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.5px;
   line-height: 1;
-  display: inline-block;
-  transform: translateY(-0.5px);
-  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .comment-editor .article-editor-body {
@@ -5642,6 +5647,9 @@ a.post-title:visited {
   .sticker-picker-grid { grid-template-columns: repeat(4, 1fr); }
   .sticker-picker-tab { padding: 6px 10px; font-size: 12px; }
   .comment-editor .article-tool-btn { width: 30px; height: 30px; }
+  .comment-editor .article-tool-btn--owo { width: auto; min-width: 30px; padding: 0 8px; }
+  .comment-editor .article-editor-tools { flex-wrap: wrap; }
+  .comment-editor .article-editor-bar { padding: 4px 6px; }
 }
 
 /* Waline 嵌套评论列表 — 与正文共用 .page-wrap 滚动 */
@@ -8097,6 +8105,11 @@ button.profile-stat:hover strong {
 .article-tool-btn:hover {
   background: var(--j13-bg-block-muted);
   color: var(--j13-green);
+}
+
+.article-tool-btn:focus-visible {
+  outline: 2px solid var(--j13-green);
+  outline-offset: 1px;
 }
 
 .article-tool-btn.active {

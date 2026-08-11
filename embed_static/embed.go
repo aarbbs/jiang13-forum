@@ -39,6 +39,15 @@ func SetupEmbed(r *gin.Engine) error {
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	}
+
+	if sub, err := fs.Sub(staticFS, "static/spa/stickers"); err == nil {
+		fileServer := http.StripPrefix("/stickers", http.FileServer(http.FS(sub)))
+		r.GET("/stickers/*filepath", func(c *gin.Context) {
+			// stickers 不含哈希指纹，设置适中的缓存
+			c.Header("Cache-Control", "public, max-age=86400")
+			fileServer.ServeHTTP(c.Writer, c.Request)
+		})
+	}
 	return nil
 }
 
@@ -69,6 +78,7 @@ func IsSPARoute(path string) bool {
 		strings.HasPrefix(path, "/uploads") ||
 		strings.HasPrefix(path, "/media") ||
 		strings.HasPrefix(path, "/assets") ||
+		strings.HasPrefix(path, "/stickers") ||
 		strings.HasPrefix(path, "/oauth") ||
 		strings.HasPrefix(path, "/.well-known") {
 		return false
