@@ -34,9 +34,9 @@ type Config struct {
 	DevMode bool
 }
 
-// Parse 解析命令行与 app.ini，并初始化数据目录
+// Parse 解析命令行、环境变量与 app.ini，并初始化数据目录
 //
-// 优先级（高 → 低）：命令行显式参数 > app.ini > 内置默认值
+// 优先级（高 → 低）：命令行显式参数 > 环境变量 > app.ini > 内置默认值
 func Parse() (*Config, error) {
 	configFlag := flag.String("config", "", "配置文件路径（默认：工作目录/app.ini）")
 	workFlag := flag.String("work-path", "", "工作目录（默认：可执行文件所在目录）")
@@ -52,12 +52,20 @@ func Parse() (*Config, error) {
 		return nil, fmt.Errorf("无效的 -service 动作 %q，可选：install|uninstall|start|stop|restart|status", *serviceFlag)
 	}
 
-	workPath, err := resolveWorkPath(*workFlag)
+	workPathInput := strings.TrimSpace(*workFlag)
+	if workPathInput == "" {
+		workPathInput = envOrDefault(envWorkPath)
+	}
+	workPath, err := resolveWorkPath(workPathInput)
 	if err != nil {
 		return nil, err
 	}
 
-	configFile, err := resolveConfigPath(workPath, *configFlag)
+	configInput := strings.TrimSpace(*configFlag)
+	if configInput == "" {
+		configInput = envOrDefault(envConfig)
+	}
+	configFile, err := resolveConfigPath(workPath, configInput)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +81,17 @@ func Parse() (*Config, error) {
 	}
 
 	port := fileCfg.Port
+	if p := envIntOrZero(envHTTPPort); p > 0 {
+		port = p
+	}
 	if *portFlag > 0 {
 		port = *portFlag
 	}
 
 	dataInput := fileCfg.DataRel
+	if v := envOrDefault(envData); v != "" {
+		dataInput = v
+	}
 	if strings.TrimSpace(*dataFlag) != "" {
 		dataInput = *dataFlag
 	}
@@ -86,9 +100,12 @@ func Parse() (*Config, error) {
 		return nil, fmt.Errorf("解析数据目录失败: %w", err)
 	}
 
-	jwtSecret := strings.TrimSpace(*jwtFlag)
-	if jwtSecret == "" {
-		jwtSecret = fileCfg.JWTSecret
+	jwtSecret := fileCfg.JWTSecret
+	if v := envOrDefault(envJWTSecret); v != "" {
+		jwtSecret = v
+	}
+	if strings.TrimSpace(*jwtFlag) != "" {
+		jwtSecret = strings.TrimSpace(*jwtFlag)
 	}
 
 	cfg := &Config{

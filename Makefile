@@ -6,11 +6,12 @@ MAIN_PKG    := ./cmd/jiang13
 BUILD_DIR   := dist
 VERSION     := 1.0.0
 LDFLAGS     := -s -w -X main.version=$(VERSION)
+REGISTRY_IMAGE := hangzhang714128/jiang13-forum
 
 GO          := go
 GOFLAGS     := -trimpath
 
-.PHONY: all build build-windows build-linux build-darwin clean run dev tidy help frontend frontend-build
+.PHONY: all build build-windows build-linux build-darwin clean run dev tidy help frontend frontend-build docker compose-up compose-down
 
 all: build
 
@@ -70,6 +71,18 @@ dev:
 clean:
 	rm -rf $(BUILD_DIR)
 
+## 构建 Docker 镜像
+docker:
+	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY_IMAGE):$(VERSION) -t $(REGISTRY_IMAGE):latest .
+
+## Docker Compose 启动
+compose-up:
+	docker compose up -d --build
+
+## Docker Compose 停止
+compose-down:
+	docker compose down
+
 help:
 	@echo "姜十三论坛编译命令:"
 	@echo "  make build          - 编译当前平台"
@@ -79,3 +92,6 @@ help:
 	@echo "  make build-all      - 编译全部平台"
 	@echo "  make run            - 仅启动后端（:3000）"
 	@echo "  make dev            - 前端热更新开发（:5173 + :3000）"
+	@echo "  make docker         - 构建 Docker 镜像"
+	@echo "  make compose-up     - Docker Compose 启动"
+	@echo "  make compose-down   - Docker Compose 停止"

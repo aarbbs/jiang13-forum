@@ -11,6 +11,7 @@
 
 [![在线演示](https://img.shields.io/badge/Demo-bbs.iioio.com-18a058?style=flat-square)](https://bbs.iioio.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-18a058?style=flat-square)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-hangzhang714128%2Fjiang13--forum-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/hangzhang714128/jiang13-forum)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)](go.mod)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](frontend/package.json)
 [![SQLite](https://img.shields.io/badge/SQLite-内置-003B57?style=flat-square&logo=sqlite&logoColor=white)](#)
@@ -116,6 +117,7 @@
 - **零依赖数据库** — SQLite 内建，数据目录由 `app.ini` 统一管理
 - **跨平台** — Windows / Linux / macOS 一键编译
 - **系统服务** — 内置 Linux systemd / Windows Service 注册
+- **Docker 单容器** — 多阶段镜像，挂载 `data/` 即可持久化
 
 ---
 
@@ -152,7 +154,82 @@ build.bat -Target build-linux
 build.bat -Target build-all
 ```
 
-### 2. 启动
+### 2. Docker 部署（推荐）
+
+**一键启动（本地构建）：**
+
+```bash
+docker compose up -d --build
+```
+
+```bat
+.\build.bat -Target compose-up
+```
+
+```bash
+make compose-up
+```
+
+浏览器打开 `http://localhost:3000/register` 注册；**首个用户自动成为管理员**。
+
+**拉取已构建镜像（Docker Hub）：**
+
+```bash
+docker pull hangzhang714128/jiang13-forum:latest
+docker run -d --name jiang13 \
+  -p 3000:3000 \
+  -v jiang13-data:/data \
+  --restart unless-stopped \
+  hangzhang714128/jiang13-forum:latest
+```
+
+**数据持久化：** 容器内 `/data` 对应 SQLite、上传、日志与 JWT 密钥，与下方「数据目录」结构一致。可用 Docker volume 或绑定宿主机目录。镜像启动时会自动将 `/data` 卷属主修正为 uid `1000`（`jiang13` 用户），适配 1Panel 等面板挂载的目录。
+
+**若使用旧版镜像仍报 permission denied**，可在宿主机执行：`chown -R 1000:1000 /你的数据目录`
+
+**可选环境变量（容器编排）：**
+
+| 变量 | 说明 |
+|------|------|
+| `JIANG13_HTTP_PORT` | HTTP 端口（默认 `3000`） |
+| `JIANG13_DATA` | 数据目录（默认 `/data`） |
+| `JIANG13_JWT_SECRET` | JWT 密钥（留空则自动生成并写入 `/data/.jwt_secret`） |
+| `JIANG13_CONFIG` | 配置文件路径 |
+| `JIANG13_WORK_PATH` | 工作目录 |
+
+**健康检查：** `GET /health` 返回 `{"status":"ok"}`，供 Docker / 负载均衡探活。
+
+**CI 自动构建镜像：** 向 GitHub `main` 分支 push 或打 `v*` 标签后，GitHub Actions 会构建并推送到 [Docker Hub](https://hub.docker.com/r/hangzhang714128/jiang13-forum)。需在 GitHub 仓库 Secrets 中配置 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Access Token，需 Read & Write 权限）。
+
+**手动推送：**
+
+```bash
+docker login
+docker build --build-arg VERSION=1.0.0 -t hangzhang714128/jiang13-forum:1.0.0 -t hangzhang714128/jiang13-forum:latest .
+docker push hangzhang714128/jiang13-forum:1.0.0
+docker push hangzhang714128/jiang13-forum:latest
+```
+
+停止服务：`docker compose down` / `.\build.bat -Target compose-down` / `make compose-down`
+
+**构建失败（无法连接 auth.docker.io）？** Dockerfile 已默认经 DaoCloud 拉取基础镜像。若仍超时，可在 Docker Desktop → Settings → Docker Engine 添加：
+
+```json
+{
+  "registry-mirrors": ["https://docker.m.daocloud.io"]
+}
+```
+
+保存并重启 Docker 后重试 `.\build.bat -Target docker`。PowerShell 中请用 `.\build.bat`（带 `.\` 前缀）。
+
+**1Panel 部署提示：**
+
+1. 容器镜像填 `hangzhang714128/jiang13-forum:latest`
+2. 端口映射 `3000:3000`
+3. 挂载数据卷到容器内 `/data`（镜像会自动修正目录权限）
+4. 首次访问 `http://服务器IP:3000/register` 注册管理员
+
+### 3. 直接启动（二进制）
 
 把二进制放到目标目录后直接运行（首次会在同目录生成 `app.ini`）：
 
@@ -172,7 +249,7 @@ cp app.ini.example /opt/jiang13/app.ini
 ./jiang13
 ```
 
-### 3. 首次使用
+### 4. 首次使用
 
 1. 浏览器打开 `http://localhost:3000/register` 注册账号
 2. **第一个注册的用户自动成为管理员**
@@ -208,7 +285,9 @@ JWT_SECRET =
 | `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
 | `--service` | （空） | `install` / `uninstall` / `start` / `stop` / `restart` / `status` |
 
-### 4. 注册为系统服务（可选）
+**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`
+
+### 5. 注册为系统服务（可选）
 
 将二进制与 `app.ini` 放到同一目录后注册即可。之后改端口或数据目录只需编辑 `app.ini` 并重启服务，不必重新安装。
 
@@ -295,6 +374,10 @@ jiang13-forum/
 ├── cmd/jiang13/           # 程序入口（含系统服务注册）
 ├── config/                # app.ini 与命令行配置
 ├── app.ini.example        # 配置文件示例
+├── Dockerfile             # 多阶段 Docker 构建
+├── docker-compose.yml     # 单容器 Compose 部署
+├── docker-entrypoint.sh   # 容器启动脚本（修正 /data 卷权限）
+├── .dockerignore
 ├── model/                 # GORM 模型与数据库迁移
 ├── service/               # 业务逻辑
 ├── handler/               # HTTP 处理器（前台 + 后台）

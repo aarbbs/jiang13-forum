@@ -10,6 +10,9 @@ import (
 	"git.iioio.com/freefire/jiang13-forum/config"
 )
 
+// version 由构建脚本通过 -ldflags "-X main.version=..." 注入
+var version = "dev"
+
 func main() {
 	cfg, err := config.Parse()
 	if err != nil {

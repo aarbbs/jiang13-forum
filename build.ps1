@@ -3,7 +3,7 @@
 #        .\build.ps1 -Target build-windows
 
 param(
-    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'frontend', 'tidy', 'run', 'dev', 'clean', 'help')]
+    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'frontend', 'tidy', 'run', 'dev', 'clean', 'docker', 'compose-up', 'compose-down', 'help')]
     [string]$Target = 'build'
 )
 
@@ -12,6 +12,7 @@ $AppName = 'jiang13'
 $MainPkg = './cmd/jiang13'
 $BuildDir = 'dist'
 $Version = '1.0.0'
+$RegistryImage = 'hangzhang714128/jiang13-forum'
 $Ldlags = "-s -w -X main.version=$Version"
 
 function Ensure-Dir($path) {
@@ -76,6 +77,9 @@ switch ($Target) {
         Write-Host '.\build.ps1 -Target dev       backend + Vite HMR (recommended for frontend dev)'
         Write-Host '.\build.ps1 -Target tidy'
         Write-Host '.\build.ps1 -Target clean'
+        Write-Host '.\build.ps1 -Target docker       build Docker image'
+        Write-Host '.\build.ps1 -Target compose-up   docker compose up -d --build'
+        Write-Host '.\build.ps1 -Target compose-down docker compose down'
         Write-Host ''
         Write-Host 'Note: Windows "make" is often Embarcadero MAKE, not GNU Make.'
     }
@@ -131,5 +135,21 @@ switch ($Target) {
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'
         Build-Go -OutFile "$AppName-darwin-arm64" -GoOS 'darwin' -GoArch 'arm64'
         Write-Host '[ok] all platforms done' -ForegroundColor Green
+    }
+    'docker' {
+        Write-Host "[docker] build $RegistryImage`:$Version and latest" -ForegroundColor Cyan
+        docker build --build-arg "VERSION=$Version" -t "${RegistryImage}:$Version" -t "${RegistryImage}:latest" .
+        if ($LASTEXITCODE -ne 0) { throw 'docker build failed' }
+        Write-Host '[ok] docker image built' -ForegroundColor Green
+    }
+    'compose-up' {
+        docker compose up -d --build
+        if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed' }
+        Write-Host '[ok] compose started' -ForegroundColor Green
+    }
+    'compose-down' {
+        docker compose down
+        if ($LASTEXITCODE -ne 0) { throw 'docker compose down failed' }
+        Write-Host '[ok] compose stopped' -ForegroundColor Green
     }
 }

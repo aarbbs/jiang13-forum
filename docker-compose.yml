@@ -1,0 +1,33 @@
+# 姜十三论坛 — Docker Compose 单服务部署
+# 启动：docker compose up -d --build
+# 或：make compose-up / build.bat -Target compose-up
+
+services:
+  jiang13:
+    image: hangzhang714128/jiang13-forum:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - jiang13-data:/data
+      # 可选：挂载自定义 app.ini（只读）
+      # - ./app.ini:/app/app.ini:ro
+    environment:
+      TZ: Asia/Shanghai
+      # 可选：固定 JWT 密钥（留空则自动生成并持久化到 /data/.jwt_secret）
+      # JIANG13_JWT_SECRET: your-secret-here
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  jiang13-data:

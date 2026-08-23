@@ -1,0 +1,25 @@
+# Git 与编辑器
+.git
+.gitignore
+.idea
+.vscode
+.cursor
+
+# 运行时数据与本地配置
+data/
+app.ini
+tmp-cookie.txt
+
+# 编译产物与前端缓存
+dist/
+frontend/node_modules/
+frontend/dist/
+embed_static/static/spa/
+node_modules/
+.vite/
+
+# 文档与截图（不参与镜像构建）
+docs/
+
+# 计划文件
+*.plan.md

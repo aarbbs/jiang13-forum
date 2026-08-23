@@ -58,6 +58,18 @@ func InitDB(dbPath string) error {
 	return nil
 }
 
+// PingDB 检测数据库连接是否可用（供健康检查使用）
+func PingDB() error {
+	if DB == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Ping()
+}
+
 // seedDefaultBadges 写入内置自动徽章（已存在则跳过）
 func seedDefaultBadges(db *gorm.DB) {
 	defs := []BadgeDef{

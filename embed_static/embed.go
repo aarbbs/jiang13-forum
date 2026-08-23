@@ -70,7 +70,7 @@ func ServeSPANoIndex(c *gin.Context) {
 
 // IsSPARoute 判断是否应由 SPA 处理
 func IsSPARoute(path string) bool {
-	if path == "/robots.txt" || path == "/sitemap.xml" {
+	if path == "/health" || path == "/robots.txt" || path == "/sitemap.xml" {
 		return false
 	}
 	if strings.HasPrefix(path, "/api") ||

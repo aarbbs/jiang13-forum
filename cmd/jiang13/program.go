@@ -72,6 +72,7 @@ func (p *program) setup() error {
 
 	log.Println("========================================")
 	log.Println("  姜十三论坛 Jiang13 Forum 启动中...")
+	log.Printf("  版本: %s", version)
 	log.Println("========================================")
 
 	if err := model.InitDB(cfg.DBPath()); err != nil {

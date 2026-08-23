@@ -56,6 +56,18 @@ func (h *Handlers) APIBoards(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"boards": boards})
 }
 
+// APIHealth 健康检查（容器探活 / 负载均衡）
+func (h *Handlers) APIHealth(c *gin.Context) {
+	if err := model.PingDB(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status": "unavailable",
+			"error":  err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 // APIStats 论坛概览统计
 func (h *Handlers) APIStats(c *gin.Context) {
 	var userCount, postCount, boardCount int64

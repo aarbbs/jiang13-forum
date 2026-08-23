@@ -98,6 +98,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
 	r.Static("/uploads", filepath.Join(cfg.DataDir, "uploads"))
 
+	// 健康检查（容器 / 负载均衡探活）
+	r.GET("/health", h.APIHealth)
+
 	// SEO：抓取规则与站点地图
 	r.GET("/robots.txt", h.RobotsTxt)
 	r.GET("/sitemap.xml", h.SitemapXML)
