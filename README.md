@@ -199,12 +199,19 @@ docker run -d --name jiang13 \
 
 **健康检查：** `GET /health` 返回 `{"status":"ok"}`，供 Docker / 负载均衡探活。
 
-**CI 自动构建镜像：** 向 GitHub `main` 分支 push 或打 `v*` 标签后，GitHub Actions 会构建并推送到 [Docker Hub](https://hub.docker.com/r/hangzhang714128/jiang13-forum)。需在 GitHub 仓库 Secrets 中配置 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`（Access Token，需 Read & Write 权限）。
-
-**手动推送：**
+**发布镜像到 Docker Hub（手动）：**
 
 ```bash
 docker login
+.\build.bat -Target docker          # Windows
+# make docker                       # Linux/macOS
+docker push hangzhang714128/jiang13-forum:1.0.0
+docker push hangzhang714128/jiang13-forum:latest
+```
+
+或直接构建：
+
+```bash
 docker build --build-arg VERSION=1.0.0 -t hangzhang714128/jiang13-forum:1.0.0 -t hangzhang714128/jiang13-forum:latest .
 docker push hangzhang714128/jiang13-forum:1.0.0
 docker push hangzhang714128/jiang13-forum:latest
