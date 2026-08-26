@@ -346,6 +346,8 @@ make dev
 
 浏览器访问 `http://localhost:5173`，API 自动代理到 `http://localhost:3000`。
 
+开发后端与 `dist/jiang13` 共用数据目录 `dist/data`（SQLite、上传、JWT 密钥等），避免 dev 与 dist 运行数据不一致。
+
 **何时需要完整构建：**
 
 - 修改 Go 代码或要发布单二进制 → `build.bat` / `make build`

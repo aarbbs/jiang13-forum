@@ -1,7 +1,7 @@
 import {
-  Home, Star, LayoutDashboard, FolderGit2, FolderKanban, ArrowLeft,
+  Home, Star, LayoutDashboard, FolderGit2, FolderKanban, ArrowLeft, FileText, Link2,
 } from 'lucide-react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import type { Board } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useAuth } from '../hooks/useAuth';
@@ -12,9 +12,12 @@ import { navigateFeed } from '../utils/feedCache';
 import BoardIconDisplay from './BoardIconDisplay';
 import { getBoardThemeIndex } from '../utils/boardTheme';
 import ArticleOutline from './ArticleOutline';
+import { useSitePages } from '../hooks/useSitePages';
+import { pagePath } from '../utils/permalink';
+import { useForumLimits } from '../hooks/useForumLimits';
 
 // 内容页不参与左侧栏高亮（非 feed 浏览上下文）
-const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile', '/user/'];
+const NEUTRAL_SIDEBAR_PREFIXES = ['/post/', '/profile', '/user/', '/page/'];
 
 export function isNeutralSidebarRoute(pathname: string): boolean {
   return NEUTRAL_SIDEBAR_PREFIXES.some(prefix => pathname.startsWith(prefix));
@@ -26,6 +29,8 @@ function resolveMenuKey(pathname: string, activeBoard: number, keyword = ''): st
   if (keyword.trim()) return null;
   if (pathname.startsWith('/favorites')) return 'favorites';
   if (pathname.startsWith('/projects')) return 'projects';
+  if (pathname.startsWith('/links')) return 'links';
+  if (pathname.startsWith('/page/')) return 'pages';
   if (pathname.startsWith('/admin')) return 'admin';
   return activeBoard === 0 ? 'all' : String(activeBoard);
 }
@@ -59,9 +64,37 @@ export default function Sidebar({
   const sort = parseFeedSort(params.get('sort'));
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const { navPages } = useSitePages();
+  const { limits } = useForumLimits();
 
   const keyword = params.get('keyword') || '';
   const menuKey = resolveMenuKey(loc.pathname, activeBoard, keyword);
+  const permalinkOpts = { permalink: limits };
+
+  const feedNavLink = (
+    key: string,
+    to: string,
+    label: React.ReactNode,
+    icon: React.ReactNode,
+    selectId: number,
+    className?: string,
+    trailing?: React.ReactNode,
+  ) => (
+    <Link
+      key={key}
+      to={to}
+      className={cn('sidebar-nav-item', className, menuKey != null && menuKey === key && 'active')}
+      onClick={(e) => {
+        e.preventDefault();
+        onSelectBoard(selectId);
+        navigateFeed(nav, to);
+      }}
+    >
+      {icon}
+      <span className="flex-1 truncate">{label}</span>
+      {trailing}
+    </Link>
+  );
 
   const navItem = (key: string, label: React.ReactNode, icon?: React.ReactNode, onClick?: () => void) => (
     <button
@@ -99,9 +132,10 @@ export default function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-section">浏览</div>
       <nav className="sidebar-nav">
-        {navItem('all', '全部帖子', <Home aria-hidden />, () => { onSelectBoard(0); navigateFeed(nav, buildHomeUrl(0, sort)); })}
+        {feedNavLink('all', buildHomeUrl(0, sort, permalinkOpts), '全部帖子', <Home aria-hidden />, 0)}
         {user && navItem('favorites', '我的收藏', <Star aria-hidden />, () => nav('/favorites'))}
         {navItem('projects', '开源码桶', <FolderGit2 aria-hidden />, () => nav('/projects'))}
+        {navItem('links', '友情链接', <Link2 aria-hidden />, () => nav('/links'))}
       </nav>
 
       {(boardsLoading && boards.length === 0) ? (
@@ -123,29 +157,27 @@ export default function Sidebar({
             {boards.map(b => {
               const isActive = menuKey != null && menuKey === String(b.id);
               const themeIdx = getBoardThemeIndex(b);
-              return (
-                <button
-                  type="button"
-                  key={b.id}
-                  className={cn(
-                    'sidebar-nav-item',
-                    'sidebar-nav-item--board',
-                    isActive && 'active',
-                    isActive && `sidebar-nav-item--board-${themeIdx}`,
-                  )}
-                  onClick={() => { onSelectBoard(b.id); navigateFeed(nav, buildHomeUrl(b.id, sort)); }}
-                >
-                  <BoardIconDisplay
-                    board={b}
-                    className={cn('sidebar-board-icon', `sidebar-board-icon--${themeIdx}`)}
-                  />
-                  <span className="flex-1 truncate">{b.name}</span>
-                  {(b.post_count ?? 0) > 0 && (
-                    <span className="sidebar-nav-item__meta" title={`${b.post_count} 篇帖子`}>
-                      {b.post_count} 帖
-                    </span>
-                  )}
-                </button>
+              const boardUrl = buildHomeUrl(b.id, sort, permalinkOpts);
+              const postMeta = (b.post_count ?? 0) > 0 ? (
+                <span className="sidebar-nav-item__meta" title={`${b.post_count} 篇帖子`}>
+                  {b.post_count} 帖
+                </span>
+              ) : null;
+              return feedNavLink(
+                String(b.id),
+                boardUrl,
+                b.name,
+                <BoardIconDisplay
+                  board={b}
+                  className={cn('sidebar-board-icon', `sidebar-board-icon--${themeIdx}`)}
+                />,
+                b.id,
+                cn(
+                  'sidebar-nav-item--board',
+                  isActive && 'active',
+                  isActive && `sidebar-nav-item--board-${themeIdx}`,
+                ),
+                postMeta,
               );
             })}
           </nav>
@@ -158,6 +190,17 @@ export default function Sidebar({
           </nav>
         </>
       ) : null}
+
+      {(navPages.length > 0) && (
+        <>
+          <div className="sidebar-section sidebar-section--spaced">站点</div>
+          <nav className="sidebar-nav">
+            {navPages.map(p => (
+              navItem(`page-${p.slug}`, p.title, <FileText aria-hidden />, () => nav(pagePath(p.slug, limits)))
+            ))}
+          </nav>
+        </>
+      )}
 
       {isAdmin && (
         <>

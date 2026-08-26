@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useOutletContext, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams, useLocation, useParams } from 'react-router-dom';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import type { PostItem } from '../api/types';
@@ -20,17 +20,35 @@ import {
 import { openForumPost } from '../utils/openPost';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { siteMetaDescription, useSiteBranding } from '../hooks/useSiteBranding';
+import { boardPath, canonicalRedirectPath, parsePermalinkID } from '../utils/permalink';
+import NotFoundPage from './NotFoundPage';
+
+/** 仅从 URL 解析板块 ID（不以 layout 状态回退，避免回首页误用上一板块） */
+function boardIdFromLocation(routeId: string | undefined, searchParams: URLSearchParams): number {
+  if (routeId) {
+    const id = parsePermalinkID(routeId);
+    return Number.isFinite(id) && id > 0 ? id : 0;
+  }
+  const q = Number(searchParams.get('board')) || 0;
+  return q > 0 ? q : 0;
+}
 
 export default function HomePage() {
   const nav = useNavigate();
   const location = useLocation();
+  const { id: boardRouteId } = useParams();
   const [params] = useSearchParams();
   const ctx = useOutletContext<LayoutCtx>();
   const { branding } = useSiteBranding();
   const { limits, loading: limitsLoading } = useForumLimits();
   const pageSize = Math.max(1, limits.page_size_default);
 
-  const boardId = Number(params.get('board')) || ctx?.boardId || 0;
+  const boardId = boardIdFromLocation(boardRouteId, params);
+  const queryBoardId = Number(params.get('board')) || 0;
+  const isBoardRoute = !!boardRouteId;
+  const isInvalidBoardRoute = isBoardRoute && boardId === 0;
+  const boardsLoading = ctx?.boardsLoading ?? true;
+  const isMissingBoard = isBoardRoute && boardId > 0 && !boardsLoading && !(ctx?.boards ?? []).some(b => b.id === boardId);
   const keyword = params.get('keyword') || '';
   const tag = params.get('tag') || '';
   const author = params.get('author') || '';
@@ -51,10 +69,29 @@ export default function HomePage() {
     canonicalPath: tag
       ? `/?tag=${encodeURIComponent(tag)}`
       : boardId
-        ? `/?board=${boardId}`
+        ? boardPath(boardId, limits)
         : '/',
     ogType: 'website',
   });
+
+  // 旧版 /?board=id 重定向到规范板块路径
+  useEffect(() => {
+    if (queryBoardId && !boardRouteId) {
+      const p = new URLSearchParams(params);
+      p.delete('board');
+      const qs = p.toString();
+      const target = boardPath(queryBoardId, limits) + (qs ? `?${qs}` : '');
+      nav(target, { replace: true });
+      return;
+    }
+    if (boardRouteId && boardId > 0) {
+      const redirect = canonicalRedirectPath('board', boardId, location.pathname, limits);
+      if (redirect) {
+        const qs = location.search;
+        nav(redirect + qs, { replace: true });
+      }
+    }
+  }, [queryBoardId, boardId, boardRouteId, params, nav, limits, location.pathname, location.search]);
 
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [postTotal, setPostTotal] = useState(0);
@@ -137,7 +174,7 @@ export default function HomePage() {
 
   // 等限制就绪后再拉列表；筛选变化时重载
   useEffect(() => {
-    if (limitsLoading) return;
+    if (limitsLoading || isInvalidBoardRoute || isMissingBoard) return;
 
     const forceRefresh = (location.state as FeedNavState | null)?.refreshFeed;
     if (forceRefresh) {
@@ -174,6 +211,8 @@ export default function HomePage() {
     location.state,
     loadFirst,
     beginFeedRefresh,
+    isInvalidBoardRoute,
+    isMissingBoard,
   ]);
 
   // 筛选未变时同步列表快照；变筛选的那一帧先保留旧快照供 cleanup 写入
@@ -230,13 +269,22 @@ export default function HomePage() {
       loadFirst();
       return;
     }
-    navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly }));
+    navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly, permalink: limits }));
   };
 
   const showSortBar = !keyword && !tag && !author;
 
+  if (isInvalidBoardRoute || isMissingBoard) {
+    return (
+      <NotFoundPage
+        title="板块不存在"
+        description="该板块不存在，或已被删除。"
+      />
+    );
+  }
+
   // 首屏用同构骨架，避免标题/列表分区先后出现造成闪动
-  if ((loading || limitsLoading) && posts.length === 0) {
+  if ((loading || limitsLoading || (isBoardRoute && boardsLoading)) && posts.length === 0) {
     return <FeedPageSkeleton />;
   }
 

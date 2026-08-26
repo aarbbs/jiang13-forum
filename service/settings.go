@@ -13,7 +13,7 @@ import (
 
 // 论坛设置键名
 const (
-	SettingPostEditWindowHours     = "post_edit_window_hours"
+	SettingPostEditWindowHours      = "post_edit_window_hours"
 	SettingCommentEditWindowMinutes = "comment_edit_window_minutes"
 
 	SettingRateLimitPost     = "rate_limit_post"
@@ -39,6 +39,11 @@ const (
 
 	SettingOpenPostsInNewTab        = "open_posts_in_new_tab"
 	SettingOpenContentLinksInNewTab = "open_content_links_in_new_tab"
+	SettingAsideShowTagCloud        = "aside_show_tag_cloud"
+	SettingAsideShowRecentComments  = "aside_show_recent_comments"
+	SettingAsideShowFriendLinks     = "aside_show_friend_links"
+	SettingAsideWidgets             = "aside_widgets"
+	SettingFeedListStyle            = "feed_list_style"
 
 	// 伪静态键名见 permalink.go：SettingPermalinkEnabled / SettingPermalinkExt
 
@@ -73,17 +78,18 @@ const (
 	SettingStorageForcePathStyle = "storage_force_path_style"
 	SettingStorageImageDelivery  = "storage_image_delivery"
 
-	SettingSiteName        = "site_name"
-	SettingSiteSlogan      = "site_slogan"
-	SettingSiteDescription = "site_description"
-	SettingSiteKeywords    = "site_keywords"
-	SettingSiteLogoMark    = "site_logo_mark"
-	SettingSiteLogo        = "site_logo"
-	SettingSiteFavicon     = "site_favicon"
-	SettingSiteOGImage     = "site_og_image"
-	SettingSiteICPBeian    = "site_icp_beian"
-	SettingSiteICPBeianURL = "site_icp_beian_url"
-	SettingSiteFriendLinks = "site_friend_links"
+	SettingSiteName                  = "site_name"
+	SettingSiteSlogan                = "site_slogan"
+	SettingSiteDescription           = "site_description"
+	SettingSiteKeywords              = "site_keywords"
+	SettingSiteLogoMark              = "site_logo_mark"
+	SettingSiteLogo                  = "site_logo"
+	SettingSiteFavicon               = "site_favicon"
+	SettingSiteOGImage               = "site_og_image"
+	SettingSiteICPBeian              = "site_icp_beian"
+	SettingSiteICPBeianURL           = "site_icp_beian_url"
+	SettingSiteFriendLinks           = "site_friend_links"
+	SettingFriendLinkReciprocalCheck = "friend_link_reciprocal_check"
 
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
@@ -118,8 +124,33 @@ type ForumLimits struct {
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
 
+	AsideShowTagCloud       bool          `json:"aside_show_tag_cloud"`
+	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
+	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
+	AsideWidgets            []AsideWidget `json:"aside_widgets"`
+
+	FeedListStyle string `json:"feed_list_style"`
+
 	PermalinkEnabled bool   `json:"permalink_enabled"`
 	PermalinkExt     string `json:"permalink_ext"`
+}
+
+// AsideWidget 右侧栏可选组件
+type AsideWidget struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+}
+
+const (
+	AsideWidgetTagCloud       = "tag_cloud"
+	AsideWidgetRecentComments = "recent_comments"
+	AsideWidgetFriendLinks    = "friend_links"
+)
+
+var asideWidgetDefaultOrder = []string{
+	AsideWidgetTagCloud,
+	AsideWidgetRecentComments,
+	AsideWidgetFriendLinks,
 }
 
 // ForumLimitsPublic 前台可见的限制（不含限流等内部配置）
@@ -140,15 +171,22 @@ type ForumLimitsPublic struct {
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
 	OpenContentLinksInNewTab bool `json:"open_content_links_in_new_tab"`
 
+	AsideShowTagCloud       bool          `json:"aside_show_tag_cloud"`
+	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
+	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
+	AsideWidgets            []AsideWidget `json:"aside_widgets"`
+
+	FeedListStyle string `json:"feed_list_style"`
+
 	PermalinkEnabled bool   `json:"permalink_enabled"`
 	PermalinkExt     string `json:"permalink_ext"`
 }
 
 type settingDef struct {
-	key       string
+	key        string
 	defaultVal string
-	min       int
-	max       int // 0 表示不限制上限
+	min        int
+	max        int // 0 表示不限制上限
 }
 
 var forumSettingDefs = []settingDef{
@@ -178,6 +216,17 @@ var forumSettingDefs = []settingDef{
 
 	{SettingOpenPostsInNewTab, "1", 0, 1},
 	{SettingOpenContentLinksInNewTab, "1", 0, 1},
+}
+
+var feedSettingDefaults = map[string]string{
+	SettingFeedListStyle: "title",
+}
+
+var asideSettingDefaults = map[string]string{
+	SettingAsideShowTagCloud:       "0",
+	SettingAsideShowRecentComments: "0",
+	SettingAsideShowFriendLinks:    "1",
+	SettingAsideWidgets:            `[{"id":"tag_cloud","enabled":false},{"id":"recent_comments","enabled":false},{"id":"friend_links","enabled":true}]`,
 }
 
 var mailSettingDefaults = map[string]string{
@@ -219,6 +268,10 @@ var storageSettingDefaults = map[string]string{
 	SettingStorageImageDelivery:  ImageDeliveryWebP,
 }
 
+var friendLinkSettingDefaults = map[string]string{
+	SettingFriendLinkReciprocalCheck: "0", // 默认关闭回链检测
+}
+
 var siteBrandingDefaults = map[string]string{
 	SettingSiteName:        "姜十三论坛",
 	SettingSiteSlogan:      "拾三一隅，自在交流",
@@ -245,10 +298,11 @@ const (
 	defaultICPBeianURL    = "https://beian.miit.gov.cn/"
 )
 
-// FriendLink 页脚友情链接
+// FriendLink 友情链接
 type FriendLink struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+	Logo string `json:"logo,omitempty"`
 }
 
 // SiteBranding 站点品牌配置（名称、Logo、Favicon、页脚等）
@@ -264,6 +318,7 @@ type SiteBranding struct {
 	ICPBeian    string       `json:"icp_beian"`
 	ICPBeianURL string       `json:"icp_beian_url"`
 	FriendLinks []FriendLink `json:"friend_links"`
+	SiteURL     string       `json:"site_url,omitempty" gorm:"-"` // 公开站点根 URL，仅 API 填充
 }
 
 // DocumentTitle 浏览器标签标题：站点名 - 副标题（标语）
@@ -343,6 +398,20 @@ func (s *ForumSettingsService) ensureDefaults() {
 			model.DB.Create(&model.ForumSetting{Key: def.key, Value: def.defaultVal})
 		}
 	}
+	for key, val := range feedSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
+	for key, val := range asideSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
 	for key, val := range mailSettingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
@@ -372,6 +441,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 		}
 	}
 	for key, val := range siteBrandingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
+	for key, val := range friendLinkSettingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
@@ -426,6 +502,8 @@ func (s *ForumSettingsService) setInt(key string, value int) error {
 
 func (s *ForumSettingsService) Limits() ForumLimits {
 	permalink := s.Permalink()
+	widgets := s.AsideWidgets()
+	bools := asideBoolsFromWidgets(widgets)
 	return ForumLimits{
 		PostEditWindowHours:      s.PostEditWindowHours(),
 		CommentEditWindowMinutes: s.CommentEditWindowMinutes(),
@@ -454,6 +532,13 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		OpenPostsInNewTab:        s.OpenPostsInNewTab(),
 		OpenContentLinksInNewTab: s.OpenContentLinksInNewTab(),
 
+		AsideShowTagCloud:       bools.tagCloud,
+		AsideShowRecentComments: bools.recentComments,
+		AsideShowFriendLinks:    bools.friendLinks,
+		AsideWidgets:            widgets,
+
+		FeedListStyle: s.FeedListStyle(),
+
 		PermalinkEnabled: permalink.Enabled,
 		PermalinkExt:     permalink.Ext,
 	}
@@ -478,6 +563,13 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		OpenPostsInNewTab:        limits.OpenPostsInNewTab,
 		OpenContentLinksInNewTab: limits.OpenContentLinksInNewTab,
 
+		AsideShowTagCloud:       limits.AsideShowTagCloud,
+		AsideShowRecentComments: limits.AsideShowRecentComments,
+		AsideShowFriendLinks:    limits.AsideShowFriendLinks,
+		AsideWidgets:            limits.AsideWidgets,
+
+		FeedListStyle: limits.FeedListStyle,
+
 		PermalinkEnabled: limits.PermalinkEnabled,
 		PermalinkExt:     limits.PermalinkExt,
 	}
@@ -487,21 +579,21 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 	updates := map[string]int{
 		SettingPostEditWindowHours:      in.PostEditWindowHours,
 		SettingCommentEditWindowMinutes: in.CommentEditWindowMinutes,
-		SettingRateLimitPost:          in.RateLimitPost,
-		SettingRateLimitComment:    in.RateLimitComment,
-		SettingRateLimitRegister:   in.RateLimitRegister,
-		SettingRateLimitLogin:      in.RateLimitLogin,
-		SettingRateLimitWindow:     in.RateLimitWindowSec,
-		SettingPostTitleMax:        in.PostTitleMax,
-		SettingPostTagsMax:         in.PostTagsMax,
-		SettingPostContentMax:      in.PostContentMax,
-		SettingCommentMax:          in.CommentMax,
-		SettingSearchKeywordMin:    in.SearchKeywordMin,
-		SettingSearchKeywordMax:    in.SearchKeywordMax,
-		SettingPageSizeDefault:     in.PageSizeDefault,
-		SettingPasswordMinLen:      in.PasswordMinLen,
-		SettingAvatarMaxMB:         in.AvatarMaxMB,
-		SettingSignatureMax:        in.SignatureMax,
+		SettingRateLimitPost:            in.RateLimitPost,
+		SettingRateLimitComment:         in.RateLimitComment,
+		SettingRateLimitRegister:        in.RateLimitRegister,
+		SettingRateLimitLogin:           in.RateLimitLogin,
+		SettingRateLimitWindow:          in.RateLimitWindowSec,
+		SettingPostTitleMax:             in.PostTitleMax,
+		SettingPostTagsMax:              in.PostTagsMax,
+		SettingPostContentMax:           in.PostContentMax,
+		SettingCommentMax:               in.CommentMax,
+		SettingSearchKeywordMin:         in.SearchKeywordMin,
+		SettingSearchKeywordMax:         in.SearchKeywordMax,
+		SettingPageSizeDefault:          in.PageSizeDefault,
+		SettingPasswordMinLen:           in.PasswordMinLen,
+		SettingAvatarMaxMB:              in.AvatarMaxMB,
+		SettingSignatureMax:             in.SignatureMax,
 	}
 	if in.SearchKeywordMax > 0 && in.SearchKeywordMin > in.SearchKeywordMax {
 		return ErrInvalidSetting
@@ -511,9 +603,17 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 			return err
 		}
 	}
+	widgets := NormalizeAsideWidgets(in.AsideWidgets)
+	if len(widgets) == 0 {
+		widgets = asideWidgetsFromBools(in.AsideShowTagCloud, in.AsideShowRecentComments, in.AsideShowFriendLinks)
+	}
+	bools := asideBoolsFromWidgets(widgets)
 	boolUpdates := map[string]bool{
 		SettingOpenPostsInNewTab:        in.OpenPostsInNewTab,
 		SettingOpenContentLinksInNewTab: in.OpenContentLinksInNewTab,
+		SettingAsideShowTagCloud:        bools.tagCloud,
+		SettingAsideShowRecentComments:  bools.recentComments,
+		SettingAsideShowFriendLinks:     bools.friendLinks,
 		SettingPermalinkEnabled:         in.PermalinkEnabled,
 	}
 	for key, on := range boolUpdates {
@@ -525,11 +625,25 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 			return err
 		}
 	}
+	widgetsJSON, err := json.Marshal(widgets)
+	if err != nil {
+		return err
+	}
+	if err := s.setString(SettingAsideWidgets, string(widgetsJSON)); err != nil {
+		return err
+	}
 	ext, ok := NormalizePermalinkExt(in.PermalinkExt)
 	if !ok {
 		return ErrInvalidSetting
 	}
 	if err := s.setString(SettingPermalinkExt, ext); err != nil {
+		return err
+	}
+	style, ok := NormalizeFeedListStyle(in.FeedListStyle)
+	if !ok {
+		return ErrInvalidSetting
+	}
+	if err := s.setString(SettingFeedListStyle, style); err != nil {
 		return err
 	}
 	return nil
@@ -582,6 +696,126 @@ func (s *ForumSettingsService) OpenPostsInNewTab() bool {
 
 func (s *ForumSettingsService) OpenContentLinksInNewTab() bool {
 	return s.getString(SettingOpenContentLinksInNewTab, "1") == "1"
+}
+
+// FriendLinkReciprocalCheckEnabled 是否启用友链回链检测；缺省为关闭
+func (s *ForumSettingsService) FriendLinkReciprocalCheckEnabled() bool {
+	return s.getString(SettingFriendLinkReciprocalCheck, "0") == "1"
+}
+
+func (s *ForumSettingsService) SetFriendLinkReciprocalCheckEnabled(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return s.setString(SettingFriendLinkReciprocalCheck, v)
+}
+
+type asideWidgetBools struct {
+	tagCloud       bool
+	recentComments bool
+	friendLinks    bool
+}
+
+func asideWidgetsFromBools(tagCloud, recentComments, friendLinks bool) []AsideWidget {
+	return []AsideWidget{
+		{ID: AsideWidgetTagCloud, Enabled: tagCloud},
+		{ID: AsideWidgetRecentComments, Enabled: recentComments},
+		{ID: AsideWidgetFriendLinks, Enabled: friendLinks},
+	}
+}
+
+func asideBoolsFromWidgets(widgets []AsideWidget) asideWidgetBools {
+	out := asideWidgetBools{}
+	for _, w := range widgets {
+		switch w.ID {
+		case AsideWidgetTagCloud:
+			out.tagCloud = w.Enabled
+		case AsideWidgetRecentComments:
+			out.recentComments = w.Enabled
+		case AsideWidgetFriendLinks:
+			out.friendLinks = w.Enabled
+		}
+	}
+	return out
+}
+
+func isValidAsideWidgetID(id string) bool {
+	switch id {
+	case AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetFriendLinks:
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizeAsideWidgets 校验并补全右侧栏组件列表（顺序保留，缺失项按默认顺序追加）
+func NormalizeAsideWidgets(in []AsideWidget) []AsideWidget {
+	seen := make(map[string]bool, len(asideWidgetDefaultOrder))
+	out := make([]AsideWidget, 0, len(asideWidgetDefaultOrder))
+	for _, w := range in {
+		id := strings.TrimSpace(w.ID)
+		if !isValidAsideWidgetID(id) || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, AsideWidget{ID: id, Enabled: w.Enabled})
+	}
+	for _, id := range asideWidgetDefaultOrder {
+		if seen[id] {
+			continue
+		}
+		out = append(out, AsideWidget{ID: id, Enabled: false})
+	}
+	return out
+}
+
+func (s *ForumSettingsService) AsideWidgets() []AsideWidget {
+	raw := strings.TrimSpace(s.getString(SettingAsideWidgets, ""))
+	if raw != "" {
+		var widgets []AsideWidget
+		if err := json.Unmarshal([]byte(raw), &widgets); err == nil {
+			normalized := NormalizeAsideWidgets(widgets)
+			if len(normalized) > 0 {
+				return normalized
+			}
+		}
+	}
+	return asideWidgetsFromBools(s.AsideShowTagCloud(), s.AsideShowRecentComments(), s.AsideShowFriendLinks())
+}
+
+func (s *ForumSettingsService) AsideShowTagCloud() bool {
+	return s.getString(SettingAsideShowTagCloud, "0") == "1"
+}
+
+func (s *ForumSettingsService) AsideShowRecentComments() bool {
+	return s.getString(SettingAsideShowRecentComments, "0") == "1"
+}
+
+func (s *ForumSettingsService) AsideShowFriendLinks() bool {
+	return s.getString(SettingAsideShowFriendLinks, "1") == "1"
+}
+
+// NormalizeFeedListStyle 校验首页列表样式
+func NormalizeFeedListStyle(v string) (string, bool) {
+	switch strings.TrimSpace(strings.ToLower(v)) {
+	case "title", "":
+		return "title", true
+	case "excerpt":
+		return "excerpt", true
+	case "thumbnail":
+		return "thumbnail", true
+	default:
+		return "", false
+	}
+}
+
+func (s *ForumSettingsService) FeedListStyle() string {
+	v, ok := NormalizeFeedListStyle(s.getString(SettingFeedListStyle, feedSettingDefaults[SettingFeedListStyle]))
+	if !ok {
+		return "title"
+	}
+	return v
 }
 
 // MailConfig 读取 SMTP 配置（密码不回显明文）
@@ -903,6 +1137,11 @@ func (s *ForumSettingsService) SiteBranding() SiteBranding {
 		mark = string(runes[0])
 	}
 	links := parseFriendLinksJSON(s.getString(SettingSiteFriendLinks, "[]"))
+	links = EnrichFriendLinksLogos(links)
+	if err := s.maybePersistEnrichedFriendLinks(links); err != nil {
+		// 回填失败不阻断读取
+		_ = err
+	}
 	return SiteBranding{
 		Name:        name,
 		Slogan:      strings.TrimSpace(s.getString(SettingSiteSlogan, siteBrandingDefaults[SettingSiteSlogan])),
@@ -1111,7 +1350,7 @@ func normalizeFriendLinks(in []FriendLink) ([]FriendLink, error) {
 		if scheme != "http" && scheme != "https" {
 			return nil, ErrInvalidSetting
 		}
-		out = append(out, FriendLink{Name: name, URL: href})
+		out = append(out, FriendLink{Name: name, URL: href, Logo: normalizeFriendLinkLogoOptional(item.Logo)})
 	}
 	if out == nil {
 		out = []FriendLink{}

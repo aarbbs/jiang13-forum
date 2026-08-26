@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Check, Clock, History, MessageSquare, X, Pencil, Trash2,
+  Check, Award, Clock, History, MessageSquare, X, Pencil, Trash2,
   ThumbsUp, MoreHorizontal, Flag,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -51,6 +51,7 @@ import { isHtmlEmpty } from '../utils/postContent';
 import { Tooltip } from './ui/Tooltip';
 import UserLink from './UserLink';
 import { cn } from '@/lib/utils';
+import { pinAwardedCommentTree } from '../utils/bounty';
 
 function isCommentAuthor(c: Comment, user?: User | null): boolean {
   return !!user && c.user_id > 0 && c.user_id === user.id;
@@ -83,6 +84,13 @@ interface ItemProps {
   onRequireLogin?: (actionLabel: string) => void;
   onLikeUpdate?: (commentId: number, liked: boolean, likeCount: number) => void;
   renderReplyBox?: (comment: Comment) => ReactNode;
+  bountyAward?: {
+    open: boolean;
+    awardedCommentId?: number;
+    postAuthorId: number;
+    canAward: boolean;
+    onAward: (commentId: number) => void;
+  };
 }
 
 /** 单条评论（支持嵌套子回复 + 内联回复框 + 编辑/删除） */
@@ -103,12 +111,14 @@ function CommentItem({
   onRequireLogin,
   onLikeUpdate,
   renderReplyBox,
+  bountyAward,
 }: ItemProps) {
   const { limits } = useForumLimits();
   const c = node.comment;
   const nick = commentNick(c);
   const guest = isGuestComment(c);
   const isHighlighted = highlightFloor === c.floor;
+  const isBountyAwarded = bountyAward?.awardedCommentId === c.id;
   const hidden = !!c.content_hidden;
   const isReplying = replyToId === c.id;
   const isEditing = editingId === c.id;
@@ -215,7 +225,12 @@ function CommentItem({
   return (
     <div
       id={`floor-${c.floor}`}
-      className={`waline-comment ${nested ? 'nested' : ''} ${isHighlighted ? 'highlight' : ''}`}
+      className={cn(
+        'waline-comment',
+        nested && 'nested',
+        isHighlighted && 'highlight',
+        isBountyAwarded && 'waline-comment--bounty-awarded',
+      )}
     >
       {!guest && c.user_id ? (
         <UserLink
@@ -254,6 +269,12 @@ function CommentItem({
             />
           ) : (
             <span className="waline-comment-author">{nick}</span>
+          )}
+          {isBountyAwarded && (
+            <span className="waline-comment-bounty-badge" title="悬赏已采纳">
+              <Check size={12} aria-hidden />
+              已采纳
+            </span>
           )}
           {!hidden && (
             <button
@@ -349,6 +370,17 @@ function CommentItem({
             <button type="button" className="waline-comment-reply-btn" onClick={() => onStartEdit(c)}>
               <Pencil size={14} />
               编辑
+            </button>
+          )}
+          {bountyAward?.open && bountyAward.canAward && c.user_id !== bountyAward.postAuthorId
+            && c.status === 'published' && !hidden && (
+            <button
+              type="button"
+              className="bounty-award-btn"
+              onClick={() => bountyAward.onAward(c.id)}
+            >
+              <Award size={14} aria-hidden />
+              采纳
             </button>
           )}
           {!hidden && !isEditing && isAdmin && showEdited && (
@@ -481,6 +513,7 @@ function CommentItem({
                 onRequireLogin={onRequireLogin}
                 onLikeUpdate={onLikeUpdate}
                 renderReplyBox={renderReplyBox}
+                bountyAward={bountyAward}
               />
             ))}
           </div>
@@ -506,6 +539,7 @@ interface Props {
   onRequireLogin?: (actionLabel: string) => void;
   onLikeUpdate?: (commentId: number, liked: boolean, likeCount: number) => void;
   renderReplyBox?: (comment: Comment) => ReactNode;
+  bountyAward?: ItemProps['bountyAward'];
 }
 
 /** Waline 嵌套楼层评论列表 */
@@ -525,8 +559,12 @@ export default function CommentThreadList({
   onRequireLogin,
   onLikeUpdate,
   renderReplyBox,
+  bountyAward,
 }: Props) {
-  const tree = buildCommentTree(comments);
+  const tree = pinAwardedCommentTree(
+    buildCommentTree(comments),
+    bountyAward?.awardedCommentId,
+  );
 
   return (
     <div className="comment-thread-list">
@@ -548,6 +586,7 @@ export default function CommentThreadList({
           onRequireLogin={onRequireLogin}
           onLikeUpdate={onLikeUpdate}
           renderReplyBox={renderReplyBox}
+          bountyAward={bountyAward}
         />
       ))}
     </div>

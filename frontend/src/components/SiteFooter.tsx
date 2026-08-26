@@ -1,16 +1,20 @@
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import { useMediaQuery } from '../hooks/useTheme';
-import type { FriendLink } from '../api/types';
+import { Link } from 'react-router-dom';
+import { useSitePages } from '../hooks/useSitePages';
+import { pagePath } from '../utils/permalink';
+import { useForumLimits } from '../hooks/useForumLimits';
 
 function FooterSep() {
   return <span className="site-footer__sep" aria-hidden>·</span>;
 }
 
-/** 站点页脚：版权、Sitemap、友链、备案号 */
+/** 站点页脚：版权、Sitemap、备案号 */
 export default function SiteFooter() {
   const { branding } = useSiteBranding();
+  const { footerPages } = useSitePages();
+  const { limits } = useForumLimits();
   const year = new Date().getFullYear();
-  const links = Array.isArray(branding.friend_links) ? branding.friend_links : [];
   const icp = branding.icp_beian?.trim() || '';
   const icpURL = branding.icp_beian_url?.trim() || 'https://beian.miit.gov.cn/';
 
@@ -29,31 +33,30 @@ export default function SiteFooter() {
           )}
         </div>
 
-        {(links.length > 0 || icp) && (
-          <nav className="site-footer__nav" aria-label="站点链接">
-            {links.map((link: FriendLink, i) => (
-              <span key={`${link.name}-${link.url}`} className="site-footer__friend">
-                {i > 0 && <FooterSep />}
-                <a href={link.url} target="_blank" rel="noopener noreferrer">
-                  {link.name}
-                </a>
-              </span>
-            ))}
-            {icp && (
-              <>
-                {links.length > 0 && <FooterSep />}
-                <a
-                  href={icpURL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="site-footer__icp"
-                >
-                  {icp}
-                </a>
-              </>
-            )}
-          </nav>
-        )}
+        <nav className="site-footer__nav" aria-label="站点链接">
+          <span className="site-footer__friend">
+            <Link to="/links">友情链接</Link>
+          </span>
+          {footerPages.map(p => (
+            <span key={p.slug} className="site-footer__friend">
+              <FooterSep />
+              <Link to={pagePath(p.slug, limits)}>{p.title}</Link>
+            </span>
+          ))}
+          {icp && (
+            <>
+              <FooterSep />
+              <a
+                href={icpURL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="site-footer__icp"
+              >
+                {icp}
+              </a>
+            </>
+          )}
+        </nav>
       </div>
     </footer>
   );

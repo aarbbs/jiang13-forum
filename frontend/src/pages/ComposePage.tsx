@@ -13,7 +13,16 @@ import { serializeTags, parseTags } from '../components/TagInput';
 import { Spinner } from '@/components/ui/spinner';
 import ComposeHeader from '../components/compose/ComposeHeader';
 import ComposeContextBar, { type PostType } from '../components/compose/ComposeContextBar';
+import ComposeSpecialFields, {
+  buildPollOptionsPayload,
+  countValidPollOptions,
+  defaultPollEndsAtLocal,
+  pollEndsAtISOToLocal,
+  pollEndsAtLocalToISO,
+  validatePollEndsAtLocal,
+} from '../components/compose/ComposeSpecialFields';
 import ComposeDocument from '../components/compose/ComposeDocument';
+import { sortBoardsForCompose } from '../utils/board';
 import { getCachedBoards } from '../utils/layoutCache';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import { loginPath } from '../utils/authRedirect';
@@ -36,8 +45,8 @@ interface ComposeBaseline {
 }
 
 function resolveBoards(ctxBoards?: Board[]): Board[] {
-  if (ctxBoards && ctxBoards.length > 0) return ctxBoards;
-  return getCachedBoards();
+  const raw = ctxBoards && ctxBoards.length > 0 ? ctxBoards : getCachedBoards();
+  return sortBoardsForCompose(raw);
 }
 
 /** 格式化剩余可编辑时间 */
@@ -74,6 +83,13 @@ export default function ComposePage() {
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
   const [postType, setPostType] = useState<PostType>('normal');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollMulti, setPollMulti] = useState(false);
+  const [pollMaxChoices, setPollMaxChoices] = useState(2);
+  const [pollEndsAt, setPollEndsAt] = useState(defaultPollEndsAtLocal);
+  const [pollNoEndTime, setPollNoEndTime] = useState(false);
+  const [bountyPoints, setBountyPoints] = useState(0);
+  const [lotteryWinners, setLotteryWinners] = useState(1);
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   /** 新建帖：板块列表是否已就绪（避免请求中误显空态） */
@@ -101,7 +117,7 @@ export default function ComposePage() {
         : api.boards();
       Promise.all([boardsPromise, api.post(editId!, { skipView: true })])
         .then(([boardsData, postData]) => {
-          const list = boardsData.boards ?? [];
+          const list = sortBoardsForCompose(boardsData.boards ?? []);
           setBoards(list);
           const post = postData.post;
           const isOwnerOrAdmin = user.role === 'admin' || post.user_id === user.id;
@@ -116,7 +132,13 @@ export default function ComposePage() {
             return;
           }
           const loadedBoardId = String(post.board_id);
-          const loadedType = post.post_type === 'question' ? 'question' : 'normal';
+          const loadedType = (
+            post.post_type === 'question' ? 'question'
+              : post.post_type === 'poll' ? 'poll'
+                : post.post_type === 'bounty' ? 'bounty'
+                  : post.post_type === 'lottery' ? 'lottery'
+                    : 'normal'
+          ) as PostType;
           const serverBaseline: ComposeBaseline = {
             title: post.title,
             tags: post.tags ?? '',
@@ -130,6 +152,18 @@ export default function ComposePage() {
           setTags(serverBaseline.tags);
           setContent(serverBaseline.content);
           setPostType(loadedType);
+          if (postData.poll) {
+            setPollOptions(postData.poll.options.map(o => o.text));
+            setPollMulti(postData.poll.multi);
+            setPollMaxChoices(postData.poll.max_choices);
+            if (postData.poll.ends_at) {
+              setPollNoEndTime(false);
+              setPollEndsAt(pollEndsAtISOToLocal(postData.poll.ends_at));
+            } else {
+              setPollNoEndTime(true);
+              setPollEndsAt(defaultPollEndsAtLocal());
+            }
+          }
 
           const windowHours = postData.post_edit_window_hours ?? 0;
           if (user.role !== 'admin' && windowHours > 0) {
@@ -175,6 +209,13 @@ export default function ComposePage() {
             setTags(draft.tags);
             setContent(draft.content);
             setPostType(draft.postType);
+            if (draft.postType === 'poll') {
+              if (draft.pollOptions?.length) setPollOptions(draft.pollOptions);
+              if (typeof draft.pollMulti === 'boolean') setPollMulti(draft.pollMulti);
+              if (typeof draft.pollMaxChoices === 'number') setPollMaxChoices(draft.pollMaxChoices);
+              if (typeof draft.pollNoEndTime === 'boolean') setPollNoEndTime(draft.pollNoEndTime);
+              if (typeof draft.pollEndsAt === 'string' && draft.pollEndsAt) setPollEndsAt(draft.pollEndsAt);
+            }
             setBaseline(emptyBaseline);
             setDraftHint('已恢复本地草稿，编辑中将自动保存');
             return;
@@ -229,11 +270,18 @@ export default function ComposePage() {
         content,
         boardId,
         postType,
+        ...(postType === 'poll' ? {
+          pollOptions,
+          pollMulti,
+          pollMaxChoices,
+          pollEndsAt,
+          pollNoEndTime,
+        } : {}),
       });
       setDraftHint('草稿已自动保存到本机');
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [isEdit, baseline, isDirty, title, tags, content, boardId, postType]);
+  }, [isEdit, baseline, isDirty, title, tags, content, boardId, postType, pollOptions, pollMulti, pollMaxChoices, pollEndsAt, pollNoEndTime]);
 
   const {
     dialogOpen,
@@ -307,15 +355,42 @@ export default function ComposePage() {
     if (!boardId) { notify.warning('请选择板块'); return; }
     if (!trimmedTitle) { notify.warning('请输入标题'); return; }
     if (isHtmlEmpty(content)) { notify.warning('请输入正文内容'); return; }
+    if (postType === 'poll' && !isEdit && countValidPollOptions(pollOptions) < 2) {
+      notify.warning('投票至少需要 2 个非空选项');
+      return;
+    }
+    if (postType === 'poll' && !isEdit && !pollNoEndTime) {
+      const err = validatePollEndsAtLocal(pollEndsAt);
+      if (err) { notify.warning(err); return; }
+    }
+    if (postType === 'bounty' && !isEdit) {
+      const balance = user?.points ?? 0;
+      if (bountyPoints < 1) {
+        notify.warning('请填写悬赏积分');
+        return;
+      }
+      if (bountyPoints > balance) {
+        notify.warning('积分不足');
+        return;
+      }
+    }
 
     setPublishing(true);
     try {
+      const pollEndsAtISO = postType === 'poll' && !pollNoEndTime
+        ? pollEndsAtLocalToISO(pollEndsAt)
+        : null;
       const payload = {
         title: trimmedTitle,
         content: content.trim(),
         tags: serializeTags(parseTags(tags)),
         board_id: boardId,
         post_type: postType,
+        poll_options: postType === 'poll'
+          ? buildPollOptionsPayload(pollOptions, pollMulti, pollMaxChoices, pollEndsAtISO)
+          : undefined,
+        bounty_points: postType === 'bounty' ? bountyPoints : undefined,
+        lottery_winner_count: postType === 'lottery' ? lotteryWinners : undefined,
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
@@ -371,6 +446,25 @@ export default function ComposePage() {
                 tags={tags}
                 onTagsChange={setTags}
                 limits={limits}
+              />
+              <ComposeSpecialFields
+                postType={postType}
+                pollOptions={pollOptions}
+                onPollOptionsChange={setPollOptions}
+                pollMulti={pollMulti}
+                onPollMultiChange={setPollMulti}
+                pollMaxChoices={pollMaxChoices}
+                onPollMaxChoicesChange={setPollMaxChoices}
+                pollEndsAt={pollEndsAt}
+                onPollEndsAtChange={setPollEndsAt}
+                pollNoEndTime={pollNoEndTime}
+                onPollNoEndTimeChange={setPollNoEndTime}
+                bountyPoints={bountyPoints}
+                onBountyPointsChange={setBountyPoints}
+                userPointsBalance={!isEdit ? user?.points : undefined}
+                lotteryWinners={lotteryWinners}
+                onLotteryWinnersChange={setLotteryWinners}
+                disabled={isEdit && postType !== 'normal' && postType !== 'question'}
               />
             </ComposeDocument>
           </div>

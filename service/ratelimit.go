@@ -23,8 +23,8 @@ func NewRateLimiter(settings *ForumSettingsService) *RateLimiter {
 
 // Allow 检查 action+key 是否允许操作
 func (r *RateLimiter) Allow(action, key string) bool {
-	limit := r.settings.RateLimitFor(action)
-	window := time.Duration(r.settings.RateLimitWindowSec()) * time.Second
+	limit := r.limitFor(action)
+	window := r.windowFor(action)
 	if limit <= 0 {
 		return true
 	}
@@ -50,12 +50,26 @@ func (r *RateLimiter) Allow(action, key string) bool {
 	return true
 }
 
+func (r *RateLimiter) limitFor(action string) int {
+	if action == "friend_link" {
+		return 5
+	}
+	return r.settings.RateLimitFor(action)
+}
+
+func (r *RateLimiter) windowFor(action string) time.Duration {
+	if action == "friend_link" {
+		return time.Hour
+	}
+	return time.Duration(r.settings.RateLimitWindowSec()) * time.Second
+}
+
 func (r *RateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for range ticker.C {
 		r.mu.Lock()
-		window := time.Duration(r.settings.RateLimitWindowSec()) * time.Second
-		cutoff := time.Now().Add(-window * 2)
+		// 使用最大窗口清理，覆盖友链 1 小时窗口
+		cutoff := time.Now().Add(-time.Hour * 2)
 		for k, times := range r.records {
 			var valid []time.Time
 			for _, t := range times {

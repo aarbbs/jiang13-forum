@@ -14,13 +14,14 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
 import { useOverlayA11y, moveTabIndex } from '../hooks/useOverlayA11y';
 import { api } from '../api/client';
-import type { Board, PostItem, RecentComment, ForumStats, TagCount, User } from '../api/types';
+import type { Board, RecentComment, ForumStats, TagCount, User } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
-import { getCachedBoards, getCachedStats, getCachedHot, getCachedRecentComments, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedHot, setCachedRecentComments, setCachedTags } from '../utils/layoutCache';
+import { getCachedBoards, getCachedStats, getCachedRecentComments, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedRecentComments, setCachedTags } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
 import BackToTop from '../components/BackToTop';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { resolveAsideWidgets } from '../utils/asideWidgets';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
 import { notify } from '@/lib/notify';
@@ -32,6 +33,7 @@ import { useSiteBranding } from '../hooks/useSiteBranding';
 import SiteBrandMark from '../components/SiteBrandMark';
 import SiteFooter from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
+import { parsePermalinkID } from '../utils/permalink';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -46,7 +48,6 @@ export default function MainLayout() {
 
   const [boards, setBoards] = useState<Board[]>(() => getCachedBoards());
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
-  const [hot, setHot] = useState<PostItem[]>(() => getCachedHot());
   const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
@@ -66,7 +67,11 @@ export default function MainLayout() {
   const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
   const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
   const asideEverLoaded = useRef(false);
-  const [boardId, setBoardId] = useState(Number(params.get('board')) || 0);
+  const [boardId, setBoardId] = useState(() => {
+    const m = loc.pathname.match(/^\/board\/(\d+(?:\.[A-Za-z0-9]{1,16})?)$/);
+    if (m) return parsePermalinkID(m[1]) || 0;
+    return Number(params.get('board')) || 0;
+  });
   const [keyword, setKeyword] = useState(params.get('keyword') || '');
   const [searchAuthor, setSearchAuthor] = useState(params.get('author') || '');
   const [searchTitleOnly, setSearchTitleOnly] = useState(params.get('title_only') === '1');
@@ -74,6 +79,9 @@ export default function MainLayout() {
   const [searchAdvanced, setSearchAdvanced] = useState(false);
   const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
+  const asideWidgets = useMemo(() => resolveAsideWidgets(forumLimits), [forumLimits]);
+  const showTagCloud = asideWidgets.some(w => w.id === 'tag_cloud' && w.enabled);
+  const showRecentComments = asideWidgets.some(w => w.id === 'recent_comments' && w.enabled);
 
   const asideDrawerRef = useRef<HTMLElement>(null);
   const asideCloseRef = useRef<HTMLButtonElement>(null);
@@ -99,7 +107,14 @@ export default function MainLayout() {
     initialFocusRef: sidebarCloseRef,
   });
 
-  useEffect(() => { setBoardId(Number(params.get('board')) || 0); }, [params]);
+  useEffect(() => {
+    const m = loc.pathname.match(/^\/board\/(\d+(?:\.[A-Za-z0-9]{1,16})?)$/);
+    if (m) {
+      setBoardId(parsePermalinkID(m[1]) || 0);
+      return;
+    }
+    setBoardId(Number(params.get('board')) || 0);
+  }, [loc.pathname, params]);
   useEffect(() => {
     setKeyword(params.get('keyword') || '');
     setSearchAuthor(params.get('author') || '');
@@ -183,7 +198,7 @@ export default function MainLayout() {
 
   // 标签云：进页/离开发帖页时拉取；不跟 posts-refresh 联动（置顶/精华等不改标签）
   useEffect(() => {
-    if (isCompose) return;
+    if (isCompose || !showTagCloud) return;
     let cancelled = false;
     if (getCachedTags().length === 0) setTagsLoading(true);
     api.tags(40).then(d => {
@@ -197,31 +212,24 @@ export default function MainLayout() {
     return () => {
       cancelled = true;
     };
-  }, [isCompose]);
+  }, [isCompose, showTagCloud]);
 
   const needAsideData = !isCompose && (!hideAside || asideOpen);
+  const needRecentComments = needAsideData && showRecentComments;
   useEffect(() => {
-    if (!needAsideData) return;
+    if (!needRecentComments) return;
     let cancelled = false;
     // 无缓存时才显示加载态，有缓存则静默刷新，避免抽屉高度跳动
     if (!asideEverLoaded.current && !hasCachedAside()) {
       setAsideLoading(true);
     }
 
-    Promise.all([
-      api.hotPosts().then(d => {
-        if (cancelled) return;
-        const next = Array.isArray(d.posts) ? d.posts : [];
-        setHot(next);
-        setCachedHot(next);
-      }).catch(() => {}),
-      api.recentComments().then(d => {
-        if (cancelled) return;
-        const next = Array.isArray(d.comments) ? d.comments : [];
-        setRecentComments(next);
-        setCachedRecentComments(next);
-      }).catch(() => {}),
-    ]).finally(() => {
+    api.recentComments().then(d => {
+      if (cancelled) return;
+      const next = Array.isArray(d.comments) ? d.comments : [];
+      setRecentComments(next);
+      setCachedRecentComments(next);
+    }).catch(() => {}).finally(() => {
       if (!cancelled) {
         asideEverLoaded.current = true;
         setAsideLoading(false);
@@ -231,7 +239,7 @@ export default function MainLayout() {
     return () => {
       cancelled = true;
     };
-  }, [needAsideData]);
+  }, [needRecentComments]);
 
   const doSearch = () => {
     const kw = keyword.trim();
@@ -239,7 +247,7 @@ export default function MainLayout() {
     const activeKw = (params.get('keyword') || '').trim();
     const activeAuthor = (params.get('author') || '').trim();
     const activeTitleOnly = params.get('title_only') === '1';
-    const activeBoard = Number(params.get('board')) || 0;
+    const activeBoard = boardId;
     if (!kw && !author) {
       if (activeKw || activeAuthor) navigateFeed(nav, '/');
       return;
@@ -260,9 +268,10 @@ export default function MainLayout() {
       keyword: kw,
       author,
       titleOnly: !!kw && searchTitleOnly,
+      permalink: forumLimits,
     });
     const same =
-      loc.pathname === '/'
+      (loc.pathname === '/' || /^\/board\/\d+/.test(loc.pathname))
       && activeKw === kw
       && activeAuthor === author
       && activeTitleOnly === (!!kw && searchTitleOnly)
@@ -280,7 +289,7 @@ export default function MainLayout() {
   }, [nav, forumLimits.open_posts_in_new_tab]);
 
   const userInitial = user?.nickname?.charAt(0) || '?';
-  const isFeedHome = loc.pathname === '/';
+  const isFeedHome = loc.pathname === '/' || /^\/board\/\d+/.test(loc.pathname);
   const outletKeyword = params.get('keyword') || '';
   const outletTag = params.get('tag') || '';
   const outletAuthor = params.get('author') || '';
@@ -318,7 +327,7 @@ export default function MainLayout() {
 
   const selectBoardChip = (id: number) => {
     setBoardId(id);
-    navigateFeed(nav, buildHomeUrl(id, feedSort));
+    navigateFeed(nav, buildHomeUrl(id, feedSort, { permalink: forumLimits }));
   };
 
   const onBoardBarKeyDown = (e: React.KeyboardEvent) => {
@@ -632,11 +641,12 @@ export default function MainLayout() {
         {!isCompose && (
         <aside className="aside-panel">
           <RightPanel
-            hot={hot}
             recentComments={recentComments}
             tags={tags}
             tagsLoading={tagsLoading}
+            stats={stats}
             loading={asideLoading}
+            asideWidgets={asideWidgets}
             onPostClick={openPost}
             postDetail={isPostDetail ? {
               author: postOutline?.author ?? null,
@@ -746,11 +756,12 @@ export default function MainLayout() {
             </div>
             <div className="aside-drawer-body">
               <RightPanel
-                hot={hot}
                 recentComments={recentComments}
                 tags={tags}
                 tagsLoading={tagsLoading}
+                stats={stats}
                 loading={asideLoading}
+                asideWidgets={asideWidgets}
                 onPostClick={openPost}
                 postDetail={isPostDetail ? {
                   author: postOutline?.author ?? null,

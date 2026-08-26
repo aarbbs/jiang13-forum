@@ -69,6 +69,7 @@ export interface ForumStats {
   users: number;
   posts: number;
   boards: number;
+  comments: number;
 }
 
 /** 标签云单项 */
@@ -84,10 +85,15 @@ export interface PostItem {
   title: string;
   content?: string;
   tags: string;
-  /** normal=讨论 | question=问答 */
-  post_type?: 'normal' | 'question' | string;
+  /** normal=讨论 | question=问答 | poll=投票 | bounty=悬赏 | lottery=抽奖 */
+  post_type?: 'normal' | 'question' | 'poll' | 'bounty' | 'lottery' | string;
   /** 仅问答帖有意义 */
   question_resolved?: boolean;
+  bounty_points?: number;
+  bounty_status?: 'open' | 'awarded' | 'refunded' | string;
+  bounty_comment_id?: number;
+  lottery_winner_count?: number;
+  lottery_status?: 'open' | 'drawn' | string;
   pinned: boolean;
   /** 板块内置顶（仅板块列表抬升，首页不抬升） */
   board_pinned?: boolean;
@@ -131,12 +137,18 @@ export interface PostDetailResponse {
   comment_count: number;
   liked: boolean;
   favorited: boolean;
-  /** 当前用户是否已在本帖发表过评论（含审核中） */
   has_replied?: boolean;
   can_edit?: boolean;
   edit_block_reason?: string;
   is_edited?: boolean;
   post_edit_window_hours?: number;
+  poll?: PollView;
+  lottery?: PostLotteryView;
+  /** 悬赏进行中：当前用户是否可取消悬赏 */
+  bounty_can_refund?: boolean;
+  bounty_refund_block_reason?: string;
+  /** 他人已发布有效回复数 */
+  bounty_eligible_reply_count?: number;
 }
 
 export interface Comment {
@@ -171,8 +183,22 @@ export interface AdminDashboard {
   pending_posts?: number;
   pending_comments?: number;
   pending_reports?: number;
+  pending_friend_links?: number;
   recent_posts: PostItem[];
 }
+
+export type AsideWidgetId = 'tag_cloud' | 'recent_comments' | 'friend_links';
+
+export interface AsideWidget {
+  id: AsideWidgetId;
+  enabled: boolean;
+}
+
+export const DEFAULT_ASIDE_WIDGETS: AsideWidget[] = [
+  { id: 'tag_cloud', enabled: false },
+  { id: 'recent_comments', enabled: false },
+  { id: 'friend_links', enabled: true },
+];
 
 export interface ForumLimits {
   post_edit_window_hours: number;
@@ -194,6 +220,16 @@ export interface ForumLimits {
   signature_max: number;
   open_posts_in_new_tab: boolean;
   open_content_links_in_new_tab: boolean;
+  /** 右侧栏标签云 */
+  aside_show_tag_cloud: boolean;
+  /** 右侧栏最新评论 */
+  aside_show_recent_comments: boolean;
+  /** 右侧栏友情链接 */
+  aside_show_friend_links: boolean;
+  /** 右侧栏可选组件顺序与开关 */
+  aside_widgets: AsideWidget[];
+  /** 首页列表样式：title 仅标题 / thumbnail 缩略图 */
+  feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   /** 伪静态（固定链接）开关 */
   permalink_enabled: boolean;
   /** 伪静态后缀，不含点，如 html / htm */
@@ -214,6 +250,11 @@ export interface ForumLimitsPublic {
   signature_max: number;
   open_posts_in_new_tab: boolean;
   open_content_links_in_new_tab: boolean;
+  aside_show_tag_cloud: boolean;
+  aside_show_recent_comments: boolean;
+  aside_show_friend_links: boolean;
+  aside_widgets: AsideWidget[];
+  feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   permalink_enabled: boolean;
   permalink_ext: string;
 }
@@ -221,12 +262,77 @@ export interface ForumLimitsPublic {
 export interface FriendLink {
   name: string;
   url: string;
+  logo?: string;
+}
+
+export interface FriendLinkApply {
+  id: number;
+  user_id: number;
+  name: string;
+  url: string;
+  description?: string;
+  logo?: string;
+  reciprocal_page_url?: string;
+  link_on_homepage?: boolean;
+  reciprocal_verified?: boolean;
+  reciprocal_check_note?: string;
+  reciprocal_checked_at?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  review_note?: string;
+  reviewed_at?: string;
+  created_at: string;
+  user?: User;
+}
+
+export interface SitePageSummary {
+  id: number;
+  title: string;
+  slug: string;
+  show_in_footer?: boolean;
+  show_in_nav?: boolean;
+  sort_order?: number;
+}
+
+export interface SitePage extends SitePageSummary {
+  content: string;
+  published: boolean;
+}
+
+export interface PollOptionView {
+  id: number;
+  text: string;
+  vote_count: number;
+  percent?: number;
+}
+
+export interface PollView {
+  multi: boolean;
+  max_choices: number;
+  closed: boolean;
+  ends_at?: string;
+  options: PollOptionView[];
+  my_option_ids?: number[];
+  total_votes: number;
+}
+
+export interface PostLotteryWinnerView {
+  user_id: number;
+  username: string;
+  nickname: string;
+  comment_id: number;
+}
+
+export interface PostLotteryView {
+  winner_count: number;
+  status: string;
+  participant_count: number;
+  winners?: PostLotteryWinnerView[];
 }
 
 export interface SiteBranding {
   name: string;
   slogan: string;
-  /** 站点简介（首页可见 + SEO description） */
+  /** 站点简介（右侧栏顶部 + SEO description） */
   description?: string;
   /** SEO keywords，逗号分隔 */
   keywords?: string;
@@ -241,6 +347,8 @@ export interface SiteBranding {
   icp_beian_url?: string;
   /** 页脚友情链接 */
   friend_links?: FriendLink[];
+  /** 公开站点根 URL（API 动态填充） */
+  site_url?: string;
 }
 
 export interface AdminSettings {

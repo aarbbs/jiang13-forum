@@ -10,7 +10,10 @@ import { useAdminGuard } from '../../layouts/AdminLayout';
 import { invalidateForumLimitsCache } from '../../hooks/useForumLimits';
 import { DEFAULT_BRANDING, seedSiteBrandingCache } from '../../hooks/useSiteBranding';
 import { clearAllFeedCache } from '../../utils/feedCache';
-import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, FriendLink } from '../../api/types';
+import { normalizeAsideWidgets, resolveAsideWidgets, mergeForumLimitsWithAsideWidgets, resolveSavedAsideWidgets } from '../../utils/asideWidgets';
+import AsideWidgetList from '../../components/admin/AsideWidgetList';
+import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, AsideWidget } from '../../api/types';
+import { DEFAULT_ASIDE_WIDGETS } from '../../api/types';
 
 type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'storage' | 'filter' | 'system';
 
@@ -88,7 +91,9 @@ const SETTING_SECTIONS: SettingSection[] = [
   },
 ];
 
-type BoolLimitKey = 'open_posts_in_new_tab' | 'open_content_links_in_new_tab';
+type BoolLimitKey =
+  | 'open_posts_in_new_tab'
+  | 'open_content_links_in_new_tab';
 
 const NAV_TOGGLES: { key: BoolLimitKey; label: string; hint: string }[] = [
   {
@@ -241,6 +246,7 @@ export default function AdminSettingsPage() {
   const { ready } = useAdminGuard();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [limits, setLimits] = useState<ForumLimits | null>(null);
+  const [asideWidgets, setAsideWidgets] = useState<AsideWidget[]>(DEFAULT_ASIDE_WIDGETS);
   const [branding, setBranding] = useState<SiteBranding>(DEFAULT_BRANDING);
   const [mail, setMail] = useState<MailConfig>(EMPTY_MAIL);
   const [oidc, setOidc] = useState<OIDCConfig>(EMPTY_OIDC);
@@ -277,13 +283,28 @@ export default function AdminSettingsPage() {
     api.adminSettings()
       .then(s => {
         setSettings(s);
-        setLimits({
+        const loadedAsideWidgets = normalizeAsideWidgets(
+          resolveAsideWidgets({
+            aside_widgets: s.limits?.aside_widgets,
+            aside_show_tag_cloud: s.limits?.aside_show_tag_cloud ?? false,
+            aside_show_recent_comments: s.limits?.aside_show_recent_comments ?? false,
+            aside_show_friend_links: s.limits?.aside_show_friend_links ?? true,
+          }),
+        );
+        setAsideWidgets(loadedAsideWidgets);
+        const baseLimits: ForumLimits = {
           open_posts_in_new_tab: true,
           open_content_links_in_new_tab: true,
+          aside_show_tag_cloud: false,
+          aside_show_recent_comments: false,
+          aside_show_friend_links: true,
+          aside_widgets: loadedAsideWidgets,
+          feed_list_style: 'title',
           permalink_enabled: false,
           permalink_ext: 'html',
           ...s.limits,
-        });
+        };
+        setLimits(mergeForumLimitsWithAsideWidgets(baseLimits, loadedAsideWidgets));
         setBranding({ ...DEFAULT_BRANDING, ...(s.branding ?? {}) });
         setMail({ ...EMPTY_MAIL, ...s.mail, password: '' });
         setOidc({ ...EMPTY_OIDC, ...(s.oidc ?? {}) });
@@ -306,6 +327,20 @@ export default function AdminSettingsPage() {
     setLimits(prev => prev ? { ...prev, [key]: checked } : prev);
   };
 
+  const handleAsideWidgetsChange = (widgets: AsideWidget[]) => {
+    const normalized = normalizeAsideWidgets(widgets);
+    setAsideWidgets(normalized);
+    setLimits(prev => prev ? mergeForumLimitsWithAsideWidgets(prev, normalized) : prev);
+  };
+
+  const applySavedForumLimits = (savedWidgets: AsideWidget[], response: ForumLimits): ForumLimits => {
+    const nextWidgets = resolveSavedAsideWidgets(savedWidgets, response.aside_widgets);
+    const merged = mergeForumLimitsWithAsideWidgets(response, nextWidgets);
+    setAsideWidgets(nextWidgets);
+    setLimits(merged);
+    return merged;
+  };
+
   const applyBranding = (next: SiteBranding) => {
     setBranding({ ...DEFAULT_BRANDING, ...next });
     setSettings(s => s ? { ...s, branding: next } : s);
@@ -314,21 +349,15 @@ export default function AdminSettingsPage() {
 
   const handleSaveBranding = async () => {
     if (!limits) return;
-    const links = (branding.friend_links ?? [])
-      .map(l => ({ name: l.name.trim(), url: l.url.trim() }))
-      .filter(l => l.name || l.url);
-    if (links.some(l => !l.name || !l.url)) {
-      notify.warning('友情链接需同时填写名称与完整 URL');
-      return;
-    }
     setSavingBranding(true);
     try {
-      const r = await api.adminUpdateBranding({ ...branding, friend_links: links });
+      const r = await api.adminUpdateBranding(branding);
       applyBranding(r.branding);
-      // 伪静态与品牌同属站点呈现，一并保存
-      const forum = await api.adminUpdateForumSettings(limits);
-      setLimits(forum.limits);
-      invalidateForumLimitsCache();
+      const forumPayload = mergeForumLimitsWithAsideWidgets(limits, asideWidgets);
+      // 伪静态、右侧栏、浏览与链接、列表呈现同属站点呈现，一并保存
+      const forum = await api.adminUpdateForumSettings(forumPayload);
+      applySavedForumLimits(asideWidgets, forum.limits);
+      clearAllFeedCache();
       notify.success('站点设置已保存');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '保存失败');
@@ -368,12 +397,13 @@ export default function AdminSettingsPage() {
     if (!limits) return;
     setSavingForum(true);
     try {
-      const r = await api.adminUpdateForumSettings(limits);
+      const forumPayload = mergeForumLimitsWithAsideWidgets(limits, asideWidgets);
+      const r = await api.adminUpdateForumSettings(forumPayload);
       notify.success(r.message);
       invalidateForumLimitsCache();
       clearAllFeedCache();
-      setLimits(r.limits);
-      setSettings(s => s ? { ...s, limits: r.limits } : s);
+      const merged = applySavedForumLimits(asideWidgets, r.limits);
+      setSettings(s => s ? { ...s, limits: merged } : s);
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -645,7 +675,7 @@ export default function AdminSettingsPage() {
               <section className="admin-settings-section" id="settings-brand-identity">
                 <div className="admin-settings-section-head">
                   <h3>品牌标识</h3>
-                  <p>名称、标语、简介与字标；简介用于首页展示与搜索引擎 description</p>
+                  <p>名称、标语、简介与字标；简介用于右侧栏顶部展示与搜索引擎 description</p>
                 </div>
                 <div className="admin-mail-grid">
                   <div className="admin-mail-field">
@@ -691,7 +721,7 @@ export default function AdminSettingsPage() {
                       rows={3}
                     />
                     <span className="admin-mail-field-hint">
-                      用于右侧栏介绍与 SEO description；未填写时回退到标语（建议 80–160 字）
+                      用于右侧栏顶部论坛简介与 SEO description；未填写时回退到标语（建议 80–160 字）
                     </span>
                   </div>
                   <div className="admin-mail-field admin-mail-field--span2">
@@ -810,7 +840,7 @@ export default function AdminSettingsPage() {
               <section className="admin-settings-section" id="settings-brand-footer">
                 <div className="admin-settings-section-head">
                   <h3>页脚信息</h3>
-                  <p>备案号与友情链接，显示在站点底部</p>
+                  <p>备案号显示在站点底部；友情链接请在「社区 → 友情链接」管理</p>
                 </div>
                 <div className="admin-mail-grid">
                   <div className="admin-mail-field">
@@ -835,69 +865,81 @@ export default function AdminSettingsPage() {
                     <span className="admin-mail-field-hint">留空则用工信部默认页</span>
                   </div>
                 </div>
-                <div className="admin-friend-links" style={{ marginTop: 12 }}>
-                  <div className="admin-friend-links-list">
-                    {(branding.friend_links ?? []).map((link, idx) => (
-                      <div key={idx} className="admin-friend-links-row">
-                        <Input
-                          value={link.name}
-                          placeholder="友链名称"
-                          maxLength={32}
-                          onChange={e => {
-                            const name = e.target.value;
-                            setBranding(b => {
-                              const next = [...(b.friend_links ?? [])];
-                              next[idx] = { ...next[idx], name };
-                              return { ...b, friend_links: next };
-                            });
-                          }}
-                        />
-                        <Input
-                          value={link.url}
-                          placeholder="https://example.com"
-                          maxLength={512}
-                          onChange={e => {
-                            const url = e.target.value;
-                            setBranding(b => {
-                              const next = [...(b.friend_links ?? [])];
-                              next[idx] = { ...next[idx], url };
-                              return { ...b, friend_links: next };
-                            });
-                          }}
-                        />
-                        <Button
+              </section>
+
+              <section className="admin-settings-section" id="settings-aside">
+                <div className="admin-settings-section-head">
+                  <h3>右侧栏组件</h3>
+                  <p>「站点简介」固定在最上方；以下模块可拖拽排序，保存后同步影响桌面右侧栏与手机「社区动态」抽屉</p>
+                </div>
+                <AsideWidgetList
+                  widgets={asideWidgets}
+                  onChange={handleAsideWidgetsChange}
+                />
+              </section>
+
+              <section className="admin-settings-section" id="settings-nav">
+                <div className="admin-settings-section-head">
+                  <h3>浏览与链接</h3>
+                  <p>控制打开帖子与正文链接时是否新开浏览器标签页</p>
+                </div>
+                <div className="admin-settings-table" role="group" aria-label="浏览与链接">
+                  {NAV_TOGGLES.map(row => (
+                    <div key={row.key} className="admin-settings-row">
+                      <span className="admin-settings-row-label" id={`limit-label-${row.key}`}>
+                        {row.label}
+                      </span>
+                      <div className="admin-settings-row-input">
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setBranding(b => ({
-                              ...b,
-                              friend_links: (b.friend_links ?? []).filter((_, i) => i !== idx),
-                            }));
-                          }}
+                          id={`limit-${row.key}`}
+                          role="switch"
+                          aria-checked={!!limits[row.key]}
+                          aria-labelledby={`limit-label-${row.key}`}
+                          className={`admin-settings-switch${limits[row.key] ? ' is-on' : ''}`}
+                          onClick={() => handleBoolLimitChange(row.key, !limits[row.key])}
                         >
-                          删除
-                        </Button>
+                          <span className="admin-settings-switch-ui" aria-hidden />
+                        </button>
                       </div>
-                    ))}
+                      <span className="admin-settings-row-hint">{row.hint}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="admin-settings-section" id="settings-feed-list">
+                <div className="admin-settings-section-head">
+                  <h3>列表呈现</h3>
+                  <p>首页及帖子列表的信息密度与缩略图展示</p>
+                </div>
+                <div className="admin-settings-table" role="group" aria-label="列表呈现">
+                  <div className="admin-settings-row">
+                    <span className="admin-settings-row-label" id="limit-label-feed_list_style">
+                      帖子列表样式
+                    </span>
+                    <div className="admin-settings-row-input admin-settings-row-input--stack">
+                      <div className="admin-permalink-presets">
+                        {([
+                          { value: 'title' as const, label: '仅标题' },
+                          { value: 'excerpt' as const, label: '标题+摘要' },
+                          { value: 'thumbnail' as const, label: '标题+摘要+缩略图' },
+                        ]).map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className={`admin-permalink-chip${limits.feed_list_style === opt.value ? ' is-active' : ''}`}
+                            onClick={() => setLimits(prev => prev ? { ...prev, feed_list_style: opt.value } : prev)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="admin-settings-row-hint">
+                      仅标题最紧凑；摘要模式增加一行预览；缩略图模式在有站内配图时右侧显示封面
+                    </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={(branding.friend_links?.length ?? 0) >= 20}
-                    onClick={() => {
-                      setBranding(b => ({
-                        ...b,
-                        friend_links: [...(b.friend_links ?? []), { name: '', url: '' } as FriendLink],
-                      }));
-                    }}
-                  >
-                    添加友链
-                  </Button>
-                  <span className="admin-mail-field-hint" style={{ display: 'block', marginTop: 8 }}>
-                    最多 20 条，需填写完整 http(s) 地址
-                  </span>
                 </div>
               </section>
 
@@ -968,7 +1010,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <div className="admin-settings-bar">
-            <p>保存后立即影响顶栏、页脚、伪静态链接与浏览器标题</p>
+            <p>保存后立即影响顶栏、页脚、列表样式、链接打开方式、伪静态链接与浏览器标题</p>
             <Button onClick={handleSaveBranding} loading={savingBranding}>
               保存站点设置
             </Button>
@@ -981,39 +1023,10 @@ export default function AdminSettingsPage() {
           <div className="admin-card admin-settings-card">
             <div className="admin-card-head">
               <span>论坛限制</span>
-              <span className="admin-settings-card-badge">共 {SETTING_SECTIONS.length + 1} 组</span>
+              <span className="admin-settings-card-badge">共 {SETTING_SECTIONS.length} 组</span>
             </div>
             <div className="admin-card-body">
               <SettingTable sections={SETTING_SECTIONS} limits={limits} onChange={handleLimitChange} />
-              <section className="admin-settings-section" id="settings-nav">
-                <div className="admin-settings-section-head">
-                  <h3>浏览与链接</h3>
-                  <p>控制打开帖子与正文链接时是否新开浏览器标签页</p>
-                </div>
-                <div className="admin-settings-table" role="group" aria-label="浏览与链接">
-                  {NAV_TOGGLES.map(row => (
-                    <div key={row.key} className="admin-settings-row">
-                      <span className="admin-settings-row-label" id={`limit-label-${row.key}`}>
-                        {row.label}
-                      </span>
-                      <div className="admin-settings-row-input">
-                        <button
-                          type="button"
-                          id={`limit-${row.key}`}
-                          role="switch"
-                          aria-checked={!!limits[row.key]}
-                          aria-labelledby={`limit-label-${row.key}`}
-                          className={`admin-settings-switch${limits[row.key] ? ' is-on' : ''}`}
-                          onClick={() => handleBoolLimitChange(row.key, !limits[row.key])}
-                        >
-                          <span className="admin-settings-switch-ui" aria-hidden />
-                        </button>
-                      </div>
-                      <span className="admin-settings-row-hint">{row.hint}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </div>
           </div>
           <div className="admin-settings-bar">

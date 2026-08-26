@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply } from './types';
 
 const BASE = '';
 
@@ -26,6 +26,8 @@ export const api = {
   stats: () => request<ForumStats>('/api/stats'),
   forumLimits: () => request<ForumLimitsPublic>('/api/forum-limits'),
   siteBranding: () => request<SiteBranding>('/api/site-branding'),
+  pages: () => request<{ pages: SitePageSummary[] }>('/api/pages'),
+  page: (slug: string) => request<{ page: SitePage }>(`/api/pages/${encodeURIComponent(slug)}`),
   boards: () => request<{ boards: Board[] }>('/api/boards'),
   projects: (params?: { page?: number; limit?: number }) => {
     const q = new URLSearchParams();
@@ -40,7 +42,6 @@ export const api = {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return request<{ posts: PostItem[]; total: number; page: number; has_more: boolean }>(`/api/posts?${q}`);
   },
-  hotPosts: () => request<{ posts: PostItem[] }>('/api/posts/hot'),
   tags: (limit = 40) => request<{ tags: TagCount[] }>(`/api/tags?limit=${limit}`),
   post: (id: number, opts?: { skipView?: boolean }) => {
     const q = opts?.skipView ? '?skip_view=1' : '';
@@ -285,6 +286,7 @@ export const api = {
       check_in: CheckInStatus;
       lottery: LotteryStatus;
     }>(`/api/me/points?page=${page}`),
+  checkInStatus: () => request<{ check_in: CheckInStatus }>('/api/me/check-in'),
   checkIn: () =>
     request<{ message: string; check_in: CheckInStatus; points: number }>('/api/me/check-in', { method: 'POST' }),
   lotteryStatus: () => request<{ lottery: LotteryStatus }>('/api/me/lottery'),
@@ -341,13 +343,19 @@ export const api = {
     fd.append('image', file);
     return request<{ url: string }>('/api/uploads/image', { method: 'POST', body: fd, headers: {} });
   },
-  createPost: (data: { board_id: string; title: string; content: string; tags?: string; post_type?: string }) => {
+  createPost: (data: {
+    board_id: string; title: string; content: string; tags?: string; post_type?: string;
+    poll_options?: string; bounty_points?: number; lottery_winner_count?: number;
+  }) => {
     const fd = new FormData();
     fd.append('board_id', data.board_id);
     fd.append('title', data.title);
     fd.append('content', data.content);
     fd.append('tags', data.tags || '');
     fd.append('post_type', data.post_type || 'normal');
+    if (data.poll_options) fd.append('poll_options', data.poll_options);
+    if (data.bounty_points != null) fd.append('bounty_points', String(data.bounty_points));
+    if (data.lottery_winner_count != null) fd.append('lottery_winner_count', String(data.lottery_winner_count));
     return request<{ post_id: number; message?: string; status?: string }>('/api/posts', { method: 'POST', body: fd, headers: {} });
   },
   updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number; post_type?: string }) => {
@@ -372,6 +380,59 @@ export const api = {
       headers: {},
     });
   },
+  pollVote: (id: number, optionIds: number[]) =>
+    request<{ message: string; poll: PollView }>(`/api/posts/${id}/poll/vote`, {
+      method: 'POST', body: JSON.stringify({ option_ids: optionIds }),
+    }),
+  pollClose: (id: number) =>
+    request<{ message: string; poll: PollView }>(`/api/posts/${id}/poll/close`, { method: 'POST', body: '{}' }),
+  bountyAward: (id: number, commentId: number) => {
+    const fd = new FormData();
+    fd.append('comment_id', String(commentId));
+    return request<{ message: string }>(`/api/posts/${id}/bounty/award`, { method: 'POST', body: fd, headers: {} });
+  },
+  bountyRefund: (id: number) =>
+    request<{ message: string }>(`/api/posts/${id}/bounty/refund`, { method: 'POST', body: '{}' }),
+  postLotteryDraw: (id: number) =>
+    request<{ message: string; lottery: PostLotteryView }>(`/api/posts/${id}/lottery/draw`, { method: 'POST', body: '{}' }),
+  adminPages: () => request<{ pages: SitePage[] }>('/api/admin/pages'),
+  adminCreatePage: (data: Partial<SitePage>) =>
+    request<{ message: string; page: SitePage }>('/api/admin/pages', { method: 'POST', body: JSON.stringify(data) }),
+  adminUpdatePage: (id: number, data: Partial<SitePage>) =>
+    request<{ message: string }>(`/api/admin/pages/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  adminDeletePage: (id: number) =>
+    request<{ message: string }>(`/api/admin/pages/${id}`, { method: 'DELETE' }),
+  adminFriendLinkApplies: (params?: { page?: number; size?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.size) q.set('size', String(params.size));
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return request<{
+      applies: FriendLinkApply[];
+      total: number;
+      page: number;
+      pending_count: number;
+      reciprocal_check_enabled?: boolean;
+    }>(`/api/admin/friend-link-applies${qs ? `?${qs}` : ''}`);
+  },
+  adminUpdateFriendLinkSettings: (body: { reciprocal_check_enabled: boolean }) =>
+    request<{ message: string; reciprocal_check_enabled: boolean }>('/api/admin/friend-link-settings', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  adminApproveFriendLinkApply: (id: number) =>
+    request<{ message: string; apply: FriendLinkApply }>(`/api/admin/friend-link-applies/${id}/approve`, {
+      method: 'POST', body: '{}',
+    }),
+  adminRejectFriendLinkApply: (id: number, body?: { note?: string }) =>
+    request<{ message: string; apply: FriendLinkApply }>(`/api/admin/friend-link-applies/${id}/reject`, {
+      method: 'POST', body: JSON.stringify(body ?? {}),
+    }),
+  adminRecheckFriendLinkApply: (id: number) =>
+    request<{ message: string; apply: FriendLinkApply }>(`/api/admin/friend-link-applies/${id}/recheck`, {
+      method: 'POST',
+    }),
   deletePost: (id: number) => request<{ message: string }>(`/api/posts/${id}`, { method: 'DELETE' }),
   login: (username: string, password: string) => {
     const fd = new FormData();
@@ -425,6 +486,37 @@ export const api = {
   like: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/posts/${id}/like`, { method: 'POST' }),
   likeComment: (id: number) => request<{ liked: boolean; like_count: number }>(`/api/comments/${id}/like`, { method: 'POST' }),
   favorite: (id: number) => request<{ favorited: boolean }>(`/api/posts/${id}/favorite`, { method: 'POST' }),
+  applyFriendLink: (body: {
+    name: string;
+    url: string;
+    logo: string;
+    link_on_homepage: boolean;
+    reciprocal_page_url?: string;
+  }) =>
+    request<{ message: string; apply: FriendLinkApply; warning?: string }>('/api/friend-links/apply', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  uploadFriendLinkLogo: (file: File) => {
+    const fd = new FormData();
+    fd.append('logo', file);
+    return request<{ message: string; url: string }>('/api/friend-links/logo', {
+      method: 'POST', body: fd, headers: {},
+    });
+  },
+  myFriendLinkApplies: () =>
+    request<{ applies: FriendLinkApply[] }>('/api/friend-links/my-applies'),
+  updateFriendLinkApply: (id: number, body: {
+    name: string;
+    url: string;
+    logo: string;
+    link_on_homepage: boolean;
+    reciprocal_page_url?: string;
+  }) =>
+    request<{ message: string; apply: FriendLinkApply; warning?: string }>(`/api/friend-links/applies/${id}`, {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  cancelFriendLinkApply: (id: number) =>
+    request<{ message: string }>(`/api/friend-links/applies/${id}`, { method: 'DELETE' }),
   reportPost: (id: number, body: { reason: ReportReason; detail?: string }) =>
     request<{ message: string; report: PostReport }>(`/api/posts/${id}/report`, {
       method: 'POST', body: JSON.stringify(body),

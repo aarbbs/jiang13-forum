@@ -38,10 +38,11 @@ func InitDB(dbPath string) error {
 		&PostLike{}, &CommentLike{}, &PostFavorite{}, &PostRevision{}, &CommentRevision{}, &ForumSetting{},
 		&OAuthClient{}, &OAuthAuthCode{},
 		&GiteaRepo{},
-		&PrivateMessage{}, &PostReport{},
+		&PrivateMessage{}, &PostReport{}, &FriendLinkApply{},
 		&Media{},
 		&PointLedger{}, &CheckIn{}, &LotteryDraw{}, &PostContentUnlock{},
 		&BadgeDef{}, &UserBadge{},
+		&SitePage{}, &Poll{}, &PollOption{}, &PollVote{}, &PostLotteryWinner{},
 	); err != nil {
 		return fmt.Errorf("自动迁移失败: %w", err)
 	}

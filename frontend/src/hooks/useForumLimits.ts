@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { ForumLimitsPublic } from '../api/types';
+import { DEFAULT_ASIDE_WIDGETS } from '../api/types';
 
 const DEFAULT_LIMITS: ForumLimitsPublic = {
   post_title_max: 128,
@@ -16,6 +17,11 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   signature_max: 200,
   open_posts_in_new_tab: true,
   open_content_links_in_new_tab: true,
+  aside_show_tag_cloud: false,
+  aside_show_recent_comments: false,
+  aside_show_friend_links: true,
+  aside_widgets: DEFAULT_ASIDE_WIDGETS,
+  feed_list_style: 'title',
   permalink_enabled: false,
   permalink_ext: 'html',
 };

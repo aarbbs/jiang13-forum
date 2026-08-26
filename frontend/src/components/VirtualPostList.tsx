@@ -4,10 +4,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Inbox, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
-import PostListSkeleton from './PostListSkeleton';
+import PostListSkeleton, { feedListRowEstimate } from './PostListSkeleton';
 import FeedPagination from './FeedPagination';
 import { InFlowSiteFooter } from './SiteFooter';
 import { useAuth } from '../hooks/useAuth';
+import { useForumLimits } from '../hooks/useForumLimits';
 import { useMediaQuery } from '../hooks/useTheme';
 import { loginPath } from '../utils/authRedirect';
 import type { PostItem } from '../api/types';
@@ -67,7 +68,10 @@ export default function VirtualPostList({
 }: Props) {
   const nav = useNavigate();
   const { user } = useAuth();
+  const { limits } = useForumLimits();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const feedStyle = limits.feed_list_style ?? 'title';
+  const rowEstimate = feedListRowEstimate(feedStyle);
   const parentRef = useRef<HTMLDivElement>(null);
   const restoredRef = useRef(false);
   const onScrollTopChangeRef = useRef(onScrollTopChange);
@@ -116,7 +120,7 @@ export default function VirtualPostList({
   const virtualizer = useVirtualizer({
     count: posts.length,
     getScrollElement,
-    estimateSize: () => 108,
+    estimateSize: () => rowEstimate,
     overscan: 8,
     scrollMargin: isMobile ? scrollMargin : 0,
     measureElement:
@@ -214,7 +218,7 @@ export default function VirtualPostList({
   return (
     <div className="post-list-scroll" ref={parentRef}>
       {isInitialLoad ? (
-        <PostListSkeleton />
+        <PostListSkeleton listStyle={feedStyle} />
       ) : isEmpty ? (
         <div className="empty-feed" role="status">
           {isSearchEmpty

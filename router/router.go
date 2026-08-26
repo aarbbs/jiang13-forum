@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/config"
 	"git.iioio.com/freefire/jiang13-forum/embed_static"
 	"git.iioio.com/freefire/jiang13-forum/handler"
 	"git.iioio.com/freefire/jiang13-forum/middleware"
 	"git.iioio.com/freefire/jiang13-forum/service"
+	"github.com/gin-gonic/gin"
 )
 
 func Setup(cfg *config.Config) (*gin.Engine, error) {
@@ -61,6 +61,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	mailSvc := service.NewMailService(settingsSvc)
 	emailCodeSvc := service.NewEmailCodeService(mailSvc)
 	notifySvc := service.NewNotifyService(messageSvc, mailSvc, settingsSvc)
+	friendLinkApplySvc := service.NewFriendLinkApplyService(settingsSvc, messageSvc)
 	oidcSvc, err := service.NewOIDCService(cfg, settingsSvc)
 	if err != nil {
 		return nil, err
@@ -91,6 +92,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
 		Points: service.NewPointsService(), Badge: service.NewBadgeService(),
+		SitePage:        service.NewSitePageService(filter),
+		FriendLinkApply: friendLinkApplySvc,
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
@@ -123,6 +126,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/stats", h.APIStats)
 		pubAPI.GET("/forum-limits", h.APIForumLimits)
 		pubAPI.GET("/site-branding", h.APISiteBranding)
+		pubAPI.GET("/pages", h.APIPages)
+		pubAPI.GET("/pages/:slug", h.APIPageDetail)
 		pubAPI.GET("/captcha", h.APICaptcha)
 		pubAPI.GET("/register/config", h.APIRegisterConfig)
 		pubAPI.POST("/register/email-code", middleware.RateLimitMiddleware(limiter, "register"), h.APISendRegisterEmailCode)
@@ -162,6 +167,11 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/posts/:id/like", h.APIToggleLike)
 		api.POST("/posts/:id/favorite", h.APIToggleFavorite)
 		api.POST("/posts/:id/resolve", h.APISetQuestionResolved)
+		api.POST("/posts/:id/poll/vote", h.APIPollVote)
+		api.POST("/posts/:id/poll/close", h.APIPollClose)
+		api.POST("/posts/:id/bounty/award", h.APIBountyAward)
+		api.POST("/posts/:id/bounty/refund", h.APIBountyRefund)
+		api.POST("/posts/:id/lottery/draw", h.APILotteryDraw)
 		api.POST("/posts/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreatePostReport)
 		api.GET("/messages/unread-count", h.APIMessageUnreadCount)
 		api.GET("/messages/notifications", h.APIMessageNotifications)
@@ -176,10 +186,16 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 		api.PUT("/comments/:id", h.APIUpdateComment)
 		api.GET("/me/points", h.APIMePoints)
+		api.GET("/me/check-in", h.APIMeCheckInGet)
 		api.POST("/me/check-in", h.APIMeCheckIn)
 		api.GET("/me/lottery", h.APIMeLotteryGet)
 		api.POST("/me/lottery", h.APIMeLotteryDraw)
 		api.POST("/posts/:id/unlock", middleware.RateLimitMiddleware(limiter, "post"), h.APIUnlockPostBlock)
+		api.POST("/friend-links/apply", middleware.RateLimitMiddleware(limiter, "friend_link"), h.APIApplyFriendLink)
+		api.POST("/friend-links/logo", middleware.RateLimitMiddleware(limiter, "post"), h.APIUploadFriendLinkLogo)
+		api.GET("/friend-links/my-applies", h.APIMyFriendLinkApplies)
+		api.PUT("/friend-links/applies/:id", middleware.RateLimitMiddleware(limiter, "friend_link"), h.APIUpdateFriendLinkApply)
+		api.DELETE("/friend-links/applies/:id", h.APICancelFriendLinkApply)
 	}
 
 	// 管理员 API（React SPA 后台统一使用 JSON）
@@ -206,6 +222,15 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.POST("/boards", h.APIAdminCreateBoard)
 		adminAPI.PUT("/boards/:id", h.APIAdminUpdateBoard)
 		adminAPI.DELETE("/boards/:id", h.APIAdminDeleteBoard)
+		adminAPI.GET("/pages", h.APIAdminPages)
+		adminAPI.POST("/pages", h.APIAdminCreatePage)
+		adminAPI.PUT("/pages/:id", h.APIAdminUpdatePage)
+		adminAPI.DELETE("/pages/:id", h.APIAdminDeletePage)
+		adminAPI.GET("/friend-link-applies", h.APIAdminFriendLinkApplies)
+		adminAPI.PUT("/friend-link-settings", h.APIAdminUpdateFriendLinkSettings)
+		adminAPI.POST("/friend-link-applies/:id/approve", h.APIAdminApproveFriendLinkApply)
+		adminAPI.POST("/friend-link-applies/:id/reject", h.APIAdminRejectFriendLinkApply)
+		adminAPI.POST("/friend-link-applies/:id/recheck", h.APIAdminRecheckFriendLinkApply)
 		adminAPI.GET("/posts", h.APIAdminPosts)
 		adminAPI.GET("/posts/trash", h.APIAdminTrashPosts)
 		adminAPI.POST("/posts/:id/pin", h.APIAdminPinPost)
@@ -254,7 +279,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 			adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 			{
 				adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-				for _, page := range []string{"dashboard", "boards", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
+				for _, page := range []string{"dashboard", "boards", "pages", "links", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
 					adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
 				}
 			}

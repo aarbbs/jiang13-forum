@@ -25,6 +25,22 @@ const (
 const (
 	PostTypeNormal   = "normal"   // 普通讨论
 	PostTypeQuestion = "question" // 问答（未解决 / 已解决）
+	PostTypePoll     = "poll"     // 投票
+	PostTypeBounty   = "bounty"   // 悬赏
+	PostTypeLottery  = "lottery"  // 抽奖
+)
+
+// 悬赏状态
+const (
+	BountyStatusOpen     = "open"
+	BountyStatusAwarded  = "awarded"
+	BountyStatusRefunded = "refunded"
+)
+
+// 帖内抽奖状态
+const (
+	PostLotteryStatusOpen  = "open"
+	PostLotteryStatusDrawn = "drawn"
 )
 
 // User 用户表
@@ -90,8 +106,13 @@ type Post struct {
 	Content      string         `gorm:"type:text;not null" json:"content"`
 	ContentPlain string         `gorm:"type:text" json:"-"` // 正文纯文本，供搜索索引
 	Tags         string         `gorm:"size:256" json:"tags"`
-	PostType     string         `gorm:"size:16;default:normal;index" json:"post_type"` // normal|question
+	PostType     string         `gorm:"size:16;default:normal;index" json:"post_type"` // normal|question|poll|bounty|lottery
 	QuestionResolved bool       `gorm:"default:false;index" json:"question_resolved"`  // 仅 question 有意义
+	BountyPoints     int        `gorm:"default:0" json:"bounty_points"`                // 悬赏积分（仅 bounty）
+	BountyStatus     string     `gorm:"size:16;default:'';index" json:"bounty_status"` // open|awarded|refunded
+	BountyCommentID  uint       `gorm:"default:0" json:"bounty_comment_id"`            // 采纳的评论
+	LotteryWinnerCount int      `gorm:"default:1" json:"lottery_winner_count"`         // 抽奖人数（仅 lottery）
+	LotteryStatus      string     `gorm:"size:16;default:'';index" json:"lottery_status"` // open|drawn
 	Pinned      bool           `gorm:"default:false" json:"pinned"`       // 全局置顶
 	BoardPinned bool           `gorm:"default:false" json:"board_pinned"` // 板块内置顶
 	Featured    bool           `gorm:"default:false;index" json:"featured"` // 精华帖
@@ -236,6 +257,36 @@ const (
 	ReportReasonOther      = "other"
 )
 
+// 友链申请状态
+const (
+	FriendLinkApplyStatusPending  = "pending"
+	FriendLinkApplyStatusApproved = "approved"
+	FriendLinkApplyStatusRejected = "rejected"
+)
+
+// FriendLinkApply 友情链接申请
+type FriendLinkApply struct {
+	ID                 uint           `gorm:"primaryKey" json:"id"`
+	UserID             uint           `gorm:"index;not null" json:"user_id"`
+	Name               string         `gorm:"size:32;not null" json:"name"`
+	URL                string         `gorm:"size:512;not null" json:"url"`
+	Description        string         `gorm:"size:200;default:''" json:"description,omitempty"`
+	Logo               string         `gorm:"size:512;default:''" json:"logo"`
+	ReciprocalPageURL  string         `gorm:"size:512;default:''" json:"reciprocal_page_url"`
+	LinkOnHomepage     bool           `gorm:"default:true" json:"link_on_homepage"`
+	ReciprocalVerified bool           `gorm:"default:false" json:"reciprocal_verified"`
+	ReciprocalCheckNote string        `gorm:"size:256;default:''" json:"reciprocal_check_note,omitempty"`
+	ReciprocalCheckedAt *time.Time    `json:"reciprocal_checked_at,omitempty"`
+	Status             string         `gorm:"size:16;default:pending;index" json:"status"`
+	ReviewNote         string         `gorm:"size:256;default:''" json:"review_note,omitempty"`
+	ReviewedAt         *time.Time     `json:"reviewed_at,omitempty"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+	DeletedAt          gorm.DeletedAt `gorm:"index" json:"-"`
+
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
 // PostReport 帖子/评论举报（CommentID 有值时为评论举报）
 type PostReport struct {
 	ID         uint       `gorm:"primaryKey" json:"id"`
@@ -277,6 +328,9 @@ const (
 	PointReasonUnlockSpend   = "unlock_spend"
 	PointReasonCreatorIncome = "creator_income"
 	PointReasonAdminAdjust   = "admin_adjust"
+	PointReasonBountyEscrow  = "bounty_escrow"
+	PointReasonBountyAward   = "bounty_award"
+	PointReasonBountyRefund  = "bounty_refund"
 )
 
 // PointLedger 积分流水
@@ -319,6 +373,58 @@ type PostContentUnlock struct {
 	BlockKey  string    `gorm:"uniqueIndex:idx_unlock_user_post_block;size:64;not null" json:"block_key"`
 	Cost      int       `gorm:"not null" json:"cost"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// SitePage 自定义单页（关于我们、版规等）
+type SitePage struct {
+	ID            uint           `gorm:"primaryKey" json:"id"`
+	Title         string         `gorm:"size:128;not null" json:"title"`
+	Slug          string         `gorm:"uniqueIndex;size:64;not null" json:"slug"`
+	Content       string         `gorm:"type:text;not null" json:"content"`
+	Published     bool           `gorm:"default:false;index" json:"published"`
+	SortOrder     int            `gorm:"default:0" json:"sort_order"`
+	ShowInFooter  bool           `gorm:"default:false" json:"show_in_footer"`
+	ShowInNav     bool           `gorm:"default:false" json:"show_in_nav"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// Poll 投票帖配置
+type Poll struct {
+	ID         uint       `gorm:"primaryKey" json:"id"`
+	PostID     uint       `gorm:"uniqueIndex;not null" json:"post_id"`
+	Multi      bool       `gorm:"default:false" json:"multi"`
+	MaxChoices int        `gorm:"default:1" json:"max_choices"`
+	Closed     bool       `gorm:"default:false;index" json:"closed"`
+	EndsAt     *time.Time `gorm:"index" json:"ends_at,omitempty"`
+}
+
+// PollOption 投票选项
+type PollOption struct {
+	ID        uint   `gorm:"primaryKey" json:"id"`
+	PostID    uint   `gorm:"index;not null" json:"post_id"`
+	Text      string `gorm:"size:64;not null" json:"text"`
+	SortOrder int    `gorm:"default:0" json:"sort_order"`
+	VoteCount int    `gorm:"default:0" json:"vote_count"`
+}
+
+// PollVote 投票记录
+type PollVote struct {
+	ID       uint `gorm:"primaryKey" json:"id"`
+	PostID   uint `gorm:"uniqueIndex:idx_poll_vote_multi;index;not null" json:"post_id"`
+	OptionID uint `gorm:"uniqueIndex:idx_poll_vote_multi;index;not null" json:"option_id"`
+	UserID   uint `gorm:"uniqueIndex:idx_poll_vote_multi;index;not null" json:"user_id"`
+}
+
+// PostLotteryWinner 帖内抽奖中奖记录
+type PostLotteryWinner struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	PostID    uint      `gorm:"index;not null" json:"post_id"`
+	UserID    uint      `gorm:"index;not null" json:"user_id"`
+	CommentID uint      `gorm:"default:0" json:"comment_id"`
+	CreatedAt time.Time `json:"created_at"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
 
 // 徽章类型

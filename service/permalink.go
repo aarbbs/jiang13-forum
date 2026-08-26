@@ -15,9 +15,12 @@ const (
 
 var (
 	permalinkExtRe = regexp.MustCompile(`(?i)^[a-z0-9]{1,16}$`)
+	slugPermalinkRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$`)
 	// /post/123 或 /post/123.html
 	postPermalinkRe = regexp.MustCompile(`^/post/(\d+)(?:\.([A-Za-z0-9]{1,16}))?/?$`)
 	userPermalinkRe = regexp.MustCompile(`^/user/(\d+)(?:\.([A-Za-z0-9]{1,16}))?/?$`)
+	boardPermalinkRe = regexp.MustCompile(`^/board/(\d+)(?:\.([A-Za-z0-9]{1,16}))?/?$`)
+	pagePermalinkRe  = regexp.MustCompile(`^/page/([a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])(?:\.([A-Za-z0-9]{1,16}))?/?$`)
 )
 
 // PermalinkConfig 伪静态（固定链接）配置
@@ -74,6 +77,32 @@ func (p PermalinkConfig) UserPath(id uint) string {
 	return fmt.Sprintf("/user/%d%s", id, p.Suffix())
 }
 
+// BoardPath 板块规范路径
+func (p PermalinkConfig) BoardPath(id uint) string {
+	return fmt.Sprintf("/board/%d%s", id, p.Suffix())
+}
+
+// PagePath 自定义单页规范路径
+func (p PermalinkConfig) PagePath(slug string) string {
+	slug = strings.TrimSpace(strings.ToLower(slug))
+	if slug == "" {
+		return "/"
+	}
+	return fmt.Sprintf("/page/%s%s", slug, p.Suffix())
+}
+
+// NormalizePageSlug 校验单页 slug
+func NormalizePageSlug(raw string) (string, bool) {
+	slug := strings.TrimSpace(strings.ToLower(raw))
+	if slug == "" || len(slug) > 64 {
+		return "", false
+	}
+	if !slugPermalinkRe.MatchString(slug) {
+		return "", false
+	}
+	return slug, true
+}
+
 // PermalinkMatch 路径解析结果
 type PermalinkMatch struct {
 	ID        uint
@@ -101,6 +130,56 @@ func (p PermalinkConfig) MatchPostPath(path string) PermalinkMatch {
 		ID:        id,
 		Ext:       ext,
 		Canonical: p.PostPath(id),
+		OK:        true,
+	}
+}
+
+// MatchBoardPath 解析板块公开路径
+func (p PermalinkConfig) MatchBoardPath(path string) PermalinkMatch {
+	m := boardPermalinkRe.FindStringSubmatch(path)
+	if len(m) < 2 {
+		return PermalinkMatch{}
+	}
+	id64, err := strconv.ParseUint(m[1], 10, 64)
+	if err != nil || id64 == 0 {
+		return PermalinkMatch{}
+	}
+	ext := ""
+	if len(m) > 2 {
+		ext = strings.ToLower(m[2])
+	}
+	id := uint(id64)
+	return PermalinkMatch{
+		ID:        id,
+		Ext:       ext,
+		Canonical: p.BoardPath(id),
+		OK:        true,
+	}
+}
+
+// PagePermalinkMatch slug 型路径解析结果
+type PagePermalinkMatch struct {
+	Slug      string
+	Ext       string
+	Canonical string
+	OK        bool
+}
+
+// MatchPagePath 解析自定义单页路径
+func (p PermalinkConfig) MatchPagePath(path string) PagePermalinkMatch {
+	m := pagePermalinkRe.FindStringSubmatch(path)
+	if len(m) < 2 {
+		return PagePermalinkMatch{}
+	}
+	slug := strings.ToLower(m[1])
+	ext := ""
+	if len(m) > 2 {
+		ext = strings.ToLower(m[2])
+	}
+	return PagePermalinkMatch{
+		Slug:      slug,
+		Ext:       ext,
+		Canonical: p.PagePath(slug),
 		OK:        true,
 	}
 }

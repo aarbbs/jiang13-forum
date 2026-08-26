@@ -39,6 +39,16 @@ func (h *Handlers) APIMePoints(c *gin.Context) {
 	})
 }
 
+// APIMeCheckInGet 今日签到状态
+func (h *Handlers) APIMeCheckInGet(c *gin.Context) {
+	st, err := h.Points.GetCheckInStatus(h.currentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"check_in": st})
+}
+
 // APIMeCheckIn 每日签到
 func (h *Handlers) APIMeCheckIn(c *gin.Context) {
 	st, err := h.Points.CheckIn(h.currentUserID(c))

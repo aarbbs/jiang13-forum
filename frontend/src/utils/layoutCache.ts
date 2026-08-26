@@ -1,8 +1,7 @@
-import type { Board, ForumStats, RecentComment, PostItem, TagCount } from '../api/types';
+import type { Board, ForumStats, RecentComment, TagCount } from '../api/types';
 
 const BOARDS_KEY = 'j13-cache-boards';
 const STATS_KEY = 'j13-cache-stats';
-const HOT_KEY = 'j13-cache-hot';
 const RECENT_COMMENTS_KEY = 'j13-cache-recent-comments';
 const TAGS_KEY = 'j13-cache-tags';
 
@@ -33,12 +32,6 @@ export function getCachedStats(): ForumStats | null {
   return readJson<ForumStats>(STATS_KEY);
 }
 
-/** 读取缓存的热门帖子，避免右栏/抽屉首屏高度跳动 */
-export function getCachedHot(): PostItem[] {
-  const list = readJson<PostItem[]>(HOT_KEY);
-  return Array.isArray(list) ? list : [];
-}
-
 /** 读取缓存的最新评论，避免右栏/抽屉首屏高度跳动 */
 export function getCachedRecentComments(): RecentComment[] {
   const list = readJson<RecentComment[]>(RECENT_COMMENTS_KEY);
@@ -54,7 +47,7 @@ export function getCachedTags(): TagCount[] {
 /** 右栏是否已有可展示的 session 缓存（含空列表） */
 export function hasCachedAside(): boolean {
   try {
-    return sessionStorage.getItem(HOT_KEY) != null || sessionStorage.getItem(RECENT_COMMENTS_KEY) != null;
+    return sessionStorage.getItem(RECENT_COMMENTS_KEY) != null;
   } catch {
     return false;
   }
@@ -66,10 +59,6 @@ export function setCachedBoards(boards: Board[]) {
 
 export function setCachedStats(stats: ForumStats) {
   writeJson(STATS_KEY, stats);
-}
-
-export function setCachedHot(posts: PostItem[]) {
-  writeJson(HOT_KEY, posts);
 }
 
 export function setCachedRecentComments(list: RecentComment[]) {

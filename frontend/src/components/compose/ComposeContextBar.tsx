@@ -3,7 +3,13 @@ import BoardIconDisplay from '../BoardIconDisplay';
 import { getBoardThemeIndex } from '../../utils/boardTheme';
 import type { Board, ForumLimitsPublic } from '../../api/types';
 
-export type PostType = 'normal' | 'question';
+export type PostType = 'normal' | 'question' | 'poll' | 'bounty' | 'lottery';
+
+const SPECIAL_TYPE_LABELS: Record<'poll' | 'bounty' | 'lottery', string> = {
+  poll: '投票',
+  bounty: '悬赏',
+  lottery: '抽奖',
+};
 
 interface Props {
   isEdit: boolean;
@@ -32,33 +38,92 @@ export default function ComposeContextBar({
   onTagsChange,
   limits,
 }: Props) {
+  const isSpecialEdit = isEdit && (postType === 'poll' || postType === 'bounty' || postType === 'lottery');
+
   return (
     <section className="compose-context" aria-label="发布设置">
       <div className="compose-context-row">
         <span className="compose-context-label">类型</span>
         <div className="compose-type-field">
           <div className="compose-type-pills" role="radiogroup" aria-label="帖子类型">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={postType === 'normal'}
-              className={`compose-type-pill${postType === 'normal' ? ' active' : ''}`}
-              onClick={() => onPostTypeChange('normal')}
-            >
-              讨论
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={postType === 'question'}
-              className={`compose-type-pill${postType === 'question' ? ' active' : ''}`}
-              onClick={() => onPostTypeChange('question')}
-            >
-              问答
-            </button>
+            {isSpecialEdit ? (
+              <button
+                type="button"
+                role="radio"
+                aria-checked
+                className="compose-type-pill active"
+                disabled
+              >
+                {SPECIAL_TYPE_LABELS[postType]}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={postType === 'normal'}
+                  className={`compose-type-pill${postType === 'normal' ? ' active' : ''}`}
+                  onClick={() => onPostTypeChange('normal')}
+                >
+                  讨论
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={postType === 'question'}
+                  className={`compose-type-pill${postType === 'question' ? ' active' : ''}`}
+                  onClick={() => onPostTypeChange('question')}
+                  disabled={isEdit}
+                >
+                  问答
+                </button>
+                {!isEdit && (
+                  <>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={postType === 'poll'}
+                      className={`compose-type-pill${postType === 'poll' ? ' active' : ''}`}
+                      onClick={() => onPostTypeChange('poll')}
+                    >
+                      投票
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={postType === 'bounty'}
+                      className={`compose-type-pill${postType === 'bounty' ? ' active' : ''}`}
+                      onClick={() => onPostTypeChange('bounty')}
+                    >
+                      悬赏
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={postType === 'lottery'}
+                      className={`compose-type-pill${postType === 'lottery' ? ' active' : ''}`}
+                      onClick={() => onPostTypeChange('lottery')}
+                    >
+                      抽奖
+                    </button>
+                  </>
+                )}
+              </>
+            )}
           </div>
           {postType === 'question' && (
             <span className="compose-type-hint">问答可标记解决状态</span>
+          )}
+          {postType === 'poll' && (
+            <span className="compose-type-hint">
+              {isEdit ? '投票选项发布后不可修改' : '发布后选项不可修改'}
+            </span>
+          )}
+          {postType === 'bounty' && (
+            <span className="compose-type-hint">发布成功即扣除积分；有人回复后不可自行取消，需采纳或联系管理员</span>
+          )}
+          {postType === 'lottery' && (
+            <span className="compose-type-hint">回帖参与，手动开奖</span>
           )}
         </div>
       </div>

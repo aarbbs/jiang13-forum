@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Flag, MessageSquare } from 'lucide-react';
+import { FileText, Flag, MessageSquare, Link2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { api } from '../../api/client';
@@ -29,7 +29,8 @@ export default function AdminDashboardPage() {
   const pendingPosts = data.pending_posts ?? 0;
   const pendingComments = data.pending_comments ?? 0;
   const pendingReports = data.pending_reports ?? 0;
-  const pendingTotal = pendingPosts + pendingComments + pendingReports;
+  const pendingFriendLinks = data.pending_friend_links ?? 0;
+  const pendingTotal = pendingPosts + pendingComments + pendingReports + pendingFriendLinks;
 
   const stats = [
     { label: '注册用户', value: data.users },
@@ -62,6 +63,14 @@ export default function AdminDashboardPage() {
       hint: '用户举报需人工处理',
       to: '/admin/reports',
       icon: Flag,
+    },
+    {
+      key: 'links',
+      label: '待审友链',
+      count: pendingFriendLinks,
+      hint: '用户提交的友情链接申请',
+      to: '/admin/links',
+      icon: Link2,
     },
   ];
 

@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 $AppName = 'jiang13'
 $MainPkg = './cmd/jiang13'
 $BuildDir = 'dist'
+$DevDataDir = 'dist/data'
 $Version = '1.0.0'
 $RegistryImage = 'hangzhang714128/jiang13-forum'
 $Ldlags = "-s -w -X main.version=$Version"
@@ -90,18 +91,21 @@ switch ($Target) {
         Write-Host '[ok] cleaned dist' -ForegroundColor Green
     }
     'run' {
-        go run $MainPkg
+        Ensure-Dir $DevDataDir
+        go run $MainPkg --data $DevDataDir
     }
     'dev' {
         $root = (Get-Location).Path
+        Ensure-Dir $DevDataDir
         Write-Host ''
         Write-Host '[dev] 前端开发  : http://localhost:5173  (Vite HMR)' -ForegroundColor Green
         Write-Host '[dev] 后端 API  : http://localhost:3000  (Go)' -ForegroundColor Green
+        Write-Host "[dev] 数据目录  : $DevDataDir (与 dist 二进制一致)" -ForegroundColor Green
         Write-Host '[dev] 提示     : 请访问 5173 端口，Vite 会自动代理 API 到 3000' -ForegroundColor Yellow
         Write-Host '[dev] 正在新窗口启动 Go 后端 (仅 API)...' -ForegroundColor Cyan
         Start-Process powershell -ArgumentList @(
             '-NoExit', '-Command',
-            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg --dev"
+            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg --dev --data '$DevDataDir'"
         ) | Out-Null
         Start-Sleep -Seconds 2
         Push-Location frontend

@@ -34,11 +34,15 @@ import {
 } from '@/components/ui/dialog';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
-import type { PostItem, Comment, ReportReason } from '../api/types';
+import type { PostItem, Comment, ReportReason, PollView, PostLotteryView } from '../api/types';
 import { REPORT_REASON_OPTIONS } from '../utils/report';
 import CommentThreadList from '../components/CommentThreadList';
 import CommentBox, { type CommentSubmitData } from '../components/CommentBox';
 import PostContent from '../components/PostContent';
+import PostPollCard from '../components/PostPollCard';
+import PostBountyBanner from '../components/PostBountyBanner';
+import { findCommentFloor } from '../utils/bounty';
+import PostLotteryCard from '../components/PostLotteryCard';
 import PostRevisionPanel from '../components/PostRevisionPanel';
 import ArticleOutline from '../components/ArticleOutline';
 import { useAuth } from '../hooks/useAuth';
@@ -81,6 +85,8 @@ export default function PostDetailPage() {
   const { setPostOutline, isMobile } = useOutletContext<LayoutCtx>();
 
   const [post, setPost] = useState<PostItem | null>(null);
+  const [poll, setPoll] = useState<PollView | null>(null);
+  const [lottery, setLottery] = useState<PostLotteryView | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [liked, setLiked] = useState(false);
   const [favorited, setFavorited] = useState(false);
@@ -104,6 +110,11 @@ export default function PostDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
+  const [bountyAwardTarget, setBountyAwardTarget] = useState<number | null>(null);
+  const [bountyAwarding, setBountyAwarding] = useState(false);
+  const [bountyCanRefund, setBountyCanRefund] = useState(true);
+  const [bountyRefundBlockReason, setBountyRefundBlockReason] = useState('');
+  const [bountyEligibleReplyCount, setBountyEligibleReplyCount] = useState(0);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -189,12 +200,17 @@ export default function PostDetailPage() {
         ]);
         if (seq !== loadSeq.current) return;
         setPost(detail.post);
+        setPoll(detail.poll ?? null);
+        setLottery(detail.lottery ?? null);
         setLiked(detail.liked);
         setFavorited(detail.favorited);
         setCanEdit(detail.can_edit ?? false);
         setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
         setEditBlockReason(detail.edit_block_reason ?? '');
         setEditWindowHours(detail.post_edit_window_hours ?? 0);
+        setBountyCanRefund(detail.bounty_can_refund ?? true);
+        setBountyRefundBlockReason(detail.bounty_refund_block_reason ?? '');
+        setBountyEligibleReplyCount(detail.bounty_eligible_reply_count ?? 0);
         setComments(Array.isArray(comm.comments) ? comm.comments : []);
         void refresh();
       } catch {
@@ -218,6 +234,11 @@ export default function PostDetailPage() {
     try {
       const detail = await api.post(postId, { skipView: true });
       setPost(detail.post);
+      setPoll(detail.poll ?? null);
+      setLottery(detail.lottery ?? null);
+      setBountyCanRefund(detail.bounty_can_refund ?? true);
+      setBountyRefundBlockReason(detail.bounty_refund_block_reason ?? '');
+      setBountyEligibleReplyCount(detail.bounty_eligible_reply_count ?? 0);
     } catch {
       // 评论已成功，正文刷新失败不阻断
     }
@@ -547,6 +568,32 @@ export default function PostDetailPage() {
     ? formatEditRemaining(post.created_at, editWindowHours)
     : '';
 
+  const handleBountyAward = (commentId: number) => {
+    setBountyAwardTarget(commentId);
+  };
+
+  const confirmBountyAward = async () => {
+    if (bountyAwardTarget == null) return;
+    setBountyAwarding(true);
+    try {
+      await api.bountyAward(post.id, bountyAwardTarget);
+      notify.success('悬赏已发放');
+      setBountyAwardTarget(null);
+      await reloadPostContent();
+      await reloadComments();
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setBountyAwarding(false);
+    }
+  };
+  const awardedCommentFloor = findCommentFloor(comments, post.bounty_comment_id);
+  const canJumpToAwarded = awardedCommentFloor != null;
+
+  const handleJumpToAwarded = () => {
+    if (awardedCommentFloor != null) jumpToFloor(awardedCommentFloor);
+  };
+
   const handlePin = async () => {
     if (!post) return;
     try {
@@ -729,6 +776,20 @@ export default function PostDetailPage() {
                 {post.question_resolved ? '已解决' : '未解决'}
               </span>
             )}
+            {post.post_type === 'poll' && (
+              <span className="post-type-badge post-type-badge--poll">投票</span>
+            )}
+            {post.post_type === 'bounty' && post.bounty_status === 'open' && (post.bounty_points ?? 0) > 0 && (
+              <span className="post-bounty-badge post-bounty-badge--open post-bounty-badge--detail">悬赏 {post.bounty_points}</span>
+            )}
+            {post.post_type === 'bounty' && post.bounty_status === 'awarded' && (
+              <span className="post-bounty-badge post-bounty-badge--awarded post-bounty-badge--detail">已采纳</span>
+            )}
+            {post.post_type === 'lottery' && (
+              <span className="post-type-badge post-type-badge--lottery">
+                {post.lottery_status === 'drawn' ? '已开奖' : '抽奖'}
+              </span>
+            )}
             {post.title}
           </h1>
           <div className="post-detail-author-row">
@@ -789,6 +850,34 @@ export default function PostDetailPage() {
               title="目录"
             />
           </details>
+        )}
+
+        {poll && (
+          <PostPollCard
+            postId={post.id}
+            poll={poll}
+            isOwnerOrAdmin={isOwnerOrAdmin}
+            onUpdate={setPoll}
+          />
+        )}
+        <PostBountyBanner
+          post={post}
+          isOwnerOrAdmin={isOwnerOrAdmin}
+          isAdmin={isAdmin}
+          canRefund={bountyCanRefund}
+          refundBlockReason={bountyRefundBlockReason}
+          eligibleReplyCount={bountyEligibleReplyCount}
+          onUpdate={reloadPostContent}
+          onJumpToAwarded={handleJumpToAwarded}
+          canJumpToAwarded={canJumpToAwarded}
+        />
+        {lottery && (
+          <PostLotteryCard
+            postId={post.id}
+            lottery={lottery}
+            isOwnerOrAdmin={isOwnerOrAdmin}
+            onUpdate={v => { setLottery(v); void reloadPostContent(); }}
+          />
         )}
 
         <PostContent
@@ -1078,10 +1167,42 @@ export default function PostDetailPage() {
                   inline
                 />
               )}
+              bountyAward={post.post_type === 'bounty' ? {
+                open: post.bounty_status === 'open' && (post.bounty_points ?? 0) > 0,
+                awardedCommentId: post.bounty_comment_id,
+                postAuthorId: post.user_id,
+                canAward: isOwnerOrAdmin,
+                onAward: handleBountyAward,
+              } : undefined}
             />
           )}
         </div>
       </div>
+      <AlertDialog
+        open={bountyAwardTarget != null}
+        onOpenChange={(open) => { if (!open && !bountyAwarding) setBountyAwardTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>采纳该回复？</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定采纳该回复并发放 {post.bounty_points ?? 0} 悬赏积分？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bountyAwarding}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bountyAwarding}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmBountyAward();
+              }}
+            >
+              {bountyAwarding ? '发放中…' : '确认采纳'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <InFlowSiteFooter />
     </article>
   );

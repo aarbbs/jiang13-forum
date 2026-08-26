@@ -70,12 +70,16 @@ func (h *Handlers) APIHealth(c *gin.Context) {
 
 // APIStats 论坛概览统计
 func (h *Handlers) APIStats(c *gin.Context) {
-	var userCount, postCount, boardCount int64
+	var userCount, postCount, boardCount, commentCount int64
 	model.DB.Model(&model.User{}).Count(&userCount)
 	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
 	model.DB.Model(&model.Board{}).Count(&boardCount)
+	model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPublished).Count(&commentCount)
 	c.JSON(http.StatusOK, gin.H{
-		"users": userCount, "posts": postCount, "boards": boardCount,
+		"users":    userCount,
+		"posts":    postCount,
+		"boards":   boardCount,
+		"comments": commentCount,
 	})
 }
 
@@ -147,6 +151,7 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	pendingPosts, _ := h.Post.PendingPostCount()
 	pendingComments, _ := h.Comment.PendingCommentCount()
 	pendingReports, _ := h.Report.PendingCount()
+	pendingFriendLinks, _ := h.FriendLinkApply.PendingCount()
 	recentPosts, _, _ := h.Post.List(service.PostListQuery{
 		Page: 1, Size: 8, ViewerIsAdmin: true, Status: "all",
 	})
@@ -159,6 +164,7 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 		"pending_posts":    pendingPosts,
 		"pending_comments": pendingComments,
 		"pending_reports":  pendingReports,
+		"pending_friend_links": pendingFriendLinks,
 		"recent_posts":     recentPosts,
 	})
 }
@@ -575,7 +581,9 @@ func (h *Handlers) APIAdminSettings(c *gin.Context) {
 
 // APISiteBranding 前台公开的站点品牌配置
 func (h *Handlers) APISiteBranding(c *gin.Context) {
-	c.JSON(http.StatusOK, h.Settings.SiteBranding())
+	brand := h.Settings.SiteBranding()
+	brand.SiteURL = h.publicBaseURL(c)
+	c.JSON(http.StatusOK, brand)
 }
 
 // APIAdminUpdateBranding 更新站点品牌文案
@@ -1039,7 +1047,7 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		editReason = h.Post.UserEditBlockReason(post, uid, isAdmin)
 	}
 	isEdited := post.UpdatedAt.Sub(post.CreatedAt) > time.Minute
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"post":                   post,
 		"comment_count":          len(comments),
 		"liked":                  h.Post.IsLiked(uid, uint(id)),
@@ -1049,7 +1057,26 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		"edit_block_reason":      editReason,
 		"is_edited":              isEdited,
 		"post_edit_window_hours": h.Settings.PostEditWindowHours(),
-	})
+	}
+	if post.PostType == model.PostTypePoll {
+		if poll, err := service.GetPollView(uint(id), uid); err == nil {
+			resp["poll"] = poll
+		}
+	}
+	if post.PostType == model.PostTypeLottery {
+		if lottery, err := service.GetPostLotteryView(post); err == nil && lottery != nil {
+			resp["lottery"] = lottery
+		}
+	}
+	if post.PostType == model.PostTypeBounty && post.BountyStatus == model.BountyStatusOpen && post.BountyPoints > 0 {
+		canRefund, blockReason := service.CanRefundBounty(post, isAdmin)
+		resp["bounty_can_refund"] = canRefund
+		resp["bounty_refund_block_reason"] = blockReason
+		if n, err := service.CountEligibleBountyReplies(model.DB, post.ID, post.UserID); err == nil {
+			resp["bounty_eligible_reply_count"] = n
+		}
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // APIPostComments 楼层列表

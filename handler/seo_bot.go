@@ -87,6 +87,18 @@ func writeEscapedMeta(b *strings.Builder, attr, key, content string) {
 	b.WriteString("<meta " + attr + "=\"" + html.EscapeString(key) + "\" content=\"" + html.EscapeString(content) + "\"/>")
 }
 
+func (h *Handlers) botBoardHTML(meta *embed_static.SPAPageMeta, board model.Board) string {
+	desc := strings.TrimSpace(board.Description)
+	if desc == "" {
+		desc = meta.Description
+	}
+	body := fmt.Sprintf(`<h1>%s</h1><p class="meta">%s</p>`,
+		html.EscapeString(board.Name),
+		html.EscapeString(desc),
+	)
+	return renderBotHTML(meta, body)
+}
+
 func (h *Handlers) botHomeHTML(meta *embed_static.SPAPageMeta, brand service.SiteBranding) string {
 	name := strings.TrimSpace(brand.Name)
 	if name == "" {

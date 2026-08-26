@@ -27,6 +27,8 @@ import {
   badgeIcon,
   formatBadgeCondition,
 } from '../../utils/badgeIcons';
+import AdminSortableList, { SortableDragHandle, SortableMoveButtons } from '../../components/admin/AdminSortableList';
+import { mergeReorderedSubset, persistSortOrderChanges, shouldShowSortableMoveButtons } from '../../utils/sortOrder';
 
 type KindTab = 'all' | 'auto' | 'limited';
 
@@ -62,6 +64,7 @@ export default function AdminBadgesPage() {
   const [form, setForm] = useState<Partial<BadgeDef>>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [reordering, setReordering] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -161,6 +164,27 @@ export default function AdminBadgesPage() {
     }
   };
 
+  const handleBadgeReorder = async (reorderedFiltered: BadgeDef[]) => {
+    const subsetBefore = [...filtered];
+    const before = [...rows];
+    setReordering(true);
+    try {
+      const merged = mergeReorderedSubset(before, subsetBefore, reorderedFiltered);
+      const after = await persistSortOrderChanges(before, merged, badge =>
+        api.adminUpsertBadge({ ...badge, sort_order: badge.sort_order }),
+      );
+      setRows(after);
+      notify.success('徽章排序已更新');
+    } catch (e: unknown) {
+      setRows(before);
+      notify.error(e instanceof Error ? e.message : '排序保存失败');
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const showMoveButtons = shouldShowSortableMoveButtons(filtered.length);
+
   if (!ready) return null;
 
   const PreviewIcon = badgeIcon(form.icon);
@@ -249,14 +273,30 @@ export default function AdminBadgesPage() {
           )}
         </div>
       ) : (
-        <div className="admin-badge-grid">
-          {filtered.map(b => {
+        <AdminSortableList
+          strategy="grid"
+          className="admin-badge-grid"
+          items={filtered}
+          getId={b => b.id}
+          onReorder={handleBadgeReorder}
+          showMoveButtons="auto"
+          ariaLabel="徽章列表排序"
+          renderItem={(b, _index, controls) => {
             const Icon = badgeIcon(b.icon);
             return (
               <article
-                key={b.id}
-                className={cn('admin-badge-card', !b.enabled && 'is-disabled')}
+                ref={controls.setNodeRef}
+                style={controls.style}
+                className={cn(
+                  'admin-badge-card',
+                  'admin-sortable-grid-item',
+                  !b.enabled && 'is-disabled',
+                  controls.isDragging && 'is-dragging',
+                )}
               >
+                <div className="admin-sortable-grid-item__handle-wrap">
+                  <SortableDragHandle label={`拖拽调整「${b.name}」顺序`} {...controls.dragHandleProps} />
+                </div>
                 <div className="admin-badge-card-top">
                   <div className={cn('admin-badge-preview', b.kind === 'limited' && 'is-limited')}>
                     <Icon size={22} aria-hidden />
@@ -283,15 +323,16 @@ export default function AdminBadgesPage() {
                     {formatBadgeCondition(b)}
                   </span>
                   <div className="admin-badge-card-actions">
+                    {showMoveButtons && <SortableMoveButtons controls={controls} />}
                     <label className="admin-badge-switch" title={b.enabled ? '点击停用' : '点击启用'}>
                       <span className="sr-only">启用</span>
                       <Switch
                         checked={b.enabled}
-                        disabled={togglingId === b.id}
+                        disabled={togglingId === b.id || reordering}
                         onCheckedChange={() => toggleEnabled(b)}
                       />
                     </label>
-                    <Button size="sm" variant="outline" onClick={() => openEdit(b)}>
+                    <Button size="sm" variant="outline" onClick={() => openEdit(b)} disabled={reordering}>
                       <Pencil size={13} />
                       编辑
                     </Button>
@@ -299,8 +340,8 @@ export default function AdminBadgesPage() {
                 </div>
               </article>
             );
-          })}
-        </div>
+          }}
+        />
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => {

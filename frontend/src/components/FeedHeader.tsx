@@ -1,6 +1,7 @@
 import { Users, FileText, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Board, ForumStats } from '../api/types';
+import { navigateFeed } from '../utils/feedCache';
 
 interface Props {
   boardId: number;
@@ -81,7 +82,7 @@ export default function FeedHeader({
         <button
           type="button"
           className="feed-head__clear"
-          onClick={() => nav('/')}
+          onClick={() => navigateFeed(nav, '/')}
         >
           {tag ? '清除标签' : '清除搜索'}
         </button>

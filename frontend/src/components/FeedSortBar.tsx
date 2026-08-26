@@ -1,4 +1,6 @@
 import { useRef } from 'react';
+import { boardPath, type PermalinkOpts } from '../utils/permalink';
+import { getCachedForumLimits } from '../hooks/useForumLimits';
 import { Clock, MessageCircle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { moveTabIndex } from '../hooks/useOverlayA11y';
@@ -30,10 +32,9 @@ export function parseFeedSort(raw: string | null): FeedSort {
 export function buildHomeUrl(
   boardId: number,
   sort: FeedSort = 'latest',
-  opts?: { keyword?: string; tag?: string; author?: string; titleOnly?: boolean },
+  opts?: { keyword?: string; tag?: string; author?: string; titleOnly?: boolean; permalink?: PermalinkOpts },
 ) {
   const p = new URLSearchParams();
-  if (boardId) p.set('board', String(boardId));
   const tag = opts?.tag?.trim();
   const keyword = opts?.keyword?.trim();
   const author = opts?.author?.trim();
@@ -48,6 +49,11 @@ export function buildHomeUrl(
   }
   if (sort !== 'latest') p.set('sort', sort);
   const qs = p.toString();
+
+  if (boardId) {
+    const base = boardPath(boardId, opts?.permalink ?? getCachedForumLimits());
+    return qs ? `${base}?${qs}` : base;
+  }
   return qs ? `/?${qs}` : '/';
 }
 

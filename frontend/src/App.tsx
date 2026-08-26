@@ -31,6 +31,7 @@ const UserProfilePage = lazyWithRetry(() => import('./pages/UserProfilePage'));
 const FavoritesPage = lazyWithRetry(() => import('./pages/FavoritesPage'));
 const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'));
 const ProjectsPage = lazyWithRetry(() => import('./pages/ProjectsPage'));
+const LinksPage = lazyWithRetry(() => import('./pages/LinksPage'));
 const AdminDashboardPage = lazyWithRetry(() => import('./pages/admin/AdminDashboardPage'));
 const AdminPostsPage = lazyWithRetry(() => import('./pages/admin/AdminPostsPage'));
 const AdminCommentsPage = lazyWithRetry(() => import('./pages/admin/AdminCommentsPage'));
@@ -38,6 +39,9 @@ const AdminReportsPage = lazyWithRetry(() => import('./pages/admin/AdminReportsP
 const AdminUsersPage = lazyWithRetry(() => import('./pages/admin/AdminUsersPage'));
 const AdminBadgesPage = lazyWithRetry(() => import('./pages/admin/AdminBadgesPage'));
 const AdminMediaPage = lazyWithRetry(() => import('./pages/admin/AdminMediaPage'));
+const AdminPagesPage = lazyWithRetry(() => import('./pages/admin/AdminPagesPage'));
+const AdminLinksPage = lazyWithRetry(() => import('./pages/admin/AdminLinksPage'));
+const SitePageView = lazyWithRetry(() => import('./pages/SitePageView'));
 const AdminSettingsPage = lazyWithRetry(() => import('./pages/admin/AdminSettingsPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 
@@ -52,6 +56,8 @@ const router = createBrowserRouter(
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>} />
         <Route path="boards" element={<Suspense fallback={<PageLoader />}><BoardsManagePage /></Suspense>} />
+        <Route path="pages" element={<Suspense fallback={<PageLoader />}><AdminPagesPage /></Suspense>} />
+        <Route path="links" element={<Suspense fallback={<PageLoader />}><AdminLinksPage /></Suspense>} />
         <Route path="posts" element={<Suspense fallback={<PageLoader />}><AdminPostsPage /></Suspense>} />
         <Route path="comments" element={<Suspense fallback={<PageLoader />}><AdminCommentsPage /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={<PageLoader />}><AdminReportsPage /></Suspense>} />
@@ -63,6 +69,7 @@ const router = createBrowserRouter(
       </Route>
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/board/:id" element={<HomePage />} />
         {/* :id 可为 123 或 123.html（伪静态后缀由后台配置） */}
         <Route path="/post/:id" element={<PostDetailPage />} />
         <Route path="/compose" element={<ComposePage />} />
@@ -71,7 +78,9 @@ const router = createBrowserRouter(
         <Route path="/user/:id" element={<UserProfilePage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/links" element={<LinksPage />} />
         <Route path="/messages" element={<MessagesPage />} />
+        <Route path="/page/:slug" element={<Suspense fallback={<PageLoader />}><SitePageView /></Suspense>} />
         <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Suspense fallback={<PageLoader fullScreen />}><NotFoundPage standalone /></Suspense>} />

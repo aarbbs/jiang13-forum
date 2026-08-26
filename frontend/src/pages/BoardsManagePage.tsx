@@ -30,6 +30,8 @@ import type { Board } from '../api/types';
 import { BoardColorPicker, BoardIconPicker } from '../components/BoardAppearancePicker';
 import BoardIconDisplay from '../components/BoardIconDisplay';
 import { getBoardThemeIndex } from '../utils/boardTheme';
+import AdminSortableList, { SortableDragHandle, SortableMoveButtons } from '../components/admin/AdminSortableList';
+import { persistSortOrderChanges, shouldShowSortableMoveButtons } from '../utils/sortOrder';
 
 const boardSchema = z.object({
   name: z.string().min(1, '请输入名称').max(64),
@@ -48,6 +50,7 @@ export default function BoardsManagePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Board | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   const form = useForm<BoardFormValues>({
     resolver: zodResolver(boardSchema),
@@ -125,6 +128,32 @@ export default function BoardsManagePage() {
     }
   };
 
+  const handleBoardReorder = async (reordered: Board[]) => {
+    const before = [...boards];
+    setReordering(true);
+    try {
+      const after = await persistSortOrderChanges(before, reordered, board =>
+        api.updateBoard(board.id, {
+          name: board.name,
+          description: board.description ?? '',
+          sort_order: board.sort_order ?? 0,
+          icon: board.icon ?? '',
+          color_index: board.color_index ?? -1,
+        }).then(() => undefined),
+      );
+      setBoards(after);
+      notify.success('板块排序已更新');
+      window.dispatchEvent(new Event('boards-refresh'));
+    } catch (e: unknown) {
+      setBoards(before);
+      notify.error(e instanceof Error ? e.message : '排序保存失败');
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const showMoveButtons = shouldShowSortableMoveButtons(boards.length);
+
   if (!ready) {
     return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
   }
@@ -152,60 +181,76 @@ export default function BoardsManagePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[72px]">排序</TableHead>
                     <TableHead className="w-[60px]">ID</TableHead>
                     <TableHead className="w-[52px]">图标</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>简介</TableHead>
-                    <TableHead className="w-[70px]">排序</TableHead>
+                    <TableHead className="w-[70px]">权重</TableHead>
                     <TableHead className="w-[80px]">帖子数</TableHead>
                     <TableHead className="w-[160px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {boards.map(board => {
+                <AdminSortableList
+                  as={TableBody}
+                  items={boards}
+                  getId={board => board.id}
+                  onReorder={handleBoardReorder}
+                  showMoveButtons="auto"
+                  renderItem={(board, _index, controls) => {
                     const themeIdx = getBoardThemeIndex(board);
                     return (
-                    <TableRow key={board.id}>
-                      <TableCell>{board.id}</TableCell>
-                      <TableCell>
-                        <span className={cn('board-table-icon', `sidebar-board-icon--${themeIdx}`)}>
-                          <BoardIconDisplay board={board} />
-                        </span>
-                      </TableCell>
-                      <TableCell><strong>{board.name}</strong></TableCell>
-                      <TableCell className="max-w-[200px] truncate">{board.description}</TableCell>
-                      <TableCell>{board.sort_order}</TableCell>
-                      <TableCell><Badge variant="secondary">{board.post_count ?? 0}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(board)}>编辑</Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                                删除
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>确定删除该板块？</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  删除后该板块下的帖子将无法通过板块筛选，此操作不可撤销。
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>取消</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(board.id)}>
+                      <TableRow
+                        ref={controls.setNodeRef}
+                        style={controls.style}
+                        className={cn('admin-sortable-table-row', controls.isDragging && 'is-dragging')}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-0">
+                            <SortableDragHandle label={`拖拽调整「${board.name}」顺序`} {...controls.dragHandleProps} />
+                            {showMoveButtons && <SortableMoveButtons controls={controls} />}
+                          </div>
+                        </TableCell>
+                        <TableCell>{board.id}</TableCell>
+                        <TableCell>
+                          <span className={cn('board-table-icon', `sidebar-board-icon--${themeIdx}`)}>
+                            <BoardIconDisplay board={board} />
+                          </span>
+                        </TableCell>
+                        <TableCell><strong>{board.name}</strong></TableCell>
+                        <TableCell className="max-w-[200px] truncate">{board.description}</TableCell>
+                        <TableCell>{board.sort_order}</TableCell>
+                        <TableCell><Badge variant="secondary">{board.post_count ?? 0}</Badge></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(board)} disabled={reordering}>编辑</Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={reordering}>
                                   删除
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>确定删除该板块？</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    删除后该板块下的帖子将无法通过板块筛选，此操作不可撤销。
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>取消</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(board.id)}>
+                                    删除
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     );
-                  })}
-                </TableBody>
+                  }}
+                />
               </Table>
               {boards.length === 0 && (
                 <div className="empty-state">

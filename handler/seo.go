@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"html"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -15,8 +17,7 @@ import (
 )
 
 var (
-	seoPostEditRe  = regexp.MustCompile(`^/post/(\d+)/edit/?$`)
-	seoBoardPathRe = regexp.MustCompile(`^/board/(\d+)/?$`)
+	seoPostEditRe = regexp.MustCompile(`^/post/(\d+)/edit/?$`)
 )
 
 const (
@@ -58,15 +59,17 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
+	permalink := h.Settings.Permalink()
 	urls := []service.SitemapURL{
 		{Loc: base + "/", LastMod: now, ChangeFreq: "hourly", Priority: "1.0"},
 		{Loc: base + "/projects", LastMod: now, ChangeFreq: "daily", Priority: "0.6"},
+		{Loc: base + "/links", LastMod: now, ChangeFreq: "weekly", Priority: "0.6"},
 	}
 
 	if boards, err := h.Board.List(); err == nil {
 		for _, board := range boards {
 			urls = append(urls, service.SitemapURL{
-				Loc:        base + service.QueryBoardHome(board.ID),
+				Loc:        base + service.QueryBoardHome(board.ID, permalink),
 				LastMod:    board.UpdatedAt.UTC(),
 				ChangeFreq: "daily",
 				Priority:   "0.7",
@@ -74,8 +77,7 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 		}
 	}
 
-	permalink := h.Settings.Permalink()
-	if posts, err := h.Post.ListSitemap(seoSitemapLimit); err == nil {
+	if posts, e1 := h.Post.ListSitemap(seoSitemapLimit); e1 == nil {
 		for _, p := range posts {
 			lm := p.UpdatedAt
 			if lm.IsZero() {
@@ -90,12 +92,27 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 		}
 	}
 
-	if users, err := h.User.ListSitemap(seoSitemapLimit); err == nil {
+	if users, e2 := h.User.ListSitemap(seoSitemapLimit); e2 == nil {
 		for _, u := range users {
 			urls = append(urls, service.SitemapURL{
 				Loc:        base + permalink.UserPath(u.ID),
 				LastMod:    u.UpdatedAt.UTC(),
 				ChangeFreq: "weekly",
+				Priority:   "0.5",
+			})
+		}
+	}
+
+	if pages, e3 := h.SitePage.ListSitemap(seoSitemapLimit); e3 == nil {
+		for _, p := range pages {
+			lm := p.UpdatedAt
+			if lm.IsZero() {
+				lm = p.CreatedAt
+			}
+			urls = append(urls, service.SitemapURL{
+				Loc:        base + permalink.PagePath(p.Slug),
+				LastMod:    lm.UTC(),
+				ChangeFreq: "monthly",
 				Priority:   "0.5",
 			})
 		}
@@ -137,11 +154,6 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 func (h *Handlers) ServePublicSPA(c *gin.Context) {
 	path := c.Request.URL.Path
 
-	if m := seoBoardPathRe.FindStringSubmatch(path); len(m) == 2 {
-		c.Redirect(http.StatusMovedPermanently, "/?board="+m[1])
-		return
-	}
-
 	brand := h.Settings.SiteBranding()
 	base := h.publicBaseURL(c)
 	siteName := strings.TrimSpace(brand.Name)
@@ -152,9 +164,57 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 	siteKeywords := brand.MetaKeywords()
 	permalink := h.Settings.Permalink()
 
+	// 旧版 /?board=id → 规范板块路径
+	if path == "/" || path == "" {
+		if boardID, err := strconv.ParseUint(c.Query("board"), 10, 64); err == nil && boardID > 0 {
+			target := service.QueryBoardHome(uint(boardID), permalink)
+			if q := c.Request.URL.RawQuery; q != "" {
+				// 保留 sort/keyword 等 query，去掉 board
+				vals := c.Request.URL.Query()
+				vals.Del("board")
+				if rest := vals.Encode(); rest != "" {
+					target += "?" + rest
+				}
+			}
+			c.Redirect(http.StatusMovedPermanently, target)
+			return
+		}
+	}
+
 	isBot := service.IsSEOCrawler(c.Request.UserAgent())
 	if isBot {
 		c.Header("Vary", "User-Agent")
+	}
+
+	// 板块首页（含可选伪静态后缀）
+	if bm := permalink.MatchBoardPath(path); bm.OK {
+		if bm.NeedsCanonicalRedirect(path) {
+			c.Redirect(http.StatusMovedPermanently, bm.Canonical+preserveQueryExceptBoard(c))
+			return
+		}
+		board, err := h.Board.GetByID(bm.ID)
+		if err != nil {
+			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+			return
+		}
+		desc := strings.TrimSpace(board.Description)
+		if desc == "" {
+			desc = brand.MetaDescription()
+		}
+		meta := attachSiteSEO(&embed_static.SPAPageMeta{
+			Title:       pageTitle(board.Name, siteName),
+			Description: service.TruncateRunes(desc, seoDescMax),
+			Keywords:    service.JoinSEOKeywords(board.Name, siteKeywords),
+			Canonical:   service.AbsoluteURL(base, bm.Canonical),
+			OGType:      "website",
+			OGImage:     defaultImage,
+		}, siteName, siteKeywords)
+		if isBot {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botBoardHTML(meta, *board)))
+			return
+		}
+		embed_static.ServeSPAWithMeta(c, meta)
+		return
 	}
 
 	// 帖子详情（含可选伪静态后缀）
@@ -193,6 +253,35 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 			return
 		}
 		embed_static.ServeSPAWithMeta(c, attachSiteSEO(h.userPageMeta(base, siteName, defaultImage, user), siteName, siteKeywords))
+		return
+	}
+
+	// 自定义单页
+	if pg := permalink.MatchPagePath(path); pg.OK {
+		if strings.TrimSuffix(path, "/") != strings.TrimSuffix(pg.Canonical, "/") {
+			c.Redirect(http.StatusMovedPermanently, pg.Canonical)
+			return
+		}
+		page, err := h.SitePage.GetBySlug(pg.Slug, h.isAdmin(c))
+		if err != nil {
+			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+			return
+		}
+		desc := service.ExcerptFromHTML(page.Content, seoDescMax)
+		meta := attachSiteSEO(&embed_static.SPAPageMeta{
+			Title:       pageTitle(page.Title, siteName),
+			Description: desc,
+			Keywords:    service.JoinSEOKeywords(page.Title, siteKeywords),
+			Canonical:   service.AbsoluteURL(base, pg.Canonical),
+			OGType:      "article",
+			OGImage:     defaultImage,
+		}, siteName, siteKeywords)
+		if isBot {
+			body := fmt.Sprintf(`<h1>%s</h1><div>%s</div>`, html.EscapeString(page.Title), page.Content)
+			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(renderBotHTML(meta, body)))
+			return
+		}
+		embed_static.ServeSPAWithMeta(c, meta)
 		return
 	}
 
@@ -246,10 +335,17 @@ func attachSiteSEO(meta *embed_static.SPAPageMeta, siteName, keywords string) *e
 
 func isKnownPublicPath(path string) bool {
 	switch path {
-	case "/", "/login", "/register", "/compose", "/profile", "/favorites", "/projects", "/boards":
+	case "/", "/login", "/register", "/compose", "/profile", "/favorites", "/projects", "/links", "/boards":
 		return true
 	}
 	if seoPostEditRe.MatchString(path) {
+		return true
+	}
+	permalink := service.PermalinkConfig{}
+	if permalink.MatchBoardPath(path).OK {
+		return true
+	}
+	if permalink.MatchPagePath(path).OK {
 		return true
 	}
 	return false
@@ -284,7 +380,7 @@ func (h *Handlers) buildSPAPageMeta(c *gin.Context, path string, brand service.S
 				}
 				meta.Title = pageTitle(board.Name, siteName)
 				meta.Description = service.TruncateRunes(desc, seoDescMax)
-				meta.Canonical = service.AbsoluteURL(base, service.QueryBoardHome(board.ID))
+				meta.Canonical = service.AbsoluteURL(base, service.QueryBoardHome(board.ID, h.Settings.Permalink()))
 				meta.Keywords = service.JoinSEOKeywords(board.Name, siteKeywords)
 				return meta
 			}
@@ -305,6 +401,12 @@ func (h *Handlers) buildSPAPageMeta(c *gin.Context, path string, brand service.S
 		meta.Title = pageTitle("项目", siteName)
 		meta.Description = service.TruncateRunes(siteName+" 的公开项目列表", seoDescMax)
 		meta.Keywords = service.JoinSEOKeywords("项目", siteKeywords)
+	}
+
+	if path == "/links" {
+		meta.Title = pageTitle("友情链接", siteName)
+		meta.Description = service.TruncateRunes(siteName+" 的友情链接与申请入口", seoDescMax)
+		meta.Keywords = service.JoinSEOKeywords("友情链接", siteKeywords)
 	}
 
 	return meta
@@ -436,18 +538,28 @@ func pathWithQuery(c *gin.Context) string {
 	if path == "" {
 		path = "/"
 	}
+	permalink := service.PermalinkConfig{} // 由调用方在 buildSPAPageMeta 中单独处理 board
 	if q := c.Request.URL.RawQuery; q != "" {
-		// 首页排序/搜索不作为 canonical；板块筛选保留
 		if path == "/" {
 			board := c.Query("board")
 			if board != "" {
-				return service.QueryBoardHome(uint(parseUintOrZero(board)))
+				_ = permalink
+				return service.LegacyQueryBoardHome(uint(parseUintOrZero(board)))
 			}
 			return "/"
 		}
 		return path + "?" + q
 	}
 	return path
+}
+
+func preserveQueryExceptBoard(c *gin.Context) string {
+	vals := c.Request.URL.Query()
+	vals.Del("board")
+	if rest := vals.Encode(); rest != "" {
+		return "?" + rest
+	}
+	return ""
 }
 
 func parseUintOrZero(s string) uint64 {

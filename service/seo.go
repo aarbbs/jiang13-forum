@@ -99,8 +99,16 @@ func DisplayName(u *model.User) string {
 	return strings.TrimSpace(u.Username)
 }
 
-// QueryBoardHome 板块首页相对路径
-func QueryBoardHome(boardID uint) string {
+// QueryBoardHome 板块首页相对路径（规范伪静态路径）
+func QueryBoardHome(boardID uint, p PermalinkConfig) string {
+	if boardID == 0 {
+		return "/"
+	}
+	return p.BoardPath(boardID)
+}
+
+// LegacyQueryBoardHome 旧版 query 形式（/?board=id），仅用于 301 重定向
+func LegacyQueryBoardHome(boardID uint) string {
 	if boardID == 0 {
 		return "/"
 	}

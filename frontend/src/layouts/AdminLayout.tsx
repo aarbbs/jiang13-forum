@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award,
+  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award, Link2, BookOpen,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../hooks/useAuth';
@@ -16,7 +16,7 @@ import { useNoIndexSEO } from '../hooks/usePageSEO';
 import SiteBrandMark from '../components/SiteBrandMark';
 import { api } from '../api/client';
 
-type BadgeKey = 'posts' | 'comments' | 'reports';
+type BadgeKey = 'posts' | 'comments' | 'reports' | 'links';
 
 type NavItem = {
   to: string;
@@ -50,8 +50,10 @@ const NAV_GROUPS: NavGroup[] = [
     label: '社区',
     items: [
       { to: '/admin/boards', label: '板块管理', icon: FolderKanban },
+      { to: '/admin/pages', label: '单页管理', icon: BookOpen },
       { to: '/admin/users', label: '用户管理', icon: Users },
       { to: '/admin/badges', label: '徽章管理', icon: Award },
+      { to: '/admin/links', label: '友情链接', icon: Link2, badgeKey: 'links' },
     ],
   },
   {
@@ -67,6 +69,7 @@ type PendingCounts = {
   posts: number;
   comments: number;
   reports: number;
+  links: number;
 };
 
 function formatNavBadge(n: number) {
@@ -82,7 +85,7 @@ export default function AdminLayout() {
   useNoIndexSEO('管理后台');
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
-  const [pending, setPending] = useState<PendingCounts>({ posts: 0, comments: 0, reports: 0 });
+  const [pending, setPending] = useState<PendingCounts>({ posts: 0, comments: 0, reports: 0, links: 0 });
   const nav = useNavigate();
   const location = useLocation();
   const drawerRef = useRef<HTMLElement>(null);
@@ -99,9 +102,22 @@ export default function AdminLayout() {
         posts: d.pending_posts ?? 0,
         comments: d.pending_comments ?? 0,
         reports: d.pending_reports ?? 0,
+        links: d.pending_friend_links ?? 0,
       }))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (loading || !user || user.role !== 'admin') return;
+    refreshPending();
+    const onRefresh = () => refreshPending();
+    window.addEventListener('admin-pending-refresh', onRefresh);
+    const timer = window.setInterval(refreshPending, 60_000);
+    return () => {
+      window.removeEventListener('admin-pending-refresh', onRefresh);
+      window.clearInterval(timer);
+    };
+  }, [loading, user, refreshPending]);
 
   useEffect(() => {
     if (loading) return;

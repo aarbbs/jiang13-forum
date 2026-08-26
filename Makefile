@@ -4,6 +4,7 @@
 APP_NAME    := jiang13
 MAIN_PKG    := ./cmd/jiang13
 BUILD_DIR   := dist
+DEV_DATA_DIR := dist/data
 VERSION     := 1.0.0
 LDFLAGS     := -s -w -X main.version=$(VERSION)
 REGISTRY_IMAGE := hangzhang714128/jiang13-forum
@@ -55,16 +56,19 @@ build-all: frontend-build
 tidy:
 	$(GO) mod tidy
 
-## 本地运行（仅后端，使用已 embed 的前端）
+## 本地运行（仅后端，使用已 embed 的前端；数据目录与 dist 二进制一致）
 run:
-	$(GO) run $(MAIN_PKG)
+	@mkdir -p $(DEV_DATA_DIR)
+	$(GO) run $(MAIN_PKG) --data $(DEV_DATA_DIR)
 
-## 前端热更新开发（后端 :3000 + Vite :5173，Ctrl+C 同时退出）
+## 前端热更新开发（后端 :3000 + Vite :5173，Ctrl+C 同时退出；数据目录与 dist 二进制一致）
 dev:
 	@echo "前端热更新: http://localhost:5173"
 	@echo "后端 API  : http://localhost:3000"
+	@echo "数据目录  : $(DEV_DATA_DIR) (与 dist 二进制一致)"
+	@mkdir -p $(DEV_DATA_DIR)
 	@trap 'kill 0' INT; \
-	$(GO) run $(MAIN_PKG) & \
+	$(GO) run $(MAIN_PKG) --dev --data $(DEV_DATA_DIR) & \
 	cd frontend && (test -d node_modules || npm install) && npm run dev
 
 ## 清理编译产物

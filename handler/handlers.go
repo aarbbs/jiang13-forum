@@ -38,6 +38,8 @@ type Handlers struct {
 	Gitea     *service.GiteaService
 	Points    *service.PointsService
 	Badge     *service.BadgeService
+	SitePage  *service.SitePageService
+	FriendLinkApply *service.FriendLinkApplyService
 }
 
 func (h *Handlers) setAuthCookie(c *gin.Context, token string) {
@@ -418,6 +420,18 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	extras := service.ParsePostExtrasFromForm(
+		c.PostForm("poll_options"),
+		c.PostForm("bounty_points"),
+		c.PostForm("lottery_winner_count"),
+	)
+	if post.PostType == model.PostTypePoll || post.PostType == model.PostTypeBounty || post.PostType == model.PostTypeLottery {
+		if err := service.FinalizeSpecialPostCreate(post, h.currentUserID(c), extras); err != nil {
+			_ = h.Post.Delete(h.currentUserID(c), post.ID, true)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	msg := "发帖成功"
 	if post.Status == model.ContentStatusPending {

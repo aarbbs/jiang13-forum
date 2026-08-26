@@ -1,14 +1,18 @@
-import { ListTree, MessageCircle, MessagesSquare, Tags, Sparkles } from 'lucide-react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { ListTree, MessageCircle, Tags, Link2 } from 'lucide-react';
+import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { PostItem, RecentComment, TagCount, User } from '../api/types';
+import { Button } from '@/components/ui/button';
+import type { AsideWidget, RecentComment, TagCount, User, ForumStats, FriendLink } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import { formatShortDateTime, formatTime } from '../utils/content';
+import { resolveAsideWidgets } from '../utils/asideWidgets';
 import TagCloud from './TagCloud';
 import UserLink from './UserLink';
 import ArticleOutline from './ArticleOutline';
 import PostAuthorCard from './PostAuthorCard';
+import AsideCheckInStrip from './AsideCheckInStrip';
 
 export type PostDetailAside = {
   author?: User | null;
@@ -20,28 +24,17 @@ export type PostDetailAside = {
 };
 
 interface Props {
-  hot: PostItem[];
   recentComments: RecentComment[];
   tags?: TagCount[];
   tagsLoading?: boolean;
+  stats?: ForumStats | null;
   onPostClick: (id: number, opts?: { floor?: number }) => void;
   /** 首次拉取中，显示骨架避免空态闪烁 */
   loading?: boolean;
+  /** 右侧栏可选组件顺序与开关 */
+  asideWidgets: AsideWidget[];
   /** 帖子详情：右侧顶部展示作者与目录 */
   postDetail?: PostDetailAside | null;
-}
-
-function ActiveSkeleton() {
-  return (
-    <div className="widget-skeleton" aria-busy="true" aria-label="正在聊加载中">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="widget-item widget-item--active widget-item--skeleton">
-          <Skeleton className="skeleton--widget-title" style={{ width: `${62 + (i % 4) * 8}%` }} />
-          <Skeleton className="skeleton--widget-time" />
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function CommentSkeleton() {
@@ -50,8 +43,10 @@ function CommentSkeleton() {
       {Array.from({ length: 5 }, (_, i) => (
         <div key={i} className="widget-item widget-item--comment widget-item--skeleton">
           <Skeleton className="skeleton--widget-avatar" />
-          <Skeleton className="skeleton--widget-title" style={{ width: `${55 + (i % 3) * 12}%` }} />
-          <Skeleton className="skeleton--widget-time" />
+          <div className="widget-item-comment-main">
+            <Skeleton className="skeleton--widget-title" style={{ width: `${72 + (i % 3) * 8}%` }} />
+            <Skeleton className="skeleton--widget-meta" />
+          </div>
         </div>
       ))}
     </div>
@@ -59,21 +54,24 @@ function CommentSkeleton() {
 }
 
 export default function RightPanel({
-  hot,
   recentComments,
   tags = [],
   tagsLoading = false,
+  stats = null,
   onPostClick,
   loading = false,
+  asideWidgets,
   postDetail = null,
 }: Props) {
   const { branding } = useSiteBranding();
+  const nav = useNavigate();
   const loc = useLocation();
   const [params] = useSearchParams();
   const activeTag = params.get('tag') || '';
-  const hotList = hot?.slice(0, 8) ?? [];
   const commentList = recentComments?.slice(0, 6) ?? [];
-  // 站点首页：右侧品牌块承担唯一 h1；板块/搜索等页面由 Feed 标题作 h1
+  const friendLinks = (branding.friend_links ?? []).filter(
+    (l: FriendLink) => l.name?.trim() && l.url?.trim(),
+  );
   const isSiteHome = loc.pathname === '/'
     && !params.get('board')
     && !params.get('keyword')
@@ -81,12 +79,143 @@ export default function RightPanel({
     && !params.get('author');
   const description = branding.description?.trim() || '';
   const slogan = branding.slogan?.trim() || '';
-  // 有独立简介时展示简介；否则用欢迎语，避免与页脚 slogan 三连重复
-  const aboutText = description || '欢迎参与讨论，发帖、评论，一起把小圈子聊热。';
-  // 有近期讨论则展示「正在聊」；否则显示欢迎引导
-  const showActive = loading || hotList.length > 0;
-  const showWelcome = !loading && hotList.length === 0;
+  const introText = description || slogan;
   const isPostDetail = !!postDetail;
+
+  const enabledWidgets = useMemo(
+    () => resolveAsideWidgets({
+      aside_widgets: asideWidgets,
+      aside_show_tag_cloud: false,
+      aside_show_recent_comments: false,
+      aside_show_friend_links: false,
+    }).filter(w => w.enabled),
+    [asideWidgets],
+  );
+
+  const handleApplyClick = () => {
+    nav('/links?apply=1');
+  };
+
+  const renderWidget = (widget: AsideWidget) => {
+    switch (widget.id) {
+      case 'friend_links':
+        return (
+          <div key="friend_links" className="widget-card widget-card--friend-links">
+            <div className="widget-card-head widget-card-head--split">
+              <span className="widget-card-head-main">
+                <Link2 className="widget-card-icon widget-card-icon--links" aria-hidden />
+                <button type="button" className="widget-friend-links-title" onClick={() => nav('/links')}>
+                  友情链接
+                </button>
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="widget-friend-links-apply"
+                onClick={handleApplyClick}
+              >
+                申请
+              </Button>
+            </div>
+            <div className="widget-card-body">
+              {friendLinks.length === 0 ? (
+                <div className="widget-empty">暂无友情链接</div>
+              ) : (
+                <>
+                  <ul className="widget-friend-links-list">
+                    {friendLinks.slice(0, 8).map((link: FriendLink) => (
+                      <li key={`${link.name}-${link.url}`}>
+                        <a href={link.url} target="_blank" rel="noopener noreferrer">{link.name}</a>
+                      </li>
+                    ))}
+                  </ul>
+                  {friendLinks.length > 8 && (
+                    <button type="button" className="widget-friend-links-more" onClick={() => nav('/links')}>
+                      查看全部 {friendLinks.length} 个
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      case 'tag_cloud':
+        return (
+          <div key="tag_cloud" className="widget-card widget-card--tags">
+            <div className="widget-card-head">
+              <Tags className="widget-card-icon widget-card-icon--tags" aria-hidden />
+              标签云
+            </div>
+            <div className="widget-card-body widget-card-body--tags">
+              <TagCloud tags={tags} loading={tagsLoading} activeTag={activeTag} />
+            </div>
+          </div>
+        );
+      case 'recent_comments':
+        return (
+          <div key="recent_comments" className="widget-card">
+            <div className="widget-card-head">
+              <MessageCircle className="widget-card-icon widget-card-icon--notice" aria-hidden />
+              最新评论
+            </div>
+            <div className="widget-card-body">
+              {loading && commentList.length === 0 ? (
+                <CommentSkeleton />
+              ) : commentList.length === 0 ? (
+                <div className="widget-empty">暂无评论</div>
+              ) : commentList.map(item => (
+                <div
+                  key={item.id}
+                  className="widget-item widget-item--comment"
+                  title={item.post_title ? `${item.author} · ${item.post_title}` : item.author}
+                >
+                  {item.user_id ? (
+                    <UserLink
+                      user={{ id: item.user_id, nickname: item.author, avatar: item.avatar }}
+                      showAvatar={false}
+                      showName={false}
+                      stopPropagation
+                      className="widget-item-avatar user-link--avatar-only"
+                    >
+                      {item.avatar
+                        ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                        : (item.author?.[0] || '?')}
+                    </UserLink>
+                  ) : (
+                    <span className="widget-item-avatar" aria-hidden>
+                      {item.avatar
+                        ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                        : (item.author?.[0] || '?')}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="widget-item-comment-main"
+                    onClick={() => onPostClick(item.post_id, item.floor > 0 ? { floor: item.floor } : undefined)}
+                  >
+                    <span className="widget-item-title">{item.excerpt}</span>
+                    <span className="widget-item-meta">
+                      <span
+                        className="widget-item-time"
+                        title={formatShortDateTime(item.created_at)}
+                      >
+                        {formatTime(item.created_at)}
+                      </span>
+                      {item.post_title && (
+                        <span className="widget-item-post-title">{item.post_title}</span>
+                      )}
+                    </span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className={`aside-panel-inner${isPostDetail ? ' aside-panel-inner--post-detail' : ''}`}>
@@ -114,121 +243,6 @@ export default function RightPanel({
         </>
       )}
 
-      {!isPostDetail && showWelcome && (
-        <div className="widget-card widget-card--welcome">
-          <div className="widget-card-head">
-            <Sparkles className="widget-card-icon widget-card-icon--welcome" aria-hidden />
-            加入讨论
-          </div>
-          <div className="widget-card-body widget-welcome-body">
-            <p>社区还在起步，每条回复都很珍贵。</p>
-            <ul>
-              <li>逛逛板块，找到感兴趣的话题</li>
-              <li>游客也能评论，登录可点赞收藏</li>
-              <li>发一篇帖，留下你的痕迹</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {!isPostDetail && showActive && (
-        <div className="widget-card">
-          <div className="widget-card-head">
-            <MessagesSquare className="widget-card-icon widget-card-icon--hot" aria-hidden />
-            正在聊
-          </div>
-          <div className="widget-card-body">
-            {loading && hotList.length === 0 ? (
-              <ActiveSkeleton />
-            ) : hotList.length === 0 ? (
-              <div className="widget-empty">近 7 日暂无新回复</div>
-            ) : hotList.map((item) => {
-              const replyLabel = item.last_reply_at
-                ? `${formatTime(item.last_reply_at)}有人回`
-                : '近期有讨论';
-              const count = item.comment_count ?? 0;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="widget-item widget-item--active"
-                  onClick={() => onPostClick(item.id)}
-                  title={item.title}
-                >
-                  <span className="widget-item-title">{item.title}</span>
-                  <span className="widget-item-meta">
-                    <span className="widget-item-time">{replyLabel}</span>
-                    {count > 0 && <span className="widget-item-count">{count} 评</span>}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {!isPostDetail && (
-        <div className="widget-card widget-card--tags">
-          <div className="widget-card-head">
-            <Tags className="widget-card-icon widget-card-icon--tags" aria-hidden />
-            标签云
-          </div>
-          <div className="widget-card-body widget-card-body--tags">
-            <TagCloud tags={tags} loading={tagsLoading} activeTag={activeTag} />
-          </div>
-        </div>
-      )}
-
-      {!isPostDetail && (
-        <div className="widget-card">
-          <div className="widget-card-head">
-            <MessageCircle className="widget-card-icon widget-card-icon--notice" aria-hidden />
-            最新评论
-          </div>
-          <div className="widget-card-body">
-            {loading && commentList.length === 0 ? (
-              <CommentSkeleton />
-            ) : commentList.length === 0 ? (
-              <div className="widget-empty">暂无评论</div>
-            ) : commentList.map(item => (
-              <div
-                key={item.id}
-                className="widget-item widget-item--comment"
-                title={item.post_title ? `${item.author} · ${item.post_title}` : item.author}
-              >
-                {item.user_id ? (
-                  <UserLink
-                    user={{ id: item.user_id, nickname: item.author, avatar: item.avatar }}
-                    showAvatar={false}
-                    showName={false}
-                    stopPropagation
-                    className="widget-item-avatar user-link--avatar-only"
-                  >
-                    {item.avatar
-                      ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
-                      : (item.author?.[0] || '?')}
-                  </UserLink>
-                ) : (
-                  <span className="widget-item-avatar" aria-hidden>
-                    {item.avatar
-                      ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
-                      : (item.author?.[0] || '?')}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="widget-item-comment-main"
-                  onClick={() => onPostClick(item.post_id, item.floor > 0 ? { floor: item.floor } : undefined)}
-                >
-                  <span className="widget-item-title">{item.excerpt}</span>
-                  <span className="widget-item-time">{formatShortDateTime(item.created_at)}</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {!isPostDetail && (
         <div className="widget-card widget-card--about">
           <div className="widget-card-body">
@@ -238,14 +252,32 @@ export default function RightPanel({
               ) : (
                 <p className="widget-about-title">{branding.name}</p>
               )}
-              <p className="widget-about-desc">{aboutText}</p>
-              {description && slogan && slogan !== description && (
-                <p className="widget-about-slogan">{slogan}</p>
+              {introText && (
+                <p className="widget-about-desc">{introText}</p>
               )}
             </div>
+            {stats && (
+              <div className="widget-stats" aria-label="论坛统计">
+                <div className="widget-stat">
+                  <span className="widget-stat-value">{stats.posts}</span>
+                  <span className="widget-stat-label">帖子</span>
+                </div>
+                <div className="widget-stat">
+                  <span className="widget-stat-value">{stats.comments}</span>
+                  <span className="widget-stat-label">回复</span>
+                </div>
+                <div className="widget-stat">
+                  <span className="widget-stat-value">{stats.users}</span>
+                  <span className="widget-stat-label">用户</span>
+                </div>
+              </div>
+            )}
+            <AsideCheckInStrip />
           </div>
         </div>
       )}
+
+      {!isPostDetail && enabledWidgets.map(renderWidget)}
     </div>
   );
 }

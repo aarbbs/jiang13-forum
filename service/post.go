@@ -23,9 +23,19 @@ func normalizePostType(raw string) string {
 	switch strings.TrimSpace(raw) {
 	case model.PostTypeQuestion:
 		return model.PostTypeQuestion
+	case model.PostTypePoll:
+		return model.PostTypePoll
+	case model.PostTypeBounty:
+		return model.PostTypeBounty
+	case model.PostTypeLottery:
+		return model.PostTypeLottery
 	default:
 		return model.PostTypeNormal
 	}
+}
+
+func isSpecialPostType(t string) bool {
+	return t == model.PostTypePoll || t == model.PostTypeBounty || t == model.PostTypeLottery
 }
 
 type PostListQuery struct {
@@ -479,6 +489,13 @@ func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, 
 	if strings.TrimSpace(postType) != "" {
 		nextType = normalizePostType(postType)
 	}
+  // 不允许修改特殊帖子类型（含 poll→normal、normal→poll）
+  if isSpecialPostType(post.PostType) && nextType != post.PostType {
+    return errors.New("不能修改特殊帖子类型")
+  }
+  if isSpecialPostType(nextType) && post.PostType != nextType {
+    return errors.New("不能改为特殊帖子类型")
+  }
 	nextResolved := post.QuestionResolved
 	if nextType != model.PostTypeQuestion {
 		nextResolved = false
@@ -646,6 +663,11 @@ func (s *PostService) Delete(userID, postID uint, isAdmin bool) error {
 		return ErrPostNotFound
 	}
 	return model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := RefundBountyIfOpen(tx, &post); err != nil {
+			return err
+		}
+		DeletePollData(tx, postID)
+		DeleteLotteryData(tx, postID)
 		if err := tx.Where("post_id = ?", postID).Delete(&model.Comment{}).Error; err != nil {
 			return err
 		}

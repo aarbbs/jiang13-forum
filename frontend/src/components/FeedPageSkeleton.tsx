@@ -1,8 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import PostListSkeleton from './PostListSkeleton';
+import { useForumLimits } from '../hooks/useForumLimits';
 
 /** 首页 Feed 初始骨架（标题区 + 排序栏 + 列表） */
 export default function FeedPageSkeleton() {
+  const { limits } = useForumLimits();
+
   return (
     <div className="page-wrap page-wrap--feed" aria-busy="true" aria-label="内容加载中">
       <div className="feed-panel">
@@ -27,7 +30,7 @@ export default function FeedPageSkeleton() {
           </div>
         </div>
         <div className="post-list-scroll">
-          <PostListSkeleton />
+          <PostListSkeleton listStyle={limits.feed_list_style ?? 'title'} />
         </div>
       </div>
     </div>
