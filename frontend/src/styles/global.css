@@ -7511,10 +7511,16 @@ button.profile-signature--editable:focus-visible .profile-signature-edit {
   flex-shrink: 0;
 }
 
-a.user-link--avatar-only:hover,
-a.user-link--avatar-only:focus-visible {
+/* 占位头像链接：避免 .user-link inherit 盖掉绿底白字 */
+a.user-link.user-link--avatar-only {
   color: #fff;
-  outline: none;
+}
+
+a.user-link.user-link--avatar-only:hover,
+a.user-link.user-link--avatar-only:focus-visible {
+  color: #fff;
+  outline: 2px solid color-mix(in srgb, var(--j13-green) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .post-meta-user {
