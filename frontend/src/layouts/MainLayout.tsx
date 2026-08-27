@@ -392,12 +392,23 @@ export default function MainLayout() {
           {!isCompose && isMobile && (
             <button
               type="button"
-              className="header-icon-btn header-search-toggle"
+              className={cn(
+                'header-search-mobile-pill',
+                (keywordDraft || postSearch.filters.isFiltered) && 'header-search-mobile-pill--active',
+              )}
               onClick={openSearchPanel}
               aria-label="搜索帖子"
-              title="搜索"
             >
-              <Search size={18} aria-hidden />
+              <Search size={15} aria-hidden className="header-search-mobile-pill__icon" />
+              <span className="header-search-mobile-pill__text">
+                {keywordDraft
+                  || postSearch.filters.keyword
+                  || postSearch.filters.author
+                  || '搜索帖子…'}
+              </span>
+              {postSearch.filters.hasAdvancedFilters && (
+                <span className="header-search-mobile-pill__dot" aria-hidden />
+              )}
             </button>
           )}
 

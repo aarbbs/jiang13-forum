@@ -147,11 +147,14 @@ export default function PostSearchPanel({
         )}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
+        {isMobile && <div className="post-search-panel__handle" aria-hidden />}
         <DialogHeader className="post-search-panel__header">
           <DialogTitle>搜索帖子</DialogTitle>
-          <DialogDescription className="post-search-panel__desc">
-            按关键词、作者或板块范围查找帖子
-          </DialogDescription>
+          {!isMobile && (
+            <DialogDescription className="post-search-panel__desc">
+              按关键词、作者或板块范围查找帖子
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <div className="post-search-panel__body">
@@ -282,10 +285,11 @@ export default function PostSearchPanel({
           )}
         </div>
 
-        <div className="post-search-panel__footer">
+        <div className={cn('post-search-panel__footer', isMobile && 'post-search-panel__footer--mobile')}>
           <Button
             type="button"
             variant="outline"
+            className={isMobile ? 'post-search-panel__btn' : undefined}
             onClick={() => {
               setKeyword('');
               setAuthor('');
@@ -296,7 +300,7 @@ export default function PostSearchPanel({
           >
             清除
           </Button>
-          <Button type="button" onClick={handleSubmit}>
+          <Button type="button" className={isMobile ? 'post-search-panel__btn' : undefined} onClick={handleSubmit}>
             搜索
           </Button>
         </div>
