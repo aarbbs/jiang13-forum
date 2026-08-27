@@ -106,6 +106,10 @@ export interface PostItem {
   view_count: number;
   comment_count: number;
   last_reply_at?: string;
+  /** 最后回复用户（登录用户）；与 last_reply_guest_nick 二选一 */
+  last_reply_user?: User;
+  /** 最后回复游客昵称 */
+  last_reply_guest_nick?: string;
   created_at: string;
   updated_at?: string;
   board?: Board;
@@ -187,7 +191,7 @@ export interface AdminDashboard {
   recent_posts: PostItem[];
 }
 
-export type AsideWidgetId = 'tag_cloud' | 'recent_comments' | 'friend_links';
+export type AsideWidgetId = 'tag_cloud' | 'recent_comments' | 'recent_users' | 'friend_links';
 
 export interface AsideWidget {
   id: AsideWidgetId;
@@ -197,6 +201,7 @@ export interface AsideWidget {
 export const DEFAULT_ASIDE_WIDGETS: AsideWidget[] = [
   { id: 'tag_cloud', enabled: false },
   { id: 'recent_comments', enabled: false },
+  { id: 'recent_users', enabled: false },
   { id: 'friend_links', enabled: true },
 ];
 
@@ -497,6 +502,14 @@ export interface RecentComment {
   avatar: string;
   excerpt: string;
   post_title: string;
+  created_at: string;
+}
+
+/** 右栏「最新注册」用户 */
+export interface RecentUser {
+  id: number;
+  nickname: string;
+  avatar: string;
   created_at: string;
 }
 

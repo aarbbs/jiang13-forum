@@ -1141,6 +1141,19 @@ func (h *Handlers) APIRecentComments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"comments": list})
 }
 
+// APIRecentUsers 最新注册用户（右栏）
+func (h *Handlers) APIRecentUsers(c *gin.Context) {
+	list, err := h.User.ListRecentRegistered(8)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if list == nil {
+		list = []service.RecentUserItem{}
+	}
+	c.JSON(http.StatusOK, gin.H{"users": list})
+}
+
 // APIFavorites 我的收藏
 func (h *Handlers) APIFavorites(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

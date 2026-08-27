@@ -14,9 +14,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme, useMediaQuery } from '../hooks/useTheme';
 import { useOverlayA11y, moveTabIndex } from '../hooks/useOverlayA11y';
 import { api } from '../api/client';
-import type { Board, RecentComment, ForumStats, TagCount, User } from '../api/types';
+import type { Board, RecentComment, RecentUser, ForumStats, TagCount, User } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
-import { getCachedBoards, getCachedStats, getCachedRecentComments, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedRecentComments, setCachedTags } from '../utils/layoutCache';
+import { getCachedBoards, getCachedStats, getCachedRecentComments, getCachedRecentUsers, getCachedTags, hasCachedAside, setCachedBoards, setCachedStats, setCachedRecentComments, setCachedRecentUsers, setCachedTags } from '../utils/layoutCache';
 import Sidebar, { isNeutralSidebarRoute } from '../components/Sidebar';
 import RightPanel from '../components/RightPanel';
 import BackToTop from '../components/BackToTop';
@@ -49,6 +49,7 @@ export default function MainLayout() {
   const [boards, setBoards] = useState<Board[]>(() => getCachedBoards());
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
   const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
+  const [recentUsers, setRecentUsers] = useState<RecentUser[]>(() => getCachedRecentUsers());
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
   const [tagsLoading, setTagsLoading] = useState(() => getCachedTags().length === 0);
@@ -82,6 +83,7 @@ export default function MainLayout() {
   const asideWidgets = useMemo(() => resolveAsideWidgets(forumLimits), [forumLimits]);
   const showTagCloud = asideWidgets.some(w => w.id === 'tag_cloud' && w.enabled);
   const showRecentComments = asideWidgets.some(w => w.id === 'recent_comments' && w.enabled);
+  const showRecentUsers = asideWidgets.some(w => w.id === 'recent_users' && w.enabled);
 
   const asideDrawerRef = useRef<HTMLElement>(null);
   const asideCloseRef = useRef<HTMLButtonElement>(null);
@@ -240,6 +242,31 @@ export default function MainLayout() {
       cancelled = true;
     };
   }, [needRecentComments]);
+
+  const needRecentUsers = needAsideData && showRecentUsers;
+  useEffect(() => {
+    if (!needRecentUsers) return;
+    let cancelled = false;
+    if (!asideEverLoaded.current && !hasCachedAside()) {
+      setAsideLoading(true);
+    }
+
+    api.recentUsers().then(d => {
+      if (cancelled) return;
+      const next = Array.isArray(d.users) ? d.users : [];
+      setRecentUsers(next);
+      setCachedRecentUsers(next);
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) {
+        asideEverLoaded.current = true;
+        setAsideLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needRecentUsers]);
 
   const doSearch = () => {
     const kw = keyword.trim();
@@ -642,6 +669,7 @@ export default function MainLayout() {
         <aside className="aside-panel">
           <RightPanel
             recentComments={recentComments}
+            recentUsers={recentUsers}
             tags={tags}
             tagsLoading={tagsLoading}
             stats={stats}
@@ -757,6 +785,7 @@ export default function MainLayout() {
             <div className="aside-drawer-body">
               <RightPanel
                 recentComments={recentComments}
+                recentUsers={recentUsers}
                 tags={tags}
                 tagsLoading={tagsLoading}
                 stats={stats}

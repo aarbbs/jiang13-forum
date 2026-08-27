@@ -10,6 +10,10 @@ const WIDGET_META: Record<AsideWidgetId, { label: string; hint: string }> = {
     label: '最新评论',
     hint: '在右侧栏展示最近回复',
   },
+  recent_users: {
+    label: '最新注册',
+    hint: '在右侧栏展示最近注册的用户',
+  },
   friend_links: {
     label: '友情链接',
     hint: '关闭后不在右侧栏展示，友链仍可在「友情链接」页面查看与申请',

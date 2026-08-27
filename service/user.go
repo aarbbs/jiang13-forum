@@ -123,6 +123,44 @@ func (s *UserService) SearchUsersBrief(keyword string, limit int) ([]model.User,
 	return users, nil
 }
 
+// RecentUserItem 右栏「最新注册」条目
+type RecentUserItem struct {
+	ID        uint   `json:"id"`
+	Nickname  string `json:"nickname"`
+	Avatar    string `json:"avatar"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ListRecentRegistered 前台最新注册用户（排除封禁）
+func (s *UserService) ListRecentRegistered(limit int) ([]RecentUserItem, error) {
+	if limit < 1 {
+		limit = 8
+	}
+	var users []model.User
+	err := model.DB.Select("id", "username", "nickname", "avatar", "created_at").
+		Where("banned = ?", false).
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RecentUserItem, 0, len(users))
+	for _, u := range users {
+		nick := strings.TrimSpace(u.Nickname)
+		if nick == "" {
+			nick = u.Username
+		}
+		out = append(out, RecentUserItem{
+			ID:        u.ID,
+			Nickname:  nick,
+			Avatar:    u.Avatar,
+			CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return out, nil
+}
+
 // UpdateNickname 修改昵称
 func (s *UserService) UpdateNickname(userID uint, nickname string) error {
 	nickname = strings.TrimSpace(nickname)

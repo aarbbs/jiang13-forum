@@ -1,45 +1,48 @@
 import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Image as ImageIcon, MessageCircle, ThumbsUp } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
+import BoardBadge from '@/components/BoardBadge';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import UserLink from '@/components/UserLink';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { formatTime } from '../utils/content';
-import { postPath } from '../utils/permalink';
+import { boardPath, postPath } from '../utils/permalink';
 import { toPostImageThumbSrc } from '../utils/postContent';
 import { excerptFromHTML, firstImageFromHTML } from '../utils/seoText';
-import { parseTags } from './TagInput';
 
 interface Props {
   post: PostItem;
   sort?: FeedSort;
+  /** 当前板块 id，>0 时隐藏行内板块色标（避免板块页重复） */
+  boardId?: number;
   onSelect: (id: number) => void;
 }
 
-function PostListItem({ post, sort = 'latest', onSelect }: Props) {
+function PostListItem({ post, sort = 'latest', boardId = 0, onSelect }: Props) {
   const nav = useNavigate();
   const { limits } = useForumLimits();
   const feedStyle = limits.feed_list_style ?? 'title';
   const showExcerpt = feedStyle === 'excerpt' || feedStyle === 'thumbnail';
   const showThumb = feedStyle === 'thumbnail';
+  const titleOnly = feedStyle === 'title';
 
   const initial = post.user?.nickname?.[0] || '?';
-  const timeLabel = sort === 'reply'
-    ? (post.last_reply_at
-      ? `${formatTime(post.last_reply_at)} 回复`
-      : '暂无回复')
+  const timeLabel = sort === 'reply' && !post.last_reply_at
+    ? '暂无回复'
     : formatTime(post.created_at);
+  const lastReplyName = post.last_reply_user?.nickname?.trim()
+    || post.last_reply_user?.username?.trim()
+    || post.last_reply_guest_nick?.trim()
+    || '';
+  const showLastReply = !!post.last_reply_at && (!!post.last_reply_user || !!lastReplyName);
   const commentCount = post.comment_count ?? 0;
-  const likeCount = post.like_count ?? 0;
-  const viewCount = post.view_count ?? 0;
   const href = postPath(post.id);
   const firstImage = firstImageFromHTML(post.content || '');
   const thumbSrc = showThumb && firstImage ? toPostImageThumbSrc(firstImage) : null;
   const excerpt = showExcerpt ? excerptFromHTML(post.content || '', 60) : '';
-  const showImageIcon = !!firstImage && !thumbSrc;
-  const tagList = parseTags(post.tags || '').slice(0, 3);
+  const showBoardBadge = !!post.board && boardId !== post.board.id;
 
   const openPost = () => onSelect(post.id);
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -108,57 +111,53 @@ function PostListItem({ post, sort = 'latest', onSelect }: Props) {
 
   const metaLeft = (
     <div className="post-meta-left">
-      <UserLink user={post.user} stopPropagation className="post-meta-author" showBadges={false} />
-      <span className="post-meta-sep" aria-hidden>·</span>
-      <span className="post-meta-time">{timeLabel}</span>
-      {post.board && (
-        <>
-          <span className="post-meta-sep" aria-hidden>·</span>
-          <span className="post-meta-board">{post.board.name}</span>
-        </>
-      )}
-      {tagList.map(t => (
+      {showBoardBadge && post.board && (
         <button
-          key={t}
           type="button"
-          className="post-list-tag"
-          title={`筛选标签：${t}`}
+          className="post-list-board-btn"
+          title={`进入板块：${post.board.name}`}
           onClick={(e) => {
             e.stopPropagation();
-            nav(`/?tag=${encodeURIComponent(t)}`);
+            nav(boardPath(post.board!.id, limits));
           }}
         >
-          #{t}
+          <BoardBadge board={post.board} className="post-list-board-badge" />
         </button>
-      ))}
+      )}
+      <UserLink user={post.user} stopPropagation className="post-meta-author" showBadges={false} />
+      <span className="post-meta-sep post-meta-sep--before-time" aria-hidden>·</span>
+      <span className="post-meta-time post-meta-time--created">{timeLabel}</span>
+      {showLastReply && (
+        <span className="post-meta-last-reply">
+          <span className="post-meta-last-reply-arrow" aria-hidden>←</span>
+          {post.last_reply_user ? (
+            <UserLink
+              user={post.last_reply_user}
+              stopPropagation
+              className="post-meta-last-reply-user"
+              showBadges={false}
+            />
+          ) : (
+            <span className="post-meta-last-reply-user">{lastReplyName}</span>
+          )}
+          <span className="post-meta-last-reply-time">{formatTime(post.last_reply_at!)}</span>
+        </span>
+      )}
     </div>
   );
 
   const stats = (
     <div className="post-stats">
-      {showImageIcon && (
-        <span className="post-stat post-stat--media" title="含图片">
-          <ImageIcon aria-hidden />
-        </span>
-      )}
       <span className={`post-stat${commentCount === 0 ? ' post-stat--zero' : ''}`} title="评论">
         <MessageCircle aria-hidden />
         {commentCount}
-      </span>
-      <span className={`post-stat${likeCount === 0 ? ' post-stat--zero' : ''}`} title="点赞">
-        <ThumbsUp aria-hidden />
-        {likeCount}
-      </span>
-      <span className={`post-stat${viewCount === 0 ? ' post-stat--zero' : ''}`} title="浏览">
-        <Eye aria-hidden />
-        {viewCount}
       </span>
     </div>
   );
 
   return (
     <div
-      className={`post-row post-row--v2${thumbSrc ? ' post-row--has-thumb' : ''}`}
+      className={`post-row post-row--v2${titleOnly ? ' post-row--title-only' : ''}${thumbSrc ? ' post-row--has-thumb' : ''}`}
       role="link"
       tabIndex={0}
       onClick={openPost}

@@ -2320,6 +2320,15 @@ body:has(.admin-topbar) .ptr-indicator {
   align-items: flex-start;
 }
 
+/* 仅标题模式：略增行距，避免帖子贴得过紧 */
+.post-row--v2.post-row--title-only {
+  padding: 12px 16px;
+}
+
+.post-row--v2.post-row--title-only .post-main {
+  gap: 4px;
+}
+
 .post-row--v2 .post-avatar {
   width: 36px;
   height: 36px;
@@ -2434,6 +2443,7 @@ body:has(.admin-topbar) .ptr-indicator {
 
 .post-row--v2 .post-title {
   font-size: 14px;
+  font-weight: 400;
   line-height: 1.35;
 }
 
@@ -2447,6 +2457,7 @@ body:has(.admin-topbar) .ptr-indicator {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
   font-size: 12px;
@@ -2456,10 +2467,11 @@ body:has(.admin-topbar) .ptr-indicator {
 .post-row--v2 .post-meta-left {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .post-row--v2 .post-meta-author {
@@ -2487,13 +2499,153 @@ body:has(.admin-topbar) .ptr-indicator {
   font-variant-numeric: tabular-nums;
 }
 
-.post-row--v2 .post-meta-board {
+.post-row--v2 .post-meta-last-reply {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 1;
+  min-width: 0;
+  margin-left: 6px;
+  gap: 4px;
   color: var(--color-text-4);
+  overflow: hidden;
+}
+
+.post-row--v2 .post-meta-last-reply-arrow {
   flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.post-row--v2 .post-meta-last-reply-user {
+  flex-shrink: 1;
+  min-width: 0;
   max-width: 5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text-3);
+  font-weight: 400;
+}
+
+.post-row--v2 a.post-meta-last-reply-user:hover {
+  color: var(--j13-green);
+}
+
+.post-row--v2 .post-meta-last-reply-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 手机端 meta 精简：作者、回复人、一个时间（有回复则用回复时间） */
+@media (max-width: 768px) {
+  .post-row--v2 .post-list-board-btn {
+    display: none;
+  }
+
+  .post-row--v2 .post-meta-left:has(.post-meta-last-reply) .post-meta-sep--before-time,
+  .post-row--v2 .post-meta-left:has(.post-meta-last-reply) .post-meta-time--created {
+    display: none;
+  }
+
+  .post-row--v2 .post-meta-author {
+    max-width: 4.5rem;
+  }
+
+  .post-row--v2 .post-meta-last-reply-user {
+    max-width: 4.5rem;
+  }
+}
+
+/* 列表内板块色标（meta 行、用户名之前；颜色淡化） */
+.post-row--v2 .post-list-board-btn {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 5rem;
+  padding: 0;
+  margin: 0 6px 0 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.post-row--v2 .post-list-board-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-row--v2 .post-list-board-badge.board-badge--0 {
+  color: color-mix(in srgb, var(--board-0-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-0-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--1 {
+  color: color-mix(in srgb, var(--board-1-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-1-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--2 {
+  color: color-mix(in srgb, var(--board-2-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-2-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--3 {
+  color: color-mix(in srgb, var(--board-3-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-3-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--4 {
+  color: color-mix(in srgb, var(--board-4-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-4-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--5 {
+  color: color-mix(in srgb, var(--board-5-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-5-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--6 {
+  color: color-mix(in srgb, var(--board-6-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-6-color) 9%, transparent);
+}
+.post-row--v2 .post-list-board-badge.board-badge--7 {
+  color: color-mix(in srgb, var(--board-7-color) 52%, var(--color-text-3, #64748b));
+  background: color-mix(in srgb, var(--board-7-color) 9%, transparent);
+}
+
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--0 {
+  color: color-mix(in srgb, var(--board-0-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-0-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--1 {
+  color: color-mix(in srgb, var(--board-1-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-1-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--2 {
+  color: color-mix(in srgb, var(--board-2-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-2-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--3 {
+  color: color-mix(in srgb, var(--board-3-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-3-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--4 {
+  color: color-mix(in srgb, var(--board-4-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-4-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--5 {
+  color: color-mix(in srgb, var(--board-5-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-5-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--6 {
+  color: color-mix(in srgb, var(--board-6-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-6-color) 14%, transparent);
+}
+.post-row--v2 .post-list-board-btn:hover .post-list-board-badge.board-badge--7 {
+  color: color-mix(in srgb, var(--board-7-color) 72%, var(--color-text-2, #475569));
+  background: color-mix(in srgb, var(--board-7-color) 14%, transparent);
 }
 
 .post-row--v2 .post-list-tag {
@@ -2504,6 +2656,7 @@ body:has(.admin-topbar) .ptr-indicator {
   color: var(--color-text-4);
   font-size: 12px;
   max-width: 5rem;
+  flex-shrink: 1;
 }
 
 .post-row--v2 .post-list-tag:hover {
@@ -3106,6 +3259,26 @@ a.post-title:visited {
 
 .skeleton--title-v2 {
   height: 14px;
+}
+
+.skeleton--board-badge {
+  width: 2.5rem;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.post-meta-left--skeleton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.post-meta-left--skeleton .skeleton--meta-line {
+  flex: 1;
+  max-width: none;
 }
 
 .skeleton--excerpt-v2 {
@@ -6354,6 +6527,7 @@ a.waline-comment-author:hover {
 .widget-card-icon--hot { color: #e74c3c; }
 .widget-card-icon--notice { color: #3498db; }
 .widget-card-icon--links { color: #2d6a4f; }
+.widget-card-icon--users { color: #8b5cf6; }
 
 .widget-card-head--split {
   justify-content: space-between;
@@ -6399,22 +6573,51 @@ a.waline-comment-author:hover {
   text-decoration: underline;
 }
 
+.widget-card-body--friend-links {
+  padding-top: 8px;
+}
+
 .widget-friend-links-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
+.widget-friend-links-list li {
+  max-width: 100%;
+}
+
 .widget-friend-links-list a {
-  color: var(--j13-link, var(--primary, #2d6a4f));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--j13-border-light);
+  border-radius: 4px;
+  background: var(--j13-bg-block-muted);
+  color: var(--color-text-2);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .widget-friend-links-list a:hover {
-  text-decoration: underline;
+  border-color: color-mix(in srgb, var(--j13-green) 35%, var(--j13-border-light));
+  background: var(--j13-green-soft);
+  color: var(--j13-green);
+  text-decoration: none;
 }
 
 .friend-link-site-info {
@@ -7452,6 +7655,91 @@ a.user-link--avatar-only:focus-visible {
 
 .widget-item-comment-main:focus-visible {
   outline: none;
+}
+
+/* 最新注册：4 列网格，头像在上、昵称在下 */
+.widget-card-body--users {
+  padding-top: 8px;
+}
+
+.widget-recent-users-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 6px;
+}
+
+.widget-recent-user-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 2px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s;
+}
+
+a.widget-recent-user-cell:hover,
+a.widget-recent-user-cell:focus-visible {
+  background: var(--j13-bg-block-accent);
+  text-decoration: none;
+  color: inherit;
+}
+
+.widget-recent-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--j13-green);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.widget-recent-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.widget-recent-user-name {
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.widget-recent-user-cell:hover .widget-recent-user-name,
+a.widget-recent-user-cell:focus-visible .widget-recent-user-name {
+  color: var(--j13-green);
+}
+
+.widget-recent-user-cell--skeleton {
+  pointer-events: none;
+}
+
+.skeleton--recent-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton--recent-user-name {
+  height: 11px;
+  width: 70%;
+  border-radius: 4px;
 }
 
 a.widget-item-avatar.user-link {

@@ -137,8 +137,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/posts/hot", h.APIHotPosts)
 		pubAPI.GET("/tags", h.APITags)
 		pubAPI.GET("/comments/recent", h.APIRecentComments)
-		// search 须在 :id 之前
+		// search / recent 须在 :id 之前
 		pubAPI.GET("/users/search", h.APISearchUsers)
+		pubAPI.GET("/users/recent", h.APIRecentUsers)
 		pubAPI.GET("/users/:id", h.APIUserPublic)
 		pubAPI.GET("/posts/:id", h.APIPostDetail)
 		pubAPI.GET("/posts/:id/comments", h.APIPostComments)

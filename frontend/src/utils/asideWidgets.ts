@@ -1,7 +1,7 @@
 import type { AsideWidget, AsideWidgetId, ForumLimits, ForumLimitsPublic } from '../api/types';
 import { DEFAULT_ASIDE_WIDGETS } from '../api/types';
 
-const ASIDE_WIDGET_IDS: AsideWidgetId[] = ['tag_cloud', 'recent_comments', 'friend_links'];
+const ASIDE_WIDGET_IDS: AsideWidgetId[] = ['tag_cloud', 'recent_comments', 'recent_users', 'friend_links'];
 
 /** 从 limits 解析右侧栏组件列表（兼容仅有布尔开关的旧数据） */
 export function resolveAsideWidgets(

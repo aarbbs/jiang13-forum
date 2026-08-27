@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply } from './types';
 
 const BASE = '';
 
@@ -52,6 +52,7 @@ export const api = {
     return request<{ comments: Comment[]; total: number }>(`/api/posts/${id}/comments${q}`);
   },
   recentComments: () => request<{ comments: RecentComment[] }>('/api/comments/recent'),
+  recentUsers: () => request<{ users: RecentUser[] }>('/api/users/recent'),
   favorites: () => request<{ favorites: unknown[]; total: number }>('/api/favorites'),
   createBoard: (body: { name: string; description: string; sort_order: number; icon?: string; color_index?: number }) =>
     request<{ board: Board }>('/api/admin/boards', { method: 'POST', body: JSON.stringify(body) }),

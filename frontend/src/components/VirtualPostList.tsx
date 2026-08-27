@@ -263,7 +263,7 @@ export default function VirtualPostList({
                     transform: `translateY(${offsetY}px)`,
                   }}
                 >
-                  <PostListItem post={post} sort={sort} onSelect={onSelect} />
+                  <PostListItem post={post} sort={sort} boardId={boardId} onSelect={onSelect} />
                 </div>
               );
             })}

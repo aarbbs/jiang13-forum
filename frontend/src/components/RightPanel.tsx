@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { ListTree, MessageCircle, Tags, Link2 } from 'lucide-react';
+import { ListTree, MessageCircle, Tags, Link2, UserPlus } from 'lucide-react';
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import type { AsideWidget, RecentComment, TagCount, User, ForumStats, FriendLink } from '../api/types';
+import type { AsideWidget, RecentComment, RecentUser, TagCount, User, ForumStats, FriendLink } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useSiteBranding } from '../hooks/useSiteBranding';
 import { formatShortDateTime, formatTime } from '../utils/content';
@@ -25,6 +25,7 @@ export type PostDetailAside = {
 
 interface Props {
   recentComments: RecentComment[];
+  recentUsers: RecentUser[];
   tags?: TagCount[];
   tagsLoading?: boolean;
   stats?: ForumStats | null;
@@ -53,8 +54,22 @@ function CommentSkeleton() {
   );
 }
 
+function UserSkeleton() {
+  return (
+    <div className="widget-recent-users-grid" aria-busy="true" aria-label="用户加载中">
+      {Array.from({ length: 8 }, (_, i) => (
+        <div key={i} className="widget-recent-user-cell widget-recent-user-cell--skeleton">
+          <Skeleton className="skeleton--recent-user-avatar" />
+          <Skeleton className="skeleton--recent-user-name" style={{ width: `${48 + (i % 3) * 10}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function RightPanel({
   recentComments,
+  recentUsers,
   tags = [],
   tagsLoading = false,
   stats = null,
@@ -69,6 +84,7 @@ export default function RightPanel({
   const [params] = useSearchParams();
   const activeTag = params.get('tag') || '';
   const commentList = recentComments?.slice(0, 6) ?? [];
+  const userList = recentUsers?.slice(0, 8) ?? [];
   const friendLinks = (branding.friend_links ?? []).filter(
     (l: FriendLink) => l.name?.trim() && l.url?.trim(),
   );
@@ -118,7 +134,7 @@ export default function RightPanel({
                 申请
               </Button>
             </div>
-            <div className="widget-card-body">
+            <div className="widget-card-body widget-card-body--friend-links">
               {friendLinks.length === 0 ? (
                 <div className="widget-empty">暂无友情链接</div>
               ) : (
@@ -126,7 +142,9 @@ export default function RightPanel({
                   <ul className="widget-friend-links-list">
                     {friendLinks.slice(0, 8).map((link: FriendLink) => (
                       <li key={`${link.name}-${link.url}`}>
-                        <a href={link.url} target="_blank" rel="noopener noreferrer">{link.name}</a>
+                        <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.name}>
+                          {link.name}
+                        </a>
                       </li>
                     ))}
                   </ul>
@@ -209,6 +227,41 @@ export default function RightPanel({
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      case 'recent_users':
+        return (
+          <div key="recent_users" className="widget-card widget-card--users">
+            <div className="widget-card-head">
+              <UserPlus className="widget-card-icon widget-card-icon--users" aria-hidden />
+              最新注册
+            </div>
+            <div className="widget-card-body widget-card-body--users">
+              {loading && userList.length === 0 ? (
+                <UserSkeleton />
+              ) : userList.length === 0 ? (
+                <div className="widget-empty">暂无用户</div>
+              ) : (
+                <div className="widget-recent-users-grid">
+                  {userList.map(item => (
+                    <UserLink
+                      key={item.id}
+                      user={{ id: item.id, nickname: item.nickname, avatar: item.avatar }}
+                      className="widget-recent-user-cell"
+                      showBadges={false}
+                      title={item.nickname}
+                    >
+                      <span className="widget-recent-user-avatar" aria-hidden>
+                        {item.avatar
+                          ? <img src={item.avatar} alt="" loading="lazy" decoding="async" />
+                          : (item.nickname?.[0] || '?')}
+                      </span>
+                      <span className="widget-recent-user-name">{item.nickname}</span>
+                    </UserLink>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );

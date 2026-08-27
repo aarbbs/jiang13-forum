@@ -144,12 +144,14 @@ type AsideWidget struct {
 const (
 	AsideWidgetTagCloud       = "tag_cloud"
 	AsideWidgetRecentComments = "recent_comments"
+	AsideWidgetRecentUsers    = "recent_users"
 	AsideWidgetFriendLinks    = "friend_links"
 )
 
 var asideWidgetDefaultOrder = []string{
 	AsideWidgetTagCloud,
 	AsideWidgetRecentComments,
+	AsideWidgetRecentUsers,
 	AsideWidgetFriendLinks,
 }
 
@@ -742,7 +744,7 @@ func asideBoolsFromWidgets(widgets []AsideWidget) asideWidgetBools {
 
 func isValidAsideWidgetID(id string) bool {
 	switch id {
-	case AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetFriendLinks:
+	case AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetRecentUsers, AsideWidgetFriendLinks:
 		return true
 	default:
 		return false

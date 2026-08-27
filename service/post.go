@@ -56,8 +56,16 @@ type PostListQuery struct {
 // PostListItem 帖子列表项（含评论数等扩展字段）
 type PostListItem struct {
 	model.Post
-	CommentCount int        `json:"comment_count"`
-	LastReplyAt  *time.Time `json:"last_reply_at,omitempty"`
+	CommentCount       int         `json:"comment_count"`
+	LastReplyAt        *time.Time  `json:"last_reply_at,omitempty"`
+	LastReplyUser      *model.User `json:"last_reply_user,omitempty"`
+	LastReplyGuestNick string      `json:"last_reply_guest_nick,omitempty"`
+}
+
+type lastReplyInfo struct {
+	At        *time.Time
+	User      *model.User
+	GuestNick string
 }
 
 func (s *PostService) ListItems(q PostListQuery) ([]PostListItem, int64, error) {
@@ -73,13 +81,16 @@ func (s *PostService) ListItems(q PostListQuery) ([]PostListItem, int64, error) 
 		ids[i] = p.ID
 	}
 	countMap := s.commentCountMap(ids)
-	replyMap := s.lastReplyMap(ids)
+	replyMap := s.lastReplyInfoMap(ids)
 	items := make([]PostListItem, len(posts))
 	for i, p := range posts {
+		info := replyMap[p.ID]
 		items[i] = PostListItem{
-			Post:         p,
-			CommentCount: countMap[p.ID],
-			LastReplyAt:  replyMap[p.ID],
+			Post:               p,
+			CommentCount:       countMap[p.ID],
+			LastReplyAt:        info.At,
+			LastReplyUser:      info.User,
+			LastReplyGuestNick: info.GuestNick,
 		}
 	}
 	return items, total, nil
@@ -101,42 +112,48 @@ func (s *PostService) commentCountMap(postIDs []uint) map[uint]int {
 	return m
 }
 
-func (s *PostService) lastReplyMap(postIDs []uint) map[uint]*time.Time {
-	type row struct {
-		PostID    uint
-		LastReply string
+func (s *PostService) lastReplyInfoMap(postIDs []uint) map[uint]lastReplyInfo {
+	m := make(map[uint]lastReplyInfo, len(postIDs))
+	if len(postIDs) == 0 {
+		return m
 	}
-	var rows []row
+	type idRow struct {
+		PostID uint
+		MaxID  uint
+	}
+	var idRows []idRow
 	model.DB.Model(&model.Comment{}).
-		Select("post_id, MAX(created_at) as last_reply").
+		Select("post_id, MAX(id) as max_id").
 		Where("post_id IN ? AND status = ?", postIDs, model.ContentStatusPublished).
 		Group("post_id").
-		Scan(&rows)
-	m := make(map[uint]*time.Time, len(rows))
-	for _, r := range rows {
-		if t, ok := parseSQLiteTime(r.LastReply); ok {
-			m[r.PostID] = &t
+		Scan(&idRows)
+	if len(idRows) == 0 {
+		return m
+	}
+	commentIDs := make([]uint, len(idRows))
+	for i, r := range idRows {
+		commentIDs[i] = r.MaxID
+	}
+	var comments []model.Comment
+	if err := model.DB.Preload("User").Where("id IN ?", commentIDs).Find(&comments).Error; err != nil {
+		return m
+	}
+	for i := range comments {
+		c := &comments[i]
+		info := lastReplyInfo{At: &c.CreatedAt}
+		if c.UserID > 0 && c.User.ID > 0 {
+			u := c.User
+			info.User = &u
+		} else {
+			nick := strings.TrimSpace(c.GuestNick)
+			if nick == "" {
+				nick = "游客"
+			}
+			info.GuestNick = nick
 		}
+		m[c.PostID] = info
 	}
 	return m
-}
-
-// parseSQLiteTime 解析 SQLite 聚合查询返回的时间字符串
-func parseSQLiteTime(s string) (time.Time, bool) {
-	if s == "" {
-		return time.Time{}, false
-	}
-	for _, layout := range []string{
-		"2006-01-02 15:04:05.999999999-07:00",
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02 15:04:05",
-	} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
 }
 
 // HotPosts 近期活跃讨论（近 7 日有公开回复，按最后回复时间倒序）
@@ -170,13 +187,16 @@ func (s *PostService) HotPosts(limit int) ([]PostListItem, error) {
 		ids[i] = p.ID
 	}
 	countMap := s.commentCountMap(ids)
-	replyMap := s.lastReplyMap(ids)
+	replyMap := s.lastReplyInfoMap(ids)
 	items := make([]PostListItem, len(posts))
 	for i, p := range posts {
+		info := replyMap[p.ID]
 		items[i] = PostListItem{
-			Post:         p,
-			CommentCount: countMap[p.ID],
-			LastReplyAt:  replyMap[p.ID],
+			Post:               p,
+			CommentCount:       countMap[p.ID],
+			LastReplyAt:        info.At,
+			LastReplyUser:      info.User,
+			LastReplyGuestNick: info.GuestNick,
 		}
 	}
 	return items, nil
