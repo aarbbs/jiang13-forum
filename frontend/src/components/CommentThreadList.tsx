@@ -237,7 +237,7 @@ function CommentItem({
           user={c.user ?? { id: c.user_id, nickname: nick }}
           showAvatar={false}
           showName={false}
-          className={`waline-comment-avatar user-link--avatar-only${!c.user?.avatar ? ' guest' : ''}`}
+          className="waline-comment-avatar user-link--avatar-only"
         >
           {c.user?.avatar ? (
             <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
@@ -246,7 +246,7 @@ function CommentItem({
           )}
         </UserLink>
       ) : (
-        <div className={`waline-comment-avatar ${!c.user?.avatar ? 'guest' : ''}`}>
+        <div className={`waline-comment-avatar${!c.user?.avatar ? ' guest' : ''}`}>
           {c.user?.avatar ? (
             <img src={c.user.avatar} alt="" loading="lazy" decoding="async" />
           ) : (
