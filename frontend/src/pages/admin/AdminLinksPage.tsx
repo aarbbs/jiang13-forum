@@ -21,10 +21,16 @@ import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
-import type { FriendLink, FriendLinkApply, SiteBranding } from '../../api/types';
+import type { ForumLimits, FriendLink, FriendLinkApply, SiteBranding } from '../../api/types';
 import { useSiteBranding, seedSiteBrandingCache, invalidateSiteBrandingCache } from '../../hooks/useSiteBranding';
+import { invalidateForumLimitsCache } from '../../hooks/useForumLimits';
 import { formatTime } from '../../utils/content';
 import { resolveFriendLinkLogo, isReciprocalChecking, reciprocalStatusLabel } from '../../utils/friendLink';
+import {
+  mergeForumLimitsWithAsideWidgets,
+  normalizeAsideWidgets,
+  resolveAsideWidgets,
+} from '../../utils/asideWidgets';
 import AdminSortableList, { SortableDragHandle, SortableMoveButtons } from '../../components/admin/AdminSortableList';
 import { shouldShowSortableMoveButtons } from '../../utils/sortOrder';
 
@@ -126,6 +132,8 @@ export default function AdminLinksPage() {
   const [handlingId, setHandlingId] = useState<number | null>(null);
   const [reciprocalCheckEnabled, setReciprocalCheckEnabled] = useState(false);
   const [reciprocalCheckSaving, setReciprocalCheckSaving] = useState(false);
+  const [forumLimits, setForumLimits] = useState<ForumLimits | null>(null);
+  const [entrySaving, setEntrySaving] = useState(false);
 
   const baselineLinks = branding.friend_links ?? [];
   const siteURL = branding.site_url;
@@ -134,9 +142,54 @@ export default function AdminLinksPage() {
     [links, baselineLinks],
   );
 
+  const entryFlags = useMemo(() => {
+    const widgets = resolveAsideWidgets({
+      aside_widgets: forumLimits?.aside_widgets,
+      aside_show_tag_cloud: forumLimits?.aside_show_tag_cloud ?? false,
+      aside_show_recent_comments: forumLimits?.aside_show_recent_comments ?? false,
+      aside_show_friend_links: forumLimits?.aside_show_friend_links ?? true,
+    });
+    return {
+      nav: forumLimits?.nav_show_friend_links !== false,
+      footer: forumLimits?.footer_show_friend_links !== false,
+      aside: widgets.find(w => w.id === 'friend_links')?.enabled ?? true,
+    };
+  }, [forumLimits]);
+
   useEffect(() => {
     setLinks(toLinkRows(baselineLinks));
   }, [baselineLinks]);
+
+  useEffect(() => {
+    if (!ready) return;
+    api.adminSettings()
+      .then(s => {
+        const loadedAsideWidgets = normalizeAsideWidgets(
+          resolveAsideWidgets({
+            aside_widgets: s.limits?.aside_widgets,
+            aside_show_tag_cloud: s.limits?.aside_show_tag_cloud ?? false,
+            aside_show_recent_comments: s.limits?.aside_show_recent_comments ?? false,
+            aside_show_friend_links: s.limits?.aside_show_friend_links ?? true,
+          }),
+        );
+        const base: ForumLimits = {
+          open_posts_in_new_tab: true,
+          open_content_links_in_new_tab: true,
+          aside_show_tag_cloud: false,
+          aside_show_recent_comments: false,
+          aside_show_friend_links: true,
+          aside_widgets: loadedAsideWidgets,
+          nav_show_friend_links: true,
+          footer_show_friend_links: true,
+          feed_list_style: 'title',
+          permalink_enabled: false,
+          permalink_ext: 'html',
+          ...s.limits,
+        };
+        setForumLimits(mergeForumLimitsWithAsideWidgets(base, loadedAsideWidgets));
+      })
+      .catch(() => { /* 入口开关稍后仍可按默认展示 */ });
+  }, [ready]);
 
   const loadApplies = useCallback(async (status: ApplyStatusTab = applyStatus, page = 1) => {
     setAppliesLoading(true);
@@ -269,6 +322,114 @@ export default function AdminLinksPage() {
       notify.error(e instanceof Error ? e.message : '保存失败');
     } finally {
       setReciprocalCheckSaving(false);
+    }
+  };
+
+  const patchEntryVisibility = async (patch: {
+    nav?: boolean;
+    footer?: boolean;
+    aside?: boolean;
+  }) => {
+    if (entrySaving) return;
+    const prev = {
+      nav: entryFlags.nav,
+      footer: entryFlags.footer,
+      aside: entryFlags.aside,
+    };
+    const nextFlags = {
+      nav: patch.nav ?? prev.nav,
+      footer: patch.footer ?? prev.footer,
+      aside: patch.aside ?? prev.aside,
+    };
+    // 乐观更新本地 limits，避免开关回弹
+    setForumLimits(fl => {
+      if (!fl) {
+        return {
+          open_posts_in_new_tab: true,
+          open_content_links_in_new_tab: true,
+          aside_show_tag_cloud: false,
+          aside_show_recent_comments: false,
+          aside_show_friend_links: nextFlags.aside,
+          aside_widgets: normalizeAsideWidgets([
+            { id: 'tag_cloud', enabled: false },
+            { id: 'recent_comments', enabled: false },
+            { id: 'recent_users', enabled: false },
+            { id: 'friend_links', enabled: nextFlags.aside },
+          ]),
+          nav_show_friend_links: nextFlags.nav,
+          footer_show_friend_links: nextFlags.footer,
+          feed_list_style: 'title',
+          permalink_enabled: false,
+          permalink_ext: 'html',
+          post_edit_window_hours: 24,
+          comment_edit_window_minutes: 3,
+          rate_limit_post: 10,
+          rate_limit_comment: 10,
+          rate_limit_register: 10,
+          rate_limit_login: 10,
+          rate_limit_window_sec: 60,
+          post_title_max: 128,
+          post_tags_max: 256,
+          post_content_max: 50000,
+          comment_max: 5000,
+          search_keyword_min: 1,
+          search_keyword_max: 50,
+          page_size_default: 30,
+          password_min_len: 6,
+          avatar_max_mb: 2,
+          signature_max: 200,
+        };
+      }
+      const widgets = normalizeAsideWidgets(fl.aside_widgets).map(w => (
+        w.id === 'friend_links' ? { ...w, enabled: nextFlags.aside } : w
+      ));
+      return mergeForumLimitsWithAsideWidgets({
+        ...fl,
+        nav_show_friend_links: nextFlags.nav,
+        footer_show_friend_links: nextFlags.footer,
+      }, widgets);
+    });
+    setEntrySaving(true);
+    try {
+      const body: {
+        nav_show_friend_links?: boolean;
+        footer_show_friend_links?: boolean;
+        aside_show_friend_links?: boolean;
+      } = {};
+      if (patch.nav !== undefined) body.nav_show_friend_links = patch.nav;
+      if (patch.footer !== undefined) body.footer_show_friend_links = patch.footer;
+      if (patch.aside !== undefined) body.aside_show_friend_links = patch.aside;
+      const r = await api.adminUpdateFriendLinkSettings(body);
+      setForumLimits(fl => {
+        const base = fl;
+        if (!base) return fl;
+        const widgets = normalizeAsideWidgets(base.aside_widgets).map(w => (
+          w.id === 'friend_links' ? { ...w, enabled: r.aside_show_friend_links } : w
+        ));
+        return mergeForumLimitsWithAsideWidgets({
+          ...base,
+          nav_show_friend_links: r.nav_show_friend_links,
+          footer_show_friend_links: r.footer_show_friend_links,
+          aside_show_friend_links: r.aside_show_friend_links,
+        }, widgets);
+      });
+      invalidateForumLimitsCache();
+      notify.success(r.message);
+    } catch (e: unknown) {
+      setForumLimits(fl => {
+        if (!fl) return fl;
+        const widgets = normalizeAsideWidgets(fl.aside_widgets).map(w => (
+          w.id === 'friend_links' ? { ...w, enabled: prev.aside } : w
+        ));
+        return mergeForumLimitsWithAsideWidgets({
+          ...fl,
+          nav_show_friend_links: prev.nav,
+          footer_show_friend_links: prev.footer,
+        }, widgets);
+      });
+      notify.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setEntrySaving(false);
     }
   };
 
@@ -411,6 +572,37 @@ export default function AdminLinksPage() {
           </Button>
         </div>
       </header>
+
+      <div className="admin-card admin-links-entry-card">
+        <div className="admin-card-head">入口展示</div>
+        <p className="admin-card-desc">
+          控制友情链接入口出现在何处；关闭后仍可直接访问 /links 页面申请与浏览。右侧栏开关与「系统设置 → 右侧栏组件」同源。
+        </p>
+        <div className="admin-card-body admin-links-entry-body">
+          {(
+            [
+              { key: 'nav' as const, label: '左侧栏（站点）', on: entryFlags.nav },
+              { key: 'footer' as const, label: '页脚', on: entryFlags.footer },
+              { key: 'aside' as const, label: '右侧栏', on: entryFlags.aside },
+            ]
+          ).map(item => (
+            <div key={item.key} className="admin-links-entry-row">
+              <span id={`admin-links-entry-${item.key}`}>{item.label}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={item.on}
+                aria-labelledby={`admin-links-entry-${item.key}`}
+                disabled={entrySaving}
+                className={cn('admin-settings-switch', item.on && 'is-on')}
+                onClick={() => patchEntryVisibility({ [item.key]: !item.on })}
+              >
+                <span className="admin-settings-switch-ui" aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="admin-links-columns">
       <div className="admin-card admin-links-apply-card">

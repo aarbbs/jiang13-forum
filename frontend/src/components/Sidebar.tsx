@@ -66,6 +66,8 @@ export default function Sidebar({
   const isAdmin = user?.role === 'admin';
   const { navPages } = useSitePages();
   const { limits } = useForumLimits();
+  const showFriendLinksNav = limits.nav_show_friend_links !== false;
+  const showSiteSection = navPages.length > 0 || showFriendLinksNav;
 
   const keyword = params.get('keyword') || '';
   const menuKey = resolveMenuKey(loc.pathname, activeBoard, keyword);
@@ -135,7 +137,6 @@ export default function Sidebar({
         {feedNavLink('all', buildHomeUrl(0, sort, permalinkOpts), '全部帖子', <Home aria-hidden />, 0)}
         {user && navItem('favorites', '我的收藏', <Star aria-hidden />, () => nav('/favorites'))}
         {navItem('projects', '开源码桶', <FolderGit2 aria-hidden />, () => nav('/projects'))}
-        {navItem('links', '友情链接', <Link2 aria-hidden />, () => nav('/links'))}
       </nav>
 
       {(boardsLoading && boards.length === 0) ? (
@@ -191,10 +192,11 @@ export default function Sidebar({
         </>
       ) : null}
 
-      {(navPages.length > 0) && (
+      {showSiteSection && (
         <>
           <div className="sidebar-section sidebar-section--spaced">站点</div>
           <nav className="sidebar-nav">
+            {showFriendLinksNav && navItem('links', '友情链接', <Link2 aria-hidden />, () => nav('/links'))}
             {navPages.map(p => (
               navItem(`page-${p.slug}`, p.title, <FileText aria-hidden />, () => nav(pagePath(p.slug, limits)))
             ))}

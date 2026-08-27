@@ -100,27 +100,64 @@ func (h *Handlers) APIAdminFriendLinkApplies(c *gin.Context) {
 	})
 }
 
-// APIAdminUpdateFriendLinkSettings 更新友链回链检测开关
+// APIAdminUpdateFriendLinkSettings 更新友链相关开关（回链检测 / 入口展示）
 func (h *Handlers) APIAdminUpdateFriendLinkSettings(c *gin.Context) {
 	var req struct {
 		ReciprocalCheckEnabled *bool `json:"reciprocal_check_enabled"`
+		NavShowFriendLinks     *bool `json:"nav_show_friend_links"`
+		FooterShowFriendLinks  *bool `json:"footer_show_friend_links"`
+		AsideShowFriendLinks   *bool `json:"aside_show_friend_links"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.ReciprocalCheckEnabled == nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := h.Settings.SetFriendLinkReciprocalCheckEnabled(*req.ReciprocalCheckEnabled); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if req.ReciprocalCheckEnabled == nil && req.NavShowFriendLinks == nil &&
+		req.FooterShowFriendLinks == nil && req.AsideShowFriendLinks == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	enabled := *req.ReciprocalCheckEnabled
-	msg := "已开启回链检测"
-	if !enabled {
-		msg = "已关闭回链检测"
+	if req.ReciprocalCheckEnabled != nil {
+		if err := h.Settings.SetFriendLinkReciprocalCheckEnabled(*req.ReciprocalCheckEnabled); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
+	if req.NavShowFriendLinks != nil {
+		if err := h.Settings.SetNavShowFriendLinks(*req.NavShowFriendLinks); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.FooterShowFriendLinks != nil {
+		if err := h.Settings.SetFooterShowFriendLinks(*req.FooterShowFriendLinks); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.AsideShowFriendLinks != nil {
+		if err := h.Settings.SetAsideFriendLinksEnabled(*req.AsideShowFriendLinks); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	msg := "设置已保存"
+	if req.ReciprocalCheckEnabled != nil && req.NavShowFriendLinks == nil &&
+		req.FooterShowFriendLinks == nil && req.AsideShowFriendLinks == nil {
+		if *req.ReciprocalCheckEnabled {
+			msg = "已开启回链检测"
+		} else {
+			msg = "已关闭回链检测"
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":                  msg,
-		"reciprocal_check_enabled": enabled,
+		"message":                   msg,
+		"reciprocal_check_enabled":  h.Settings.FriendLinkReciprocalCheckEnabled(),
+		"nav_show_friend_links":     h.Settings.NavShowFriendLinks(),
+		"footer_show_friend_links":  h.Settings.FooterShowFriendLinks(),
+		"aside_show_friend_links":   h.Settings.AsideShowFriendLinks(),
 	})
 }
 

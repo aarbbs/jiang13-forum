@@ -233,6 +233,10 @@ export interface ForumLimits {
   aside_show_friend_links: boolean;
   /** 右侧栏可选组件顺序与开关 */
   aside_widgets: AsideWidget[];
+  /** 左侧栏「站点」展示友情链接入口 */
+  nav_show_friend_links: boolean;
+  /** 页脚展示友情链接入口 */
+  footer_show_friend_links: boolean;
   /** 首页列表样式：title 仅标题 / thumbnail 缩略图 */
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   /** 伪静态（固定链接）开关 */
@@ -259,6 +263,8 @@ export interface ForumLimitsPublic {
   aside_show_recent_comments: boolean;
   aside_show_friend_links: boolean;
   aside_widgets: AsideWidget[];
+  nav_show_friend_links: boolean;
+  footer_show_friend_links: boolean;
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   permalink_enabled: boolean;
   permalink_ext: string;

@@ -423,8 +423,19 @@ export const api = {
       reciprocal_check_enabled?: boolean;
     }>(`/api/admin/friend-link-applies${qs ? `?${qs}` : ''}`);
   },
-  adminUpdateFriendLinkSettings: (body: { reciprocal_check_enabled: boolean }) =>
-    request<{ message: string; reciprocal_check_enabled: boolean }>('/api/admin/friend-link-settings', {
+  adminUpdateFriendLinkSettings: (body: {
+    reciprocal_check_enabled?: boolean;
+    nav_show_friend_links?: boolean;
+    footer_show_friend_links?: boolean;
+    aside_show_friend_links?: boolean;
+  }) =>
+    request<{
+      message: string;
+      reciprocal_check_enabled: boolean;
+      nav_show_friend_links: boolean;
+      footer_show_friend_links: boolean;
+      aside_show_friend_links: boolean;
+    }>('/api/admin/friend-link-settings', {
       method: 'PUT',
       body: JSON.stringify(body),
     }),

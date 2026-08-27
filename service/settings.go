@@ -43,6 +43,8 @@ const (
 	SettingAsideShowRecentComments  = "aside_show_recent_comments"
 	SettingAsideShowFriendLinks     = "aside_show_friend_links"
 	SettingAsideWidgets             = "aside_widgets"
+	SettingNavShowFriendLinks       = "nav_show_friend_links"
+	SettingFooterShowFriendLinks    = "footer_show_friend_links"
 	SettingFeedListStyle            = "feed_list_style"
 
 	// 伪静态键名见 permalink.go：SettingPermalinkEnabled / SettingPermalinkExt
@@ -128,6 +130,8 @@ type ForumLimits struct {
 	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
 	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
 	AsideWidgets            []AsideWidget `json:"aside_widgets"`
+	NavShowFriendLinks      bool          `json:"nav_show_friend_links"`
+	FooterShowFriendLinks   bool          `json:"footer_show_friend_links"`
 
 	FeedListStyle string `json:"feed_list_style"`
 
@@ -177,6 +181,8 @@ type ForumLimitsPublic struct {
 	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
 	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
 	AsideWidgets            []AsideWidget `json:"aside_widgets"`
+	NavShowFriendLinks      bool          `json:"nav_show_friend_links"`
+	FooterShowFriendLinks   bool          `json:"footer_show_friend_links"`
 
 	FeedListStyle string `json:"feed_list_style"`
 
@@ -272,6 +278,8 @@ var storageSettingDefaults = map[string]string{
 
 var friendLinkSettingDefaults = map[string]string{
 	SettingFriendLinkReciprocalCheck: "0", // 默认关闭回链检测
+	SettingNavShowFriendLinks:        "1",
+	SettingFooterShowFriendLinks:     "1",
 }
 
 var siteBrandingDefaults = map[string]string{
@@ -538,6 +546,8 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		AsideShowRecentComments: bools.recentComments,
 		AsideShowFriendLinks:    bools.friendLinks,
 		AsideWidgets:            widgets,
+		NavShowFriendLinks:      s.NavShowFriendLinks(),
+		FooterShowFriendLinks:   s.FooterShowFriendLinks(),
 
 		FeedListStyle: s.FeedListStyle(),
 
@@ -569,6 +579,8 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		AsideShowRecentComments: limits.AsideShowRecentComments,
 		AsideShowFriendLinks:    limits.AsideShowFriendLinks,
 		AsideWidgets:            limits.AsideWidgets,
+		NavShowFriendLinks:      limits.NavShowFriendLinks,
+		FooterShowFriendLinks:   limits.FooterShowFriendLinks,
 
 		FeedListStyle: limits.FeedListStyle,
 
@@ -616,6 +628,8 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		SettingAsideShowTagCloud:        bools.tagCloud,
 		SettingAsideShowRecentComments:  bools.recentComments,
 		SettingAsideShowFriendLinks:     bools.friendLinks,
+		SettingNavShowFriendLinks:       in.NavShowFriendLinks,
+		SettingFooterShowFriendLinks:    in.FooterShowFriendLinks,
 		SettingPermalinkEnabled:         in.PermalinkEnabled,
 	}
 	for key, on := range boolUpdates {
@@ -705,12 +719,68 @@ func (s *ForumSettingsService) FriendLinkReciprocalCheckEnabled() bool {
 	return s.getString(SettingFriendLinkReciprocalCheck, "0") == "1"
 }
 
+// NavShowFriendLinks 左侧栏「站点」是否展示友链入口；缺省开启
+func (s *ForumSettingsService) NavShowFriendLinks() bool {
+	return s.getString(SettingNavShowFriendLinks, "1") == "1"
+}
+
+// FooterShowFriendLinks 页脚是否展示友链入口；缺省开启
+func (s *ForumSettingsService) FooterShowFriendLinks() bool {
+	return s.getString(SettingFooterShowFriendLinks, "1") == "1"
+}
+
 func (s *ForumSettingsService) SetFriendLinkReciprocalCheckEnabled(enabled bool) error {
 	v := "0"
 	if enabled {
 		v = "1"
 	}
 	return s.setString(SettingFriendLinkReciprocalCheck, v)
+}
+
+func (s *ForumSettingsService) SetNavShowFriendLinks(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return s.setString(SettingNavShowFriendLinks, v)
+}
+
+func (s *ForumSettingsService) SetFooterShowFriendLinks(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return s.setString(SettingFooterShowFriendLinks, v)
+}
+
+// SetAsideFriendLinksEnabled 更新右侧栏友链组件开关（与 aside_widgets 同步）
+func (s *ForumSettingsService) SetAsideFriendLinksEnabled(enabled bool) error {
+	widgets := s.AsideWidgets()
+	found := false
+	for i := range widgets {
+		if widgets[i].ID == AsideWidgetFriendLinks {
+			widgets[i].Enabled = enabled
+			found = true
+			break
+		}
+	}
+	if !found {
+		widgets = append(widgets, AsideWidget{ID: AsideWidgetFriendLinks, Enabled: enabled})
+	}
+	widgets = NormalizeAsideWidgets(widgets)
+	bools := asideBoolsFromWidgets(widgets)
+	payload, err := json.Marshal(widgets)
+	if err != nil {
+		return err
+	}
+	if err := s.setString(SettingAsideWidgets, string(payload)); err != nil {
+		return err
+	}
+	v := "0"
+	if bools.friendLinks {
+		v = "1"
+	}
+	return s.setString(SettingAsideShowFriendLinks, v)
 }
 
 type asideWidgetBools struct {

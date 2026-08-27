@@ -299,6 +299,8 @@ export default function AdminSettingsPage() {
           aside_show_recent_comments: false,
           aside_show_friend_links: true,
           aside_widgets: loadedAsideWidgets,
+          nav_show_friend_links: true,
+          footer_show_friend_links: true,
           feed_list_style: 'title',
           permalink_enabled: false,
           permalink_ext: 'html',

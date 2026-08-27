@@ -13826,6 +13826,25 @@ button.post-poll__option,
   gap: 8px;
   align-items: center;
 }
+.admin-links-entry-card {
+  margin-bottom: 16px;
+}
+.admin-links-entry-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+.admin-links-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--foreground, #334155);
+}
+.admin-links-entry-row .admin-settings-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .admin-links-columns {
   display: flex;
   flex-direction: column;

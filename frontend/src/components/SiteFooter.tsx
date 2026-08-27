@@ -34,18 +34,20 @@ export default function SiteFooter() {
         </div>
 
         <nav className="site-footer__nav" aria-label="站点链接">
-          <span className="site-footer__friend">
-            <Link to="/links">友情链接</Link>
-          </span>
-          {footerPages.map(p => (
+          {limits.footer_show_friend_links !== false && (
+            <span className="site-footer__friend">
+              <Link to="/links">友情链接</Link>
+            </span>
+          )}
+          {footerPages.map((p, i) => (
             <span key={p.slug} className="site-footer__friend">
-              <FooterSep />
+              {(limits.footer_show_friend_links !== false || i > 0) && <FooterSep />}
               <Link to={pagePath(p.slug, limits)}>{p.title}</Link>
             </span>
           ))}
           {icp && (
             <>
-              <FooterSep />
+              {(limits.footer_show_friend_links !== false || footerPages.length > 0) && <FooterSep />}
               <a
                 href={icpURL}
                 target="_blank"
