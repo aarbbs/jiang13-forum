@@ -299,12 +299,9 @@ export default function HomePage() {
         <div className="feed-top">
           <div className="feed-top__bar">
             <FeedHeader
-              boardId={boardId}
               keyword={keyword}
               tag={tag}
               author={author}
-              boards={ctx?.boards ?? []}
-              stats={ctx?.stats ?? null}
               postTotal={postTotal}
               titleAs={isSiteHome ? 'h2' : 'h1'}
             />

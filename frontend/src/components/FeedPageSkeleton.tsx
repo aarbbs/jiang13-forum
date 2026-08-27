@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import PostListSkeleton from './PostListSkeleton';
 import { useForumLimits } from '../hooks/useForumLimits';
 
-/** 首页 Feed 初始骨架（标题区 + 排序栏 + 列表） */
+/** 首页 Feed 初始骨架（排序栏 + 列表） */
 export default function FeedPageSkeleton() {
   const { limits } = useForumLimits();
 
@@ -11,15 +11,6 @@ export default function FeedPageSkeleton() {
       <div className="feed-panel">
         <div className="feed-top">
           <div className="feed-top__bar">
-            <div className="feed-head feed-head--stats-only">
-              <div className="feed-head__title">
-                <div className="feed-head__stats">
-                  <Skeleton className="skeleton--stat-chip" />
-                  <Skeleton className="skeleton--stat-chip" />
-                  <Skeleton className="skeleton--stat-chip" />
-                </div>
-              </div>
-            </div>
             <div className="feed-toolbar feed-toolbar--skeleton" aria-hidden>
               <Skeleton className="skeleton--sort-tab" />
               <Skeleton className="skeleton--sort-tab" />

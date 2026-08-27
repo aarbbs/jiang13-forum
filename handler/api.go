@@ -730,6 +730,7 @@ func (h *Handlers) APIAdminUpdateOIDCSettings(c *gin.Context) {
 func (h *Handlers) APIProjects(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("limit", c.DefaultQuery("size", "30")))
+	q := strings.TrimSpace(c.Query("q"))
 	if page < 1 {
 		page = 1
 	}
@@ -743,11 +744,12 @@ func (h *Handlers) APIProjects(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"projects": []any{}, "total": 0, "page": page, "total_pages": 0})
 		return
 	}
-	list, total, err := h.Gitea.ListPublic(page, size)
+	list, total, err := h.Gitea.ListPublic(page, size, q)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取失败"})
 		return
 	}
+	list = service.AttachGiteaOwners(list, h.Badge)
 	c.JSON(http.StatusOK, gin.H{
 		"projects":    list,
 		"total":       total,

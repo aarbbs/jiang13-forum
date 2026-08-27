@@ -29,10 +29,11 @@ export const api = {
   pages: () => request<{ pages: SitePageSummary[] }>('/api/pages'),
   page: (slug: string) => request<{ page: SitePage }>(`/api/pages/${encodeURIComponent(slug)}`),
   boards: () => request<{ boards: Board[] }>('/api/boards'),
-  projects: (params?: { page?: number; limit?: number }) => {
+  projects: (params?: { page?: number; limit?: number; q?: string }) => {
     const q = new URLSearchParams();
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.q?.trim()) q.set('q', params.q.trim());
     const qs = q.toString();
     return request<{ projects: GiteaProject[]; total: number; page: number; total_pages: number }>(
       `/api/projects${qs ? `?${qs}` : ''}`,

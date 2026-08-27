@@ -4132,57 +4132,64 @@ a.post-title:visited {
   margin-top: 12px;
 }
 
-.projects-list .project-row {
+.projects-search {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  max-width: 420px;
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
 }
-.projects-list .project-row:last-child {
-  border-bottom: none;
+.projects-search__icon {
+  flex-shrink: 0;
+  color: var(--color-text-4);
 }
-.project-row-body {
-  min-width: 0;
+.projects-search__input {
   flex: 1;
-}
-.project-row-title {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
   color: var(--color-text);
 }
-.project-row-desc {
-  margin: 0 0 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-text-2);
-  display: -webkit-box;
+.projects-search__input::placeholder {
+  color: var(--color-text-4);
+}
+
+/* 码桶行复用帖子列表结构，仅补充语言徽标与徽章间距 */
+.projects-list .project-list-item .post-excerpt {
   -webkit-line-clamp: 2;
+  display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.project-row-meta {
-  display: flex;
+.projects-list .project-list-item .post-meta-left {
   flex-wrap: wrap;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--color-text-3);
+  gap: 4px 6px;
+  overflow: visible;
 }
-.project-row-link {
+.projects-list .project-list-item .post-meta-author {
+  max-width: none;
+}
+.project-lang-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   flex-shrink: 0;
-  font-size: 13px;
-  color: var(--color-primary);
-  text-decoration: none;
-  white-space: nowrap;
-  padding-top: 2px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text-2);
+  background: color-mix(in srgb, var(--color-border) 45%, transparent);
 }
-.project-row-link:hover {
-  text-decoration: underline;
+.project-list-badges {
+  margin-left: 2px;
 }
 .projects-pager {
   display: flex;

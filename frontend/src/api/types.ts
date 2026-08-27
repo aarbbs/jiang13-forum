@@ -470,8 +470,21 @@ export interface GiteaProject {
   full_name: string;
   description: string;
   html_url: string;
+  language?: string;
+  stars_count?: number;
+  forks_count?: number;
   updated_at_remote?: string | null;
   forum_user_id?: number;
+  owner?: {
+    id: number;
+    nickname: string;
+    avatar: string;
+    role: 'user' | 'admin';
+    verified?: boolean;
+    exp?: number;
+    level?: number;
+    badges?: UserBadge[];
+  };
   synced_at: string;
 }
 

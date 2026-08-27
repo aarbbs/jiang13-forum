@@ -21,18 +21,34 @@ var (
 	ErrGiteaSyncBusy      = errors.New("同步正在进行中，请稍后再试")
 )
 
+// GiteaOwnerView 仓库关联的论坛用户摘要（列表展示头像/徽标）
+type GiteaOwnerView struct {
+	ID       uint                  `json:"id"`
+	Nickname string                `json:"nickname"`
+	Avatar   string                `json:"avatar"`
+	Role     model.Role            `json:"role"`
+	Verified bool                  `json:"verified"`
+	Exp      int                   `json:"exp"`
+	Level    int                   `json:"level"`
+	Badges   []model.UserBadgeView `json:"badges,omitempty"`
+}
+
 // GiteaRepoView 前台展示
 type GiteaRepoView struct {
-	ID              uint       `json:"id"`
-	GiteaID         int64      `json:"gitea_id"`
-	OwnerLogin      string     `json:"owner_login"`
-	Name            string     `json:"name"`
-	FullName        string     `json:"full_name"`
-	Description     string     `json:"description"`
-	HTMLURL         string     `json:"html_url"`
-	UpdatedAtRemote *time.Time `json:"updated_at_remote"`
-	ForumUserID     *uint      `json:"forum_user_id,omitempty"`
-	SyncedAt        time.Time  `json:"synced_at"`
+	ID              uint            `json:"id"`
+	GiteaID         int64           `json:"gitea_id"`
+	OwnerLogin      string          `json:"owner_login"`
+	Name            string          `json:"name"`
+	FullName        string          `json:"full_name"`
+	Description     string          `json:"description"`
+	HTMLURL         string          `json:"html_url"`
+	Language        string          `json:"language"`
+	StarsCount      int             `json:"stars_count"`
+	ForksCount      int             `json:"forks_count"`
+	UpdatedAtRemote *time.Time      `json:"updated_at_remote"`
+	ForumUserID     *uint           `json:"forum_user_id,omitempty"`
+	Owner           *GiteaOwnerView `json:"owner,omitempty"`
+	SyncedAt        time.Time       `json:"synced_at"`
 }
 
 // GiteaService 从 Gitea API 同步会员公开仓库
@@ -92,8 +108,8 @@ func (g *GiteaService) Stop() {
 	g.wg.Wait()
 }
 
-// ListPublic 列出已同步的公开仓库
-func (g *GiteaService) ListPublic(page, size int) ([]GiteaRepoView, int64, error) {
+// ListPublic 列出已绑定论坛用户的公开仓库；q 模糊匹配仓库字段与论坛昵称/用户名
+func (g *GiteaService) ListPublic(page, size int, q string) ([]GiteaRepoView, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -103,14 +119,27 @@ func (g *GiteaService) ListPublic(page, size int) ([]GiteaRepoView, int64, error
 	if size > 100 {
 		size = 100
 	}
+	// 打开列表时自愈：按 owner_login≈username 回填缺失的 forum_user_id
+	BackfillForumUserIDs()
+
+	q = strings.TrimSpace(q)
+	db := model.DB.Model(&model.GiteaRepo{}).Where("private = ? AND forum_user_id IS NOT NULL AND forum_user_id > 0", false)
+	if q != "" {
+		like := "%" + escapeLikePattern(q) + "%"
+		db = db.Where(
+			`(full_name LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\' OR owner_login LIKE ? ESCAPE '\'
+			 OR forum_user_id IN (
+				SELECT id FROM users WHERE nickname LIKE ? ESCAPE '\' OR username LIKE ? ESCAPE '\'
+			 ))`,
+			like, like, like, like, like,
+		)
+	}
 	var total int64
-	q := model.DB.Model(&model.GiteaRepo{}).Where("private = ?", false)
-	if err := q.Count(&total).Error; err != nil {
+	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []model.GiteaRepo
-	err := model.DB.Where("private = ?", false).
-		Order("updated_at_remote desc, id desc").
+	err := db.Order("updated_at_remote desc, id desc").
 		Offset((page - 1) * size).
 		Limit(size).
 		Find(&rows).Error
@@ -122,6 +151,176 @@ func (g *GiteaService) ListPublic(page, size int) ([]GiteaRepoView, int64, error
 		out = append(out, toGiteaRepoView(r))
 	}
 	return out, total, nil
+}
+
+// BackfillForumUserIDs 将缺失 forum_user_id 的公开仓按 owner_login（忽略大小写）匹配论坛 username
+func BackfillForumUserIDs() int {
+	var rows []model.GiteaRepo
+	if err := model.DB.Where("private = ? AND (forum_user_id IS NULL OR forum_user_id = 0)", false).
+		Find(&rows).Error; err != nil || len(rows) == 0 {
+		return 0
+	}
+	var users []model.User
+	if err := model.DB.Select("id", "username").Where("banned = ?", false).Find(&users).Error; err != nil || len(users) == 0 {
+		return 0
+	}
+	byLogin := make(map[string]uint, len(users))
+	for _, u := range users {
+		key := strings.ToLower(strings.TrimSpace(u.Username))
+		if key == "" {
+			continue
+		}
+		byLogin[key] = u.ID
+	}
+	n := 0
+	for i := range rows {
+		key := strings.ToLower(strings.TrimSpace(rows[i].OwnerLogin))
+		uid, ok := byLogin[key]
+		if !ok || uid == 0 {
+			continue
+		}
+		if err := model.DB.Model(&rows[i]).Update("forum_user_id", uid).Error; err != nil {
+			log.Printf("[gitea] 回填 forum_user_id 失败 repo=%s: %v", rows[i].FullName, err)
+			continue
+		}
+		n++
+	}
+	if n > 0 {
+		log.Printf("[gitea] 回填 forum_user_id：%d 条", n)
+	}
+	return n
+}
+
+// AttachGiteaOwners 为列表项批量填充论坛用户摘要；丢弃无法解析到论坛用户的条目。
+// 优先 forum_user_id；缺失时按 owner_login≈username 兜底，并回写 forum_user_id。
+func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoView {
+	if len(list) == 0 {
+		return list
+	}
+
+	idSet := make(map[uint]struct{})
+	ids := make([]uint, 0, len(list))
+	loginSet := make(map[string]struct{})
+	logins := make([]string, 0, len(list))
+	for _, item := range list {
+		if item.ForumUserID != nil && *item.ForumUserID > 0 {
+			id := *item.ForumUserID
+			if _, ok := idSet[id]; !ok {
+				idSet[id] = struct{}{}
+				ids = append(ids, id)
+			}
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(item.OwnerLogin))
+		if key == "" {
+			continue
+		}
+		if _, ok := loginSet[key]; ok {
+			continue
+		}
+		loginSet[key] = struct{}{}
+		logins = append(logins, key)
+	}
+
+	byID := make(map[uint]*model.User)
+	byLogin := make(map[string]*model.User)
+	ptrs := make([]*model.User, 0, len(ids)+len(logins))
+
+	if len(ids) > 0 {
+		var users []model.User
+		if err := model.DB.Where("id IN ? AND banned = ?", ids, false).Find(&users).Error; err == nil {
+			for i := range users {
+				u := &users[i]
+				byID[u.ID] = u
+				ptrs = append(ptrs, u)
+				key := strings.ToLower(strings.TrimSpace(u.Username))
+				if key != "" {
+					byLogin[key] = u
+				}
+			}
+		}
+	}
+	if len(logins) > 0 {
+		var users []model.User
+		if err := model.DB.Where("banned = ? AND LOWER(username) IN ?", false, logins).Find(&users).Error; err == nil {
+			for i := range users {
+				u := &users[i]
+				key := strings.ToLower(strings.TrimSpace(u.Username))
+				if key == "" {
+					continue
+				}
+				if _, exists := byLogin[key]; exists {
+					continue
+				}
+				byLogin[key] = u
+				byID[u.ID] = u
+				ptrs = append(ptrs, u)
+			}
+		}
+	}
+
+	if len(ptrs) == 0 {
+		return nil
+	}
+	// 去重 ptrs
+	seenPtr := make(map[uint]struct{}, len(ptrs))
+	uniq := make([]*model.User, 0, len(ptrs))
+	for _, u := range ptrs {
+		if u == nil || u.ID == 0 {
+			continue
+		}
+		if _, ok := seenPtr[u.ID]; ok {
+			continue
+		}
+		seenPtr[u.ID] = struct{}{}
+		uniq = append(uniq, u)
+	}
+	if badge != nil {
+		badge.AttachBadgeSummaries(uniq, 3)
+	} else {
+		for _, u := range uniq {
+			u.Level = model.LevelFromExp(u.Exp)
+		}
+	}
+
+	out := make([]GiteaRepoView, 0, len(list))
+	for i := range list {
+		item := list[i]
+		var u *model.User
+		if item.ForumUserID != nil && *item.ForumUserID > 0 {
+			u = byID[*item.ForumUserID]
+		}
+		if u == nil {
+			key := strings.ToLower(strings.TrimSpace(item.OwnerLogin))
+			u = byLogin[key]
+			if u != nil {
+				uid := u.ID
+				item.ForumUserID = &uid
+				// 回写缺失关联，便于下次列表过滤命中
+				_ = model.DB.Model(&model.GiteaRepo{}).Where("id = ?", item.ID).
+					Update("forum_user_id", uid).Error
+			}
+		}
+		if u == nil {
+			continue
+		}
+		nick := strings.TrimSpace(u.Nickname)
+		if nick == "" {
+			nick = u.Username
+		}
+		item.Owner = &GiteaOwnerView{
+			ID:       u.ID,
+			Nickname: nick,
+			Avatar:   u.Avatar,
+			Role:     u.Role,
+			Verified: u.Verified,
+			Exp:      u.Exp,
+			Level:    model.LevelFromExp(u.Exp),
+			Badges:   u.Badges,
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 // SyncRepos 按论坛用户名拉取 Gitea 公开仓并 upsert
@@ -143,6 +342,9 @@ func (g *GiteaService) SyncRepos() (int, error) {
 		g.syncing = false
 		g.mu.Unlock()
 	}()
+
+	// 同步前先回填历史缺失关联
+	BackfillForumUserIDs()
 
 	var users []model.User
 	if err := model.DB.Where("banned = ?", false).Select("id", "username").Find(&users).Error; err != nil {
@@ -183,6 +385,9 @@ func (g *GiteaService) SyncRepos() (int, error) {
 				FullName:        gr.FullName,
 				Description:     truncStr(gr.Description, 2048),
 				HTMLURL:         gr.HTMLURL,
+				Language:        truncStr(gr.Language, 64),
+				StarsCount:      gr.StarsCount,
+				ForksCount:      gr.ForksCount,
 				Private:         false,
 				UpdatedAtRemote: parseGiteaTime(gr.UpdatedAt),
 				ForumUserID:     &uid,
@@ -203,9 +408,12 @@ func (g *GiteaService) SyncRepos() (int, error) {
 					"full_name":         row.FullName,
 					"description":       row.Description,
 					"html_url":          row.HTMLURL,
+					"language":          row.Language,
+					"stars_count":       row.StarsCount,
+					"forks_count":       row.ForksCount,
 					"private":           false,
 					"updated_at_remote": row.UpdatedAtRemote,
-					"forum_user_id":     row.ForumUserID,
+					"forum_user_id":     uid, // 写死 uint，避免 *uint 进 map 未落库
 					"synced_at":         row.SyncedAt,
 				}).Error; err != nil {
 					log.Printf("[gitea] 更新仓库失败 %s: %v", gr.FullName, err)
@@ -231,6 +439,9 @@ func (g *GiteaService) SyncRepos() (int, error) {
 		}
 	}
 
+	// 同步后再回填一次（覆盖 owner_login 大小写等边角）
+	BackfillForumUserIDs()
+
 	log.Printf("[gitea] 同步完成：upsert %d 个公开仓库", upserted)
 	return upserted, nil
 }
@@ -241,6 +452,9 @@ type giteaAPIRepo struct {
 	FullName    string `json:"full_name"`
 	Description string `json:"description"`
 	HTMLURL     string `json:"html_url"`
+	Language    string `json:"language"`
+	StarsCount  int    `json:"stars_count"`
+	ForksCount  int    `json:"forks_count"`
 	Private     bool   `json:"private"`
 	UpdatedAt   string `json:"updated_at"`
 	Owner       struct {
@@ -310,6 +524,9 @@ func toGiteaRepoView(r model.GiteaRepo) GiteaRepoView {
 		FullName:        r.FullName,
 		Description:     r.Description,
 		HTMLURL:         r.HTMLURL,
+		Language:        r.Language,
+		StarsCount:      r.StarsCount,
+		ForksCount:      r.ForksCount,
 		UpdatedAtRemote: r.UpdatedAtRemote,
 		ForumUserID:     r.ForumUserID,
 		SyncedAt:        r.SyncedAt,
