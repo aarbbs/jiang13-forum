@@ -26,3 +26,21 @@ func TestRedactGatedPostHTML(t *testing.T) {
 		t.Fatalf("门控正文应被遮盖，得到: %q", out)
 	}
 }
+
+func TestUnwrapContentGateTags(t *testing.T) {
+	in := `<p>公开</p>` +
+		`<members-only data-gate="login"><p>登录密</p></members-only>` +
+		`<reply-only data-gate="reply"><p>回复密</p></reply-only>` +
+		`<points-only data-gate="points" data-cost="10"><p>积分密</p></points-only>`
+	out := UnwrapContentGateTags(in)
+	for _, tag := range []string{"members-only", "reply-only", "points-only"} {
+		if strings.Contains(out, tag) {
+			t.Fatalf("应剥离 %s 外壳，得到: %q", tag, out)
+		}
+	}
+	for _, want := range []string{"公开", "登录密", "回复密", "积分密"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("应保留内部正文 %q，得到: %q", want, out)
+		}
+	}
+}

@@ -44,16 +44,18 @@ export default function FavoritesPage() {
 
   return (
     <div className="page-wrap">
-      <div className="page-inner-wide">
-        <Button variant="ghost" className="mb-3" onClick={() => nav('/')}>
-          <ArrowLeft />
-          返回
-        </Button>
-        <h1 className="page-title">我的收藏</h1>
-        <p className="page-desc">共 {list.length} 篇收藏帖子</p>
+      <div className="feed-panel list-page-panel">
+        <header className="list-page-panel__head">
+          <Button variant="ghost" size="sm" className="list-page-panel__back" onClick={() => nav('/')}>
+            <ArrowLeft />
+            返回
+          </Button>
+          <h1 className="page-title">我的收藏</h1>
+          <p className="page-desc">共 {list.length} 篇收藏帖子</p>
+        </header>
 
         {list.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state list-page-panel__empty">
             <Star className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
             <p>还没有收藏任何帖子</p>
             <Button onClick={() => nav('/')}>去逛逛</Button>

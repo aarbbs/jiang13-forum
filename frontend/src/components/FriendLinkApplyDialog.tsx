@@ -188,35 +188,43 @@ export default function FriendLinkApplyDialog({ open, onOpenChange, editApply, o
               >
                 友链在我的网站首页
               </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={linkPlacement === 'custom'}
+              <div
                 className={cn(
-                  'friend-link-apply-placement__option',
-                  linkPlacement === 'custom' && 'friend-link-apply-placement__option--active',
+                  'friend-link-apply-placement__custom',
+                  linkPlacement === 'custom' && 'friend-link-apply-placement__custom--open',
                 )}
-                onClick={() => setLinkPlacement('custom')}
               >
-                友链在其它页面
-              </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={linkPlacement === 'custom'}
+                  className={cn(
+                    'friend-link-apply-placement__option',
+                    linkPlacement === 'custom' && 'friend-link-apply-placement__option--active',
+                  )}
+                  onClick={() => setLinkPlacement('custom')}
+                >
+                  友链在其它页面
+                </button>
+                <div className="friend-link-apply-placement__custom-panel" aria-hidden={linkPlacement !== 'custom'}>
+                  <div className="friend-link-apply-placement__custom-inner">
+                    <Label htmlFor="friend-link-reciprocal">添加我方链接的页面地址</Label>
+                    <Input
+                      id="friend-link-reciprocal"
+                      value={reciprocalPageURL}
+                      onChange={e => setReciprocalPageURL(e.target.value)}
+                      placeholder="如：https://您的域名/link.htm"
+                      maxLength={512}
+                      tabIndex={linkPlacement === 'custom' ? 0 : -1}
+                    />
+                    <p className="friend-link-apply-field__hint">
+                      请填写实际放置本站友链的页面，提交后将在后台检测该页面
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          {linkPlacement === 'custom' && (
-            <div className="friend-link-apply-field">
-              <Label htmlFor="friend-link-reciprocal">添加我方链接的页面地址</Label>
-              <Input
-                id="friend-link-reciprocal"
-                value={reciprocalPageURL}
-                onChange={e => setReciprocalPageURL(e.target.value)}
-                placeholder="如：https://您的域名/link.htm"
-                maxLength={512}
-              />
-              <p className="friend-link-apply-field__hint">
-                请填写实际放置本站友链的页面，提交后将在后台检测该页面
-              </p>
-            </div>
-          )}
           <div className="friend-link-apply-field">
             <Label htmlFor="friend-link-logo">填写或上传网站 LOGO</Label>
             <div className="friend-link-apply-logo-row">

@@ -32,23 +32,11 @@ export default function FriendLinkSiteInfo() {
         </div>
         <div className="friend-link-site-info__item">
           <dt>地址</dt>
-          <dd>
-            {siteURL ? (
-              <a href={siteURL} target="_blank" rel="noopener noreferrer">{siteURL}</a>
-            ) : (
-              '—'
-            )}
-          </dd>
+          <dd>{siteURL || '—'}</dd>
         </div>
         <div className="friend-link-site-info__item">
           <dt>LOGO</dt>
-          <dd>
-            {siteLogoURL ? (
-              <a href={siteLogoURL} target="_blank" rel="noopener noreferrer">{siteLogoURL}</a>
-            ) : (
-              '—'
-            )}
-          </dd>
+          <dd>{siteLogoURL || '—'}</dd>
         </div>
       </dl>
     </section>

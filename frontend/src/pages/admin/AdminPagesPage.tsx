@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import ArticleEditor from '../../components/ArticleEditor';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { notify } from '@/lib/notify';
 import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
@@ -16,37 +23,17 @@ import type { SitePage } from '../../api/types';
 import { invalidateSitePagesCache } from '../../hooks/useSitePages';
 import AdminSortableList, { SortableDragHandle, SortableMoveButtons } from '../../components/admin/AdminSortableList';
 import { persistSortOrderChanges, shouldShowSortableMoveButtons } from '../../utils/sortOrder';
+import { formatTime } from '../../utils/content';
 import { cn } from '@/lib/utils';
 
-const EMPTY: Partial<SitePage> = {
-  title: '',
-  slug: '',
-  content: '',
-  published: false,
-  sort_order: 0,
-  show_in_footer: true,
-  show_in_nav: false,
-};
-
-function slugify(title: string): string {
-  const s = title.trim().toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return s.slice(0, 64);
-}
-
-/** 后台：自定义单页管理 */
+/** 后台：自定义单页列表 */
 export default function AdminPagesPage() {
+  const nav = useNavigate();
   const { ready } = useAdminGuard();
   const [rows, setRows] = useState<SitePage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<Partial<SitePage>>({ ...EMPTY });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -58,40 +45,7 @@ export default function AdminPagesPage() {
 
   useEffect(() => { if (ready) load(); }, [ready]);
 
-  const openCreate = () => {
-    setEditingId(null);
-    setForm({ ...EMPTY });
-    setDialogOpen(true);
-  };
-
-  const openEdit = (p: SitePage) => {
-    setEditingId(p.id);
-    setForm({ ...p });
-    setDialogOpen(true);
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      if (editingId) {
-        await api.adminUpdatePage(editingId, form);
-        notify.success('单页已更新');
-      } else {
-        await api.adminCreatePage(form);
-        notify.success('单页已创建');
-      }
-      invalidateSitePagesCache();
-      setDialogOpen(false);
-      load();
-    } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : '保存失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const remove = async (id: number) => {
-    if (!window.confirm('确定删除该单页？')) return;
     try {
       await api.adminDeletePage(id);
       invalidateSitePagesCache();
@@ -102,12 +56,36 @@ export default function AdminPagesPage() {
     }
   };
 
+  const togglePublished = async (page: SitePage, next: boolean) => {
+    const prev = page.published;
+    setTogglingId(page.id);
+    setRows(list => list.map(r => (r.id === page.id ? { ...r, published: next } : r)));
+    try {
+      await api.adminSetPagePublished(page.id, next);
+      invalidateSitePagesCache();
+      notify.success(next ? '已发布' : '已取消发布');
+    } catch (e: unknown) {
+      setRows(list => list.map(r => (r.id === page.id ? { ...r, published: prev } : r)));
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const handlePageReorder = async (reordered: SitePage[]) => {
     const before = [...rows];
     setReordering(true);
     try {
       const after = await persistSortOrderChanges(before, reordered, page =>
-        api.adminUpdatePage(page.id, { sort_order: page.sort_order }),
+        api.adminUpdatePage(page.id, {
+          title: page.title,
+          slug: page.slug,
+          content: page.content,
+          published: page.published,
+          sort_order: page.sort_order,
+          show_in_footer: page.show_in_footer,
+          show_in_nav: page.show_in_nav,
+        }),
       );
       setRows(after);
       invalidateSitePagesCache();
@@ -121,17 +99,18 @@ export default function AdminPagesPage() {
   };
 
   const showMoveButtons = shouldShowSortableMoveButtons(rows.length);
+  const busy = reordering || togglingId != null;
 
   if (!ready) return null;
 
   return (
     <div className="admin-page">
-      <header className="admin-page-head">
+      <header className="admin-page-head admin-page-head-row">
         <div>
           <h1><FileText size={20} aria-hidden /> 单页管理</h1>
           <p>创建「关于我们」「版规」等独立页面</p>
         </div>
-        <Button onClick={openCreate}><Plus size={16} /> 新建单页</Button>
+        <Button onClick={() => nav('/admin/pages/new')}><Plus size={16} /> 新建单页</Button>
       </header>
 
       {loading ? <Spinner /> : (
@@ -145,12 +124,13 @@ export default function AdminPagesPage() {
                 <th>权重</th>
                 <th>发布</th>
                 <th>展示</th>
+                <th>更新时间</th>
                 <th>操作</th>
               </tr>
             </thead>
             {rows.length === 0 ? (
               <tbody>
-                <tr><td colSpan={7} className="admin-table-empty">暂无单页</td></tr>
+                <tr><td colSpan={8} className="admin-table-empty">暂无单页</td></tr>
               </tbody>
             ) : (
               <AdminSortableList
@@ -171,14 +151,76 @@ export default function AdminPagesPage() {
                         {showMoveButtons && <SortableMoveButtons controls={controls} />}
                       </div>
                     </td>
-                    <td>{p.title}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-table-link"
+                        onClick={() => nav(`/admin/pages/${p.id}/edit`)}
+                        disabled={busy}
+                      >
+                        {p.title}
+                      </button>
+                    </td>
                     <td><code>/page/{p.slug}</code></td>
                     <td>{p.sort_order}</td>
-                    <td>{p.published ? '是' : '否'}</td>
-                    <td>{[p.show_in_footer && '页脚', p.show_in_nav && '导航'].filter(Boolean).join('、') || '—'}</td>
+                    <td>
+                      <label className="admin-page-publish-toggle">
+                        <Switch
+                          checked={!!p.published}
+                          disabled={busy}
+                          onCheckedChange={(v) => togglePublished(p, v)}
+                          aria-label={p.published ? `取消发布 ${p.title}` : `发布 ${p.title}`}
+                        />
+                        <span className={cn(
+                          'admin-page-publish-toggle__label',
+                          p.published ? 'is-on' : 'is-off',
+                        )}>
+                          {p.published ? '已发布' : '草稿'}
+                        </span>
+                      </label>
+                    </td>
+                    <td>
+                      <span className="admin-table-tags">
+                        {p.show_in_footer && <Badge variant="outline">页脚</Badge>}
+                        {p.show_in_nav && <Badge variant="outline">导航</Badge>}
+                        {!p.show_in_footer && !p.show_in_nav && '—'}
+                      </span>
+                    </td>
+                    <td className="admin-table-muted">{p.updated_at ? formatTime(p.updated_at) : '—'}</td>
                     <td className="admin-table-actions">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(p)} disabled={reordering}><Pencil size={14} /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => remove(p.id)} disabled={reordering}><Trash2 size={14} /></Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => nav(`/admin/pages/${p.id}/edit`)}
+                        disabled={busy}
+                        aria-label={`编辑 ${p.title}`}
+                      >
+                        <Pencil size={14} />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            aria-label={`删除 ${p.title}`}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>删除单页「{p.title}」？</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              删除后不可恢复，前台链接 /page/{p.slug} 将失效。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => remove(p.id)}>删除</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </td>
                   </tr>
                 )}
@@ -187,65 +229,6 @@ export default function AdminPagesPage() {
           </table>
         </div>
       )}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="admin-page-dialog">
-          <DialogHeader>
-            <DialogTitle>{editingId ? '编辑单页' : '新建单页'}</DialogTitle>
-          </DialogHeader>
-          <div className="admin-form-grid">
-            <div>
-              <Label htmlFor="page-title">标题</Label>
-              <Input
-                id="page-title"
-                value={form.title ?? ''}
-                onChange={e => {
-                  const title = e.target.value;
-                  setForm(f => ({
-                    ...f,
-                    title,
-                    slug: f.slug || slugify(title),
-                  }));
-                }}
-              />
-            </div>
-            <div>
-              <Label htmlFor="page-slug">Slug（URL 路径）</Label>
-              <Input
-                id="page-slug"
-                value={form.slug ?? ''}
-                onChange={e => setForm(f => ({ ...f, slug: e.target.value }))}
-                placeholder="about-us"
-              />
-            </div>
-            <div className="admin-form-row">
-              <Label htmlFor="page-sort">排序</Label>
-              <Input
-                id="page-sort"
-                type="number"
-                value={form.sort_order ?? 0}
-                onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) || 0 }))}
-              />
-            </div>
-            <div className="admin-form-switches">
-              <label><Switch checked={!!form.published} onCheckedChange={v => setForm(f => ({ ...f, published: v }))} /> 发布</label>
-              <label><Switch checked={!!form.show_in_footer} onCheckedChange={v => setForm(f => ({ ...f, show_in_footer: v }))} /> 页脚展示</label>
-              <label><Switch checked={!!form.show_in_nav} onCheckedChange={v => setForm(f => ({ ...f, show_in_nav: v }))} /> 侧栏导航</label>
-            </div>
-            <div>
-              <Label>正文</Label>
-              <ArticleEditor
-                value={form.content ?? ''}
-                onChange={html => setForm(f => ({ ...f, content: html }))}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-            <Button disabled={saving} onClick={save}>{saving ? '保存中…' : '保存'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

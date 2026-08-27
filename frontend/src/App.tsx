@@ -40,6 +40,7 @@ const AdminUsersPage = lazyWithRetry(() => import('./pages/admin/AdminUsersPage'
 const AdminBadgesPage = lazyWithRetry(() => import('./pages/admin/AdminBadgesPage'));
 const AdminMediaPage = lazyWithRetry(() => import('./pages/admin/AdminMediaPage'));
 const AdminPagesPage = lazyWithRetry(() => import('./pages/admin/AdminPagesPage'));
+const AdminSitePageEditPage = lazyWithRetry(() => import('./pages/admin/AdminSitePageEditPage'));
 const AdminLinksPage = lazyWithRetry(() => import('./pages/admin/AdminLinksPage'));
 const SitePageView = lazyWithRetry(() => import('./pages/SitePageView'));
 const AdminSettingsPage = lazyWithRetry(() => import('./pages/admin/AdminSettingsPage'));
@@ -56,6 +57,8 @@ const router = createBrowserRouter(
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>} />
         <Route path="boards" element={<Suspense fallback={<PageLoader />}><BoardsManagePage /></Suspense>} />
+        <Route path="pages/new" element={<Suspense fallback={<PageLoader />}><AdminSitePageEditPage /></Suspense>} />
+        <Route path="pages/:id/edit" element={<Suspense fallback={<PageLoader />}><AdminSitePageEditPage /></Suspense>} />
         <Route path="pages" element={<Suspense fallback={<PageLoader />}><AdminPagesPage /></Suspense>} />
         <Route path="links" element={<Suspense fallback={<PageLoader />}><AdminLinksPage /></Suspense>} />
         <Route path="posts" element={<Suspense fallback={<PageLoader />}><AdminPostsPage /></Suspense>} />

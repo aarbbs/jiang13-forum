@@ -27,6 +27,7 @@ import {
   cycleMarkdownHeading,
   insertMarkdownMembersOnly,
   insertMarkdownReplyOnly,
+  insertMarkdownPointsOnly,
   insertMarkdownLink,
 } from '../utils/markdownFormat';
 import { countWords } from '../utils/text';
@@ -63,6 +64,11 @@ interface Props {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /**
+   * 是否启用登录/回复/积分可见区块。
+   * 发帖默认 true；自定义单页等场景应关闭。
+   */
+  enableContentGates?: boolean;
 }
 
 type EditorMode = 'rich' | 'markdown';
@@ -211,7 +217,7 @@ function renderToolButtons(tools: ToolBtn[]) {
 }
 
 const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor(
-  { value, onChange, placeholder = '在此撰写正文…' },
+  { value, onChange, placeholder = '在此撰写正文…', enableContentGates = true },
   ref,
 ) {
   const isInternalUpdate = useRef(false);
@@ -274,9 +280,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         },
         includeChildren: true,
       }),
-      MembersOnly,
-      ReplyOnly,
-      PointsOnly,
+      ...(enableContentGates ? [MembersOnly, ReplyOnly, PointsOnly] : []),
       TabIndent,
     ],
     content: sanitizeHtml(value) || '',
@@ -698,65 +702,81 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       );
     }
 
-    tools.push(
-      {
-        icon: <LockKeyhole size={15} />,
-        title: '登录可见',
-        hint: '插入或包裹；区块内 Ctrl+Enter 退出',
-        active: editor.isActive('membersOnly'),
-        className: 'article-tool-btn--members',
-        action: wrapMembersOnly,
-      },
-      {
-        icon: <MessageSquareLock size={15} />,
-        title: '回复可见',
-        hint: '读者回复后才可见；区块内 Ctrl+Enter 退出',
-        active: editor.isActive('replyOnly'),
-        className: 'article-tool-btn--reply',
-        action: wrapReplyOnly,
-      },
-      {
-        icon: <Coins size={15} />,
-        title: '积分可见',
-        hint: '读者花费积分解锁；可设价格',
-        active: editor.isActive('pointsOnly'),
-        className: 'article-tool-btn--points',
-        action: wrapPointsOnly,
-      },
-    );
+    if (enableContentGates) {
+      tools.push(
+        {
+          icon: <LockKeyhole size={15} />,
+          title: '登录可见',
+          hint: '插入或包裹；区块内 Ctrl+Enter 退出',
+          active: editor.isActive('membersOnly'),
+          className: 'article-tool-btn--members',
+          action: wrapMembersOnly,
+        },
+        {
+          icon: <MessageSquareLock size={15} />,
+          title: '回复可见',
+          hint: '读者回复后才可见；区块内 Ctrl+Enter 退出',
+          active: editor.isActive('replyOnly'),
+          className: 'article-tool-btn--reply',
+          action: wrapReplyOnly,
+        },
+        {
+          icon: <Coins size={15} />,
+          title: '积分可见',
+          hint: '读者花费积分解锁；可设价格',
+          active: editor.isActive('pointsOnly'),
+          className: 'article-tool-btn--points',
+          action: wrapPointsOnly,
+        },
+      );
+    }
 
     return tools;
-  }, [editor, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, enableContentGates, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
 
-  const buildMarkdownTools = useCallback((): ToolBtn[] => [
-    { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
-    { icon: <Bold size={15} />, title: '加粗', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '**', '**', '加粗文字', ch)) },
-    { icon: <Italic size={15} />, title: '斜体', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '*', '*', '斜体文字', ch)) },
-    { icon: <UnderlineIcon size={15} />, title: '下划线', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '<u>', '</u>', '下划线文字', ch)) },
-    { icon: <Strikethrough size={15} />, title: '删除线', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '~~', '~~', '删除线文字', ch)) },
-    { icon: <Minus size={15} />, title: '分割线', action: withMarkdown((ta, v, ch) => insertAtCursor(ta, v, '\n\n---\n\n', ch)) },
-    { icon: <Quote size={15} />, title: '引用', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '> ', ch)) },
-    { icon: <List size={15} />, title: '无序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '- ', ch)) },
-    { icon: <ListOrdered size={15} />, title: '有序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '1. ', ch)) },
-    { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', action: () => openCodeBlockDialog('markdown') },
-    { icon: <TableIcon size={15} />, title: '表格', hint: '插入 GFM 管道表', action: () => openTableDialog('markdown') },
-    { icon: <LinkIcon size={15} />, title: '链接', action: () => openLinkDialog('markdown') },
-    { icon: <ImageIcon size={15} />, title: '上传图片', action: insertMarkdownImage },
-    {
-      icon: <LockKeyhole size={15} />,
-      title: '登录可见',
-      hint: '插入 <members-only> 区块',
-      className: 'article-tool-btn--members',
-      action: withMarkdown(insertMarkdownMembersOnly),
-    },
-    {
-      icon: <MessageSquareLock size={15} />,
-      title: '回复可见',
-      hint: '插入 <reply-only> 区块',
-      className: 'article-tool-btn--reply',
-      action: withMarkdown(insertMarkdownReplyOnly),
-    },
-  ], [withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, insertMarkdownImage]);
+  const buildMarkdownTools = useCallback((): ToolBtn[] => {
+    const tools: ToolBtn[] = [
+      { icon: <strong>H</strong>, title: '标题', hint: 'H2 → H6 循环', action: withMarkdown(cycleMarkdownHeading) },
+      { icon: <Bold size={15} />, title: '加粗', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '**', '**', '加粗文字', ch)) },
+      { icon: <Italic size={15} />, title: '斜体', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '*', '*', '斜体文字', ch)) },
+      { icon: <UnderlineIcon size={15} />, title: '下划线', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '<u>', '</u>', '下划线文字', ch)) },
+      { icon: <Strikethrough size={15} />, title: '删除线', action: withMarkdown((ta, v, ch) => wrapMarkdownSelection(ta, v, '~~', '~~', '删除线文字', ch)) },
+      { icon: <Minus size={15} />, title: '分割线', action: withMarkdown((ta, v, ch) => insertAtCursor(ta, v, '\n\n---\n\n', ch)) },
+      { icon: <Quote size={15} />, title: '引用', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '> ', ch)) },
+      { icon: <List size={15} />, title: '无序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '- ', ch)) },
+      { icon: <ListOrdered size={15} />, title: '有序列表', action: withMarkdown((ta, v, ch) => prefixMarkdownLines(ta, v, '1. ', ch)) },
+      { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', action: () => openCodeBlockDialog('markdown') },
+      { icon: <TableIcon size={15} />, title: '表格', hint: '插入 GFM 管道表', action: () => openTableDialog('markdown') },
+      { icon: <LinkIcon size={15} />, title: '链接', action: () => openLinkDialog('markdown') },
+      { icon: <ImageIcon size={15} />, title: '上传图片', action: insertMarkdownImage },
+    ];
+    if (enableContentGates) {
+      tools.push(
+        {
+          icon: <LockKeyhole size={15} />,
+          title: '登录可见',
+          hint: '插入 <members-only> 区块',
+          className: 'article-tool-btn--members',
+          action: withMarkdown(insertMarkdownMembersOnly),
+        },
+        {
+          icon: <MessageSquareLock size={15} />,
+          title: '回复可见',
+          hint: '插入 <reply-only> 区块',
+          className: 'article-tool-btn--reply',
+          action: withMarkdown(insertMarkdownReplyOnly),
+        },
+        {
+          icon: <Coins size={15} />,
+          title: '积分可见',
+          hint: '插入 <points-only> 区块',
+          className: 'article-tool-btn--points',
+          action: withMarkdown(insertMarkdownPointsOnly),
+        },
+      );
+    }
+    return tools;
+  }, [enableContentGates, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, insertMarkdownImage]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'

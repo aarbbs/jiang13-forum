@@ -51,21 +51,23 @@ export default function ProjectsPage() {
 
   return (
     <div className="page-wrap">
-      <div className="page-inner-wide">
-        <Button variant="ghost" className="mb-3" onClick={() => nav('/')}>
-          <ArrowLeft />
-          返回
-        </Button>
-        <h1 className="page-title">开源码桶</h1>
-        <p className="page-desc">
-          论坛会员在 Gitea 上的公开仓库
-          {total > 0 ? ` · 共 ${total} 个` : ''}
-        </p>
+      <div className="feed-panel list-page-panel">
+        <header className="list-page-panel__head">
+          <Button variant="ghost" size="sm" className="list-page-panel__back" onClick={() => nav('/')}>
+            <ArrowLeft />
+            返回
+          </Button>
+          <h1 className="page-title">开源码桶</h1>
+          <p className="page-desc">
+            论坛会员在 Gitea 上的公开仓库
+            {total > 0 ? ` · 共 ${total} 个` : ''}
+          </p>
+        </header>
 
         {loading ? (
           <div className="flex justify-center py-16"><Spinner size="lg" /></div>
         ) : list.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state list-page-panel__empty">
             <FolderGit2 className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
             <p>暂无同步到的公开项目</p>
             <p className="page-desc" style={{ marginTop: 8 }}>

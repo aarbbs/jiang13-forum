@@ -301,6 +301,8 @@ export interface SitePageSummary {
 export interface SitePage extends SitePageSummary {
   content: string;
   published: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PollOptionView {

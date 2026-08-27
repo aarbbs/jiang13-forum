@@ -71,7 +71,7 @@ func (s *SitePageService) GetBySlug(slug string, allowUnpublished bool) (*model.
 	if err := q.First(&page).Error; err != nil {
 		return nil, ErrSitePageNotFound
 	}
-	page.Content = SanitizePostHTML(page.Content)
+	page.Content = SanitizePostHTML(UnwrapContentGateTags(page.Content))
 	return &page, nil
 }
 
@@ -80,6 +80,7 @@ func (s *SitePageService) GetByID(id uint) (*model.SitePage, error) {
 	if err := model.DB.First(&page, id).Error; err != nil {
 		return nil, ErrSitePageNotFound
 	}
+	page.Content = SanitizePostHTML(UnwrapContentGateTags(page.Content))
 	return &page, nil
 }
 
@@ -145,6 +146,15 @@ func (s *SitePageService) Delete(id uint) error {
 	return nil
 }
 
+// SetPublished 仅切换发布状态（列表快捷操作）
+func (s *SitePageService) SetPublished(id uint, published bool) error {
+	page, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+	return model.DB.Model(page).Update("published", published).Error
+}
+
 func (s *SitePageService) ListSitemap(limit int) ([]model.SitePage, error) {
 	if limit <= 0 {
 		limit = 500
@@ -161,7 +171,8 @@ func (s *SitePageService) normalizeInput(in SitePageInput) (*model.SitePage, err
 	if !ok {
 		return nil, errors.New("slug 格式无效（2-64 位小写字母、数字、连字符）")
 	}
-	content := s.filter.Filter(SanitizePostHTML(in.Content))
+	// 单页不支持登录/回复/积分可见：保存前剥离外壳，保留内部正文
+	content := s.filter.Filter(SanitizePostHTML(UnwrapContentGateTags(in.Content)))
 	if title == "" {
 		return nil, errors.New("标题不能为空")
 	}

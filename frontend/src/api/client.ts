@@ -397,10 +397,16 @@ export const api = {
   postLotteryDraw: (id: number) =>
     request<{ message: string; lottery: PostLotteryView }>(`/api/posts/${id}/lottery/draw`, { method: 'POST', body: '{}' }),
   adminPages: () => request<{ pages: SitePage[] }>('/api/admin/pages'),
+  adminPage: (id: number) => request<{ page: SitePage }>(`/api/admin/pages/${id}`),
   adminCreatePage: (data: Partial<SitePage>) =>
     request<{ message: string; page: SitePage }>('/api/admin/pages', { method: 'POST', body: JSON.stringify(data) }),
   adminUpdatePage: (id: number, data: Partial<SitePage>) =>
     request<{ message: string }>(`/api/admin/pages/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  adminSetPagePublished: (id: number, published: boolean) =>
+    request<{ message: string; published: boolean }>(`/api/admin/pages/${id}/published`, {
+      method: 'PUT',
+      body: JSON.stringify({ published }),
+    }),
   adminDeletePage: (id: number) =>
     request<{ message: string }>(`/api/admin/pages/${id}`, { method: 'DELETE' }),
   adminFriendLinkApplies: (params?: { page?: number; size?: number; status?: string }) => {

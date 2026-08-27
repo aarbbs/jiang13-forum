@@ -101,6 +101,21 @@ export function insertMarkdownReplyOnly(
   applyTextareaChange(textarea, next, cursor, cursor, onChange);
 }
 
+/** 插入积分可见区块模板 */
+export function insertMarkdownPointsOnly(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  onChange: ChangeHandler,
+  cost = 10,
+) {
+  const { selectionStart, selectionEnd } = textarea;
+  const open = `\n\n<points-only data-gate="points" data-cost="${cost}">\n\n`;
+  const snippet = `${open}\n</points-only>\n\n`;
+  const next = value.slice(0, selectionStart) + snippet + value.slice(selectionEnd);
+  const cursor = selectionStart + open.length;
+  applyTextareaChange(textarea, next, cursor, cursor, onChange);
+}
+
 /** 在光标处插入链接 Markdown */
 export function insertMarkdownLink(
   textarea: HTMLTextAreaElement,

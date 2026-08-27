@@ -34,6 +34,21 @@ func (h *Handlers) APIPageDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"page": page})
 }
 
+// APIAdminGetPage 管理端单页详情
+func (h *Handlers) APIAdminGetPage(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的单页 ID"})
+		return
+	}
+	page, err := h.SitePage.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "单页不存在"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"page": page})
+}
+
 // APIAdminPages 管理端单页列表
 func (h *Handlers) APIAdminPages(c *gin.Context) {
 	pages, err := h.SitePage.ListAll()
@@ -85,6 +100,31 @@ func (h *Handlers) APIAdminDeletePage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "单页已删除"})
+}
+
+// APIAdminSetPagePublished 切换单页发布状态
+func (h *Handlers) APIAdminSetPagePublished(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的单页 ID"})
+		return
+	}
+	var body struct {
+		Published bool `json:"published"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式无效"})
+		return
+	}
+	if err := h.SitePage.SetPublished(uint(id), body.Published); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := "已取消发布"
+	if body.Published {
+		msg = "已发布"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "published": body.Published})
 }
 
 // APIPollVote 投票

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,12 @@ import { loginPath } from '../utils/authRedirect';
 import { resolveFriendLinkLogo, isReciprocalChecking, reciprocalStatusLabel } from '../utils/friendLink';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import FriendLinkApplyDialog from '../components/FriendLinkApplyDialog';
+
+const APPLY_STATUS_ORDER: Record<FriendLinkApply['status'], number> = {
+  pending: 0,
+  rejected: 1,
+  approved: 2,
+};
 
 function applyStatusBadge(status: FriendLinkApply['status']) {
   switch (status) {
@@ -56,6 +62,36 @@ export default function LinksPage() {
   const friendLinks = (branding.friend_links ?? []).filter(
     (l: FriendLink) => l.name?.trim() && l.url?.trim(),
   );
+
+  const sortedApplies = useMemo(
+    () => [...myApplies].sort((a, b) => {
+      const byStatus = APPLY_STATUS_ORDER[a.status] - APPLY_STATUS_ORDER[b.status];
+      if (byStatus !== 0) return byStatus;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }),
+    [myApplies],
+  );
+
+  const applyCounts = useMemo(() => {
+    let pending = 0;
+    let rejected = 0;
+    let approved = 0;
+    for (const a of myApplies) {
+      if (a.status === 'pending') pending += 1;
+      else if (a.status === 'rejected') rejected += 1;
+      else if (a.status === 'approved') approved += 1;
+    }
+    return { pending, rejected, approved };
+  }, [myApplies]);
+
+  const applySummaryText = useMemo(() => {
+    if (myApplies.length === 0) return '';
+    const parts: string[] = [];
+    if (applyCounts.pending > 0) parts.push(`${applyCounts.pending} 待审`);
+    if (applyCounts.rejected > 0) parts.push(`${applyCounts.rejected} 已拒绝`);
+    if (applyCounts.approved > 0) parts.push(`${applyCounts.approved} 已通过`);
+    return `我的申请 · ${parts.join(' / ')}`;
+  }, [myApplies.length, applyCounts]);
 
   const loadMyApplies = useCallback(() => {
     if (!user) {
@@ -129,165 +165,188 @@ export default function LinksPage() {
       setCancelingId(null);
     }
   };
+
+  const friendLinksBlock = friendLinks.length === 0 ? (
+    <div className="empty-state links-page-empty list-page-panel__empty">
+      <Link2 className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
+      <p>暂无友情链接</p>
+      <p className="page-desc" style={{ marginTop: 8 }}>
+        注册登录后可提交申请，审核通过后将展示在此页
+      </p>
+    </div>
+  ) : (
+    <div className="links-page-board">
+      <div className="links-page-grid">
+        {friendLinks.map(link => {
+          const logoURL = resolveFriendLinkLogo(link.logo, branding.site_url);
+          return (
+            <a
+              key={`${link.name}-${link.url}`}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="links-page-card"
+              title={link.name}
+            >
+              <div className="links-page-card__logo">
+                {logoURL ? (
+                  <img src={logoURL} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <span>{linkInitial(link.name)}</span>
+                )}
+              </div>
+              <strong className="links-page-card__name">{link.name}</strong>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const myAppliesBlock = user ? (
+    <section
+      id="my-applies"
+      className={`links-page-my${myApplies.length === 0 && !myLoading ? ' links-page-my--compact' : ''}`}
+      aria-label="我的友链申请"
+    >
+      <h2 className="links-page-my__title">我的申请</h2>
+      {myLoading ? (
+        <div className="flex justify-center py-10"><Spinner /></div>
+      ) : myApplies.length === 0 ? (
+        <p className="links-page-my__empty">你还没有提交过友链申请，点击右上角「申请友链」即可提交</p>
+      ) : (
+        <div className="links-page-my-list">
+          {sortedApplies.map(apply => (
+            <div key={apply.id} className="links-page-my-row">
+              {apply.logo?.trim() && (
+                <div className="links-page-my-row__logo">
+                  <img src={resolveFriendLinkLogo(apply.logo, branding.site_url)} alt="" loading="lazy" decoding="async" />
+                </div>
+              )}
+              <div className="links-page-my-row__main">
+                <div className="links-page-my-row__title">
+                  <strong>{apply.name}</strong>
+                  {applyStatusBadge(apply.status)}
+                </div>
+                <a href={apply.url} target="_blank" rel="noopener noreferrer" className="links-page-my-row__url">
+                  {apply.url}
+                </a>
+                {apply.status === 'rejected' && apply.review_note?.trim() && (
+                  <p className="links-page-my-row__note">拒绝原因：{apply.review_note}</p>
+                )}
+                {apply.status === 'pending' && (
+                  <p className="links-page-my-row__note">
+                    回链检测：{reciprocalStatusLabel(apply).text}
+                  </p>
+                )}
+                {apply.status === 'approved' && (
+                  <p className="links-page-my-row__note">修改后将重新进入审核，友链会暂时从列表移除</p>
+                )}
+                <p className="links-page-my-row__meta">{formatTime(apply.created_at)}</p>
+              </div>
+              {apply.status === 'pending' && (
+                <div className="links-page-my-row__actions">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditApply(apply)}
+                  >
+                    <Pencil size={14} aria-hidden />
+                    修改
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={cancelingId === apply.id}
+                    onClick={() => cancelApply(apply)}
+                  >
+                    <Trash2 size={14} aria-hidden />
+                    撤销
+                  </Button>
+                </div>
+              )}
+              {apply.status === 'rejected' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditApply(apply)}
+                >
+                  <Pencil size={14} aria-hidden />
+                  修改并重新提交
+                </Button>
+              )}
+              {apply.status === 'approved' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditApply(apply)}
+                >
+                  <Pencil size={14} aria-hidden />
+                  修改
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  ) : null;
+
   return (
     <div className="page-wrap">
-      <div className="page-inner-wide">
-        <Button variant="ghost" className="mb-3" onClick={() => nav('/')}>
-          <ArrowLeft />
-          返回
-        </Button>
-
-        <div className="links-page-head">
-          <div>
-            <h1 className="page-title">友情链接</h1>
-            <p className="page-desc">
-              与本站互链的站点列表
-              {friendLinks.length > 0 ? ` · 共 ${friendLinks.length} 个` : ''}
-            </p>
-          </div>
-          <Button type="button" onClick={openApply}>
-            <Plus size={16} aria-hidden />
-            申请友链
+      <div className="feed-panel list-page-panel">
+        <header className="list-page-panel__head">
+          <Button variant="ghost" size="sm" className="list-page-panel__back" onClick={() => nav('/')}>
+            <ArrowLeft />
+            返回
           </Button>
-        </div>
 
-        {friendLinks.length === 0 ? (
-          <div className="empty-state links-page-empty">
-            <Link2 className="empty-state-icon" aria-hidden size={36} strokeWidth={1.5} />
-            <p>暂无友情链接</p>
-            <p className="page-desc" style={{ marginTop: 8 }}>
-              注册登录后可提交申请，审核通过后将展示在此页
-            </p>
-          </div>
-        ) : (
-          <div className="links-page-board">
-            <div className="links-page-grid">
-              {friendLinks.map(link => {
-                const logoURL = resolveFriendLinkLogo(link.logo, branding.site_url);
-                return (
-                  <a
-                    key={`${link.name}-${link.url}`}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="links-page-card"
-                    title={link.name}
-                  >
-                    <div className="links-page-card__logo">
-                      {logoURL ? (
-                        <img src={logoURL} alt="" loading="lazy" decoding="async" />
-                      ) : (
-                        <span>{linkInitial(link.name)}</span>
-                      )}
-                    </div>
-                    <strong className="links-page-card__name">{link.name}</strong>
-                  </a>
-                );
-              })}
+          <div className="links-page-head">
+            <div>
+              <h1 className="page-title">友情链接</h1>
+              <p className="page-desc">
+                与本站互链的站点列表
+                {friendLinks.length > 0 ? ` · 共 ${friendLinks.length} 个` : ''}
+              </p>
+              {user && myApplies.length > 0 && applySummaryText ? (
+                <p
+                  className={`links-page-summary${applyCounts.pending > 0 ? ' links-page-summary--pending' : applyCounts.rejected > 0 ? ' links-page-summary--rejected' : ''}`}
+                >
+                  {applySummaryText}
+                </p>
+              ) : null}
             </div>
+            <Button type="button" onClick={openApply}>
+              <Plus size={16} aria-hidden />
+              申请友链
+            </Button>
           </div>
-        )}
+        </header>
 
-        {user && (
-          <section className="links-page-my" aria-label="我的友链申请">
-            <h2 className="links-page-my__title">我的申请</h2>
-            {myLoading ? (
-              <div className="flex justify-center py-10"><Spinner /></div>
-            ) : myApplies.length === 0 ? (
-              <p className="links-page-my__empty">你还没有提交过友链申请</p>
-            ) : (
-              <div className="links-page-my-list">
-                {myApplies.map(apply => (
-                  <div key={apply.id} className="links-page-my-row">
-                    {apply.logo?.trim() && (
-                      <div className="links-page-my-row__logo">
-                        <img src={resolveFriendLinkLogo(apply.logo, branding.site_url)} alt="" loading="lazy" decoding="async" />
-                      </div>
-                    )}
-                    <div className="links-page-my-row__main">
-                      <div className="links-page-my-row__title">
-                        <strong>{apply.name}</strong>
-                        {applyStatusBadge(apply.status)}
-                      </div>
-                      <a href={apply.url} target="_blank" rel="noopener noreferrer" className="links-page-my-row__url">
-                        {apply.url}
-                      </a>
-                      {apply.status === 'rejected' && apply.review_note?.trim() && (
-                        <p className="links-page-my-row__note">拒绝原因：{apply.review_note}</p>
-                      )}
-                      {apply.status === 'pending' && (
-                        <p className="links-page-my-row__note">
-                          回链检测：{reciprocalStatusLabel(apply).text}
-                        </p>
-                      )}
-                      {apply.status === 'approved' && (
-                        <p className="links-page-my-row__note">修改后将重新进入审核，友链会暂时从列表移除</p>
-                      )}
-                      <p className="links-page-my-row__meta">{formatTime(apply.created_at)}</p>
-                    </div>
-                    {apply.status === 'pending' && (
-                      <div className="links-page-my-row__actions">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditApply(apply)}
-                        >
-                          <Pencil size={14} aria-hidden />
-                          修改
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={cancelingId === apply.id}
-                          onClick={() => cancelApply(apply)}
-                        >
-                          <Trash2 size={14} aria-hidden />
-                          撤销
-                        </Button>
-                      </div>
-                    )}
-                    {apply.status === 'rejected' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditApply(apply)}
-                      >
-                        <Pencil size={14} aria-hidden />
-                        修改并重新提交
-                      </Button>
-                    )}
-                    {apply.status === 'approved' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditApply(apply)}
-                      >
-                        <Pencil size={14} aria-hidden />
-                        修改
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+        {/* 登录：申请区在上；游客：友链在上 */}
+        {user ? (
+          <>
+            {myAppliesBlock}
+            {friendLinksBlock}
+          </>
+        ) : (
+          <>
+            {friendLinksBlock}
+            <p className="links-page-login-hint">
+              <Link to={loginPath('/links')}>登录</Link>
+              或
+              <Link to="/register">注册</Link>
+              后可申请友链并管理自己的申请
+            </p>
+          </>
         )}
-
-        {!user && (
-          <p className="links-page-login-hint">
-            <Link to={loginPath('/links')}>登录</Link>
-            或
-            <Link to="/register">注册</Link>
-            后可申请友链并管理自己的申请
-          </p>
-        )}
-
-        <InFlowSiteFooter />
       </div>
+
+      <InFlowSiteFooter />
 
       <FriendLinkApplyDialog
         open={applyOpen}
