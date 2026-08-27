@@ -2992,7 +2992,7 @@ body:has(.admin-topbar) .ptr-indicator {
 
 .post-row--v2 .post-title {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.35;
 }
 
