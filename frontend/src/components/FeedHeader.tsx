@@ -21,7 +21,6 @@ export default function FeedHeader({
   keyword,
   tag = '',
   author = '',
-  titleOnly = false,
   boards,
   stats,
   postTotal,
@@ -30,19 +29,15 @@ export default function FeedHeader({
   const nav = useNavigate();
   const board = boards.find(b => b.id === boardId);
 
-  const filtered = !!(keyword || tag || author);
+  const isSearch = !!(keyword || author);
+  const isTag = !!tag;
+  const filtered = isSearch || isTag;
   const inBoard = !filtered && boardId > 0 && !!board;
-  /** 侧栏已有「全部帖子 / 板块名」，中间栏不再重复；仅搜索/标签保留标题 */
-  let title = '';
-  if (tag) title = `标签：${tag}`;
-  else if (keyword || author) {
-    const parts: string[] = [];
-    if (keyword) parts.push(titleOnly ? `标题含「${keyword}」` : `搜索：${keyword}`);
-    if (author) parts.push(`作者 ${author}`);
-    if (boardId && board) parts.push(`板块 ${board.name}`);
-    title = parts.join(' · ');
-  }
   const TitleTag = titleAs;
+
+  let title = '';
+  if (isTag) title = `标签：${tag}`;
+  else if (isSearch) title = '搜索结果';
 
   return (
     <div className={`feed-head${filtered ? ' feed-head--solo' : ' feed-head--stats-only'}`}>
@@ -77,18 +72,18 @@ export default function FeedHeader({
             </span>
           </div>
         )}
+        {filtered && (
+          <span className="feed-head__meta feed-head__meta--count">共 {postTotal} 条</span>
+        )}
       </div>
-      {filtered && (
+      {isTag && (
         <button
           type="button"
           className="feed-head__clear"
           onClick={() => navigateFeed(nav, '/')}
         >
-          {tag ? '清除标签' : '清除搜索'}
+          清除标签
         </button>
-      )}
-      {filtered && (
-        <span className="feed-toolbar__count">共 {postTotal} 条</span>
       )}
     </div>
   );

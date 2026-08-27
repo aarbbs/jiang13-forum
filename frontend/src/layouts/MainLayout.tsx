@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import PageLoader from '../components/PageLoader';
 import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Menu, Moon, Sun, Search, Plus, PanelRight, X, Mail } from 'lucide-react';
+import { Menu, Moon, Sun, Search, Plus, PanelRight, X, Mail, SlidersHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,11 @@ import { useForumLimits } from '../hooks/useForumLimits';
 import { resolveAsideWidgets } from '../utils/asideWidgets';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
-import { notify } from '@/lib/notify';
+import PostSearchPanel from '../components/search/PostSearchPanel';
+import {
+  POST_SEARCH_OPEN_EVENT,
+  usePostSearch,
+} from '../hooks/usePostSearch';
 import { cn } from '@/lib/utils';
 import { getBoardThemeIndex } from '../utils/boardTheme';
 import { loginPath } from '../utils/authRedirect';
@@ -63,7 +67,7 @@ export default function MainLayout() {
   } | null>(null);
   const [asideOpen, setAsideOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
   const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
@@ -73,13 +77,10 @@ export default function MainLayout() {
     if (m) return parsePermalinkID(m[1]) || 0;
     return Number(params.get('board')) || 0;
   });
-  const [keyword, setKeyword] = useState(params.get('keyword') || '');
-  const [searchAuthor, setSearchAuthor] = useState(params.get('author') || '');
-  const [searchTitleOnly, setSearchTitleOnly] = useState(params.get('title_only') === '1');
-  const [searchInBoard, setSearchInBoard] = useState(!!params.get('board') && !!params.get('keyword'));
-  const [searchAdvanced, setSearchAdvanced] = useState(false);
+  const [keywordDraft, setKeywordDraft] = useState(params.get('keyword') || '');
   const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
+  const postSearch = usePostSearch(forumLimits);
   const asideWidgets = useMemo(() => resolveAsideWidgets(forumLimits), [forumLimits]);
   const showTagCloud = asideWidgets.some(w => w.id === 'tag_cloud' && w.enabled);
   const showRecentComments = asideWidgets.some(w => w.id === 'recent_comments' && w.enabled);
@@ -118,15 +119,11 @@ export default function MainLayout() {
     setBoardId(Number(params.get('board')) || 0);
   }, [loc.pathname, params]);
   useEffect(() => {
-    setKeyword(params.get('keyword') || '');
-    setSearchAuthor(params.get('author') || '');
-    setSearchTitleOnly(params.get('title_only') === '1');
-    setSearchInBoard(!!params.get('board') && (!!params.get('keyword') || !!params.get('author')));
+    setKeywordDraft(params.get('keyword') || '');
   }, [params]);
   useEffect(() => {
     setAsideOpen(false);
     setSidebarOpen(false);
-    setSearchExpanded(false);
   }, [loc.pathname, loc.search]);
   useEffect(() => {
     if (!/^\/post\/\d+/.test(loc.pathname)) setPostOutline(null);
@@ -135,16 +132,35 @@ export default function MainLayout() {
     if (!hideAside) setAsideOpen(false);
   }, [hideAside]);
   useEffect(() => {
-    if (!isMobile) {
-      setSidebarOpen(false);
-      setSearchExpanded(false);
-    }
+    if (!isMobile) setSidebarOpen(false);
   }, [isMobile]);
+
+  const openSearchPanel = useCallback(() => setSearchPanelOpen(true), []);
+
   useEffect(() => {
-    if (!searchExpanded) return;
-    const t = window.setTimeout(() => searchInputRef.current?.focus(), 50);
-    return () => window.clearTimeout(t);
-  }, [searchExpanded]);
+    const onOpen = () => setSearchPanelOpen(true);
+    window.addEventListener(POST_SEARCH_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(POST_SEARCH_OPEN_EVENT, onOpen);
+  }, []);
+
+  useEffect(() => {
+    if (isCompose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const editable = (e.target as HTMLElement | null)?.isContentEditable;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+      e.preventDefault();
+      if (isMobile) {
+        setSearchPanelOpen(true);
+      } else {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isCompose, isMobile]);
   useEffect(() => {
     if (!asideOpen && !sidebarOpen) return;
     const prev = document.body.style.overflow;
@@ -268,46 +284,28 @@ export default function MainLayout() {
     };
   }, [needRecentUsers]);
 
-  const doSearch = () => {
-    const kw = keyword.trim();
-    const author = searchAuthor.trim();
-    const activeKw = (params.get('keyword') || '').trim();
-    const activeAuthor = (params.get('author') || '').trim();
-    const activeTitleOnly = params.get('title_only') === '1';
-    const activeBoard = boardId;
-    if (!kw && !author) {
-      if (activeKw || activeAuthor) navigateFeed(nav, '/');
-      return;
-    }
-    if (kw) {
-      const len = [...kw].length;
-      if (forumLimits.search_keyword_min > 0 && len < forumLimits.search_keyword_min) {
-        notify.warning(`搜索关键词至少 ${forumLimits.search_keyword_min} 个字`);
-        return;
-      }
-      if (forumLimits.search_keyword_max > 0 && len > forumLimits.search_keyword_max) {
-        notify.warning(`搜索关键词最多 ${forumLimits.search_keyword_max} 个字`);
-        return;
-      }
-    }
-    const scopeBoard = searchInBoard && boardId > 0 ? boardId : 0;
-    const target = buildHomeUrl(scopeBoard, 'latest', {
-      keyword: kw,
+  const doQuickSearch = () => {
+    const { author, titleOnly, scopeBoardId } = postSearch.filters;
+    postSearch.submitSearch({
+      keyword: keywordDraft,
       author,
-      titleOnly: !!kw && searchTitleOnly,
-      permalink: forumLimits,
-    });
-    const same =
-      (loc.pathname === '/' || /^\/board\/\d+/.test(loc.pathname))
-      && activeKw === kw
-      && activeAuthor === author
-      && activeTitleOnly === (!!kw && searchTitleOnly)
-      && activeBoard === scopeBoard;
-    if (same) {
-      navigateFeed(nav, target);
-      return;
-    }
-    nav(target);
+      titleOnly,
+      scopeBoardId,
+    }, { refreshIfSame: true });
+  };
+
+  const handleHeaderClear = () => {
+    const hasUrlSearch = postSearch.filters.isFiltered;
+    setKeywordDraft('');
+    if (hasUrlSearch) postSearch.clearSearch();
+  };
+
+  const contextBoard = boards.find((b) => b.id === boardId);
+  const searchPanelDraft = {
+    keyword: keywordDraft,
+    author: postSearch.filters.author,
+    titleOnly: postSearch.filters.titleOnly,
+    scopeBoardId: postSearch.filters.scopeBoardId,
   };
 
   const openPost = useCallback((id: number, opts?: { floor?: number }) => {
@@ -371,9 +369,9 @@ export default function MainLayout() {
   return (
     <div className="app-shell">
       <div className="app-frame">
-      <header className={`app-header${searchExpanded && isMobile ? ' app-header--search-open' : ''}`}>
+      <header className="app-header">
         <div className="header-inner">
-          {isMobile && !isCompose && !searchExpanded && (
+          {isMobile && !isCompose && (
             <button
               type="button"
               className="header-icon-btn"
@@ -386,18 +384,16 @@ export default function MainLayout() {
               <Menu size={18} aria-hidden />
             </button>
           )}
-          {!(isMobile && searchExpanded) && (
-            <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
-              <SiteBrandMark branding={branding} className="header-logo-mark" />
-              {!isMobile && <span className="header-logo-text">{branding.name}</span>}
-            </button>
-          )}
+          <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
+            <SiteBrandMark branding={branding} className="header-logo-mark" />
+            {!isMobile && <span className="header-logo-text">{branding.name}</span>}
+          </button>
 
-          {!isCompose && isMobile && !searchExpanded && (
+          {!isCompose && isMobile && (
             <button
               type="button"
               className="header-icon-btn header-search-toggle"
-              onClick={() => setSearchExpanded(true)}
+              onClick={openSearchPanel}
               aria-label="搜索帖子"
               title="搜索"
             >
@@ -405,14 +401,13 @@ export default function MainLayout() {
             </button>
           )}
 
-          {!isCompose && (!isMobile || searchExpanded) && (
+          {!isCompose && !isMobile && (
           <form
-            className={`header-search-wrap${isMobile && searchExpanded ? ' header-search-wrap--expanded' : ''}${searchAdvanced ? ' header-search-wrap--advanced' : ''}`}
+            className="header-search-wrap"
             role="search"
             onSubmit={e => {
               e.preventDefault();
-              doSearch();
-              if (isMobile) setSearchExpanded(false);
+              doQuickSearch();
             }}
           >
             <div className="header-search-row">
@@ -421,79 +416,41 @@ export default function MainLayout() {
                 ref={searchInputRef}
                 className="header-search-input"
                 type="search"
-                placeholder="搜索帖子..."
+                placeholder="搜索帖子…"
                 aria-label="搜索帖子"
-                value={keyword}
-                onChange={e => setKeyword(e.target.value)}
+                value={keywordDraft}
+                onChange={e => setKeywordDraft(e.target.value)}
                 maxLength={forumLimits.search_keyword_max > 0 ? forumLimits.search_keyword_max : undefined}
                 enterKeyHint="search"
               />
               <button
                 type="button"
-                className={cn('header-search-adv-toggle', searchAdvanced && 'active')}
-                onClick={() => setSearchAdvanced((v) => !v)}
-                aria-expanded={searchAdvanced}
-                title="高级搜索"
+                className={cn(
+                  'header-search-filter-btn',
+                  postSearch.filters.hasAdvancedFilters && 'header-search-filter-btn--active',
+                )}
+                onClick={openSearchPanel}
+                aria-label="搜索筛选"
+                title="筛选"
               >
-                筛选
+                <SlidersHorizontal size={15} aria-hidden />
+                {postSearch.filters.hasAdvancedFilters && (
+                  <span className="header-search-filter-btn__dot" aria-hidden />
+                )}
               </button>
-              {(keyword || searchAuthor) && (
+              {(keywordDraft || postSearch.filters.isFiltered) && (
                 <button
                   type="button"
                   className="header-search-clear"
-                  onClick={() => {
-                    setKeyword('');
-                    setSearchAuthor('');
-                    setSearchTitleOnly(false);
-                    navigateFeed(nav, '/');
-                  }}
+                  onClick={handleHeaderClear}
                   aria-label="清除搜索"
                 >×</button>
               )}
-              {isMobile && searchExpanded && (
-                <button
-                  type="button"
-                  className="header-search-cancel"
-                  onClick={() => setSearchExpanded(false)}
-                >
-                  取消
-                </button>
-              )}
+              <kbd className="header-search-kbd" aria-hidden>Ctrl K</kbd>
             </div>
-            {searchAdvanced && (
-              <div className="header-search-advanced">
-                <label className="header-search-opt">
-                  <input
-                    type="checkbox"
-                    checked={searchTitleOnly}
-                    onChange={(e) => setSearchTitleOnly(e.target.checked)}
-                  />
-                  仅标题
-                </label>
-                {boardId > 0 && (
-                  <label className="header-search-opt">
-                    <input
-                      type="checkbox"
-                      checked={searchInBoard}
-                      onChange={(e) => setSearchInBoard(e.target.checked)}
-                    />
-                    当前板块
-                  </label>
-                )}
-                <input
-                  className="header-search-author"
-                  type="text"
-                  placeholder="作者用户名/昵称"
-                  aria-label="作者"
-                  value={searchAuthor}
-                  onChange={(e) => setSearchAuthor(e.target.value)}
-                />
-              </div>
-            )}
           </form>
           )}
 
-          {!(isMobile && searchExpanded) && (
           <div className="header-actions">
             {!isCompose && (
             <button
@@ -597,9 +554,24 @@ export default function MainLayout() {
               )}
             </div>
           </div>
-          )}
         </div>
       </header>
+
+      {!isCompose && (
+        <PostSearchPanel
+          open={searchPanelOpen}
+          onOpenChange={setSearchPanelOpen}
+          draft={searchPanelDraft}
+          contextBoardId={boardId}
+          contextBoardName={contextBoard?.name}
+          onSubmit={(input) => {
+            const ok = postSearch.submitSearch(input);
+            if (ok) setKeywordDraft((input.keyword ?? '').trim());
+            return ok;
+          }}
+          onClear={postSearch.clearSearch}
+        />
+      )}
 
       <div className={`app-body${isCompose ? ' app-body--compose' : ''}`}>
         {!isCompose && (

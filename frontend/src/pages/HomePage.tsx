@@ -6,9 +6,11 @@ import type { PostItem } from '../api/types';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
 import FeedHeader from '../components/FeedHeader';
+import FeedSearchFilters from '../components/search/FeedSearchFilters';
 import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { parseSearchFromUrl, usePostSearch } from '../hooks/usePostSearch';
 import {
   getFeedCache,
   setFeedCache,
@@ -41,6 +43,7 @@ export default function HomePage() {
   const ctx = useOutletContext<LayoutCtx>();
   const { branding } = useSiteBranding();
   const { limits, loading: limitsLoading } = useForumLimits();
+  const postSearch = usePostSearch(limits);
   const pageSize = Math.max(1, limits.page_size_default);
 
   const boardId = boardIdFromLocation(boardRouteId, params);
@@ -60,7 +63,7 @@ export default function HomePage() {
   const feedTitle = tag
     ? `标签：${tag}`
     : keyword || author
-      ? `搜索：${keyword || ''}${author ? (keyword ? ` · 作者 ${author}` : `作者 ${author}`) : ''}${titleOnly ? '（仅标题）' : ''}`
+      ? '搜索结果'
       : (boardId && board ? board.name : '');
   usePageSEO({
     title: feedTitle || undefined,
@@ -273,6 +276,8 @@ export default function HomePage() {
   };
 
   const showSortBar = !keyword && !tag && !author;
+  const searchFilters = parseSearchFromUrl(location.pathname, params);
+  const isSearchActive = !!(keyword || author);
 
   if (isInvalidBoardRoute || isMissingBoard) {
     return (
@@ -298,7 +303,6 @@ export default function HomePage() {
               keyword={keyword}
               tag={tag}
               author={author}
-              titleOnly={titleOnly}
               boards={ctx?.boards ?? []}
               stats={ctx?.stats ?? null}
               postTotal={postTotal}
@@ -308,6 +312,14 @@ export default function HomePage() {
               <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
             )}
           </div>
+          {isSearchActive && (
+            <FeedSearchFilters
+              filters={postSearch.filters}
+              boards={ctx?.boards ?? []}
+              onRemove={postSearch.removeFilter}
+              onClear={postSearch.clearSearch}
+            />
+          )}
         </div>
         <VirtualPostList
           posts={posts}
@@ -325,6 +337,12 @@ export default function HomePage() {
           onScrollTopChange={(top) => { scrollTopRef.current = top; }}
           onScrollRestored={() => setRestoreScrollTop(null)}
           keyword={keyword || tag || author}
+          isSearchMode={!!(keyword || author)}
+          searchKeyword={keyword}
+          searchAuthor={author}
+          searchTitleOnly={titleOnly}
+          searchScopeBoardId={searchFilters.scopeBoardId}
+          onClearSearch={postSearch.clearSearch}
           boardId={boardId}
           boardName={ctx?.boards?.find(b => b.id === boardId)?.name || ''}
           noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}

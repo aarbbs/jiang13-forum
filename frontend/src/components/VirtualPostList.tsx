@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { useMediaQuery } from '../hooks/useTheme';
 import { loginPath } from '../utils/authRedirect';
+import { dispatchOpenPostSearch } from '../hooks/usePostSearch';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
 
@@ -33,6 +34,13 @@ interface Props {
   onScrollRestored?: () => void;
   /** 搜索关键词（用于空态文案） */
   keyword?: string;
+  /** 是否为帖子搜索（区别于标签筛选） */
+  isSearchMode?: boolean;
+  searchKeyword?: string;
+  searchAuthor?: string;
+  searchTitleOnly?: boolean;
+  searchScopeBoardId?: number;
+  onClearSearch?: () => void;
   /** 当前板块 id，0 表示全部 */
   boardId?: number;
   /** 当前板块名 */
@@ -62,6 +70,12 @@ export default function VirtualPostList({
   onScrollTopChange,
   onScrollRestored,
   keyword = '',
+  isSearchMode = false,
+  searchKeyword = '',
+  searchAuthor = '',
+  searchTitleOnly = false,
+  searchScopeBoardId = 0,
+  onClearSearch,
   boardId = 0,
   boardName = '',
   noBoards = false,
@@ -132,7 +146,7 @@ export default function VirtualPostList({
   const showEnd = !hasMore && !showPagination && posts.length > 0 && !loading;
   const isInitialLoad = loading && posts.length === 0;
   const isEmpty = !loading && posts.length === 0;
-  const isSearchEmpty = isEmpty && !!keyword.trim();
+  const isSearchEmpty = isEmpty && (isSearchMode || !!keyword.trim());
   const composeTarget = boardId > 0 ? `/compose?board=${boardId}` : '/compose';
   const isAdmin = user?.role === 'admin';
 
@@ -173,6 +187,12 @@ export default function VirtualPostList({
     return () => el.removeEventListener('scroll', onScroll);
   }, [getScrollElement, isMobile]);
 
+  const searchSummaryParts: string[] = [];
+  if (searchKeyword.trim()) searchSummaryParts.push(`关键词「${searchKeyword.trim()}」`);
+  if (searchAuthor.trim()) searchSummaryParts.push(`作者 ${searchAuthor.trim()}`);
+  if (searchTitleOnly && searchKeyword.trim()) searchSummaryParts.push('仅标题');
+  if (searchScopeBoardId > 0 && boardName) searchSummaryParts.push(`板块 ${boardName}`);
+
   const emptyActions = (
     <div className="empty-feed-actions">
       {noBoards ? (
@@ -187,11 +207,14 @@ export default function VirtualPostList({
         )
       ) : isSearchEmpty ? (
         <>
+          <Button type="button" size="sm" variant="outline" onClick={dispatchOpenPostSearch}>
+            修改搜索
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => (onClearSearch ? onClearSearch() : nav('/'))}>
+            清除筛选
+          </Button>
           <Button type="button" size="sm" variant="outline" onClick={() => nav('/')}>
             返回全部帖子
-          </Button>
-          <Button type="button" size="sm" onClick={() => nav(user ? composeTarget : loginPath(composeTarget))}>
-            {user ? '发帖' : '登录后发帖'}
           </Button>
         </>
       ) : (
@@ -235,7 +258,9 @@ export default function VirtualPostList({
             {noBoards
               ? (isAdmin ? '创建第一个板块后即可开始发帖' : '管理员创建板块后即可参与讨论')
               : isSearchEmpty
-                ? '试试更短的关键词，或浏览标签云 / 板块'
+                ? (searchSummaryParts.length > 0
+                  ? `当前筛选：${searchSummaryParts.join(' · ')}。试试更短的关键词或放宽条件。`
+                  : '试试更短的关键词，或浏览标签云 / 板块')
                 : boardName
                   ? `「${boardName}」还没有内容，来发第一篇吧`
                   : '换个板块看看，或发第一篇内容'}
