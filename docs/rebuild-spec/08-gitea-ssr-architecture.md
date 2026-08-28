@@ -88,4 +88,6 @@ web_src/ → public/assets/
 
 私信：`/messages`、`/messages/with/:peerId`（系统 peer=0 只读；打开会话标已读）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词）。
+友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、入口开关）。
+
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词）、`/admin/friend-links`。

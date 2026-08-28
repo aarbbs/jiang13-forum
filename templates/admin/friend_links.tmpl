@@ -1,0 +1,95 @@
+{{define "admin/friend_links"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>友链管理</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <section>
+    <h2>入口与检测</h2>
+    <form method="post" action="/admin/friend-links/settings" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label class="j13-check"><input type="checkbox" name="nav_show" value="1"{{if .NavShow}} checked{{end}}/> 导航显示友链入口</label>
+      <label class="j13-check"><input type="checkbox" name="footer_show" value="1"{{if .FooterShow}} checked{{end}}/> 页脚显示友链入口</label>
+      <label class="j13-check"><input type="checkbox" name="reciprocal_check" value="1"{{if .ReciprocalCheck}} checked{{end}}/> 启用回链检测</label>
+      <button type="submit">保存设置</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>品牌友链（{{len .BrandLinks}}/20）</h2>
+    {{if .BrandLinks}}
+    <table class="j13-admin-table">
+      <thead><tr><th>名称</th><th>URL</th><th></th></tr></thead>
+      <tbody>
+        {{range .BrandLinks}}
+        <tr>
+          <td>{{if .Logo}}<img src="{{.Logo}}" alt="" class="j13-links__logo j13-links__logo--sm"/> {{end}}{{.Name}}</td>
+          <td><a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.URL}}</a></td>
+          <td>
+            <form method="post" action="/admin/friend-links/brand/delete" class="j13-inline-form">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <input type="hidden" name="url" value="{{.URL}}"/>
+              <button type="submit" class="j13-linkbtn">删除</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-muted">暂无品牌友链</p>
+    {{end}}
+    <form method="post" action="/admin/friend-links/brand" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <h3>添加品牌友链</h3>
+      <label>名称 <input name="name" maxlength="32" required/></label>
+      <label>URL <input name="url" type="url" required placeholder="https://"/></label>
+      <label>LOGO（可选） <input name="logo" type="text" placeholder="https:// 或 /uploads/..."/></label>
+      <button type="submit">添加</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>申请队列{{if gt .PendingCount 0}}（待审 {{.PendingCount}}）{{end}}</h2>
+    {{if .Applies}}
+    <table class="j13-admin-table">
+      <thead>
+        <tr><th>时间</th><th>申请人</th><th>站点</th><th>状态</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {{range .Applies}}
+        <tr>
+          <td>{{.CreatedAt}}</td>
+          <td>{{if .Username}}{{.Username}}{{else}}#{{.UserID}}{{end}}</td>
+          <td>
+            {{if .Logo}}<img src="{{.Logo}}" alt="" class="j13-links__logo j13-links__logo--sm"/>{{end}}
+            <a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>
+            <div class="j13-muted">回链：{{if .Reciprocal}}<a href="{{.Reciprocal}}" target="_blank" rel="noopener noreferrer">页面</a>{{else}}—{{end}}{{if .RecipOK}} · 已验证{{else if .RecipNote}} · {{.RecipNote}}{{end}}</div>
+          </td>
+          <td>{{.StatusLabel}}</td>
+          <td>
+            {{if .CanReview}}
+            <form method="post" action="/admin/friend-links/applies/{{.ID}}/approve" class="j13-inline-form">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <button type="submit">通过</button>
+            </form>
+            <form method="post" action="/admin/friend-links/applies/{{.ID}}/reject" class="j13-admin-reject">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <input name="note" placeholder="拒绝原因（可选）"/>
+              <button type="submit">拒绝</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-muted">暂无申请</p>
+    {{end}}
+  </section>
+</main>
+{{template "base/footer" .}}
+{{end}}

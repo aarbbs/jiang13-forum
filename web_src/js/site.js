@@ -176,3 +176,30 @@ document.documentElement.dataset.j13Ssr = "1";
     }
   });
 })();
+
+// 友链申请：选择文件后先上传并回填 LOGO URL
+(function () {
+  const form = document.querySelector("form[data-logo-upload]");
+  if (!form) return;
+  const fileInput = form.querySelector("#fl-logo-file");
+  const urlInput = form.querySelector("#fl-logo-url");
+  const csrfInput = form.querySelector('input[name="_csrf"]');
+  if (!fileInput || !urlInput || !csrfInput) return;
+  const uploadURL = form.getAttribute("data-logo-upload") || "/links/logo";
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("logo", file);
+    fd.append("_csrf", csrfInput.value);
+    try {
+      const res = await fetch(uploadURL, { method: "POST", body: fd, credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "上传失败");
+      if (data.url) urlInput.value = data.url;
+    } catch (e) {
+      alert(e.message || "上传失败");
+      fileInput.value = "";
+    }
+  });
+})();

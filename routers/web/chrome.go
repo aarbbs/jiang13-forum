@@ -22,8 +22,9 @@ type Deps struct {
 	Filter    *services.SensitiveFilter
 	Limiter   *services.RateLimiter
 	EmailCode *services.EmailCodeService
-	Store     *services.UploadStore
-	Points    *services.PointsService
+	Store      *services.UploadStore
+	Points     *services.PointsService
+	FriendLink *services.FriendLinkApplyService
 }
 
 // BoardView 侧栏
@@ -48,8 +49,10 @@ type PageChrome struct {
 	CSRF        string
 	Flash       string
 	Error       string
-	UnreadCount  int64 // 登录用户未读私信/通知总数；未登录为 0
-	ViewerPoints int   // 登录用户当前积分；未登录为 0
+	UnreadCount           int64 // 登录用户未读私信/通知总数；未登录为 0
+	ViewerPoints          int   // 登录用户当前积分；未登录为 0
+	ShowFriendLinksNav    bool
+	ShowFriendLinksFooter bool
 }
 
 func (d Deps) ctx(c *gin.Context) *webctx.Context {
@@ -85,20 +88,22 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		viewerPoints = ctx.Doer.Points
 	}
 	return PageChrome{
-		Title:        title,
-		Description:  desc,
-		SiteName:     brand.Name,
-		Slogan:       brand.Slogan,
-		LogoMark:     firstRuneOr(brand.LogoMark, "姜"),
-		LoggedIn:     ctx.IsSigned(),
-		IsAdmin:      ctx.IsAdmin(),
-		ViewerName:   name,
-		Boards:       bv,
-		Inner:        inner,
-		CSRF:         ctx.EnsureCSRF(),
-		Flash:        ctx.TakeFlash(),
-		UnreadCount:  unread,
-		ViewerPoints: viewerPoints,
+		Title:                 title,
+		Description:           desc,
+		SiteName:              brand.Name,
+		Slogan:                brand.Slogan,
+		LogoMark:              firstRuneOr(brand.LogoMark, "姜"),
+		LoggedIn:              ctx.IsSigned(),
+		IsAdmin:               ctx.IsAdmin(),
+		ViewerName:            name,
+		Boards:                bv,
+		Inner:                 inner,
+		CSRF:                  ctx.EnsureCSRF(),
+		Flash:                 ctx.TakeFlash(),
+		UnreadCount:           unread,
+		ViewerPoints:          viewerPoints,
+		ShowFriendLinksNav:    d.Settings.NavShowFriendLinks(),
+		ShowFriendLinksFooter: d.Settings.FooterShowFriendLinks(),
 	}
 }
 

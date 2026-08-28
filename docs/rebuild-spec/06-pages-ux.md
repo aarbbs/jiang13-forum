@@ -29,11 +29,11 @@
 | `/post/:id` | 帖详情 + 评论/赞/藏 | 已迁 |
 | `/compose` | 发帖（normal；textarea + 图片 + 门控插入） | 已迁 |
 | `/post/:id/edit` | 编辑帖 | 已迁 |
-| `/profile` | 个人中心（资料/密码/头像；无钱包/裁剪） | 已迁 |
+| `/profile` | 个人中心（资料/密码/头像/积分钱包） | 已迁 |
 | `/user/:id` | 公开用户页 | 已迁 |
 | `/favorites` | 收藏 | 已迁 |
 | `/projects` | Gitea 码桶 | 后置 |
-| `/links` | 友链 | pending |
+| `/links` | 友链 | 已迁 |
 | `/messages` | 私信/通知会话列表 | 已迁 |
 | `/messages/with/:peerId` | 会话详情（peer=0 系统通知） | 已迁 |
 | `/page/:slug` | 站点单页 | 未注册 |
@@ -48,9 +48,10 @@
 | `/admin/boards` | 板块 CRUD | 已迁 |
 | `/admin/moderation` | 待审帖/评 通过/拒绝 | 已迁 |
 | `/admin/settings` | 品牌 + 基础限流 + 敏感词 | 已迁 |
+| `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：reports / users / badges / media / pages / links / SMTP / 完整 Limits 等。
+未迁（原 SPA）：reports / users / badges / media / pages / SMTP / 完整 Limits 等。
 
 ---
 
@@ -168,9 +169,10 @@
 
 ## 7. 友链页
 
-- 展示已通过/品牌友链
-- 「申请友链」对话框：名称、URL、Logo 上传、是否上首页、回链页 URL
-- 我的申请状态列表
+- 展示品牌友链 — SSR `/links`
+- 登录申请表单：名称、URL、Logo（地址或上传）、是否上首页、回链页 — `POST /links/apply`
+- 我的申请状态列表；待审可取消
+- Admin：`/admin/friend-links` 品牌增删、申请通过/拒绝、nav/footer/回链检测开关
 
 ---
 
@@ -181,7 +183,7 @@
 | Dashboard | 看计数与待办；点进对应列表 |
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
 | Pages | 列表发布开关；进编辑器写正文；nav/footer 勾选 |
-| Links | 品牌友链 CRUD；申请队列通过/拒绝/复检；回链检测开关；nav/footer/aside 开关 |
+| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer 开关 — SSR `/admin/friend-links`（aside / 复检按钮未迁） |
 | Posts | 按状态筛；通过/拒绝；置顶/版顶/精华/锁编/锁评；进回收站恢复/清除 |
 | Comments | 审核；修订查看；回收站 |
 | Reports | 处理动作四选一 |

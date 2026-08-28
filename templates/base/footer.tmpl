@@ -1,6 +1,9 @@
 {{define "base/footer"}}
   <footer class="j13-footer">
-    <p>{{.SiteName}}</p>
+    <p>
+      {{.SiteName}}
+      {{if .ShowFriendLinksFooter}} · <a href="/links">友情链接</a>{{end}}
+    </p>
   </footer>
   <script src="/ssr-assets/site.js" defer></script>
 </body>

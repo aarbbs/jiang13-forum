@@ -51,6 +51,12 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/settings/brand", deps.AdminSettingsBrandPost)
 		admin.POST("/settings/limits", deps.AdminSettingsLimitsPost)
 		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
+		admin.GET("/friend-links", deps.AdminFriendLinksGet)
+		admin.POST("/friend-links/settings", deps.AdminFriendLinksSettingsPost)
+		admin.POST("/friend-links/brand", deps.AdminFriendLinksBrandAddPost)
+		admin.POST("/friend-links/brand/delete", deps.AdminFriendLinksBrandDeletePost)
+		admin.POST("/friend-links/applies/:id/approve", deps.AdminFriendLinkApprovePost)
+		admin.POST("/friend-links/applies/:id/reject", deps.AdminFriendLinkRejectPost)
 	}
 
 	g.GET("/user/:id", deps.UserPublic)
@@ -66,8 +72,11 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.GET("/messages/with/:peerId", authMW.RequireAuth(), deps.MessagesThread)
 	g.POST("/messages/with/:peerId", authMW.RequireAuth(), deps.MessagesSend)
 	g.POST("/messages/read-all", authMW.RequireAuth(), deps.MessagesReadAll)
+	g.GET("/links", deps.LinksGet)
+	g.POST("/links/apply", authMW.RequireAuth(), deps.LinksApplyPost)
+	g.POST("/links/apply/:id/cancel", authMW.RequireAuth(), deps.LinksApplyCancelPost)
+	g.POST("/links/logo", authMW.RequireAuth(), deps.LinksLogoUpload)
 	g.GET("/projects", deps.PendingPage)
-	g.GET("/links", deps.PendingPage)
 	g.GET("/boards", deps.PendingPage)
 }
 

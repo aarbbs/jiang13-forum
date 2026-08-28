@@ -1,0 +1,84 @@
+{{define "links/list"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-links">
+  <h1>友情链接</h1>
+  {{template "base/alert" .}}
+
+  <section class="j13-links__list">
+    {{if .Links}}
+    <ul class="j13-links__grid">
+      {{range .Links}}
+      <li>
+        <a href="{{.URL}}" target="_blank" rel="noopener noreferrer" class="j13-links__item">
+          {{if .Logo}}<img src="{{.Logo}}" alt="" class="j13-links__logo"/>{{end}}
+          <span>{{.Name}}</span>
+        </a>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="j13-muted">暂无友情链接</p>
+    {{end}}
+  </section>
+
+  {{if .LoggedIn}}
+  <section class="j13-links__apply">
+    <h2>申请友链</h2>
+    <form method="post" action="/links/apply" enctype="multipart/form-data" class="j13-form j13-admin-form" data-logo-upload="/links/logo">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>站点名称 <input name="name" value="{{.FormName}}" maxlength="32" required/></label>
+      <label>站点 URL <input name="url" type="url" value="{{.FormURL}}" placeholder="https://" required/></label>
+      <label>LOGO 地址 <input name="logo" id="fl-logo-url" type="text" value="{{.FormLogo}}" placeholder="https:// 或先上传"/></label>
+      <label>或上传 LOGO（最大 {{.AvatarMaxMB}} MB）
+        <input type="file" name="logo_file" id="fl-logo-file" accept="image/*"/>
+      </label>
+      <label class="j13-check">
+        <input type="checkbox" name="link_on_homepage" value="1"{{if .FormOnHome}} checked{{end}}/>
+        已在对方首页放置本站链接
+      </label>
+      <label>回链页 URL（未勾选上一项时必填）
+        <input name="reciprocal_page_url" type="url" value="{{.FormRecip}}" placeholder="https://"/>
+      </label>
+      <button type="submit">提交申请</button>
+    </form>
+  </section>
+
+  <section class="j13-links__mine">
+    <h2>我的申请</h2>
+    {{if .MyApplies}}
+    <table class="j13-profile__ledger">
+      <thead>
+        <tr><th>时间</th><th>站点</th><th>状态</th><th></th></tr>
+      </thead>
+      <tbody>
+        {{range .MyApplies}}
+        <tr>
+          <td>{{.CreatedAt}}</td>
+          <td>
+            <a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>
+            {{if .ReviewNote}}<div class="j13-muted">{{.ReviewNote}}</div>{{end}}
+          </td>
+          <td>{{.StatusLabel}}</td>
+          <td>
+            {{if .CanCancel}}
+            <form method="post" action="/links/apply/{{.ID}}/cancel" class="j13-inline-form">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <button type="submit" class="j13-linkbtn">取消</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-muted">暂无申请记录</p>
+    {{end}}
+  </section>
+  {{else}}
+  <p class="j13-muted"><a href="/login?redirect=/links">登录</a> 后可申请友情链接。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

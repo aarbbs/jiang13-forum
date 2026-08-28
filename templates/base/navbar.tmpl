@@ -9,6 +9,7 @@
         </span>
       </a>
       <nav class="j13-nav">
+        {{if .ShowFriendLinksNav}}<a href="/links">友链</a>{{end}}
         {{if .LoggedIn}}
           <a href="/compose">发帖</a>
           <a href="/messages">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>

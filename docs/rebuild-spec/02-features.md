@@ -139,12 +139,12 @@
 
 ## I. 友链
 
-- [ ] 前台友链页；导航/页脚入口可配
-- [ ] 用户申请（名称、URL、Logo、是否上首页、回链页）
-- [ ] Logo 上传
-- [ ] 我的申请列表；修改待审申请；取消
-- [ ] 管理员审核：通过 / 拒绝 / 重新检测回链
-- [ ] 管理员维护品牌友链列表（设置里 JSON）
+- [x] 前台友链页；导航/页脚入口可配 — SSR `/links`；`nav_show_friend_links` / `footer_show_friend_links`
+- [x] 用户申请（名称、URL、Logo、是否上首页、回链页）— `POST /links/apply`
+- [x] Logo 上传 — 表单 multipart 或 `POST /links/logo`
+- [x] 我的申请列表；取消待审 — `/links`（修改待审：取消后重提）
+- [x] 管理员审核：通过 / 拒绝 — SSR `/admin/friend-links`（复检按钮未迁；创建时可异步检测）
+- [x] 管理员维护品牌友链列表 — `/admin/friend-links` 增删
 
 ---
 
