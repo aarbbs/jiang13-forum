@@ -206,3 +206,101 @@ func (d Deps) renderRegisterWithChrome(ctx *webctx.Context, chrome PageChrome, e
 		RequireEmailCode: mailReady,
 	})
 }
+
+type forgotPasswordData struct {
+	PageChrome
+	Email     string
+	MailReady bool
+}
+
+// ForgotPasswordGet 忘记密码页
+func (d Deps) ForgotPasswordGet(c *gin.Context) {
+	ctx := d.ctx(c)
+	if ctx.IsSigned() {
+		ctx.Redirect("/")
+		return
+	}
+	d.renderForgotPassword(ctx, "", "")
+}
+
+// ForgotPasswordSendCode 发送重置验证码
+func (d Deps) ForgotPasswordSendCode(c *gin.Context) {
+	ctx := d.ctx(c)
+	if ctx.IsSigned() {
+		ctx.Redirect("/")
+		return
+	}
+	email := strings.TrimSpace(c.PostForm("email"))
+	if !ctx.CheckCSRF() {
+		d.renderForgotPassword(ctx, "无效请求，请重试", email)
+		return
+	}
+	if d.Limiter != nil && !d.Limiter.Allow("login", c.ClientIP()) {
+		d.renderForgotPassword(ctx, "操作过于频繁，请稍后再试", email)
+		return
+	}
+	if d.EmailCode == nil || !d.Settings.MailReady() {
+		d.renderForgotPassword(ctx, services.ErrMailNotConfigured.Error(), email)
+		return
+	}
+	if err := d.EmailCode.SendResetCode(email); err != nil {
+		d.renderForgotPassword(ctx, err.Error(), email)
+		return
+	}
+	chrome := d.chrome(ctx, "忘记密码 · "+d.Settings.SiteBranding().Name, "", "")
+	chrome.Flash = "若该邮箱已注册，验证码将发送到邮箱"
+	d.renderForgotPasswordWithChrome(ctx, chrome, "", email)
+}
+
+// ForgotPasswordPost 提交重置
+func (d Deps) ForgotPasswordPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if ctx.IsSigned() {
+		ctx.Redirect("/")
+		return
+	}
+	email := strings.TrimSpace(c.PostForm("email"))
+	if !ctx.CheckCSRF() {
+		d.renderForgotPassword(ctx, "无效请求，请重试", email)
+		return
+	}
+	if d.Limiter != nil && !d.Limiter.Allow("login", c.ClientIP()) {
+		d.renderForgotPassword(ctx, "操作过于频繁，请稍后再试", email)
+		return
+	}
+	if !d.Settings.MailReady() || d.EmailCode == nil {
+		d.renderForgotPassword(ctx, services.ErrMailNotConfigured.Error(), email)
+		return
+	}
+	code := strings.TrimSpace(c.PostForm("email_code"))
+	if !d.EmailCode.VerifyPurpose(services.EmailCodePurposeReset, email, code) {
+		d.renderForgotPassword(ctx, services.ErrEmailCodeInvalid.Error(), email)
+		return
+	}
+	pass := c.PostForm("new_password")
+	pass2 := c.PostForm("new_password2")
+	if pass != pass2 {
+		d.renderForgotPassword(ctx, "两次输入的新密码不一致", email)
+		return
+	}
+	if err := d.User.ResetPasswordByEmail(email, pass); err != nil {
+		d.renderForgotPassword(ctx, err.Error(), email)
+		return
+	}
+	ctx.SetFlash("密码已重置，请使用新密码登录")
+	ctx.Redirect("/login")
+}
+
+func (d Deps) renderForgotPassword(ctx *webctx.Context, errMsg, email string) {
+	chrome := d.chrome(ctx, "忘记密码 · "+d.Settings.SiteBranding().Name, "", "")
+	d.renderForgotPasswordWithChrome(ctx, chrome, errMsg, email)
+}
+
+func (d Deps) renderForgotPasswordWithChrome(ctx *webctx.Context, chrome PageChrome, errMsg, email string) {
+	chrome.Error = errMsg
+	ctx.HTML(http.StatusOK, "auth/forgot_password", forgotPasswordData{
+		PageChrome: chrome,
+		Email:      email,
+		MailReady:  d.Settings.MailReady(),
+	})
+}

@@ -408,6 +408,9 @@ type adminSettingsData struct {
 	RateWindow  int
 	FilterWords string
 	FilterCount int
+	Mail        services.MailConfig
+	MailReady   bool
+	TestTo      string
 }
 
 // AdminSettingsGet 设置页
@@ -419,6 +422,7 @@ func (d Deps) AdminSettingsGet(c *gin.Context) {
 func (d Deps) renderAdminSettings(ctx *webctx.Context, errMsg string) {
 	words := d.Settings.FilterWordsContent()
 	lim := d.Settings.Limits()
+	mail := d.Settings.MailConfigPublic()
 	data := adminSettingsData{
 		AdminChrome: d.adminChrome(ctx, "站点设置", "settings"),
 		Brand:       d.Settings.SiteBranding(),
@@ -429,6 +433,8 @@ func (d Deps) renderAdminSettings(ctx *webctx.Context, errMsg string) {
 		RateWindow:  lim.RateLimitWindowSec,
 		FilterWords: words,
 		FilterCount: services.CountFilterWords(words),
+		Mail:        mail,
+		MailReady:   d.Settings.MailReady(),
 	}
 	data.Error = errMsg
 	ctx.HTML(http.StatusOK, "admin/settings", data)
@@ -496,5 +502,62 @@ func (d Deps) AdminSettingsFilterWordsPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash(fmt.Sprintf("敏感词已更新（有效词 %d 个）· %s", services.CountFilterWords(content), time.Now().Format("15:04:05")))
+	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsMailPost 保存 SMTP
+func (d Deps) AdminSettingsMailPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	port, _ := strconv.Atoi(c.PostForm("port"))
+	cfg := services.MailConfig{
+		Enabled:    c.PostForm("enabled") == "1" || c.PostForm("enabled") == "on",
+		Host:       strings.TrimSpace(c.PostForm("host")),
+		Port:       port,
+		Username:   strings.TrimSpace(c.PostForm("username")),
+		Password:   c.PostForm("password"),
+		From:       strings.TrimSpace(c.PostForm("from")),
+		FromName:   strings.TrimSpace(c.PostForm("from_name")),
+		Encryption: strings.TrimSpace(c.PostForm("encryption")),
+	}
+	if err := d.Settings.UpdateMailConfig(cfg); err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash("邮件设置已保存")
+	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsMailTestPost 发送测试信
+func (d Deps) AdminSettingsMailTestPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	to := strings.TrimSpace(c.PostForm("test_to"))
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	if err := services.ValidateEmail(to); err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	if !d.Settings.MailReady() {
+		d.renderAdminSettings(ctx, services.ErrMailNotConfigured.Error())
+		return
+	}
+	if d.Mail == nil {
+		d.renderAdminSettings(ctx, "邮件服务未就绪")
+		return
+	}
+	siteName := d.Settings.SiteBranding().Name
+	err := d.Mail.Send(services.NormalizeEmail(to), "邮件配置测试",
+		fmt.Sprintf("这是一封来自%s的测试邮件，说明 SMTP 配置正常。", siteName))
+	if err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash("测试邮件已发送至 " + to)
 	ctx.Redirect("/admin/settings")
 }

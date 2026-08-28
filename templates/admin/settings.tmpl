@@ -38,6 +38,32 @@
     <label>词表 <textarea name="filter_words" rows="12">{{.FilterWords}}</textarea></label>
     <button type="submit">保存敏感词</button>
   </form>
+
+  <h2>邮件 SMTP</h2>
+  <p class="j13-muted">启用后可用于注册验证码、忘记密码重置与通知。{{if .MailReady}}当前：已就绪。{{else}}当前：未就绪。{{end}}{{if .Mail.HasPassword}} 已保存密码。{{end}}</p>
+  <form method="post" action="/admin/settings/mail" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label class="j13-check"><input type="checkbox" name="enabled" value="1"{{if .Mail.Enabled}} checked{{end}}/> 启用邮件</label>
+    <label>SMTP Host <input name="host" value="{{.Mail.Host}}" placeholder="smtp.example.com"/></label>
+    <label>端口 <input name="port" type="number" min="1" value="{{.Mail.Port}}"/></label>
+    <label>加密
+      <select name="encryption">
+        <option value="ssl"{{if eq .Mail.Encryption "ssl"}} selected{{end}}>SSL</option>
+        <option value="starttls"{{if eq .Mail.Encryption "starttls"}} selected{{end}}>STARTTLS</option>
+        <option value="none"{{if eq .Mail.Encryption "none"}} selected{{end}}>无</option>
+      </select>
+    </label>
+    <label>用户名 <input name="username" value="{{.Mail.Username}}" autocomplete="off"/></label>
+    <label>密码 <input name="password" type="password" value="" autocomplete="new-password" placeholder="留空表示不修改"/></label>
+    <label>发件人 From <input name="from" type="email" value="{{.Mail.From}}"/></label>
+    <label>发件人显示名 <input name="from_name" value="{{.Mail.FromName}}"/></label>
+    <button type="submit">保存邮件设置</button>
+  </form>
+  <form method="post" action="/admin/settings/mail/test" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>测试收件邮箱 <input name="test_to" type="email" required placeholder="you@example.com"/></label>
+    <button type="submit" class="j13-btn-secondary">发送测试信</button>
+  </form>
 </main>
 {{template "base/footer" .}}
 {{end}}

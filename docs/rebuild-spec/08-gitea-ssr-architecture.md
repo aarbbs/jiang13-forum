@@ -81,7 +81,7 @@ web_src/ → public/assets/
 
 ### 已迁路径（摘要）
 
-公开写：`/install`、`/login`、`/logout`、`/register`、`/compose`（含门控插入）、`/post/:id/edit`、帖详情评论/赞/藏、积分解锁 `POST /post/:id/unlock`。
+公开写：`/install`、`/login`、`/logout`、`/register`、`/forgot-password`（发码/重置）、`/compose`（含门控插入）、`/post/:id/edit`、帖详情评论/赞/藏、积分解锁 `POST /post/:id/unlock`。
 
 个人闭环：`/profile`（昵称/签名/密码/头像、积分钱包/签到/抽奖）、`/user/:id`、`/favorites`。
 `POST /profile/checkin`、`POST /profile/lottery`（CSRF + PRG）。
@@ -90,4 +90,4 @@ web_src/ → public/assets/
 
 友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、入口开关）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词）、`/admin/friend-links`。
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`。

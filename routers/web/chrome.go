@@ -25,6 +25,7 @@ type Deps struct {
 	Store      *services.UploadStore
 	Points     *services.PointsService
 	FriendLink *services.FriendLinkApplyService
+	Mail       *services.MailService
 }
 
 // BoardView 侧栏

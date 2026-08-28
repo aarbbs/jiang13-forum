@@ -32,7 +32,7 @@
 - [x] 注册（用户名、密码、昵称、邮箱；可选邮箱验证码）— SSR `/register`
 - [ ] 图形验证码接口（注册流程）
 - [x] 登录 / 登出（opaque session Cookie `jiang13_session`）— SSR；SameSite=Lax；登出/禁言/改密吊销
-- [ ] 忘记密码：邮箱验证码 + 重置
+- [x] 忘记密码：邮箱验证码 + 重置 — SSR `/forgot-password`（依赖 SMTP 就绪）
 - [x] 注册配置：邮件就绪时强制验证码；安装后开放注册（不依赖 SMTP）
 - [x] ~~首个用户自动成为管理员~~ → 改为仅 `/install` 创建管理员
 - [x] 个人中心：改昵称、签名、密码、上传头像、积分钱包/签到/抽奖 — SSR `/profile`（裁剪未做）
@@ -188,7 +188,7 @@
 - [x] 仪表盘：用户/帖/板块计数 + 待审帖/评 — SSR `/admin/dashboard`（举报/友链待迁）
 - [x] 敏感词：`forum_settings.filter_words` 读写 + 热更 — SSR `/admin/settings`
 - [x] 基础限流（post/comment/register/login/window）— SSR；完整 Limits 字数等未迁
-- [ ] SMTP 配置与测试信
+- [x] SMTP 配置与测试信 — SSR `/admin/settings` 邮件区
 - [x] 站点品牌文案：名称、标语、简介、keywords、Logo 字标、ICP — SSR（Logo/Favicon/OG 上传未迁）
 - [ ] SQLite 一键备份与下载
 

@@ -18,7 +18,7 @@
 |------|------|-----|
 | `/login` | 登录 / 登出 | 已迁 |
 | `/register` | 注册（邮件就绪时要验证码） | 已迁 |
-| `/forgot-password` | 忘记密码 | 未迁 |
+| `/forgot-password` | 忘记密码 | 已迁 |
 
 ### 1.2 前台
 
@@ -47,11 +47,11 @@
 | `/admin/dashboard` | 概览计数 | 已迁 |
 | `/admin/boards` | 板块 CRUD | 已迁 |
 | `/admin/moderation` | 待审帖/评 通过/拒绝 | 已迁 |
-| `/admin/settings` | 品牌 + 基础限流 + 敏感词 | 已迁 |
+| `/admin/settings` | 品牌 + 基础限流 + 敏感词 + SMTP | 已迁 |
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：reports / users / badges / media / pages / SMTP / 完整 Limits 等。
+未迁（原 SPA）：reports / users / badges / media / pages / 完整 Limits 等。
 
 ---
 

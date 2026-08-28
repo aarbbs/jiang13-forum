@@ -102,6 +102,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Limiter: limiter, EmailCode: emailCodeSvc, Store: uploadStore,
 		Points:     services.NewPointsService(),
 		FriendLink: friendLinkApplySvc,
+		Mail:       mailSvc,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
