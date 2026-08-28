@@ -1,4 +1,4 @@
-package middleware
+﻿package auth
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 const (
@@ -18,10 +18,10 @@ const (
 )
 
 type AuthMiddleware struct {
-	auth *service.AuthService
+	auth *services.AuthService
 }
 
-func NewAuthMiddleware(auth *service.AuthService) *AuthMiddleware {
+func NewAuthMiddleware(auth *services.AuthService) *AuthMiddleware {
 	return &AuthMiddleware{auth: auth}
 }
 
@@ -32,8 +32,8 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 		token := extractToken(c)
 		if token != "" {
 			if claims, err := m.auth.ParseToken(token); err == nil {
-				var user model.User
-				if err := model.DB.Select("id", "username", "role").First(&user, claims.UserID).Error; err != nil {
+				var user models.User
+				if err := models.DB.Select("id", "username", "role").First(&user, claims.UserID).Error; err != nil {
 					c.SetCookie(CookieName, "", -1, "/", "", false, true)
 				} else {
 					c.Set(CtxUserID, user.ID)
@@ -63,8 +63,8 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 		// 检查禁言
-		var user model.User
-		if err := model.DB.First(&user, claims.UserID).Error; err != nil || user.Banned {
+		var user models.User
+		if err := models.DB.First(&user, claims.UserID).Error; err != nil || user.Banned {
 			respondBanned(c)
 			c.Abort()
 			return
@@ -81,7 +81,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get(CtxRole)
-		if !exists || role != model.RoleAdmin {
+		if !exists || role != models.RoleAdmin {
 			if isAPI(c) {
 				c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
 			} else {
@@ -147,7 +147,7 @@ func respondBanned(c *gin.Context) {
 }
 
 // RateLimitMiddleware 限流中间件
-func RateLimitMiddleware(limiter *service.RateLimiter, action string) gin.HandlerFunc {
+func RateLimitMiddleware(limiter *services.RateLimiter, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := c.ClientIP()
 		if uid, ok := c.Get(CtxUserID); ok {

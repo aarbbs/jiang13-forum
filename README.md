@@ -5,7 +5,8 @@
 **能聊 · 好看 · 好装**
 
 面向小圈子、团队与同好社群的轻量现代化论坛。  
-编译为单个 Go 二进制，前端 SPA（单页应用）内嵌，内置 SQLite，拷到服务器即可运行。
+本分支（`rebuild/gitea-ssr`）：Go 模板真 SSR + `web_src` 渐进增强，单二进制 + SQLite。  
+对照 React SPA 请见 `main` 分支。
 
 <br>
 
@@ -13,7 +14,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-18a058?style=flat-square)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-hangzhang714128%2Fjiang13--forum-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/hangzhang714128/jiang13-forum)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)](go.mod)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](frontend/package.json)
+[![SSR](https://img.shields.io/badge/SSR-Go_html%2Ftemplate-00ADD8?style=flat-square&logo=go&logoColor=white)](docs/rebuild-spec/08-gitea-ssr-architecture.md)
 [![SQLite](https://img.shields.io/badge/SQLite-内置-003B57?style=flat-square&logo=sqlite&logoColor=white)](#)
 
 [在线演示](https://bbs.iioio.com/) ·
@@ -31,8 +32,8 @@
 
 <br>
 
-> **演示站点：** [https://bbs.iioio.com/](https://bbs.iioio.com/)  
-> 项目积极开发中。管理后台已统一为 React SPA（`/admin`），欢迎提 Issue / PR 共建。
+> **演示站点：** [https://bbs.iioio.com/](https://bbs.iioio.com/)（现网多为 `main` SPA）  
+> 本分支按 [Gitea 式 SSR 规格](docs/rebuild-spec/08-gitea-ssr-architecture.md) 重构；欢迎提 Issue / PR 共建。
 
 </div>
 
@@ -142,7 +143,7 @@ make build
 **手动分步（全平台）：**
 
 ```bash
-cd frontend && npm install && npm run build
+cd web_src && npm run build
 cd .. && go build -trimpath -ldflags "-s -w" -o dist/jiang13 ./cmd/jiang13
 ```
 
@@ -325,79 +326,60 @@ C:\jiang13\jiang13.exe --service start
 
 | 层级 | 技术 |
 |------|------|
-| **后端** | Go 1.26 · Gin · GORM · SQLite |
-| **前端** | React 18 · TipTap · Radix UI · Tailwind CSS · TanStack Virtual |
-| **构建** | Vite → `go:embed` 内嵌 SPA，单二进制发布 |
+| **后端 / SSR** | Go 1.26 · Gin · GORM · SQLite · `html/template` |
+| **渐进资源** | `web_src/`（构建到 `public/assets/`，URL `/ssr-assets/`） |
+| **构建** | `web_src` → `go:embed` templates + assets，单二进制发布 |
 | **认证** | bcrypt · JWT Cookie · 可选 OIDC Provider |
+| **对照 SPA** | 仅 `main` 分支（React 18 · TipTap · Vite） |
 
 ---
 
-## 前端开发
-
-日常改前端不需要重新完整构建，Vite 支持秒级热更新（HMR，热模块替换）：
+## 本地开发（SSR）
 
 ```bat
-build.bat -Target dev
+build.bat -Target run
 ```
 
 ```bash
-make dev
+make run
 ```
 
-浏览器访问 `http://localhost:5173`，API 自动代理到 `http://localhost:3000`。
+浏览器访问 `http://localhost:3000`。数据目录默认 `dist/data`。
 
-开发后端与 `dist/jiang13` 共用数据目录 `dist/data`（SQLite、上传、JWT 密钥等），避免 dev 与 dist 运行数据不一致。
+改模板 / Go 后重启进程；改 `web_src` 后需再跑 `build.bat -Target web-src`（或完整 `build`）。
 
-**何时需要完整构建：**
-
-- 修改 Go 代码或要发布单二进制 → `build.bat` / `make build`
-- 更新 README 界面截图 → 见下方「更新截图」
-
-> 直接访问 `:3000` 看到的是上次 build 嵌入的前端；开发时请用 `:5173`。
-
-### 更新截图
-
-默认从演示站抓取到 `docs/screenshots/`（需本机已安装 Playwright）：
-
-```bash
-npm install -D playwright
-npx playwright install chromium
-node scripts/capture-screenshots.mjs
-```
-
-| 环境变量 | 说明 | 默认 |
-|----------|------|------|
-| `J13_URL` | 抓取目标 | `https://bbs.iioio.com` |
-| `J13_POST_ID` | 详情页帖子 ID | `1` |
-| `J13_RICH_POST_ID` | 富文本展示帖 ID | `8` |
-| `J13_USER` / `J13_PASS` | 发帖页登录（可选） | `admin` / `admin123` |
-
-本地站点示例：`J13_URL=http://localhost:3000 node scripts/capture-screenshots.mjs`
+需要对照旧 SPA UI：`git checkout main` 或 `git worktree add ../jiang13-spa main`。
 
 ---
 
 ## 项目结构
 
 ```
-jiang13-forum/
-├── cmd/jiang13/           # 程序入口（含系统服务注册）
-├── config/                # app.ini 与命令行配置
-├── app.ini.example        # 配置文件示例
-├── Dockerfile             # 多阶段 Docker 构建
-├── docker-compose.yml     # 单容器 Compose 部署
-├── docker-entrypoint.sh   # 容器启动脚本（修正 /data 卷权限）
-├── .dockerignore
-├── model/                 # GORM 模型与数据库迁移
-├── service/               # 业务逻辑
-├── handler/               # HTTP 处理器（前台 + 后台）
-├── middleware/            # JWT 鉴权等
-├── router/                # 路由注册
-├── embed_static/          # go:embed 内嵌的 SPA
-├── frontend/              # React 源码（Vite 构建）
-├── docs/screenshots/      # README 界面截图
-├── ROADMAP.md             # 路线图与已知问题
-└── scripts/               # 开发辅助脚本（含截图）
+jiang13-forum/                 # 分支 rebuild/gitea-ssr
+├── cmd/jiang13/               # 程序入口（含系统服务注册）
+├── config/                    # app.ini 与命令行配置
+├── app.ini.example
+├── Dockerfile                 # web_src → Go → Alpine
+├── docker-compose.yml
+├── models/                    # GORM 模型
+├── services/                  # 业务逻辑
+├── routers/
+│   ├── setup.go               # 路由总装
+│   ├── web/                   # HTML SSR
+│   └── api/                   # JSON API
+├── modules/
+│   ├── auth/                  # JWT / 限流
+│   ├── webrender/             # 模板渲染
+│   └── seo/
+├── templates/                 # Go html/template（embed）
+├── web_src/                   # 渐进 CSS/JS 源码
+├── public/assets/             # web_src 构建产物（embed）
+├── docs/rebuild-spec/         # 产品规格与 SSR 架构
+├── docs/screenshots/
+└── ROADMAP.md
 ```
+
+> SPA 源码树仅存在于 `main`（`frontend/`、`embed_static/`）。
 
 ---
 
@@ -424,7 +406,7 @@ data/
 |------|------|
 | ✅ 已可用 | 三栏布局、暗色主题、虚拟滚动、Feed 排序、楼层评论 |
 | ✅ 发帖体验 | TipTap 富文本、图片上传、修订历史、回复可见等门控 |
-| ✅ 管理后台 | React SPA：仪表盘、置顶 / 精华、禁言、系统设置 |
+| ✅ 管理后台 | JSON API 已就绪；本分支管理 UI 为 SSR 占位（完整后台见 `main` SPA） |
 | 📋 计划中 | 通知动态优化、邮件提醒 |
 
 ---
@@ -439,4 +421,4 @@ data/
 
 ## 许可证
 
-[MIT](LICENSE) — 自由使用、修改与分发。
+[MIT](LICENSE)（与 [Gitea](https://github.com/go-gitea/gitea) 相同的 Expat 文本格式）— 自由使用、修改与分发。

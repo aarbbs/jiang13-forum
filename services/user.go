@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 type UserService struct {
@@ -21,9 +21,9 @@ func NewUserService(filter *SensitiveFilter, settings *ForumSettingsService) *Us
 }
 
 // GetByID 获取用户信息
-func (s *UserService) GetByID(id uint) (*model.User, error) {
-	var user model.User
-	if err := model.DB.First(&user, id).Error; err != nil {
+func (s *UserService) GetByID(id uint) (*models.User, error) {
+	var user models.User
+	if err := models.DB.First(&user, id).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -43,17 +43,17 @@ func (s *UserService) ActivityStats(userID uint) (UserActivityStats, error) {
 	if userID == 0 {
 		return st, errors.New("无效用户")
 	}
-	if err := model.DB.Model(&model.Post{}).Where("user_id = ?", userID).Count(&st.PostCount).Error; err != nil {
+	if err := models.DB.Model(&models.Post{}).Where("user_id = ?", userID).Count(&st.PostCount).Error; err != nil {
 		return st, err
 	}
-	if err := model.DB.Model(&model.Comment{}).Where("user_id = ?", userID).Count(&st.CommentCount).Error; err != nil {
+	if err := models.DB.Model(&models.Comment{}).Where("user_id = ?", userID).Count(&st.CommentCount).Error; err != nil {
 		return st, err
 	}
-	if err := model.DB.Model(&model.PostFavorite{}).Where("user_id = ?", userID).Count(&st.FavoriteCount).Error; err != nil {
+	if err := models.DB.Model(&models.PostFavorite{}).Where("user_id = ?", userID).Count(&st.FavoriteCount).Error; err != nil {
 		return st, err
 	}
 	var likeSum int64
-	if err := model.DB.Model(&model.Post{}).
+	if err := models.DB.Model(&models.Post{}).
 		Select("COALESCE(SUM(like_count), 0)").
 		Where("user_id = ?", userID).
 		Scan(&likeSum).Error; err != nil {
@@ -64,19 +64,19 @@ func (s *UserService) ActivityStats(userID uint) (UserActivityStats, error) {
 }
 
 // GetByUsername 按用户名查询
-func (s *UserService) GetByUsername(username string) (*model.User, error) {
-	var user model.User
-	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+func (s *UserService) GetByUsername(username string) (*models.User, error) {
+	var user models.User
+	if err := models.DB.Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
 }
 
 // GetByEmail 按邮箱查询
-func (s *UserService) GetByEmail(email string) (*model.User, error) {
+func (s *UserService) GetByEmail(email string) (*models.User, error) {
 	email = NormalizeEmail(email)
-	var user model.User
-	if err := model.DB.Where("email = ?", email).First(&user).Error; err != nil {
+	var user models.User
+	if err := models.DB.Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -95,21 +95,21 @@ func (s *UserService) ResetPasswordByEmail(email, newPass string) error {
 	if err != nil {
 		return err
 	}
-	return model.DB.Model(&model.User{}).Where("id = ?", user.ID).Update("password", hash).Error
+	return models.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("password", hash).Error
 }
 
 // SearchUsersBrief 公开用户搜索（@补全）：匹配用户名/昵称，不含邮箱
-func (s *UserService) SearchUsersBrief(keyword string, limit int) ([]model.User, error) {
+func (s *UserService) SearchUsersBrief(keyword string, limit int) ([]models.User, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
-		return []model.User{}, nil
+		return []models.User{}, nil
 	}
 	if limit <= 0 || limit > 20 {
 		limit = 8
 	}
 	like := "%" + keyword + "%"
-	var users []model.User
-	err := model.DB.Select("id", "username", "nickname", "avatar", "role", "verified").
+	var users []models.User
+	err := models.DB.Select("id", "username", "nickname", "avatar", "role", "verified").
 		Where("username LIKE ? OR nickname LIKE ?", like, like).
 		Order("username ASC").
 		Limit(limit).
@@ -118,7 +118,7 @@ func (s *UserService) SearchUsersBrief(keyword string, limit int) ([]model.User,
 		return nil, err
 	}
 	if users == nil {
-		users = []model.User{}
+		users = []models.User{}
 	}
 	return users, nil
 }
@@ -136,8 +136,8 @@ func (s *UserService) ListRecentRegistered(limit int) ([]RecentUserItem, error) 
 	if limit < 1 {
 		limit = 8
 	}
-	var users []model.User
-	err := model.DB.Select("id", "username", "nickname", "avatar", "created_at").
+	var users []models.User
+	err := models.DB.Select("id", "username", "nickname", "avatar", "created_at").
 		Where("banned = ?", false).
 		Order("created_at DESC, id DESC").
 		Limit(limit).
@@ -168,7 +168,7 @@ func (s *UserService) UpdateNickname(userID uint, nickname string) error {
 		return errors.New("昵称不能为空")
 	}
 	nickname = s.filter.Filter(nickname)
-	return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("nickname", nickname).Error
+	return models.DB.Model(&models.User{}).Where("id = ?", userID).Update("nickname", nickname).Error
 }
 
 // UpdateSignature 修改个人签名
@@ -184,7 +184,7 @@ func (s *UserService) UpdateSignature(userID uint, signature string) error {
 	if signature != "" {
 		signature = s.filter.Filter(signature)
 	}
-	return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("signature", signature).Error
+	return models.DB.Model(&models.User{}).Where("id = ?", userID).Update("signature", signature).Error
 }
 
 // UpdatePassword 修改密码
@@ -192,8 +192,8 @@ func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error
 	if err := ValidatePassword(newPass, s.settings.PasswordMinLen()); err != nil {
 		return err
 	}
-	var user model.User
-	if err := model.DB.First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
 		return err
 	}
 	if !CheckPassword(user.Password, oldPass) {
@@ -203,20 +203,20 @@ func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error
 	if err != nil {
 		return err
 	}
-	return model.DB.Model(&user).Update("password", hash).Error
+	return models.DB.Model(&user).Update("password", hash).Error
 }
 
 // UploadAvatar 上传头像；成功后删除用户旧头像文件，避免磁盘/对象存储堆积
 func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, store *UploadStore) (string, error) {
-	var user model.User
-	if err := model.DB.Select("id", "avatar").First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.Select("id", "avatar").First(&user, userID).Error; err != nil {
 		return "", err
 	}
 	url, err := SaveUploadedImage(store, file, UploadCategoryAvatars, fmt.Sprintf("%d", userID))
 	if err != nil {
 		return "", err
 	}
-	if err := model.DB.Model(&model.User{}).Where("id = ?", userID).Update("avatar", url).Error; err != nil {
+	if err := models.DB.Model(&models.User{}).Where("id = ?", userID).Update("avatar", url).Error; err != nil {
 		return "", err
 	}
 	if old := strings.TrimSpace(user.Avatar); old != "" && old != url {
@@ -234,7 +234,7 @@ type UserListQuery struct {
 	Filter  string // all | verified | banned | admin
 }
 
-func (s *UserService) ListUsers(q UserListQuery) ([]model.User, int64, error) {
+func (s *UserService) ListUsers(q UserListQuery) ([]models.User, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
@@ -245,7 +245,7 @@ func (s *UserService) ListUsers(q UserListQuery) ([]model.User, int64, error) {
 		q.Size = 100
 	}
 
-	db := model.DB.Model(&model.User{})
+	db := models.DB.Model(&models.User{})
 	kw := strings.TrimSpace(q.Keyword)
 	if kw != "" {
 		like := "%" + kw + "%"
@@ -257,18 +257,18 @@ func (s *UserService) ListUsers(q UserListQuery) ([]model.User, int64, error) {
 	}
 	switch strings.TrimSpace(q.Filter) {
 	case "verified":
-		db = db.Where("verified = ? AND role <> ?", true, model.RoleAdmin)
+		db = db.Where("verified = ? AND role <> ?", true, models.RoleAdmin)
 	case "banned":
 		db = db.Where("banned = ?", true)
 	case "admin":
-		db = db.Where("role = ?", model.RoleAdmin)
+		db = db.Where("role = ?", models.RoleAdmin)
 	}
 
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var users []model.User
+	var users []models.User
 	offset := (q.Page - 1) * q.Size
 	err := db.Order("id desc").Offset(offset).Limit(q.Size).Find(&users).Error
 	return users, total, err
@@ -276,11 +276,11 @@ func (s *UserService) ListUsers(q UserListQuery) ([]model.User, int64, error) {
 
 // BanUser 禁言用户
 func (s *UserService) BanUser(userID uint, banned bool) error {
-	var user model.User
-	if err := model.DB.First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
 		return errors.New("用户不存在")
 	}
-	if user.Role == model.RoleAdmin {
+	if user.Role == models.RoleAdmin {
 		return errors.New("不能禁言管理员账号")
 	}
 	now := time.Now()
@@ -288,7 +288,7 @@ func (s *UserService) BanUser(userID uint, banned bool) error {
 	if banned {
 		updates["banned_at"] = &now
 	}
-	return model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error
+	return models.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
 }
 
 // SitemapUser 站点地图用的轻量用户字段
@@ -303,7 +303,7 @@ func (s *UserService) ListSitemap(limit int) ([]SitemapUser, error) {
 		limit = 5000
 	}
 	var rows []SitemapUser
-	err := model.DB.Model(&model.User{}).
+	err := models.DB.Model(&models.User{}).
 		Select("id, updated_at").
 		Where("banned = ?", false).
 		Order("updated_at desc, id desc").

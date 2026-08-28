@@ -2,7 +2,7 @@
 
 > **读者**：实现前台 / 后台 UI 的 AI  
 > **前置**：[02-features.md](02-features.md)  
-> **源码**：[`frontend/src/App.tsx`](../../frontend/src/App.tsx)、[`frontend/src/pages/`](../../frontend/src/pages/)、[`frontend/src/components/`](../../frontend/src/components/)、[`frontend/src/layouts/`](../../frontend/src/layouts/)
+> **源码**：[`frontend/src/App.tsx`](（仅 main）frontend/src/App.tsx)、[`frontend/src/pages/`](（仅 main）frontend/src/pages/)、[`frontend/src/components/`](（仅 main）frontend/src/components/)、[`frontend/src/layouts/`](（仅 main）frontend/src/layouts/)
 
 视觉可重设；**信息架构与关键操作流应对齐**。新站建议 SSR 直出同等信息，而不是先空壳再 fetch。
 
@@ -119,7 +119,7 @@
 
 ### 3.2 编辑器能力（应对齐）
 
-源：[`ArticleEditor.tsx`](../../frontend/src/components/ArticleEditor.tsx) 与 `editor/` 扩展
+源：[`ArticleEditor.tsx`](（仅 main）frontend/src/components/ArticleEditor.tsx) 与 `editor/` 扩展
 
 - 标题 h2–h6（无 h1，避免与帖标题冲突）
 - 粗体/斜体/删除线等基础标记
@@ -129,7 +129,7 @@
 - 图片上传 + 图片组布局 + 浮动/清除浮动
 - 表情 / 贴纸选择器（多套：bilibili/douyin/tieba/weibo 等静态资源）
 - **登录可见** / **回复可见** / **积分可见**（价格 1–9999）节点
-- 富文本 ↔ Markdown 双模（门控块有 markdown 约定，见 [`utils/markdownContent.ts`](../../frontend/src/utils/markdownContent.ts)）
+- 富文本 ↔ Markdown 双模（门控块有 markdown 约定，见 [`utils/markdownContent.ts`](（仅 main）frontend/src/utils/markdownContent.ts)）
 - Tab 缩进
 
 未保存离开：`UnsavedChangesDialog`。

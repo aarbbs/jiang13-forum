@@ -1,11 +1,11 @@
-package service
+﻿package services
 
 import (
 	"crypto/rand"
 	"errors"
 	"math/big"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -34,15 +34,15 @@ func InitPostLottery(postID uint, winnerCount int) error {
 	if winnerCount < 1 || winnerCount > 20 {
 		return errors.New("开奖人数需 1-20")
 	}
-	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Updates(map[string]interface{}{
+	return models.DB.Model(&models.Post{}).Where("id = ?", postID).Updates(map[string]interface{}{
 		"lottery_winner_count": winnerCount,
-		"lottery_status":       model.PostLotteryStatusOpen,
+		"lottery_status":       models.PostLotteryStatusOpen,
 	}).Error
 }
 
 // GetPostLotteryView 获取抽奖视图
-func GetPostLotteryView(post *model.Post) (*PostLotteryView, error) {
-	if post == nil || post.PostType != model.PostTypeLottery {
+func GetPostLotteryView(post *models.Post) (*PostLotteryView, error) {
+	if post == nil || post.PostType != models.PostTypeLottery {
 		return nil, nil
 	}
 	participants, err := lotteryParticipants(post.ID, post.UserID)
@@ -54,9 +54,9 @@ func GetPostLotteryView(post *model.Post) (*PostLotteryView, error) {
 		Status:           post.LotteryStatus,
 		ParticipantCount: len(participants),
 	}
-	if post.LotteryStatus == model.PostLotteryStatusDrawn {
-		var winners []model.PostLotteryWinner
-		model.DB.Preload("User").Where("post_id = ?", post.ID).Find(&winners)
+	if post.LotteryStatus == models.PostLotteryStatusDrawn {
+		var winners []models.PostLotteryWinner
+		models.DB.Preload("User").Where("post_id = ?", post.ID).Find(&winners)
 		for _, w := range winners {
 			view.Winners = append(view.Winners, PostLotteryWinnerView{
 				UserID: w.UserID, Username: w.User.Username, Nickname: w.User.Nickname,
@@ -67,15 +67,15 @@ func GetPostLotteryView(post *model.Post) (*PostLotteryView, error) {
 	return view, nil
 }
 
-func lotteryParticipants(postID, authorID uint) ([]model.Comment, error) {
-	var comments []model.Comment
-	err := model.DB.Where("post_id = ? AND status = ? AND user_id <> ?", postID, model.ContentStatusPublished, authorID).
+func lotteryParticipants(postID, authorID uint) ([]models.Comment, error) {
+	var comments []models.Comment
+	err := models.DB.Where("post_id = ? AND status = ? AND user_id <> ?", postID, models.ContentStatusPublished, authorID).
 		Order("id ASC").Find(&comments).Error
 	if err != nil {
 		return nil, err
 	}
 	seen := map[uint]bool{}
-	var unique []model.Comment
+	var unique []models.Comment
 	for _, c := range comments {
 		if seen[c.UserID] {
 			continue
@@ -88,17 +88,17 @@ func lotteryParticipants(postID, authorID uint) ([]model.Comment, error) {
 
 // DrawPostLottery 开奖
 func DrawPostLottery(postID, operatorID uint, isAdmin bool) (*PostLotteryView, error) {
-	var post model.Post
-	if err := model.DB.First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, postID).Error; err != nil {
 		return nil, ErrPostNotFound
 	}
-	if post.PostType != model.PostTypeLottery {
+	if post.PostType != models.PostTypeLottery {
 		return nil, errors.New("非抽奖帖")
 	}
 	if !isAdmin && post.UserID != operatorID {
 		return nil, ErrPermissionDenied
 	}
-	if post.LotteryStatus == model.PostLotteryStatusDrawn {
+	if post.LotteryStatus == models.PostLotteryStatusDrawn {
 		return nil, ErrLotteryAlreadyDrawn
 	}
 	participants, err := lotteryParticipants(postID, post.UserID)
@@ -113,25 +113,25 @@ func DrawPostLottery(postID, operatorID uint, isAdmin bool) (*PostLotteryView, e
 		return nil, ErrLotteryNotEnough
 	}
 	picked := randomPickComments(participants, need)
-	err = model.DB.Transaction(func(tx *gorm.DB) error {
+	err = models.DB.Transaction(func(tx *gorm.DB) error {
 		for _, c := range picked {
-			w := model.PostLotteryWinner{PostID: postID, UserID: c.UserID, CommentID: c.ID}
+			w := models.PostLotteryWinner{PostID: postID, UserID: c.UserID, CommentID: c.ID}
 			if err := tx.Create(&w).Error; err != nil {
 				return err
 			}
 		}
-		return tx.Model(&post).Update("lottery_status", model.PostLotteryStatusDrawn).Error
+		return tx.Model(&post).Update("lottery_status", models.PostLotteryStatusDrawn).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	post.LotteryStatus = model.PostLotteryStatusDrawn
+	post.LotteryStatus = models.PostLotteryStatusDrawn
 	return GetPostLotteryView(&post)
 }
 
-func randomPickComments(comments []model.Comment, n int) []model.Comment {
-	pool := append([]model.Comment{}, comments...)
-	out := make([]model.Comment, 0, n)
+func randomPickComments(comments []models.Comment, n int) []models.Comment {
+	pool := append([]models.Comment{}, comments...)
+	out := make([]models.Comment, 0, n)
 	for i := 0; i < n && len(pool) > 0; i++ {
 		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
 		if err != nil {
@@ -146,5 +146,5 @@ func randomPickComments(comments []model.Comment, n int) []model.Comment {
 
 // DeleteLotteryData 删帖清理
 func DeleteLotteryData(tx *gorm.DB, postID uint) {
-	tx.Where("post_id = ?", postID).Delete(&model.PostLotteryWinner{})
+	tx.Where("post_id = ?", postID).Delete(&models.PostLotteryWinner{})
 }

@@ -1,10 +1,10 @@
-package service
+﻿package services
 
 import (
 	"errors"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -14,34 +14,34 @@ type BadgeService struct{}
 func NewBadgeService() *BadgeService { return &BadgeService{} }
 
 // ListDefs 列出徽章定义
-func (s *BadgeService) ListDefs(includeDisabled bool) ([]model.BadgeDef, error) {
-	q := model.DB.Order("sort_order asc, id asc")
+func (s *BadgeService) ListDefs(includeDisabled bool) ([]models.BadgeDef, error) {
+	q := models.DB.Order("sort_order asc, id asc")
 	if !includeDisabled {
 		q = q.Where("enabled = ?", true)
 	}
-	var rows []model.BadgeDef
+	var rows []models.BadgeDef
 	err := q.Find(&rows).Error
 	return rows, err
 }
 
 // UpsertDef 创建或更新徽章定义（按 code）
-func (s *BadgeService) UpsertDef(def *model.BadgeDef) error {
+func (s *BadgeService) UpsertDef(def *models.BadgeDef) error {
 	if def.Code == "" || def.Name == "" {
 		return errors.New("徽章代码与名称不能为空")
 	}
-	if def.Kind != model.BadgeKindAuto && def.Kind != model.BadgeKindLimited {
+	if def.Kind != models.BadgeKindAuto && def.Kind != models.BadgeKindLimited {
 		return errors.New("无效的徽章类型")
 	}
-	var existing model.BadgeDef
-	err := model.DB.Where("code = ?", def.Code).Limit(1).Find(&existing).Error
+	var existing models.BadgeDef
+	err := models.DB.Where("code = ?", def.Code).Limit(1).Find(&existing).Error
 	if err != nil {
 		return err
 	}
 	if existing.ID == 0 {
-		return model.DB.Create(def).Error
+		return models.DB.Create(def).Error
 	}
 	def.ID = existing.ID
-	return model.DB.Model(&existing).Updates(map[string]interface{}{
+	return models.DB.Model(&existing).Updates(map[string]interface{}{
 		"name":        def.Name,
 		"description": def.Description,
 		"icon":        def.Icon,
@@ -55,22 +55,22 @@ func (s *BadgeService) UpsertDef(def *model.BadgeDef) error {
 
 // AwardLimited 站长颁发限定徽章
 func (s *BadgeService) AwardLimited(userID, badgeID, adminID uint) error {
-	var def model.BadgeDef
-	if err := model.DB.First(&def, badgeID).Error; err != nil {
+	var def models.BadgeDef
+	if err := models.DB.First(&def, badgeID).Error; err != nil {
 		return errors.New("徽章不存在")
 	}
-	if def.Kind != model.BadgeKindLimited {
+	if def.Kind != models.BadgeKindLimited {
 		return errors.New("仅可颁发限定徽章")
 	}
 	if !def.Enabled {
 		return errors.New("徽章已停用")
 	}
 	var n int64
-	model.DB.Model(&model.UserBadge{}).Where("user_id = ? AND badge_id = ?", userID, badgeID).Count(&n)
+	models.DB.Model(&models.UserBadge{}).Where("user_id = ? AND badge_id = ?", userID, badgeID).Count(&n)
 	if n > 0 {
 		return errors.New("用户已拥有该徽章")
 	}
-	return model.DB.Create(&model.UserBadge{
+	return models.DB.Create(&models.UserBadge{
 		UserID:    userID,
 		BadgeID:   badgeID,
 		AwardedAt: time.Now(),
@@ -80,7 +80,7 @@ func (s *BadgeService) AwardLimited(userID, badgeID, adminID uint) error {
 
 // Revoke 收回徽章
 func (s *BadgeService) Revoke(userID, badgeID uint) error {
-	res := model.DB.Where("user_id = ? AND badge_id = ?", userID, badgeID).Delete(&model.UserBadge{})
+	res := models.DB.Where("user_id = ? AND badge_id = ?", userID, badgeID).Delete(&models.UserBadge{})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -91,21 +91,21 @@ func (s *BadgeService) Revoke(userID, badgeID uint) error {
 }
 
 // ListUserBadges 用户已获徽章（含定义）
-func (s *BadgeService) ListUserBadges(userID uint) ([]model.UserBadge, error) {
-	var rows []model.UserBadge
-	err := model.DB.Preload("Badge").Where("user_id = ?", userID).
+func (s *BadgeService) ListUserBadges(userID uint) ([]models.UserBadge, error) {
+	var rows []models.UserBadge
+	err := models.DB.Preload("Badge").Where("user_id = ?", userID).
 		Order("awarded_at desc").Find(&rows).Error
 	return rows, err
 }
 
 // BadgeViews 转为展示视图（最多 limit 枚，0=全部）
-func BadgeViews(rows []model.UserBadge, limit int) []model.UserBadgeView {
-	out := make([]model.UserBadgeView, 0, len(rows))
+func BadgeViews(rows []models.UserBadge, limit int) []models.UserBadgeView {
+	out := make([]models.UserBadgeView, 0, len(rows))
 	for _, r := range rows {
 		if r.Badge.ID == 0 || !r.Badge.Enabled {
 			continue
 		}
-		out = append(out, model.UserBadgeView{
+		out = append(out, models.UserBadgeView{
 			Code:        r.Badge.Code,
 			Name:        r.Badge.Name,
 			Description: r.Badge.Description,
@@ -121,25 +121,25 @@ func BadgeViews(rows []model.UserBadge, limit int) []model.UserBadgeView {
 
 // EvaluateAuto 检查并授予符合条件的自动徽章
 func (s *BadgeService) EvaluateAuto(userID uint) error {
-	var user model.User
-	if err := model.DB.First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
 		return err
 	}
-	var defs []model.BadgeDef
-	if err := model.DB.Where("kind = ? AND enabled = ?", model.BadgeKindAuto, true).Find(&defs).Error; err != nil {
+	var defs []models.BadgeDef
+	if err := models.DB.Where("kind = ? AND enabled = ?", models.BadgeKindAuto, true).Find(&defs).Error; err != nil {
 		return err
 	}
 	tenureDays := int(time.Since(user.CreatedAt).Hours() / 24)
 	var likes int64
-	_ = model.DB.Model(&model.Post{}).
+	_ = models.DB.Model(&models.Post{}).
 		Select("COALESCE(SUM(like_count), 0)").
-		Where("user_id = ? AND status = ?", userID, model.ContentStatusPublished).
+		Where("user_id = ? AND status = ?", userID, models.ContentStatusPublished).
 		Scan(&likes).Error
 	income := user.CreatorIncomeTotal
 
 	owned := map[uint]bool{}
-	var existing []model.UserBadge
-	_ = model.DB.Where("user_id = ?", userID).Find(&existing).Error
+	var existing []models.UserBadge
+	_ = models.DB.Where("user_id = ?", userID).Find(&existing).Error
 	for _, e := range existing {
 		owned[e.BadgeID] = true
 	}
@@ -150,17 +150,17 @@ func (s *BadgeService) EvaluateAuto(userID uint) error {
 		}
 		ok := false
 		switch d.Metric {
-		case model.BadgeMetricTenureDays:
+		case models.BadgeMetricTenureDays:
 			ok = tenureDays >= d.Threshold
-		case model.BadgeMetricLikesReceived:
+		case models.BadgeMetricLikesReceived:
 			ok = int(likes) >= d.Threshold
-		case model.BadgeMetricCreatorIncome:
+		case models.BadgeMetricCreatorIncome:
 			ok = income >= d.Threshold
 		}
 		if !ok {
 			continue
 		}
-		_ = model.DB.Create(&model.UserBadge{
+		_ = models.DB.Create(&models.UserBadge{
 			UserID:    userID,
 			BadgeID:   d.ID,
 			AwardedAt: time.Now(),
@@ -171,7 +171,7 @@ func (s *BadgeService) EvaluateAuto(userID uint) error {
 }
 
 // AttachBadgeSummaries 批量为用户填充展示用徽章（最多 perUser 枚）
-func (s *BadgeService) AttachBadgeSummaries(users []*model.User, perUser int) {
+func (s *BadgeService) AttachBadgeSummaries(users []*models.User, perUser int) {
 	if len(users) == 0 {
 		return
 	}
@@ -184,7 +184,7 @@ func (s *BadgeService) AttachBadgeSummaries(users []*model.User, perUser int) {
 		if u == nil || u.ID == 0 {
 			continue
 		}
-		u.Level = model.LevelFromExp(u.Exp)
+		u.Level = models.LevelFromExp(u.Exp)
 		if !seen[u.ID] {
 			seen[u.ID] = true
 			ids = append(ids, u.ID)
@@ -193,10 +193,10 @@ func (s *BadgeService) AttachBadgeSummaries(users []*model.User, perUser int) {
 	if len(ids) == 0 {
 		return
 	}
-	var rows []model.UserBadge
-	_ = model.DB.Preload("Badge").Where("user_id IN ?", ids).
+	var rows []models.UserBadge
+	_ = models.DB.Preload("Badge").Where("user_id IN ?", ids).
 		Order("awarded_at desc").Find(&rows).Error
-	grouped := map[uint][]model.UserBadgeView{}
+	grouped := map[uint][]models.UserBadgeView{}
 	for _, r := range rows {
 		if r.Badge.ID == 0 || !r.Badge.Enabled {
 			continue
@@ -205,7 +205,7 @@ func (s *BadgeService) AttachBadgeSummaries(users []*model.User, perUser int) {
 		if len(list) >= perUser {
 			continue
 		}
-		list = append(list, model.UserBadgeView{
+		list = append(list, models.UserBadgeView{
 			Code:        r.Badge.Code,
 			Name:        r.Badge.Name,
 			Description: r.Badge.Description,
@@ -223,8 +223,8 @@ func (s *BadgeService) AttachBadgeSummaries(users []*model.User, perUser int) {
 }
 
 // AttachBadgeSummariesOnPosts 给帖子作者填充徽章摘要
-func (s *BadgeService) AttachBadgeSummariesOnPosts(posts []model.Post, perUser int) {
-	users := make([]*model.User, 0, len(posts))
+func (s *BadgeService) AttachBadgeSummariesOnPosts(posts []models.Post, perUser int) {
+	users := make([]*models.User, 0, len(posts))
 	for i := range posts {
 		if posts[i].User.ID > 0 {
 			users = append(users, &posts[i].User)
@@ -234,8 +234,8 @@ func (s *BadgeService) AttachBadgeSummariesOnPosts(posts []model.Post, perUser i
 }
 
 // AttachBadgeSummariesOnComments 给评论作者填充徽章摘要
-func (s *BadgeService) AttachBadgeSummariesOnComments(comments []model.Comment, perUser int) {
-	users := make([]*model.User, 0, len(comments))
+func (s *BadgeService) AttachBadgeSummariesOnComments(comments []models.Comment, perUser int) {
+	users := make([]*models.User, 0, len(comments))
 	for i := range comments {
 		if comments[i].User.ID > 0 {
 			users = append(users, &comments[i].User)
@@ -249,24 +249,24 @@ func AddExp(userID uint, delta int) {
 	if userID == 0 || delta <= 0 {
 		return
 	}
-	_ = model.DB.Model(&model.User{}).Where("id = ?", userID).
+	_ = models.DB.Model(&models.User{}).Where("id = ?", userID).
 		UpdateColumn("exp", gorm.Expr("exp + ?", delta)).Error
 }
 
 // SetUserLevel 站长设等级（调整 Exp 到门槛）
 func SetUserLevel(userID uint, level int) error {
-	if level < 1 || level > model.MaxLevel() {
+	if level < 1 || level > models.MaxLevel() {
 		return errors.New("等级须在 1–10")
 	}
-	exp := model.ExpForLevel(level)
-	return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("exp", exp).Error
+	exp := models.ExpForLevel(level)
+	return models.DB.Model(&models.User{}).Where("id = ?", userID).Update("exp", exp).Error
 }
 
 // SetVerified 设置认证
 func SetVerified(userID uint, verified bool) error {
-	var user model.User
-	if err := model.DB.First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
 		return errors.New("用户不存在")
 	}
-	return model.DB.Model(&user).Update("verified", verified).Error
+	return models.DB.Model(&user).Update("verified", verified).Error
 }

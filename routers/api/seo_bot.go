@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"fmt"
@@ -6,16 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/embed_static"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/modules/seo"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // 爬虫专用伪静态 HTML（无 SPA；仅 User-Agent 命中爬虫时返回，避免用户刷新闪屏）
 
-func renderBotHTML(meta *embed_static.SPAPageMeta, bodyInner string) string {
+func renderBotHTML(meta *seo.PageMeta, bodyInner string) string {
 	if meta == nil {
-		meta = &embed_static.SPAPageMeta{}
+		meta = &seo.PageMeta{}
 	}
 	ogType := strings.TrimSpace(meta.OGType)
 	if ogType == "" {
@@ -87,7 +87,7 @@ func writeEscapedMeta(b *strings.Builder, attr, key, content string) {
 	b.WriteString("<meta " + attr + "=\"" + html.EscapeString(key) + "\" content=\"" + html.EscapeString(content) + "\"/>")
 }
 
-func (h *Handlers) botBoardHTML(meta *embed_static.SPAPageMeta, board model.Board) string {
+func (h *Handlers) botBoardHTML(meta *seo.PageMeta, board models.Board) string {
 	desc := strings.TrimSpace(board.Description)
 	if desc == "" {
 		desc = meta.Description
@@ -99,7 +99,7 @@ func (h *Handlers) botBoardHTML(meta *embed_static.SPAPageMeta, board model.Boar
 	return renderBotHTML(meta, body)
 }
 
-func (h *Handlers) botHomeHTML(meta *embed_static.SPAPageMeta, brand service.SiteBranding) string {
+func (h *Handlers) botHomeHTML(meta *seo.PageMeta, brand services.SiteBranding) string {
 	name := strings.TrimSpace(brand.Name)
 	if name == "" {
 		name = "姜十三论坛"
@@ -117,10 +117,10 @@ func (h *Handlers) botHomeHTML(meta *embed_static.SPAPageMeta, brand service.Sit
 	return renderBotHTML(meta, body.String())
 }
 
-func (h *Handlers) botPostHTML(base, siteName, defaultImage, keywords string, post *model.Post) string {
+func (h *Handlers) botPostHTML(base, siteName, defaultImage, keywords string, post *models.Post) string {
 	meta := attachSiteSEO(h.postPageMeta(base, siteName, defaultImage, post), siteName, keywords)
-	content := service.SanitizePostHTML(service.RedactGatedPostHTML(post.Content))
-	author := service.DisplayName(&post.User)
+	content := services.SanitizePostHTML(services.RedactGatedPostHTML(post.Content))
+	author := services.DisplayName(&post.User)
 	var body strings.Builder
 	body.WriteString("<article>")
 	body.WriteString("<h1>" + html.EscapeString(post.Title) + "</h1>")
@@ -138,9 +138,9 @@ func (h *Handlers) botPostHTML(base, siteName, defaultImage, keywords string, po
 	return renderBotHTML(meta, body.String())
 }
 
-func (h *Handlers) botUserHTML(base, siteName, defaultImage, keywords string, user *model.User) string {
+func (h *Handlers) botUserHTML(base, siteName, defaultImage, keywords string, user *models.User) string {
 	meta := attachSiteSEO(h.userPageMeta(base, siteName, defaultImage, user), siteName, keywords)
-	name := service.DisplayName(user)
+	name := services.DisplayName(user)
 	sig := strings.TrimSpace(user.Signature)
 	var body strings.Builder
 	body.WriteString("<h1>" + html.EscapeString(name) + " 的主页</h1>")

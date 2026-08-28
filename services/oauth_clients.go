@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"crypto/rand"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 var (
@@ -44,8 +44,8 @@ type OAuthClientInput struct {
 
 // ListOAuthClients 列出全部 OAuth 应用
 func (s *ForumSettingsService) ListOAuthClients() ([]OAuthClientView, error) {
-	var rows []model.OAuthClient
-	if err := model.DB.Order("id asc").Find(&rows).Error; err != nil {
+	var rows []models.OAuthClient
+	if err := models.DB.Order("id asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]OAuthClientView, 0, len(rows))
@@ -64,7 +64,7 @@ func (s *ForumSettingsService) CreateOAuthClient(in OAuthClientInput) (*OAuthCli
 		return nil, ErrOAuthClientInvalid
 	}
 	var n int64
-	model.DB.Model(&model.OAuthClient{}).Where("client_id = ?", clientID).Count(&n)
+	models.DB.Model(&models.OAuthClient{}).Where("client_id = ?", clientID).Count(&n)
 	if n > 0 {
 		return nil, ErrOAuthClientExists
 	}
@@ -85,14 +85,14 @@ func (s *ForumSettingsService) CreateOAuthClient(in OAuthClientInput) (*OAuthCli
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
-	row := model.OAuthClient{
+	row := models.OAuthClient{
 		ClientID:         clientID,
 		ClientSecretHash: hash,
 		Name:             name,
 		RedirectURIs:     uris,
 		Enabled:          enabled,
 	}
-	if err := model.DB.Create(&row).Error; err != nil {
+	if err := models.DB.Create(&row).Error; err != nil {
 		return nil, err
 	}
 	v := toOAuthClientView(row, plain)
@@ -101,8 +101,8 @@ func (s *ForumSettingsService) CreateOAuthClient(in OAuthClientInput) (*OAuthCli
 
 // UpdateOAuthClient 更新应用
 func (s *ForumSettingsService) UpdateOAuthClient(id uint, in OAuthClientInput) (*OAuthClientView, error) {
-	var row model.OAuthClient
-	if err := model.DB.First(&row, id).Error; err != nil {
+	var row models.OAuthClient
+	if err := models.DB.First(&row, id).Error; err != nil {
 		return nil, ErrOAuthClientNotFound
 	}
 	name := strings.TrimSpace(in.Name)
@@ -137,7 +137,7 @@ func (s *ForumSettingsService) UpdateOAuthClient(id uint, in OAuthClientInput) (
 		row.ClientSecretHash = hash
 	}
 
-	if err := model.DB.Save(&row).Error; err != nil {
+	if err := models.DB.Save(&row).Error; err != nil {
 		return nil, err
 	}
 	v := toOAuthClientView(row, plain)
@@ -146,7 +146,7 @@ func (s *ForumSettingsService) UpdateOAuthClient(id uint, in OAuthClientInput) (
 
 // DeleteOAuthClient 删除应用
 func (s *ForumSettingsService) DeleteOAuthClient(id uint) error {
-	res := model.DB.Delete(&model.OAuthClient{}, id)
+	res := models.DB.Delete(&models.OAuthClient{}, id)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -157,23 +157,23 @@ func (s *ForumSettingsService) DeleteOAuthClient(id uint) error {
 }
 
 // FindEnabledOAuthClient 按 client_id 查找已启用应用
-func FindEnabledOAuthClient(clientID string) (*model.OAuthClient, error) {
-	var row model.OAuthClient
-	if err := model.DB.Where("client_id = ? AND enabled = ?", clientID, true).First(&row).Error; err != nil {
+func FindEnabledOAuthClient(clientID string) (*models.OAuthClient, error) {
+	var row models.OAuthClient
+	if err := models.DB.Where("client_id = ? AND enabled = ?", clientID, true).First(&row).Error; err != nil {
 		return nil, ErrOIDCInvalidClient
 	}
 	return &row, nil
 }
 
 // VerifyOAuthClientSecret 校验客户端密钥（bcrypt 哈希）
-func VerifyOAuthClientSecret(row *model.OAuthClient, secret string) bool {
+func VerifyOAuthClientSecret(row *models.OAuthClient, secret string) bool {
 	if row == nil || secret == "" || row.ClientSecretHash == "" {
 		return false
 	}
 	return CheckPassword(row.ClientSecretHash, secret)
 }
 
-func toOAuthClientView(row model.OAuthClient, plainSecret string) OAuthClientView {
+func toOAuthClientView(row models.OAuthClient, plainSecret string) OAuthClientView {
 	return OAuthClientView{
 		ID:           row.ID,
 		ClientID:     row.ClientID,
@@ -198,6 +198,6 @@ func generateClientSecret() (string, error) {
 // CountEnabledOAuthClients 已启用客户端数量
 func CountEnabledOAuthClients() int64 {
 	var n int64
-	model.DB.Model(&model.OAuthClient{}).Where("enabled = ?", true).Count(&n)
+	models.DB.Model(&models.OAuthClient{}).Where("enabled = ?", true).Count(&n)
 	return n
 }

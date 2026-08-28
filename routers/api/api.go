@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"errors"
@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/middleware"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/modules/auth"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // APIMe 当前登录用户
@@ -25,7 +25,7 @@ func (h *Handlers) APIMe(c *gin.Context) {
 	user, err := h.User.GetByID(uid)
 	if err != nil {
 		// 账号已删或不存在：清掉失效 cookie，与未登录态一致
-		c.SetCookie(middleware.CookieName, "", -1, "/", "", false, true)
+		c.SetCookie(auth.CookieName, "", -1, "/", "", false, true)
 		c.JSON(http.StatusOK, gin.H{"user": nil})
 		return
 	}
@@ -35,7 +35,7 @@ func (h *Handlers) APIMe(c *gin.Context) {
 	view := user.ToSelf()
 	if h.Badge != nil {
 		if badges, bErr := h.Badge.ListUserBadges(user.ID); bErr == nil {
-			view.Badges = service.BadgeViews(badges, 0)
+			view.Badges = services.BadgeViews(badges, 0)
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -51,14 +51,14 @@ func (h *Handlers) APIBoards(c *gin.Context) {
 		return
 	}
 	if boards == nil {
-		boards = []service.BoardWithStats{}
+		boards = []services.BoardWithStats{}
 	}
 	c.JSON(http.StatusOK, gin.H{"boards": boards})
 }
 
 // APIHealth 健康检查（容器探活 / 负载均衡）
 func (h *Handlers) APIHealth(c *gin.Context) {
-	if err := model.PingDB(); err != nil {
+	if err := models.PingDB(); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"status": "unavailable",
 			"error":  err.Error(),
@@ -71,10 +71,10 @@ func (h *Handlers) APIHealth(c *gin.Context) {
 // APIStats 论坛概览统计
 func (h *Handlers) APIStats(c *gin.Context) {
 	var userCount, postCount, boardCount, commentCount int64
-	model.DB.Model(&model.User{}).Count(&userCount)
-	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
-	model.DB.Model(&model.Board{}).Count(&boardCount)
-	model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPublished).Count(&commentCount)
+	models.DB.Model(&models.User{}).Count(&userCount)
+	models.DB.Model(&models.Post{}).Where("status = ?", models.ContentStatusPublished).Count(&postCount)
+	models.DB.Model(&models.Board{}).Count(&boardCount)
+	models.DB.Model(&models.Comment{}).Where("status = ?", models.ContentStatusPublished).Count(&commentCount)
 	c.JSON(http.StatusOK, gin.H{
 		"users":    userCount,
 		"posts":    postCount,
@@ -144,19 +144,19 @@ func (h *Handlers) APIAdminDeleteBoard(c *gin.Context) {
 // APIAdminDashboard 管理后台概览
 func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	var userCount, postCount, boardCount, commentCount int64
-	model.DB.Model(&model.User{}).Count(&userCount)
-	model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPublished).Count(&postCount)
-	model.DB.Model(&model.Board{}).Count(&boardCount)
-	model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPublished).Count(&commentCount)
+	models.DB.Model(&models.User{}).Count(&userCount)
+	models.DB.Model(&models.Post{}).Where("status = ?", models.ContentStatusPublished).Count(&postCount)
+	models.DB.Model(&models.Board{}).Count(&boardCount)
+	models.DB.Model(&models.Comment{}).Where("status = ?", models.ContentStatusPublished).Count(&commentCount)
 	pendingPosts, _ := h.Post.PendingPostCount()
 	pendingComments, _ := h.Comment.PendingCommentCount()
 	pendingReports, _ := h.Report.PendingCount()
 	pendingFriendLinks, _ := h.FriendLinkApply.PendingCount()
-	recentPosts, _, _ := h.Post.List(service.PostListQuery{
+	recentPosts, _, _ := h.Post.List(services.PostListQuery{
 		Page: 1, Size: 8, ViewerIsAdmin: true, Status: "all",
 	})
 	if recentPosts == nil {
-		recentPosts = []model.Post{}
+		recentPosts = []models.Post{}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
@@ -175,7 +175,7 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.DefaultQuery("status", "all"))
-	posts, total, err := h.Post.ListItems(service.PostListQuery{
+	posts, total, err := h.Post.ListItems(services.PostListQuery{
 		Page: page, Size: size, Keyword: keyword,
 		ViewerIsAdmin: true, Status: status,
 	})
@@ -184,7 +184,7 @@ func (h *Handlers) APIAdminPosts(c *gin.Context) {
 		return
 	}
 	if posts == nil {
-		posts = []service.PostListItem{}
+		posts = []services.PostListItem{}
 	}
 	pending, _ := h.Post.PendingPostCount()
 	c.JSON(http.StatusOK, gin.H{
@@ -321,7 +321,7 @@ func (h *Handlers) APIAdminTrashPosts(c *gin.Context) {
 		return
 	}
 	if posts == nil {
-		posts = []service.TrashPostItem{}
+		posts = []services.TrashPostItem{}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"posts": posts, "total": total, "page": page,
@@ -360,7 +360,7 @@ func (h *Handlers) APIAdminComments(c *gin.Context) {
 		return
 	}
 	if comments == nil {
-		comments = []model.Comment{}
+		comments = []models.Comment{}
 	}
 	pending, _ := h.Comment.PendingCommentCount()
 	c.JSON(http.StatusOK, gin.H{
@@ -374,18 +374,18 @@ func (h *Handlers) APIAdminComments(c *gin.Context) {
 // APIAdminApproveComment 通过评论审核
 func (h *Handlers) APIAdminApproveComment(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := h.Comment.SetStatus(uint(id), model.ContentStatusPublished); err != nil {
+	if err := h.Comment.SetStatus(uint(id), models.ContentStatusPublished); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	if h.Notify != nil {
 		if comment, err := h.Comment.GetByID(uint(id)); err == nil {
-			comment.Status = model.ContentStatusPublished
+			comment.Status = models.ContentStatusPublished
 			h.Notify.AsyncNotifyCommentPublished(comment)
 			h.Notify.AsyncNotifyCommentMentions(comment)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "评论已通过审核", "status": model.ContentStatusPublished})
+	c.JSON(http.StatusOK, gin.H{"message": "评论已通过审核", "status": models.ContentStatusPublished})
 }
 
 // APIAdminRejectComment 拒绝评论并私信通知
@@ -404,7 +404,7 @@ func (h *Handlers) APIAdminRejectComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.Comment.SetStatus(uint(id), model.ContentStatusRejected); err != nil {
+	if err := h.Comment.SetStatus(uint(id), models.ContentStatusRejected); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -417,13 +417,13 @@ func (h *Handlers) APIAdminRejectComment(c *gin.Context) {
 		_, _ = h.Message.SendSystem(
 			comment.UserID,
 			"评论未通过审核",
-			service.FormatCommentRejectContent(title, comment.PostID, comment.Floor, reason),
-			model.MessageKindReject,
+			services.FormatCommentRejectContent(title, comment.PostID, comment.Floor, reason),
+			models.MessageKindReject,
 			&pid,
 			nil,
 		)
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "已拒绝该评论并通知作者", "status": model.ContentStatusRejected})
+	c.JSON(http.StatusOK, gin.H{"message": "已拒绝该评论并通知作者", "status": models.ContentStatusRejected})
 }
 
 // APIAdminDeleteComment 管理员软删除评论（进入回收站）
@@ -447,7 +447,7 @@ func (h *Handlers) APIAdminTrashComments(c *gin.Context) {
 		return
 	}
 	if comments == nil {
-		comments = []service.TrashCommentItem{}
+		comments = []services.TrashCommentItem{}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"comments": comments, "total": total, "page": page,
@@ -492,7 +492,7 @@ func (h *Handlers) APIAdminUsers(c *gin.Context) {
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	filter := strings.TrimSpace(c.DefaultQuery("filter", "all"))
-	users, total, err := h.User.ListUsers(service.UserListQuery{
+	users, total, err := h.User.ListUsers(services.UserListQuery{
 		Page: page, Size: size, Keyword: keyword, Filter: filter,
 	})
 	if err != nil {
@@ -500,10 +500,10 @@ func (h *Handlers) APIAdminUsers(c *gin.Context) {
 		return
 	}
 	if users == nil {
-		users = []model.User{}
+		users = []models.User{}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"users": model.UsersToAdmin(users), "total": total, "page": page,
+		"users": models.UsersToAdmin(users), "total": total, "page": page,
 		"total_pages": calcTotalPages(total, size),
 		"keyword":     keyword,
 		"filter":      filter,
@@ -560,7 +560,7 @@ func (h *Handlers) APIAdminDownloadBackup(c *gin.Context) {
 // APIAdminSettings 系统设置信息
 func (h *Handlers) APIAdminSettings(c *gin.Context) {
 	limits := h.Settings.Limits()
-	filterContent, _ := service.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
+	filterContent, _ := services.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
 	clients, _ := h.Settings.ListOAuthClients()
 	c.JSON(http.StatusOK, gin.H{
 		"filter_path":       h.Cfg.FilterWordsPath(),
@@ -575,7 +575,7 @@ func (h *Handlers) APIAdminSettings(c *gin.Context) {
 		"storage":           h.Settings.StorageConfigPublic(),
 		"branding":          h.Settings.SiteBranding(),
 		"filter_words":      filterContent,
-		"filter_word_count": service.CountFilterWords(filterContent),
+		"filter_word_count": services.CountFilterWords(filterContent),
 	})
 }
 
@@ -588,7 +588,7 @@ func (h *Handlers) APISiteBranding(c *gin.Context) {
 
 // APIAdminUpdateBranding 更新站点品牌文案
 func (h *Handlers) APIAdminUpdateBranding(c *gin.Context) {
-	var req service.SiteBranding
+	var req services.SiteBranding
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -620,7 +620,7 @@ func (h *Handlers) APIAdminUploadBrandingAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "图片不能超过 2MB"})
 		return
 	}
-	url, err := service.SaveUploadedImage(h.Store, file, service.UploadCategorySite, kind)
+	url, err := services.SaveUploadedImage(h.Store, file, services.UploadCategorySite, kind)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -677,7 +677,7 @@ func (h *Handlers) APIAdminClearBrandingAsset(c *gin.Context) {
 
 // APIAdminUpdateForumSettings 更新论坛设置
 func (h *Handlers) APIAdminUpdateForumSettings(c *gin.Context) {
-	var req service.ForumLimits
+	var req services.ForumLimits
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -694,7 +694,7 @@ func (h *Handlers) APIAdminUpdateForumSettings(c *gin.Context) {
 
 // APIAdminUpdateMailSettings 更新邮件 SMTP 配置
 func (h *Handlers) APIAdminUpdateMailSettings(c *gin.Context) {
-	var req service.MailConfig
+	var req services.MailConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -711,7 +711,7 @@ func (h *Handlers) APIAdminUpdateMailSettings(c *gin.Context) {
 
 // APIAdminUpdateOIDCSettings 更新 OIDC Provider 全局配置
 func (h *Handlers) APIAdminUpdateOIDCSettings(c *gin.Context) {
-	var req service.OIDCConfig
+	var req services.OIDCConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -749,7 +749,7 @@ func (h *Handlers) APIProjects(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取失败"})
 		return
 	}
-	list = service.AttachGiteaOwners(list, h.Badge)
+	list = services.AttachGiteaOwners(list, h.Badge)
 	c.JSON(http.StatusOK, gin.H{
 		"projects":    list,
 		"total":       total,
@@ -760,7 +760,7 @@ func (h *Handlers) APIProjects(c *gin.Context) {
 
 // APIAdminUpdateGiteaSettings 更新 Gitea 同步配置
 func (h *Handlers) APIAdminUpdateGiteaSettings(c *gin.Context) {
-	var req service.GiteaSyncConfig
+	var req services.GiteaSyncConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -777,7 +777,7 @@ func (h *Handlers) APIAdminUpdateGiteaSettings(c *gin.Context) {
 
 // APIAdminUpdateStorageSettings 更新上传存储（本地 / S3 兼容），保存后立即热切换
 func (h *Handlers) APIAdminUpdateStorageSettings(c *gin.Context) {
-	var req service.StorageConfig
+	var req services.StorageConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -799,7 +799,7 @@ func (h *Handlers) APIAdminUpdateStorageSettings(c *gin.Context) {
 // APIAdminSyncGitea 立即同步 Gitea 公开仓库
 func (h *Handlers) APIAdminSyncGitea(c *gin.Context) {
 	if h.Gitea == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrGiteaNotConfigured.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": services.ErrGiteaNotConfigured.Error()})
 		return
 	}
 	n, err := h.Gitea.SyncRepos()
@@ -826,7 +826,7 @@ func (h *Handlers) APIAdminListOAuthClients(c *gin.Context) {
 
 // APIAdminCreateOAuthClient 创建 OAuth 应用
 func (h *Handlers) APIAdminCreateOAuthClient(c *gin.Context) {
-	var req service.OAuthClientInput
+	var req services.OAuthClientInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -850,7 +850,7 @@ func (h *Handlers) APIAdminUpdateOAuthClient(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效 ID"})
 		return
 	}
-	var req service.OAuthClientInput
+	var req services.OAuthClientInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
@@ -897,16 +897,16 @@ func (h *Handlers) APIAdminTestMail(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写收件邮箱"})
 		return
 	}
-	if err := service.ValidateEmail(req.To); err != nil {
+	if err := services.ValidateEmail(req.To); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	if !h.Settings.MailReady() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrMailNotConfigured.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": services.ErrMailNotConfigured.Error()})
 		return
 	}
 	siteName := h.Settings.SiteBranding().Name
-	err := h.Mail.Send(service.NormalizeEmail(req.To), "邮件配置测试",
+	err := h.Mail.Send(services.NormalizeEmail(req.To), "邮件配置测试",
 		fmt.Sprintf("这是一封来自%s的测试邮件，说明 SMTP 配置正常。", siteName))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -917,14 +917,14 @@ func (h *Handlers) APIAdminTestMail(c *gin.Context) {
 
 // APIAdminFilterWords 读取敏感词配置
 func (h *Handlers) APIAdminFilterWords(c *gin.Context) {
-	content, err := service.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
+	content, err := services.ReadFilterWordsFile(h.Cfg.FilterWordsPath())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取敏感词配置失败"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"content":    content,
-		"word_count": service.CountFilterWords(content),
+		"word_count": services.CountFilterWords(content),
 		"path":       h.Cfg.FilterWordsPath(),
 	})
 }
@@ -938,13 +938,13 @@ func (h *Handlers) APIAdminUpdateFilterWords(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := service.WriteFilterWordsFile(h.Cfg.FilterWordsPath(), req.Content, h.Filter); err != nil {
+	if err := services.WriteFilterWordsFile(h.Cfg.FilterWordsPath(), req.Content, h.Filter); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存敏感词配置失败"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "敏感词已保存并生效",
-		"word_count": service.CountFilterWords(req.Content),
+		"word_count": services.CountFilterWords(req.Content),
 	})
 }
 
@@ -959,7 +959,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	author := strings.TrimSpace(c.Query("author"))
 	titleOnly := c.Query("title_only") == "1" || strings.EqualFold(c.Query("title_only"), "true")
 
-	q := service.PostListQuery{
+	q := services.PostListQuery{
 		BoardID:       uint(boardID),
 		UserID:        uint(userID),
 		Page:          page,
@@ -982,10 +982,10 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		return
 	}
 	if items == nil {
-		items = []service.PostListItem{}
+		items = []services.PostListItem{}
 	}
 	if h.Badge != nil {
-		users := make([]*model.User, 0, len(items))
+		users := make([]*models.User, 0, len(items))
 		for i := range items {
 			if items[i].User.ID > 0 {
 				users = append(users, &items[i].User)
@@ -1012,34 +1012,34 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 	}
 	uid := h.currentUserID(c)
 	isAdmin := h.isAdmin(c)
-	if !service.CanViewPost(post, uid, isAdmin) {
+	if !services.CanViewPost(post, uid, isAdmin) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
 	}
-	if c.Query("skip_view") != "1" && post.Status == model.ContentStatusPublished {
+	if c.Query("skip_view") != "1" && post.Status == models.ContentStatusPublished {
 		h.Post.RecordView(uint(id))
 	}
 	// 出口再消毒：兼容库内历史脏 HTML（如 <style>），避免旧帖污染整页
-	post.Content = service.SanitizePostHTML(post.Content)
+	post.Content = services.SanitizePostHTML(post.Content)
 	hasReplied := uid > 0 && h.Comment.HasUserReplied(uint(id), uid)
 	if uid == 0 {
-		post.Content = service.RedactMembersOnlyHTML(post.Content)
-		post.Content = service.RedactReplyOnlyHTML(post.Content)
+		post.Content = services.RedactMembersOnlyHTML(post.Content)
+		post.Content = services.RedactReplyOnlyHTML(post.Content)
 	} else if !isAdmin && post.UserID != uid && !hasReplied {
 		// 作者与管理员始终可见；其他用户需已回复
-		post.Content = service.RedactReplyOnlyHTML(post.Content)
+		post.Content = services.RedactReplyOnlyHTML(post.Content)
 	}
 	// 积分解锁块：作者/站长全文；其他人按解锁记录 redact
 	if isAdmin || post.UserID == uid {
-		post.Content = service.RevealAllPointsOnly(post.Content)
+		post.Content = services.RevealAllPointsOnly(post.Content)
 	} else {
-		unlocked, _ := service.ListUnlockedKeys(uid, uint(id))
-		post.Content = service.RedactPointsOnlyHTML(post.Content, unlocked)
+		unlocked, _ := services.ListUnlockedKeys(uid, uint(id))
+		post.Content = services.RedactPointsOnlyHTML(post.Content, unlocked)
 	}
 	comments, _ := h.Comment.ListByPost(uint(id), uid, isAdmin, post.UserID, h.parseGuestCommentIDs(c))
 	if h.Badge != nil {
 		if post.User.ID > 0 {
-			h.Badge.AttachBadgeSummaries([]*model.User{&post.User}, 3)
+			h.Badge.AttachBadgeSummaries([]*models.User{&post.User}, 3)
 		}
 		h.Badge.AttachBadgeSummariesOnComments(comments, 2)
 	}
@@ -1060,21 +1060,21 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		"is_edited":              isEdited,
 		"post_edit_window_hours": h.Settings.PostEditWindowHours(),
 	}
-	if post.PostType == model.PostTypePoll {
-		if poll, err := service.GetPollView(uint(id), uid); err == nil {
+	if post.PostType == models.PostTypePoll {
+		if poll, err := services.GetPollView(uint(id), uid); err == nil {
 			resp["poll"] = poll
 		}
 	}
-	if post.PostType == model.PostTypeLottery {
-		if lottery, err := service.GetPostLotteryView(post); err == nil && lottery != nil {
+	if post.PostType == models.PostTypeLottery {
+		if lottery, err := services.GetPostLotteryView(post); err == nil && lottery != nil {
 			resp["lottery"] = lottery
 		}
 	}
-	if post.PostType == model.PostTypeBounty && post.BountyStatus == model.BountyStatusOpen && post.BountyPoints > 0 {
-		canRefund, blockReason := service.CanRefundBounty(post, isAdmin)
+	if post.PostType == models.PostTypeBounty && post.BountyStatus == models.BountyStatusOpen && post.BountyPoints > 0 {
+		canRefund, blockReason := services.CanRefundBounty(post, isAdmin)
 		resp["bounty_can_refund"] = canRefund
 		resp["bounty_refund_block_reason"] = blockReason
-		if n, err := service.CountEligibleBountyReplies(model.DB, post.ID, post.UserID); err == nil {
+		if n, err := services.CountEligibleBountyReplies(models.DB, post.ID, post.UserID); err == nil {
 			resp["bounty_eligible_reply_count"] = n
 		}
 	}
@@ -1091,7 +1091,7 @@ func (h *Handlers) APIPostComments(c *gin.Context) {
 	}
 	uid := h.currentUserID(c)
 	isAdmin := h.isAdmin(c)
-	if !service.CanViewPost(post, uid, isAdmin) {
+	if !services.CanViewPost(post, uid, isAdmin) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
 	}
@@ -1101,7 +1101,7 @@ func (h *Handlers) APIPostComments(c *gin.Context) {
 		return
 	}
 	if comments == nil {
-		comments = []model.Comment{}
+		comments = []models.Comment{}
 	}
 	if h.Badge != nil {
 		h.Badge.AttachBadgeSummariesOnComments(comments, 2)
@@ -1138,7 +1138,7 @@ func (h *Handlers) APIRecentComments(c *gin.Context) {
 		return
 	}
 	if list == nil {
-		list = []service.RecentCommentItem{}
+		list = []services.RecentCommentItem{}
 	}
 	c.JSON(http.StatusOK, gin.H{"comments": list})
 }
@@ -1151,7 +1151,7 @@ func (h *Handlers) APIRecentUsers(c *gin.Context) {
 		return
 	}
 	if list == nil {
-		list = []service.RecentUserItem{}
+		list = []services.RecentUserItem{}
 	}
 	c.JSON(http.StatusOK, gin.H{"users": list})
 }
@@ -1166,7 +1166,7 @@ func (h *Handlers) APIFavorites(c *gin.Context) {
 		return
 	}
 	if favs == nil {
-		favs = []model.PostFavorite{}
+		favs = []models.PostFavorite{}
 	}
 	c.JSON(http.StatusOK, gin.H{"favorites": favs, "total": total, "page": page})
 }
@@ -1217,6 +1217,6 @@ func (h *Handlers) APIPostRevisionDetail(c *gin.Context) {
 }
 
 func isClientLimitError(err error) bool {
-	return errors.Is(err, service.ErrSearchKeywordTooShort) ||
-		errors.Is(err, service.ErrSearchKeywordTooLong)
+	return errors.Is(err, services.ErrSearchKeywordTooShort) ||
+		errors.Is(err, services.ErrSearchKeywordTooLong)
 }

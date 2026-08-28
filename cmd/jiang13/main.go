@@ -1,11 +1,11 @@
-package main
+﻿package main
 
 import (
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/kardianos/service"
+	kardsvc "github.com/kardianos/service"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
 )
@@ -25,7 +25,7 @@ func main() {
 	}
 
 	prg := &program{cfg: cfg}
-	svc, err := service.New(prg, svcCfg)
+	svc, err := kardsvc.New(prg, svcCfg)
 	if err != nil {
 		log.Fatalf("创建系统服务失败: %v", err)
 	}

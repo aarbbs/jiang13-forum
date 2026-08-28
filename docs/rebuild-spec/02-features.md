@@ -3,7 +3,7 @@
 > **读者**：实现与验收  
 > **前置**：[01-product.md](01-product.md)  
 > **交叉**：[05-business-rules.md](05-business-rules.md)、[06-pages-ux.md](06-pages-ux.md)  
-> **源码对照**：[`frontend/src/App.tsx`](../../frontend/src/App.tsx)、[`router/router.go`](../../router/router.go)、[`README.md`](../../README.md)
+> **源码对照**：[`frontend/src/App.tsx`](（仅 main）frontend/src/App.tsx)、[`router/router.go`](../../routers/setup.go)、[`README.md`](../../README.md)
 
 用复选框做验收；重构完成时应全部可勾选（或书面声明砍掉的功能）。
 

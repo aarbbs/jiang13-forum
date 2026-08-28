@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -41,7 +41,7 @@ type FriendLinkApplyInput struct {
 }
 
 type FriendLinkApplyCreateResult struct {
-	Apply *model.FriendLinkApply
+	Apply *models.FriendLinkApply
 }
 
 type FriendLinkApplyService struct {
@@ -106,41 +106,41 @@ func (s *FriendLinkApplyService) Create(in FriendLinkApplyInput) (*FriendLinkApp
 		return nil, ErrFriendLinkApplyPending
 	}
 
-	apply := &model.FriendLinkApply{
+	apply := &models.FriendLinkApply{
 		UserID:            in.UserID,
 		Name:              name,
 		URL:               href,
 		Logo:              logo,
 		ReciprocalPageURL: reciprocal,
 		LinkOnHomepage:    in.LinkOnHomepage,
-		Status:            model.FriendLinkApplyStatusPending,
+		Status:            models.FriendLinkApplyStatusPending,
 	}
-	if err := model.DB.Create(apply).Error; err != nil {
+	if err := models.DB.Create(apply).Error; err != nil {
 		return nil, err
 	}
 	s.startReciprocalCheck(apply.ID, reciprocal, in.OurSiteURL)
-	_ = model.DB.Preload("User").First(apply, apply.ID).Error
+	_ = models.DB.Preload("User").First(apply, apply.ID).Error
 	return &FriendLinkApplyCreateResult{Apply: apply}, nil
 }
 
 // PendingCount 待审数量
 func (s *FriendLinkApplyService) PendingCount() (int64, error) {
 	var n int64
-	err := model.DB.Model(&model.FriendLinkApply{}).
-		Where("status = ?", model.FriendLinkApplyStatusPending).
+	err := models.DB.Model(&models.FriendLinkApply{}).
+		Where("status = ?", models.FriendLinkApplyStatusPending).
 		Count(&n).Error
 	return n, err
 }
 
 // ListAdmin 管理员列表
-func (s *FriendLinkApplyService) ListAdmin(q FriendLinkApplyListQuery) ([]model.FriendLinkApply, int64, error) {
+func (s *FriendLinkApplyService) ListAdmin(q FriendLinkApplyListQuery) ([]models.FriendLinkApply, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
 	if q.Size < 1 || q.Size > 50 {
 		q.Size = 20
 	}
-	db := model.DB.Model(&model.FriendLinkApply{})
+	db := models.DB.Model(&models.FriendLinkApply{})
 	status := strings.TrimSpace(q.Status)
 	if status != "" && status != "all" {
 		db = db.Where("status = ?", status)
@@ -149,7 +149,7 @@ func (s *FriendLinkApplyService) ListAdmin(q FriendLinkApplyListQuery) ([]model.
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.FriendLinkApply
+	var list []models.FriendLinkApply
 	err := db.Preload("User").
 		Order("CASE WHEN status = 'pending' THEN 0 ELSE 1 END, id DESC").
 		Offset((q.Page - 1) * q.Size).
@@ -161,22 +161,22 @@ func (s *FriendLinkApplyService) ListAdmin(q FriendLinkApplyListQuery) ([]model.
 	return list, total, nil
 }
 
-func (s *FriendLinkApplyService) getPending(id uint) (*model.FriendLinkApply, error) {
-	var apply model.FriendLinkApply
-	if err := model.DB.Preload("User").First(&apply, id).Error; err != nil {
+func (s *FriendLinkApplyService) getPending(id uint) (*models.FriendLinkApply, error) {
+	var apply models.FriendLinkApply
+	if err := models.DB.Preload("User").First(&apply, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrFriendLinkApplyNotFound
 		}
 		return nil, err
 	}
-	if apply.Status != model.FriendLinkApplyStatusPending {
+	if apply.Status != models.FriendLinkApplyStatusPending {
 		return nil, ErrFriendLinkApplyHandled
 	}
 	return &apply, nil
 }
 
 // Approve 通过申请并写入友链
-func (s *FriendLinkApplyService) Approve(id uint) (*model.FriendLinkApply, error) {
+func (s *FriendLinkApplyService) Approve(id uint) (*models.FriendLinkApply, error) {
 	apply, err := s.getPending(id)
 	if err != nil {
 		return nil, err
@@ -211,13 +211,13 @@ func (s *FriendLinkApplyService) Approve(id uint) (*model.FriendLinkApply, error
 	}
 
 	now := time.Now()
-	if err := model.DB.Model(apply).Updates(map[string]interface{}{
-		"status":      model.FriendLinkApplyStatusApproved,
+	if err := models.DB.Model(apply).Updates(map[string]interface{}{
+		"status":      models.FriendLinkApplyStatusApproved,
 		"reviewed_at": now,
 	}).Error; err != nil {
 		return nil, err
 	}
-	apply.Status = model.FriendLinkApplyStatusApproved
+	apply.Status = models.FriendLinkApplyStatusApproved
 	apply.ReviewedAt = &now
 
 	if s.messages != nil && apply.UserID > 0 {
@@ -226,27 +226,27 @@ func (s *FriendLinkApplyService) Approve(id uint) (*model.FriendLinkApply, error
 			"你申请的友情链接「%s」（%s）已通过审核，现已展示在友情链接页面。\n\n如有疑问，可回复本私信联系管理员。",
 			apply.Name, apply.URL,
 		)
-		_, _ = s.messages.SendSystem(apply.UserID, subject, content, model.MessageKindSystem, nil, nil)
+		_, _ = s.messages.SendSystem(apply.UserID, subject, content, models.MessageKindSystem, nil, nil)
 	}
 	return apply, nil
 }
 
 // Reject 拒绝申请
-func (s *FriendLinkApplyService) Reject(id uint, note string) (*model.FriendLinkApply, error) {
+func (s *FriendLinkApplyService) Reject(id uint, note string) (*models.FriendLinkApply, error) {
 	apply, err := s.getPending(id)
 	if err != nil {
 		return nil, err
 	}
 	note = strings.TrimSpace(note)
 	now := time.Now()
-	if err := model.DB.Model(apply).Updates(map[string]interface{}{
-		"status":      model.FriendLinkApplyStatusRejected,
+	if err := models.DB.Model(apply).Updates(map[string]interface{}{
+		"status":      models.FriendLinkApplyStatusRejected,
 		"review_note": note,
 		"reviewed_at": now,
 	}).Error; err != nil {
 		return nil, err
 	}
-	apply.Status = model.FriendLinkApplyStatusRejected
+	apply.Status = models.FriendLinkApplyStatusRejected
 	apply.ReviewNote = note
 	apply.ReviewedAt = &now
 
@@ -260,7 +260,7 @@ func (s *FriendLinkApplyService) Reject(id uint, note string) (*model.FriendLink
 			"你申请的友情链接「%s」（%s）未通过审核。\n\n原因：\n%s\n\n如有疑问，可回复本私信联系管理员。",
 			apply.Name, apply.URL, reason,
 		)
-		_, _ = s.messages.SendSystem(apply.UserID, subject, content, model.MessageKindReject, nil, nil)
+		_, _ = s.messages.SendSystem(apply.UserID, subject, content, models.MessageKindReject, nil, nil)
 	}
 	return apply, nil
 }
@@ -302,8 +302,8 @@ func (s *FriendLinkApplyService) prepareApplyFields(in FriendLinkApplyInput, all
 }
 
 func (s *FriendLinkApplyService) hasPendingApplyForURL(userID, excludeID uint, href string) (bool, error) {
-	db := model.DB.Model(&model.FriendLinkApply{}).
-		Where("user_id = ? AND status = ? AND url = ?", userID, model.FriendLinkApplyStatusPending, href)
+	db := models.DB.Model(&models.FriendLinkApply{}).
+		Where("user_id = ? AND status = ? AND url = ?", userID, models.FriendLinkApplyStatusPending, href)
 	if excludeID > 0 {
 		db = db.Where("id <> ?", excludeID)
 	}
@@ -346,8 +346,8 @@ func (s *FriendLinkApplyService) removePublishedFriendLink(href string) error {
 
 // Update 修改并重新提交友链申请（待审 / 已拒绝 / 已通过）
 func (s *FriendLinkApplyService) Update(userID, id uint, in FriendLinkApplyInput) (*FriendLinkApplyCreateResult, error) {
-	var apply model.FriendLinkApply
-	if err := model.DB.First(&apply, id).Error; err != nil {
+	var apply models.FriendLinkApply
+	if err := models.DB.First(&apply, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrFriendLinkApplyNotFound
 		}
@@ -356,13 +356,13 @@ func (s *FriendLinkApplyService) Update(userID, id uint, in FriendLinkApplyInput
 	if apply.UserID != userID {
 		return nil, errors.New("无权操作该申请")
 	}
-	if apply.Status != model.FriendLinkApplyStatusPending &&
-		apply.Status != model.FriendLinkApplyStatusRejected &&
-		apply.Status != model.FriendLinkApplyStatusApproved {
+	if apply.Status != models.FriendLinkApplyStatusPending &&
+		apply.Status != models.FriendLinkApplyStatusRejected &&
+		apply.Status != models.FriendLinkApplyStatusApproved {
 		return nil, errors.New("该申请不可修改")
 	}
 
-	wasApproved := apply.Status == model.FriendLinkApplyStatusApproved
+	wasApproved := apply.Status == models.FriendLinkApplyStatusApproved
 	allowPublishedURL := ""
 	if wasApproved {
 		allowPublishedURL = apply.URL
@@ -395,25 +395,25 @@ func (s *FriendLinkApplyService) Update(userID, id uint, in FriendLinkApplyInput
 		"reciprocal_verified":   false,
 		"reciprocal_check_note": "",
 		"reciprocal_checked_at": nil,
-		"status":                model.FriendLinkApplyStatusPending,
+		"status":                models.FriendLinkApplyStatusPending,
 		"review_note":           "",
 		"reviewed_at":           nil,
 	}
-	if err := model.DB.Model(&apply).Updates(updates).Error; err != nil {
+	if err := models.DB.Model(&apply).Updates(updates).Error; err != nil {
 		return nil, err
 	}
 	s.startReciprocalCheck(apply.ID, reciprocal, in.OurSiteURL)
-	_ = model.DB.Preload("User").First(&apply, apply.ID).Error
+	_ = models.DB.Preload("User").First(&apply, apply.ID).Error
 	return &FriendLinkApplyCreateResult{Apply: &apply}, nil
 }
 
 // RecheckReciprocal 管理员触发重新检测回链
-func (s *FriendLinkApplyService) RecheckReciprocal(id uint, ourSiteURL string) (*model.FriendLinkApply, error) {
+func (s *FriendLinkApplyService) RecheckReciprocal(id uint, ourSiteURL string) (*models.FriendLinkApply, error) {
 	if !s.settings.FriendLinkReciprocalCheckEnabled() {
 		return nil, errors.New("回链检测已关闭")
 	}
-	var apply model.FriendLinkApply
-	if err := model.DB.Preload("User").First(&apply, id).Error; err != nil {
+	var apply models.FriendLinkApply
+	if err := models.DB.Preload("User").First(&apply, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrFriendLinkApplyNotFound
 		}
@@ -437,7 +437,7 @@ func (s *FriendLinkApplyService) startReciprocalCheck(applyID uint, pageURL, our
 		return
 	}
 	now := time.Now()
-	_ = model.DB.Model(&model.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
+	_ = models.DB.Model(&models.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
 		"reciprocal_verified":   false,
 		"reciprocal_check_note": "",
 		"reciprocal_checked_at": now,
@@ -445,9 +445,9 @@ func (s *FriendLinkApplyService) startReciprocalCheck(applyID uint, pageURL, our
 }
 
 // ListMine 当前用户的友链申请
-func (s *FriendLinkApplyService) ListMine(userID uint) ([]model.FriendLinkApply, error) {
-	var list []model.FriendLinkApply
-	err := model.DB.Where("user_id = ?", userID).
+func (s *FriendLinkApplyService) ListMine(userID uint) ([]models.FriendLinkApply, error) {
+	var list []models.FriendLinkApply
+	err := models.DB.Where("user_id = ?", userID).
 		Order("id DESC").
 		Limit(50).
 		Find(&list).Error
@@ -456,8 +456,8 @@ func (s *FriendLinkApplyService) ListMine(userID uint) ([]model.FriendLinkApply,
 
 // Cancel 撤销待审申请
 func (s *FriendLinkApplyService) Cancel(userID, id uint) error {
-	var apply model.FriendLinkApply
-	if err := model.DB.First(&apply, id).Error; err != nil {
+	var apply models.FriendLinkApply
+	if err := models.DB.First(&apply, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrFriendLinkApplyNotFound
 		}
@@ -466,8 +466,8 @@ func (s *FriendLinkApplyService) Cancel(userID, id uint) error {
 	if apply.UserID != userID {
 		return errors.New("无权操作该申请")
 	}
-	if apply.Status != model.FriendLinkApplyStatusPending {
+	if apply.Status != models.FriendLinkApplyStatusPending {
 		return ErrFriendLinkApplyHandled
 	}
-	return model.DB.Delete(&apply).Error
+	return models.DB.Delete(&apply).Error
 }

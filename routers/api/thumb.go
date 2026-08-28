@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // ServeImageThumb 帖子图片缩略图（按需生成并缓存）
@@ -15,7 +15,7 @@ import (
 func (h *Handlers) ServeImageThumb(c *gin.Context) {
 	rel := strings.TrimPrefix(c.Param("filepath"), "/")
 	uploadsRoot := filepath.Join(h.Cfg.DataDir, "uploads")
-	thumbPath, err := service.EnsureUploadThumb(uploadsRoot, rel)
+	thumbPath, err := services.EnsureUploadThumb(uploadsRoot, rel)
 	if err != nil {
 		// 生成失败时回退原图，避免正文裂图
 		orig := filepath.Join(uploadsRoot, filepath.FromSlash(rel))

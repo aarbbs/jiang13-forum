@@ -1,10 +1,10 @@
-package service
+﻿package services
 
 import (
 	"regexp"
 	"strings"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 const maxMentionsPerContent = 10
@@ -47,10 +47,10 @@ func ResolveMentionUserIDs(names []string, excludeUserID uint) []uint {
 	ids := make([]uint, 0, len(names))
 	seen := make(map[uint]struct{}, len(names))
 	for _, name := range names {
-		var u model.User
-		err := model.DB.Select("id").Where("username = ?", name).First(&u).Error
+		var u models.User
+		err := models.DB.Select("id").Where("username = ?", name).First(&u).Error
 		if err != nil {
-			err = model.DB.Select("id").Where("nickname = ?", name).First(&u).Error
+			err = models.DB.Select("id").Where("nickname = ?", name).First(&u).Error
 		}
 		if err != nil || u.ID == 0 || u.ID == excludeUserID {
 			continue

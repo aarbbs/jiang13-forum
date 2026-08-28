@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 var (
@@ -26,11 +26,11 @@ type GiteaOwnerView struct {
 	ID       uint                  `json:"id"`
 	Nickname string                `json:"nickname"`
 	Avatar   string                `json:"avatar"`
-	Role     model.Role            `json:"role"`
+	Role     models.Role            `json:"role"`
 	Verified bool                  `json:"verified"`
 	Exp      int                   `json:"exp"`
 	Level    int                   `json:"level"`
-	Badges   []model.UserBadgeView `json:"badges,omitempty"`
+	Badges   []models.UserBadgeView `json:"badges,omitempty"`
 }
 
 // GiteaRepoView 前台展示
@@ -123,7 +123,7 @@ func (g *GiteaService) ListPublic(page, size int, q string) ([]GiteaRepoView, in
 	BackfillForumUserIDs()
 
 	q = strings.TrimSpace(q)
-	db := model.DB.Model(&model.GiteaRepo{}).Where("private = ? AND forum_user_id IS NOT NULL AND forum_user_id > 0", false)
+	db := models.DB.Model(&models.GiteaRepo{}).Where("private = ? AND forum_user_id IS NOT NULL AND forum_user_id > 0", false)
 	if q != "" {
 		like := "%" + escapeLikePattern(q) + "%"
 		db = db.Where(
@@ -138,7 +138,7 @@ func (g *GiteaService) ListPublic(page, size int, q string) ([]GiteaRepoView, in
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var rows []model.GiteaRepo
+	var rows []models.GiteaRepo
 	err := db.Order("updated_at_remote desc, id desc").
 		Offset((page - 1) * size).
 		Limit(size).
@@ -155,13 +155,13 @@ func (g *GiteaService) ListPublic(page, size int, q string) ([]GiteaRepoView, in
 
 // BackfillForumUserIDs 将缺失 forum_user_id 的公开仓按 owner_login（忽略大小写）匹配论坛 username
 func BackfillForumUserIDs() int {
-	var rows []model.GiteaRepo
-	if err := model.DB.Where("private = ? AND (forum_user_id IS NULL OR forum_user_id = 0)", false).
+	var rows []models.GiteaRepo
+	if err := models.DB.Where("private = ? AND (forum_user_id IS NULL OR forum_user_id = 0)", false).
 		Find(&rows).Error; err != nil || len(rows) == 0 {
 		return 0
 	}
-	var users []model.User
-	if err := model.DB.Select("id", "username").Where("banned = ?", false).Find(&users).Error; err != nil || len(users) == 0 {
+	var users []models.User
+	if err := models.DB.Select("id", "username").Where("banned = ?", false).Find(&users).Error; err != nil || len(users) == 0 {
 		return 0
 	}
 	byLogin := make(map[string]uint, len(users))
@@ -179,7 +179,7 @@ func BackfillForumUserIDs() int {
 		if !ok || uid == 0 {
 			continue
 		}
-		if err := model.DB.Model(&rows[i]).Update("forum_user_id", uid).Error; err != nil {
+		if err := models.DB.Model(&rows[i]).Update("forum_user_id", uid).Error; err != nil {
 			log.Printf("[gitea] 回填 forum_user_id 失败 repo=%s: %v", rows[i].FullName, err)
 			continue
 		}
@@ -222,13 +222,13 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 		logins = append(logins, key)
 	}
 
-	byID := make(map[uint]*model.User)
-	byLogin := make(map[string]*model.User)
-	ptrs := make([]*model.User, 0, len(ids)+len(logins))
+	byID := make(map[uint]*models.User)
+	byLogin := make(map[string]*models.User)
+	ptrs := make([]*models.User, 0, len(ids)+len(logins))
 
 	if len(ids) > 0 {
-		var users []model.User
-		if err := model.DB.Where("id IN ? AND banned = ?", ids, false).Find(&users).Error; err == nil {
+		var users []models.User
+		if err := models.DB.Where("id IN ? AND banned = ?", ids, false).Find(&users).Error; err == nil {
 			for i := range users {
 				u := &users[i]
 				byID[u.ID] = u
@@ -241,8 +241,8 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 		}
 	}
 	if len(logins) > 0 {
-		var users []model.User
-		if err := model.DB.Where("banned = ? AND LOWER(username) IN ?", false, logins).Find(&users).Error; err == nil {
+		var users []models.User
+		if err := models.DB.Where("banned = ? AND LOWER(username) IN ?", false, logins).Find(&users).Error; err == nil {
 			for i := range users {
 				u := &users[i]
 				key := strings.ToLower(strings.TrimSpace(u.Username))
@@ -264,7 +264,7 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 	}
 	// 去重 ptrs
 	seenPtr := make(map[uint]struct{}, len(ptrs))
-	uniq := make([]*model.User, 0, len(ptrs))
+	uniq := make([]*models.User, 0, len(ptrs))
 	for _, u := range ptrs {
 		if u == nil || u.ID == 0 {
 			continue
@@ -279,14 +279,14 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 		badge.AttachBadgeSummaries(uniq, 3)
 	} else {
 		for _, u := range uniq {
-			u.Level = model.LevelFromExp(u.Exp)
+			u.Level = models.LevelFromExp(u.Exp)
 		}
 	}
 
 	out := make([]GiteaRepoView, 0, len(list))
 	for i := range list {
 		item := list[i]
-		var u *model.User
+		var u *models.User
 		if item.ForumUserID != nil && *item.ForumUserID > 0 {
 			u = byID[*item.ForumUserID]
 		}
@@ -297,7 +297,7 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 				uid := u.ID
 				item.ForumUserID = &uid
 				// 回写缺失关联，便于下次列表过滤命中
-				_ = model.DB.Model(&model.GiteaRepo{}).Where("id = ?", item.ID).
+				_ = models.DB.Model(&models.GiteaRepo{}).Where("id = ?", item.ID).
 					Update("forum_user_id", uid).Error
 			}
 		}
@@ -315,7 +315,7 @@ func AttachGiteaOwners(list []GiteaRepoView, badge *BadgeService) []GiteaRepoVie
 			Role:     u.Role,
 			Verified: u.Verified,
 			Exp:      u.Exp,
-			Level:    model.LevelFromExp(u.Exp),
+			Level:    models.LevelFromExp(u.Exp),
 			Badges:   u.Badges,
 		}
 		out = append(out, item)
@@ -346,8 +346,8 @@ func (g *GiteaService) SyncRepos() (int, error) {
 	// 同步前先回填历史缺失关联
 	BackfillForumUserIDs()
 
-	var users []model.User
-	if err := model.DB.Where("banned = ?", false).Select("id", "username").Find(&users).Error; err != nil {
+	var users []models.User
+	if err := models.DB.Where("banned = ?", false).Select("id", "username").Find(&users).Error; err != nil {
 		return 0, err
 	}
 
@@ -378,7 +378,7 @@ func (g *GiteaService) SyncRepos() (int, error) {
 			if owner == "" {
 				owner = username
 			}
-			row := model.GiteaRepo{
+			row := models.GiteaRepo{
 				GiteaID:         gr.ID,
 				OwnerLogin:      owner,
 				Name:            gr.Name,
@@ -393,16 +393,16 @@ func (g *GiteaService) SyncRepos() (int, error) {
 				ForumUserID:     &uid,
 				SyncedAt:        now,
 			}
-			var existing model.GiteaRepo
-			err := model.DB.Where("gitea_id = ?", gr.ID).First(&existing).Error
+			var existing models.GiteaRepo
+			err := models.DB.Where("gitea_id = ?", gr.ID).First(&existing).Error
 			if err != nil {
-				if err := model.DB.Create(&row).Error; err != nil {
+				if err := models.DB.Create(&row).Error; err != nil {
 					log.Printf("[gitea] 创建仓库失败 %s: %v", gr.FullName, err)
 					continue
 				}
 			} else {
 				row.ID = existing.ID
-				if err := model.DB.Model(&existing).Updates(map[string]any{
+				if err := models.DB.Model(&existing).Updates(map[string]any{
 					"owner_login":       row.OwnerLogin,
 					"name":              row.Name,
 					"full_name":         row.FullName,
@@ -426,14 +426,14 @@ func (g *GiteaService) SyncRepos() (int, error) {
 
 	// 仅清理本次成功同步到的 owner 下、却未再出现的旧记录
 	if len(syncedOwners) > 0 {
-		var all []model.GiteaRepo
-		if err := model.DB.Where("private = ?", false).Find(&all).Error; err == nil {
+		var all []models.GiteaRepo
+		if err := models.DB.Where("private = ?", false).Find(&all).Error; err == nil {
 			for _, r := range all {
 				if _, ok := syncedOwners[strings.ToLower(r.OwnerLogin)]; !ok {
 					continue
 				}
 				if _, ok := seen[r.GiteaID]; !ok {
-					_ = model.DB.Delete(&r).Error
+					_ = models.DB.Delete(&r).Error
 				}
 			}
 		}
@@ -515,7 +515,7 @@ func (g *GiteaService) fetchUserPublicRepos(baseURL, token, username string) ([]
 	return all, nil
 }
 
-func toGiteaRepoView(r model.GiteaRepo) GiteaRepoView {
+func toGiteaRepoView(r models.GiteaRepo) GiteaRepoView {
 	return GiteaRepoView{
 		ID:              r.ID,
 		GiteaID:         r.GiteaID,

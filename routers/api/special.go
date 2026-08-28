@@ -1,12 +1,12 @@
-package handler
+﻿package api
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // APIPages 已发布单页摘要列表
@@ -17,7 +17,7 @@ func (h *Handlers) APIPages(c *gin.Context) {
 		return
 	}
 	if pages == nil {
-		pages = []service.SitePageSummary{}
+		pages = []services.SitePageSummary{}
 	}
 	c.JSON(http.StatusOK, gin.H{"pages": pages})
 }
@@ -57,14 +57,14 @@ func (h *Handlers) APIAdminPages(c *gin.Context) {
 		return
 	}
 	if pages == nil {
-		pages = []model.SitePage{}
+		pages = []models.SitePage{}
 	}
 	c.JSON(http.StatusOK, gin.H{"pages": pages})
 }
 
 // APIAdminCreatePage 创建单页
 func (h *Handlers) APIAdminCreatePage(c *gin.Context) {
-	var in service.SitePageInput
+	var in services.SitePageInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式无效"})
 		return
@@ -80,7 +80,7 @@ func (h *Handlers) APIAdminCreatePage(c *gin.Context) {
 // APIAdminUpdatePage 更新单页
 func (h *Handlers) APIAdminUpdatePage(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	var in service.SitePageInput
+	var in services.SitePageInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式无效"})
 		return
@@ -137,11 +137,11 @@ func (h *Handlers) APIPollVote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式无效"})
 		return
 	}
-	if err := service.VotePoll(uint(id), h.currentUserID(c), body.OptionIDs); err != nil {
+	if err := services.VotePoll(uint(id), h.currentUserID(c), body.OptionIDs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	poll, _ := service.GetPollView(uint(id), h.currentUserID(c))
+	poll, _ := services.GetPollView(uint(id), h.currentUserID(c))
 	c.JSON(http.StatusOK, gin.H{"message": "投票成功", "poll": poll})
 }
 
@@ -153,11 +153,11 @@ func (h *Handlers) APIPollClose(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
 		return
 	}
-	if err := service.ClosePoll(uint(id), h.currentUserID(c), h.isAdmin(c), post.UserID); err != nil {
+	if err := services.ClosePoll(uint(id), h.currentUserID(c), h.isAdmin(c), post.UserID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	poll, _ := service.GetPollView(uint(id), h.currentUserID(c))
+	poll, _ := services.GetPollView(uint(id), h.currentUserID(c))
 	c.JSON(http.StatusOK, gin.H{"message": "投票已结束", "poll": poll})
 }
 
@@ -169,7 +169,7 @@ func (h *Handlers) APIBountyAward(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择评论"})
 		return
 	}
-	if err := service.AwardBounty(uint(id), h.currentUserID(c), h.isAdmin(c), uint(commentID)); err != nil {
+	if err := services.AwardBounty(uint(id), h.currentUserID(c), h.isAdmin(c), uint(commentID)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -179,7 +179,7 @@ func (h *Handlers) APIBountyAward(c *gin.Context) {
 // APIBountyRefund 退回悬赏
 func (h *Handlers) APIBountyRefund(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := service.RefundBounty(uint(id), h.currentUserID(c), h.isAdmin(c)); err != nil {
+	if err := services.RefundBounty(uint(id), h.currentUserID(c), h.isAdmin(c)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -189,7 +189,7 @@ func (h *Handlers) APIBountyRefund(c *gin.Context) {
 // APILotteryDraw 帖内抽奖开奖
 func (h *Handlers) APILotteryDraw(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	view, err := service.DrawPostLottery(uint(id), h.currentUserID(c), h.isAdmin(c))
+	view, err := services.DrawPostLottery(uint(id), h.currentUserID(c), h.isAdmin(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

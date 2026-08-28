@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/minio/minio-go/v7"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 // MediaItem 管理端媒体资源条目
@@ -47,7 +47,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 	if s == nil {
 		return nil, errors.New("上传存储未初始化")
 	}
-	if model.DB == nil {
+	if models.DB == nil {
 		return nil, errors.New("数据库未初始化")
 	}
 	if page < 1 {
@@ -69,7 +69,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 
 	// 索引为空时先同步一次，避免升级后首次打开空白
 	var indexed int64
-	_ = model.DB.Model(&model.Media{}).Count(&indexed).Error
+	_ = models.DB.Model(&models.Media{}).Count(&indexed).Error
 	if indexed == 0 {
 		_, _ = s.SyncMediaIndex()
 	}
@@ -84,7 +84,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 		Cnt      int
 	}
 	var rows []catCount
-	if err := model.DB.Model(&model.Media{}).
+	if err := models.DB.Model(&models.Media{}).
 		Select("category, count(*) as cnt").
 		Group("category").
 		Scan(&rows).Error; err != nil {
@@ -94,7 +94,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 		counts[r.Category] = r.Cnt
 	}
 
-	dbq := model.DB.Model(&model.Media{})
+	dbq := models.DB.Model(&models.Media{})
 	if category != "all" {
 		dbq = dbq.Where("category = ?", category)
 	}
@@ -115,7 +115,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 		page = totalPages
 	}
 
-	var records []model.Media
+	var records []models.Media
 	offset := (page - 1) * size
 	if err := dbq.Order("created_at desc, id desc").Offset(offset).Limit(size).Find(&records).Error; err != nil {
 		return nil, err
@@ -178,7 +178,7 @@ func (s *UploadStore) DeleteMedia(urls []string) (int, error) {
 
 // SyncMediaIndex 扫描当前存储后端，回填/校正媒体索引；返回写入或更新条数
 func (s *UploadStore) SyncMediaIndex() (int, error) {
-	if s == nil || model.DB == nil {
+	if s == nil || models.DB == nil {
 		return 0, errors.New("存储或数据库未初始化")
 	}
 	mode, _, _, _ := s.snapshot()
@@ -206,19 +206,19 @@ func (s *UploadStore) SyncMediaIndex() (int, error) {
 	}
 
 	// 清理当前后端下已不存在的索引（其它后端记录保留）
-	var stale []model.Media
-	_ = model.DB.Where("storage_type = ?", storageType).Find(&stale).Error
+	var stale []models.Media
+	_ = models.DB.Where("storage_type = ?", storageType).Find(&stale).Error
 	for _, row := range stale {
 		if _, ok := seen[row.URL]; ok {
 			continue
 		}
-		_ = model.DB.Delete(&model.Media{}, row.ID).Error
+		_ = models.DB.Delete(&models.Media{}, row.ID).Error
 	}
 	return n, nil
 }
 
 func (s *UploadStore) upsertMediaRecord(category, name, url string, size int64, contentType, storageType string, userID *uint) error {
-	if model.DB == nil || strings.TrimSpace(url) == "" {
+	if models.DB == nil || strings.TrimSpace(url) == "" {
 		return nil
 	}
 	category = strings.TrimSpace(category)
@@ -231,8 +231,8 @@ func (s *UploadStore) upsertMediaRecord(category, name, url string, size int64, 
 		contentType = imageContentType(strings.ToLower(filepath.Ext(name)))
 	}
 
-	var existing model.Media
-	err := model.DB.Where("url = ?", url).First(&existing).Error
+	var existing models.Media
+	err := models.DB.Where("url = ?", url).First(&existing).Error
 	if err == nil {
 		updates := map[string]interface{}{
 			"category":     category,
@@ -244,10 +244,10 @@ func (s *UploadStore) upsertMediaRecord(category, name, url string, size int64, 
 		if userID != nil {
 			updates["user_id"] = *userID
 		}
-		return model.DB.Model(&existing).Updates(updates).Error
+		return models.DB.Model(&existing).Updates(updates).Error
 	}
 
-	rec := model.Media{
+	rec := models.Media{
 		Category:    category,
 		Name:        name,
 		URL:         url,
@@ -256,11 +256,11 @@ func (s *UploadStore) upsertMediaRecord(category, name, url string, size int64, 
 		StorageType: storageType,
 		UserID:      userID,
 	}
-	return model.DB.Create(&rec).Error
+	return models.DB.Create(&rec).Error
 }
 
 func (s *UploadStore) deleteMediaRecords(urls []string) {
-	if model.DB == nil || len(urls) == 0 {
+	if models.DB == nil || len(urls) == 0 {
 		return
 	}
 	clean := make([]string, 0, len(urls))
@@ -276,7 +276,7 @@ func (s *UploadStore) deleteMediaRecords(urls []string) {
 	if len(clean) == 0 {
 		return
 	}
-	_ = model.DB.Where("url IN ?", clean).Delete(&model.Media{}).Error
+	_ = models.DB.Where("url IN ?", clean).Delete(&models.Media{}).Error
 }
 
 func (s *UploadStore) resolveSiblingPublicURLs(rawURL string) []string {

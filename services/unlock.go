@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"crypto/sha256"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -110,8 +110,8 @@ func ListUnlockedKeys(userID, postID uint) (map[string]bool, error) {
 	if userID == 0 || postID == 0 {
 		return out, nil
 	}
-	var rows []model.PostContentUnlock
-	if err := model.DB.Select("block_key").Where("user_id = ? AND post_id = ?", userID, postID).Find(&rows).Error; err != nil {
+	var rows []models.PostContentUnlock
+	if err := models.DB.Select("block_key").Where("user_id = ? AND post_id = ?", userID, postID).Find(&rows).Error; err != nil {
 		return out, err
 	}
 	for _, r := range rows {
@@ -131,8 +131,8 @@ type UnlockResult struct {
 
 // UnlockPointsBlock 积分解锁付费块
 func UnlockPointsBlock(readerID, postID uint, blockKey string) (*UnlockResult, error) {
-	var post model.Post
-	if err := model.DB.First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, postID).Error; err != nil {
 		return nil, errors.New("帖子不存在")
 	}
 	block, ok := FindPointsBlock(post.Content, blockKey)
@@ -143,26 +143,26 @@ func UnlockPointsBlock(readerID, postID uint, blockKey string) (*UnlockResult, e
 	// 作者自己免费解锁记录（无分成）
 	if readerID == post.UserID {
 		var n int64
-		model.DB.Model(&model.PostContentUnlock{}).Where("user_id = ? AND post_id = ? AND block_key = ?", readerID, postID, blockKey).Count(&n)
+		models.DB.Model(&models.PostContentUnlock{}).Where("user_id = ? AND post_id = ? AND block_key = ?", readerID, postID, blockKey).Count(&n)
 		if n == 0 {
-			_ = model.DB.Create(&model.PostContentUnlock{
+			_ = models.DB.Create(&models.PostContentUnlock{
 				UserID: readerID, PostID: postID, BlockKey: blockKey, Cost: 0,
 			}).Error
 		}
 		return &UnlockResult{BlockKey: blockKey, Cost: 0, AuthorShare: 0, InnerHTML: block.Inner}, nil
 	}
 
-	var existing model.PostContentUnlock
-	model.DB.Where("user_id = ? AND post_id = ? AND block_key = ?", readerID, postID, blockKey).Limit(1).Find(&existing)
+	var existing models.PostContentUnlock
+	models.DB.Where("user_id = ? AND post_id = ? AND block_key = ?", readerID, postID, blockKey).Limit(1).Find(&existing)
 	if existing.ID > 0 {
 		return nil, ErrAlreadyUnlocked
 	}
 
-	var reader, author model.User
-	if err := model.DB.First(&reader, readerID).Error; err != nil {
+	var reader, author models.User
+	if err := models.DB.First(&reader, readerID).Error; err != nil {
 		return nil, err
 	}
-	if err := model.DB.First(&author, post.UserID).Error; err != nil {
+	if err := models.DB.First(&author, post.UserID).Error; err != nil {
 		return nil, err
 	}
 
@@ -174,8 +174,8 @@ func UnlockPointsBlock(readerID, postID uint, blockKey string) (*UnlockResult, e
 	cost := block.Cost
 	authorShare := cost * CreatorSharePercent / 100
 	var bal int
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		var again model.PostContentUnlock
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		var again models.PostContentUnlock
 		if err := tx.Where("user_id = ? AND post_id = ? AND block_key = ?", readerID, postID, blockKey).Limit(1).Find(&again).Error; err != nil {
 			return err
 		}
@@ -183,20 +183,20 @@ func UnlockPointsBlock(readerID, postID uint, blockKey string) (*UnlockResult, e
 			return ErrAlreadyUnlocked
 		}
 		var e error
-		bal, e = AdjustPointsTx(tx, readerID, -cost, model.PointReasonUnlockSpend, "post_unlock", postID, "解锁付费内容")
+		bal, e = AdjustPointsTx(tx, readerID, -cost, models.PointReasonUnlockSpend, "post_unlock", postID, "解锁付费内容")
 		if e != nil {
 			return e
 		}
 		if authorShare > 0 {
-			if _, e = AdjustPointsTx(tx, author.ID, authorShare, model.PointReasonCreatorIncome, "post_unlock", postID, "创作分成"); e != nil {
+			if _, e = AdjustPointsTx(tx, author.ID, authorShare, models.PointReasonCreatorIncome, "post_unlock", postID, "创作分成"); e != nil {
 				return e
 			}
-			if e = tx.Model(&model.User{}).Where("id = ?", author.ID).
+			if e = tx.Model(&models.User{}).Where("id = ?", author.ID).
 				UpdateColumn("creator_income_total", gorm.Expr("creator_income_total + ?", authorShare)).Error; e != nil {
 				return e
 			}
 		}
-		return tx.Create(&model.PostContentUnlock{
+		return tx.Create(&models.PostContentUnlock{
 			UserID: readerID, PostID: postID, BlockKey: blockKey, Cost: cost,
 		}).Error
 	})
@@ -213,7 +213,7 @@ func UnlockPointsBlock(readerID, postID uint, blockKey string) (*UnlockResult, e
 	}, nil
 }
 
-func suspiciousUnlockPair(reader, author *model.User) bool {
+func suspiciousUnlockPair(reader, author *models.User) bool {
 	if reader == nil || author == nil {
 		return false
 	}

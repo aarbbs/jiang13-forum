@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"crypto/rand"
@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 const (
@@ -65,8 +65,8 @@ func (s *EmailCodeService) sendCode(purpose, email string) error {
 		return err
 	}
 
-	var exist model.User
-	found := model.DB.Where("email = ?", email).First(&exist).Error == nil
+	var exist models.User
+	found := models.DB.Where("email = ?", email).First(&exist).Error == nil
 	switch purpose {
 	case EmailCodePurposeRegister:
 		if found {

@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"net/http"
@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // APICreatePostReport 举报帖子
@@ -53,7 +53,7 @@ func (h *Handlers) APIAdminReports(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	status := c.DefaultQuery("status", "pending")
-	list, total, err := h.Report.ListAdmin(service.ReportListQuery{
+	list, total, err := h.Report.ListAdmin(services.ReportListQuery{
 		Status: status,
 		Page:   page,
 		Size:   size,
@@ -84,7 +84,7 @@ func (h *Handlers) APIAdminHandleReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	rep, err := h.Report.Handle(service.HandleReportInput{
+	rep, err := h.Report.Handle(services.HandleReportInput{
 		ReportID:     uint(id),
 		HandlerID:    h.currentUserID(c),
 		Action:       req.Action,
@@ -101,11 +101,11 @@ func (h *Handlers) APIAdminHandleReport(c *gin.Context) {
 // APIAdminApprovePost 通过帖子审核
 func (h *Handlers) APIAdminApprovePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := h.Post.SetStatus(uint(id), model.ContentStatusPublished); err != nil {
+	if err := h.Post.SetStatus(uint(id), models.ContentStatusPublished); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "帖子已通过审核", "status": model.ContentStatusPublished})
+	c.JSON(http.StatusOK, gin.H{"message": "帖子已通过审核", "status": models.ContentStatusPublished})
 }
 
 // APIAdminRejectPost 拒绝帖子并私信通知作者（标记为 rejected，不进回收站）
@@ -133,7 +133,7 @@ func (h *Handlers) APIAdminRejectPost(c *gin.Context) {
 	title := post.Title
 	postID := post.ID
 
-	if err := h.Post.SetStatus(postID, model.ContentStatusRejected); err != nil {
+	if err := h.Post.SetStatus(postID, models.ContentStatusRejected); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -142,8 +142,8 @@ func (h *Handlers) APIAdminRejectPost(c *gin.Context) {
 	_, msgErr := h.Message.SendSystem(
 		authorID,
 		"帖子《"+title+"》未通过审核",
-		service.FormatRejectContent(title, postID, reason),
-		model.MessageKindReject,
+		services.FormatRejectContent(title, postID, reason),
+		models.MessageKindReject,
 		&pid,
 		nil,
 	)
@@ -151,13 +151,13 @@ func (h *Handlers) APIAdminRejectPost(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message":  "帖子已拒绝，但私信通知失败：" + msgErr.Error(),
 			"notified": false,
-			"status":   model.ContentStatusRejected,
+			"status":   models.ContentStatusRejected,
 		})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "已拒绝该帖并私信通知作者",
 		"notified": true,
-		"status":   model.ContentStatusRejected,
+		"status":   models.ContentStatusRejected,
 	})
 }

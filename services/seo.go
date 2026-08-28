@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"net/url"
@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 var (
@@ -89,7 +89,7 @@ func FirstImageURL(htmlContent string) string {
 }
 
 // DisplayName 用户展示名
-func DisplayName(u *model.User) string {
+func DisplayName(u *models.User) string {
 	if u == nil {
 		return ""
 	}

@@ -1,7 +1,6 @@
-package router
+﻿package routers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -9,12 +8,11 @@ import (
 	"path/filepath"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
-	"git.iioio.com/freefire/jiang13-forum/embed_static"
-	"git.iioio.com/freefire/jiang13-forum/handler"
-	"git.iioio.com/freefire/jiang13-forum/middleware"
+	"git.iioio.com/freefire/jiang13-forum/modules/auth"
 	webpublic "git.iioio.com/freefire/jiang13-forum/public"
+	"git.iioio.com/freefire/jiang13-forum/routers/api"
 	webpages "git.iioio.com/freefire/jiang13-forum/routers/web"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +22,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 
-	// SSR 静态资源（独立前缀，避免与 SPA /assets/* 冲突）
+	// SSR 静态资源
 	if sub, err := fs.Sub(webpublic.Assets, "assets"); err == nil {
 		ssrFiles := http.StripPrefix("/ssr-assets", http.FileServer(http.FS(sub)))
 		r.GET("/ssr-assets/*filepath", func(c *gin.Context) {
@@ -32,59 +30,42 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 			ssrFiles.ServeHTTP(c.Writer, c.Request)
 		})
 	}
-
-	// 生产：内嵌 React SPA（未迁移路径仍走 SPA）；dev：Vite 可对照旧前台
-	if !cfg.DevMode {
-		if err := embed_static.SetupEmbed(r); err != nil {
-			return nil, err
-		}
-	} else {
-		fmt.Fprintf(os.Stderr, "[dev] SSR 页面请访问 http://localhost:3000 ；旧 SPA 对照可用 Vite :5173\n")
+	if cfg.DevMode {
+		fmt.Fprintf(os.Stderr, "[dev] SSR 请访问 http://localhost:%d （对照 SPA 请 checkout main）\n", cfg.Port)
 	}
 
-	filter := service.NewSensitiveFilter()
-	_ = service.WriteDefaultFilterWords(cfg.FilterWordsPath())
+	filter := services.NewSensitiveFilter()
+	_ = services.WriteDefaultFilterWords(cfg.FilterWordsPath())
 	filter.LoadFromFile(cfg.FilterWordsPath())
 
-	settingsSvc := service.NewForumSettingsService()
-	// SPA 入口 HTML 注入标题与品牌 JSON，避免刷新时先闪默认文案
-	embed_static.SetSPADocumentTitle(func() string {
-		return settingsSvc.SiteBranding().DocumentTitle()
-	})
-	embed_static.SetSPABrandingJSON(func() []byte {
-		b, err := json.Marshal(settingsSvc.SiteBranding())
-		if err != nil {
-			return nil
-		}
-		return b
-	})
-	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
-	userSvc := service.NewUserService(filter, settingsSvc)
-	boardSvc := service.NewBoardService()
+	settingsSvc := services.NewForumSettingsService()
+	authSvc := services.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
+	userSvc := services.NewUserService(filter, settingsSvc)
+	boardSvc := services.NewBoardService()
 	boardSvc.EnsureDefaultBoard()
-	postSvc := service.NewPostService(filter, settingsSvc)
-	commentSvc := service.NewCommentService(filter, settingsSvc)
-	messageSvc := service.NewMessageService(filter, settingsSvc)
-	reportSvc := service.NewReportService(filter, settingsSvc, messageSvc, postSvc, commentSvc)
-	backupSvc := service.NewBackupService(cfg.DBPath(), cfg.DataDir)
-	limiter := service.NewRateLimiter(settingsSvc)
-	captchaSvc := service.NewCaptchaService()
-	mailSvc := service.NewMailService(settingsSvc)
-	emailCodeSvc := service.NewEmailCodeService(mailSvc)
-	notifySvc := service.NewNotifyService(messageSvc, mailSvc, settingsSvc)
-	friendLinkApplySvc := service.NewFriendLinkApplyService(settingsSvc, messageSvc)
-	oidcSvc, err := service.NewOIDCService(cfg, settingsSvc)
+	postSvc := services.NewPostService(filter, settingsSvc)
+	commentSvc := services.NewCommentService(filter, settingsSvc)
+	messageSvc := services.NewMessageService(filter, settingsSvc)
+	reportSvc := services.NewReportService(filter, settingsSvc, messageSvc, postSvc, commentSvc)
+	backupSvc := services.NewBackupService(cfg.DBPath(), cfg.DataDir)
+	limiter := services.NewRateLimiter(settingsSvc)
+	captchaSvc := services.NewCaptchaService()
+	mailSvc := services.NewMailService(settingsSvc)
+	emailCodeSvc := services.NewEmailCodeService(mailSvc)
+	notifySvc := services.NewNotifyService(messageSvc, mailSvc, settingsSvc)
+	friendLinkApplySvc := services.NewFriendLinkApplyService(settingsSvc, messageSvc)
+	oidcSvc, err := services.NewOIDCService(cfg, settingsSvc)
 	if err != nil {
 		return nil, err
 	}
-	giteaSvc := service.NewGiteaService(settingsSvc)
+	giteaSvc := services.NewGiteaService(settingsSvc)
 	giteaSvc.StartBackgroundSync()
 
-	uploadStore := service.NewUploadStore(cfg.DataDir, settingsSvc)
+	uploadStore := services.NewUploadStore(cfg.DataDir, settingsSvc)
 	if err := uploadStore.ReloadFromSettings(settingsSvc); err != nil {
 		// 配置不完整时保持本地磁盘，避免进程无法启动；管理员可在后台修正后热切换
 		fmt.Fprintf(os.Stderr, "警告: 对象存储初始化失败，暂用本地磁盘: %v\n", err)
-		_ = uploadStore.Apply(service.StorageConfig{Type: "local"})
+		_ = uploadStore.Apply(services.StorageConfig{Type: "local"})
 	}
 	// 后台同步存量文件到媒体索引，避免列表依赖实时扫盘
 	go func() {
@@ -95,18 +76,18 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		}
 	}()
 
-	h := &handler.Handlers{
+	h := &api.Handlers{
 		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
 		Backup: backupSvc,
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
-		Points: service.NewPointsService(), Badge: service.NewBadgeService(),
-		SitePage:        service.NewSitePageService(filter),
+		Points: services.NewPointsService(), Badge: services.NewBadgeService(),
+		SitePage:        services.NewSitePageService(filter),
 		FriendLinkApply: friendLinkApplySvc,
 	}
-	authMW := middleware.NewAuthMiddleware(authSvc)
+	authMW := auth.NewAuthMiddleware(authSvc)
 
 	// Gitea 式 SSR 公开页（优先于 SPA）
 	webpages.Register(r, webpages.Deps{
@@ -148,9 +129,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/pages/:slug", h.APIPageDetail)
 		pubAPI.GET("/captcha", h.APICaptcha)
 		pubAPI.GET("/register/config", h.APIRegisterConfig)
-		pubAPI.POST("/register/email-code", middleware.RateLimitMiddleware(limiter, "register"), h.APISendRegisterEmailCode)
-		pubAPI.POST("/password-reset/email-code", middleware.RateLimitMiddleware(limiter, "register"), h.APISendResetEmailCode)
-		pubAPI.POST("/password-reset", middleware.RateLimitMiddleware(limiter, "login"), h.APIResetPassword)
+		pubAPI.POST("/register/email-code", auth.RateLimitMiddleware(limiter, "register"), h.APISendRegisterEmailCode)
+		pubAPI.POST("/password-reset/email-code", auth.RateLimitMiddleware(limiter, "register"), h.APISendResetEmailCode)
+		pubAPI.POST("/password-reset", auth.RateLimitMiddleware(limiter, "login"), h.APIResetPassword)
 		pubAPI.GET("/posts", h.APIPosts)
 		pubAPI.GET("/posts/hot", h.APIHotPosts)
 		pubAPI.GET("/tags", h.APITags)
@@ -161,10 +142,10 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/users/:id", h.APIUserPublic)
 		pubAPI.GET("/posts/:id", h.APIPostDetail)
 		pubAPI.GET("/posts/:id/comments", h.APIPostComments)
-		pubAPI.POST("/posts/:id/comments", middleware.RateLimitMiddleware(limiter, "comment"), h.APICreateComment)
+		pubAPI.POST("/posts/:id/comments", auth.RateLimitMiddleware(limiter, "comment"), h.APICreateComment)
 		pubAPI.GET("/projects", h.APIProjects)
-		pubAPI.POST("/register", middleware.RateLimitMiddleware(limiter, "register"), h.APIRegister)
-		pubAPI.POST("/login", middleware.RateLimitMiddleware(limiter, "login"), h.APILogin)
+		pubAPI.POST("/register", auth.RateLimitMiddleware(limiter, "register"), h.APIRegister)
+		pubAPI.POST("/login", auth.RateLimitMiddleware(limiter, "login"), h.APILogin)
 	}
 
 	// 需登录 API
@@ -178,7 +159,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/profile/password", h.APIUpdatePassword)
 		api.POST("/profile/avatar", h.APIUploadAvatar)
 		api.POST("/uploads/image", h.APIUploadPostImage)
-		api.POST("/posts", middleware.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
+		api.POST("/posts", auth.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
 		api.PUT("/posts/:id", h.APIUpdatePost)
 		api.DELETE("/posts/:id", h.APIDeletePost)
 		api.GET("/posts/:id/revisions", h.APIPostRevisions)
@@ -191,17 +172,17 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/posts/:id/bounty/award", h.APIBountyAward)
 		api.POST("/posts/:id/bounty/refund", h.APIBountyRefund)
 		api.POST("/posts/:id/lottery/draw", h.APILotteryDraw)
-		api.POST("/posts/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreatePostReport)
+		api.POST("/posts/:id/report", auth.RateLimitMiddleware(limiter, "report"), h.APICreatePostReport)
 		api.GET("/messages/unread-count", h.APIMessageUnreadCount)
 		api.GET("/messages/notifications", h.APIMessageNotifications)
 		api.POST("/messages/notifications/read", h.APIMarkNotificationsRead)
 		api.GET("/messages/conversations", h.APIMessageConversations)
 		api.GET("/messages/conversations/:peerId", h.APIConversationMessages)
 		api.POST("/messages/conversations/:peerId/read", h.APIMarkConversationRead)
-		api.POST("/messages", middleware.RateLimitMiddleware(limiter, "message"), h.APISendMessage)
+		api.POST("/messages", auth.RateLimitMiddleware(limiter, "message"), h.APISendMessage)
 		api.POST("/messages/read-all", h.APIMarkAllMessagesRead)
 		api.POST("/comments/:id/like", h.APIToggleCommentLike)
-		api.POST("/comments/:id/report", middleware.RateLimitMiddleware(limiter, "report"), h.APICreateCommentReport)
+		api.POST("/comments/:id/report", auth.RateLimitMiddleware(limiter, "report"), h.APICreateCommentReport)
 		api.DELETE("/comments/:id", h.APIDeleteComment)
 		api.PUT("/comments/:id", h.APIUpdateComment)
 		api.GET("/me/points", h.APIMePoints)
@@ -209,11 +190,11 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/me/check-in", h.APIMeCheckIn)
 		api.GET("/me/lottery", h.APIMeLotteryGet)
 		api.POST("/me/lottery", h.APIMeLotteryDraw)
-		api.POST("/posts/:id/unlock", middleware.RateLimitMiddleware(limiter, "post"), h.APIUnlockPostBlock)
-		api.POST("/friend-links/apply", middleware.RateLimitMiddleware(limiter, "friend_link"), h.APIApplyFriendLink)
-		api.POST("/friend-links/logo", middleware.RateLimitMiddleware(limiter, "post"), h.APIUploadFriendLinkLogo)
+		api.POST("/posts/:id/unlock", auth.RateLimitMiddleware(limiter, "post"), h.APIUnlockPostBlock)
+		api.POST("/friend-links/apply", auth.RateLimitMiddleware(limiter, "friend_link"), h.APIApplyFriendLink)
+		api.POST("/friend-links/logo", auth.RateLimitMiddleware(limiter, "post"), h.APIUploadFriendLinkLogo)
 		api.GET("/friend-links/my-applies", h.APIMyFriendLinkApplies)
-		api.PUT("/friend-links/applies/:id", middleware.RateLimitMiddleware(limiter, "friend_link"), h.APIUpdateFriendLinkApply)
+		api.PUT("/friend-links/applies/:id", auth.RateLimitMiddleware(limiter, "friend_link"), h.APIUpdateFriendLinkApply)
 		api.DELETE("/friend-links/applies/:id", h.APICancelFriendLinkApply)
 	}
 
@@ -288,41 +269,27 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/backup/download/:name", h.APIAdminDownloadBackup)
 	}
 
-	// 后台管理页面由 React SPA 渲染（JSON API 见上方 /api/admin）
-	// dev 模式下前端由 Vite 提供，后台页面路由不在此注册
-	if !cfg.DevMode {
-		admin := r.Group("/admin")
+	// 管理后台 HTML：SSR 尚未迁移；勿用 /*filepath（与 /admin/login 冲突）
+	adminPendingHTML := `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/><title>管理后台</title></head><body><h1>管理后台 SSR 迁移中</h1><p>API 仍可用；UI 请暂时对照 <code>main</code> 分支 SPA，或等待后续模板页。</p><p><a href="/">返回首页</a></p></body></html>`
+	adminPending := func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, adminPendingHTML)
+	}
+	admin := r.Group("/admin")
+	{
+		admin.GET("/login", func(c *gin.Context) {
+			c.Redirect(http.StatusFound, "/login")
+		})
+		adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 		{
-			admin.GET("/login", func(c *gin.Context) {
-				c.Redirect(http.StatusFound, "/login")
-			})
-
-			adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
-			{
-				adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-				for _, page := range []string{"dashboard", "boards", "pages", "links", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
-					adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
-				}
-			}
+			adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
+			adminAuth.GET("/dashboard", adminPending)
+			adminAuth.GET("/:page", adminPending)
 		}
 	}
 
-	// 未迁移路径：生产仍回落 React SPA；/ 与 /board/:id 已由 routers/web 接管
-	if cfg.DevMode {
-		r.NoRoute(func(c *gin.Context) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "页面未找到。SSR 首页请打开 / ；旧 SPA 请用 Vite http://localhost:5173",
-			})
-		})
-	} else {
-		r.NoRoute(func(c *gin.Context) {
-			if embed_static.IsSPARoute(c.Request.URL.Path) {
-				h.ServePublicSPA(c)
-				return
-			}
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		})
-	}
+	// 未迁移公开路径：爬虫可读 HTML / 用户占位（首页与板块已由 routers/web 接管）
+	r.NoRoute(h.ServePublicSPA)
 
 	return r, nil
 }

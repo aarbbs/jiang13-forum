@@ -5,7 +5,8 @@ alwaysApply: true
 
 # 编译与构建脚本
 
-Go 单二进制 + `go:embed` 前端；产物在 `dist/`。
+本分支（`rebuild/gitea-ssr`）：Go 单二进制 + `go:embed` 的 **templates** 与 **public/assets**（由 `web_src` 构建）；产物在 `dist/`。  
+对照 SPA 仅在 `main` 分支。
 
 ## 运行编译（优先用封装命令，不要猜命令）
 
@@ -18,15 +19,16 @@ Go 单二进制 + `go:embed` 前端；产物在 `dist/`。
 
 Windows 上**不要**让用户直接 `.\build.ps1`（默认 ExecutionPolicy 会拦截）；应通过 `build.bat`（内部 `-ExecutionPolicy Bypass`）调用。
 
-常用 target：`build`（默认）、`dev`、`run`、`frontend`、`clean`、`build-all`、`build-windows`、`build-linux`、`tidy`、`help`。
+常用 target：`build`（默认）、`dev`、`run`、`web-src`、`clean`、`build-all`、`build-windows`、`build-linux`、`tidy`、`help`。
 
 ## 修改构建脚本时的约定
 
 1. **双轨同步**：`build.ps1` 与 `Makefile` 目标与行为保持一致；改其一须同步另一份。
 2. **`build.bat` 仅用 ASCII 注释**：`.bat` 会被 cmd 按 GBK 解析，UTF-8 中文注释会导致整行乱码、`powershell` 无法执行。
 3. **`build.ps1` 可用 UTF-8**：由 PowerShell 执行，中文注释无妨。
-4. **构建顺序**：先 `frontend` 内 `npm run build`，再 `go build -trimpath -ldflags "-s -w -X main.version=..." -o dist/jiang13 ./cmd/jiang13`。
+4. **构建顺序**：先 `web_src` 内 `npm run build`（产出 `public/assets`），再 `go build -trimpath -ldflags "-s -w -X main.version=..." -o dist/jiang13 ./cmd/jiang13`。
 5. **入口包**：`./cmd/jiang13`；Windows 产物带 `.exe`。
+6. **本分支无 `frontend/`**：勿再添加 SPA 构建步骤；需要对照 UI 时 `git checkout main`。
 
 ## 新增 target 检查清单
 

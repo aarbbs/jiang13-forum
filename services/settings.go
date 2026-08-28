@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 // 论坛设置键名
@@ -403,72 +403,72 @@ func NewForumSettingsService() *ForumSettingsService {
 func (s *ForumSettingsService) ensureDefaults() {
 	for _, def := range forumSettingDefs {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", def.key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", def.key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: def.key, Value: def.defaultVal})
+			models.DB.Create(&models.ForumSetting{Key: def.key, Value: def.defaultVal})
 		}
 	}
 	for key, val := range feedSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range asideSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range mailSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range oidcSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range giteaSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range storageSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range siteBrandingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range friendLinkSettingDefaults {
 		var count int64
-		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
-			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 }
 
 func (s *ForumSettingsService) getString(key, fallback string) string {
-	var setting model.ForumSetting
-	if err := model.DB.First(&setting, "`key` = ?", key).Error; err != nil {
+	var setting models.ForumSetting
+	if err := models.DB.First(&setting, "`key` = ?", key).Error; err != nil {
 		return fallback
 	}
 	return setting.Value
@@ -477,12 +477,12 @@ func (s *ForumSettingsService) getString(key, fallback string) string {
 func (s *ForumSettingsService) setString(key, value string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return model.DB.Save(&model.ForumSetting{Key: key, Value: value}).Error
+	return models.DB.Save(&models.ForumSetting{Key: key, Value: value}).Error
 }
 
 func (s *ForumSettingsService) getInt(key string, fallback int) int {
-	var setting model.ForumSetting
-	if err := model.DB.First(&setting, "`key` = ?", key).Error; err != nil {
+	var setting models.ForumSetting
+	if err := models.DB.First(&setting, "`key` = ?", key).Error; err != nil {
 		return fallback
 	}
 	v, err := strconv.Atoi(setting.Value)
@@ -505,7 +505,7 @@ func (s *ForumSettingsService) setInt(key string, value int) error {
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		return model.DB.Save(&model.ForumSetting{Key: key, Value: strconv.Itoa(value)}).Error
+		return models.DB.Save(&models.ForumSetting{Key: key, Value: strconv.Itoa(value)}).Error
 	}
 	return ErrInvalidSetting
 }
@@ -1042,7 +1042,7 @@ func (s *ForumSettingsService) GiteaSyncConfig() GiteaSyncConfig {
 	}
 	cfg.Ready = cfg.Enabled && base != "" && cfg.HasToken
 	var n int64
-	model.DB.Model(&model.GiteaRepo{}).Where("private = ?", false).Count(&n)
+	models.DB.Model(&models.GiteaRepo{}).Where("private = ?", false).Count(&n)
 	cfg.RepoCount = n
 	return cfg
 }

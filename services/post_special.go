@@ -1,10 +1,10 @@
-package service
+﻿package services
 
 import (
 	"errors"
 	"strconv"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -16,30 +16,30 @@ type PostCreateExtras struct {
 }
 
 // FinalizeSpecialPostCreate 创建帖后初始化投票/悬赏/抽奖
-func FinalizeSpecialPostCreate(post *model.Post, userID uint, extras PostCreateExtras) error {
+func FinalizeSpecialPostCreate(post *models.Post, userID uint, extras PostCreateExtras) error {
 	if post == nil {
 		return errors.New("帖子不存在")
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	return models.DB.Transaction(func(tx *gorm.DB) error {
 		switch post.PostType {
-		case model.PostTypePoll:
+		case models.PostTypePoll:
 			opts, multi, maxChoices, endsAt, err := ParsePollOptionsJSON(extras.PollOptionsJSON)
 			if err != nil {
 				return err
 			}
 			return CreatePollForPost(tx, post.ID, multi, maxChoices, endsAt, opts)
-		case model.PostTypeBounty:
+		case models.PostTypeBounty:
 			if extras.BountyPoints < 1 {
 				return ErrBountyInvalidPoint
 			}
 			if err := tx.Model(post).Updates(map[string]interface{}{
 				"bounty_points": extras.BountyPoints,
-				"bounty_status": model.BountyStatusOpen,
+				"bounty_status": models.BountyStatusOpen,
 			}).Error; err != nil {
 				return err
 			}
 			return EscrowBounty(tx, userID, post.ID, extras.BountyPoints)
-		case model.PostTypeLottery:
+		case models.PostTypeLottery:
 			count := extras.LotteryWinnerCount
 			if count < 1 {
 				count = 1
@@ -49,7 +49,7 @@ func FinalizeSpecialPostCreate(post *model.Post, userID uint, extras PostCreateE
 			}
 			return tx.Model(post).Updates(map[string]interface{}{
 				"lottery_winner_count": count,
-				"lottery_status":       model.PostLotteryStatusOpen,
+				"lottery_status":       models.PostLotteryStatusOpen,
 			}).Error
 		default:
 			return nil

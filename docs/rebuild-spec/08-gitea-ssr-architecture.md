@@ -35,19 +35,29 @@ git worktree add ../jiang13-spa main
 
 ---
 
-## 目录职责（演进中）
+## 目录职责（本分支已落地）
 
 ```text
-routers/web/     # 返回 HTML 的页面路由
-templates/       # Go 模板源文件（嵌入）
-web_src/         # CSS/JS 源码
-public/assets/   # web_src 构建产物（嵌入，URL 前缀 `/ssr-assets/`）
-modules/         # 横切（模板渲染等）
-docs/rebuild-spec/  # 产品规格
-.cursor/rules/   # AI 开发规则
+cmd/jiang13/         # 入口
+config/              # 配置
+models/              # GORM 模型（原 model/）
+services/            # 业务逻辑（原 service/）
+routers/
+  setup.go           # 路由总装（原 router/）
+  web/               # HTML SSR
+  api/               # JSON API（原 handler/）
+modules/
+  auth/              # JWT / 限流等（原 middleware/）
+  webrender/         # 模板渲染
+  seo/               # PageMeta 等
+templates/           # Go 模板（embed）
+web_src/             # CSS/JS 源码
+public/assets/       # 构建产物（URL 前缀 `/ssr-assets/`）
+docs/rebuild-spec/   # 产品规格
+.cursor/rules/       # AI 开发规则
 ```
 
-现有 `model/`、`service/`、`handler/`（JSON API）可先复用，公开页出口改为模板。
+**已删除（勿恢复）：** `frontend/`、`embed_static/`。SPA 对照仅看 `main`。
 
 ---
 

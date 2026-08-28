@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"crypto/rand"
@@ -20,7 +20,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"git.iioio.com/freefire/jiang13-forum/config"
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 const (
@@ -242,8 +242,8 @@ func (s *OIDCService) IssueAuthCode(userID uint, req AuthorizeRequest) (string, 
 	if err := s.ValidateAuthorize(req); err != nil {
 		return "", err
 	}
-	var user model.User
-	if err := model.DB.First(&user, userID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
 		return "", ErrOIDCInvalidRequest
 	}
 	if user.Banned {
@@ -258,7 +258,7 @@ func (s *OIDCService) IssueAuthCode(userID uint, req AuthorizeRequest) (string, 
 	if req.CodeChallenge != "" && method == "" {
 		method = "PLAIN"
 	}
-	rec := &model.OAuthAuthCode{
+	rec := &models.OAuthAuthCode{
 		Code:                code,
 		ClientID:            req.ClientID,
 		UserID:              user.ID,
@@ -269,7 +269,7 @@ func (s *OIDCService) IssueAuthCode(userID uint, req AuthorizeRequest) (string, 
 		CodeChallengeMethod: method,
 		ExpiresAt:           time.Now().Add(oidcAuthCodeTTL),
 	}
-	if err := model.DB.Create(rec).Error; err != nil {
+	if err := models.DB.Create(rec).Error; err != nil {
 		return "", err
 	}
 
@@ -320,14 +320,14 @@ func (s *OIDCService) ExchangeCode(req TokenRequest) (*TokenResponse, error) {
 		return nil, ErrOIDCInvalidClient
 	}
 
-	var rec model.OAuthAuthCode
-	if err := model.DB.Where("code = ?", req.Code).First(&rec).Error; err != nil {
+	var rec models.OAuthAuthCode
+	if err := models.DB.Where("code = ?", req.Code).First(&rec).Error; err != nil {
 		return nil, ErrOIDCInvalidGrant
 	}
 	if rec.Used || time.Now().After(rec.ExpiresAt) {
 		// 重放：作废同用户同客户端未过期码
 		if rec.Used {
-			_ = model.DB.Model(&model.OAuthAuthCode{}).
+			_ = models.DB.Model(&models.OAuthAuthCode{}).
 				Where("client_id = ? AND user_id = ? AND used = ? AND expires_at > ?",
 					rec.ClientID, rec.UserID, false, time.Now()).
 				Update("used", true).Error
@@ -342,10 +342,10 @@ func (s *OIDCService) ExchangeCode(req TokenRequest) (*TokenResponse, error) {
 	}
 
 	rec.Used = true
-	_ = model.DB.Save(&rec).Error
+	_ = models.DB.Save(&rec).Error
 
-	var user model.User
-	if err := model.DB.First(&user, rec.UserID).Error; err != nil || user.Banned {
+	var user models.User
+	if err := models.DB.First(&user, rec.UserID).Error; err != nil || user.Banned {
 		return nil, ErrOIDCInvalidGrant
 	}
 
@@ -408,7 +408,7 @@ type oidcIDClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (s *OIDCService) signAccessToken(user *model.User, scope, clientID string) (string, error) {
+func (s *OIDCService) signAccessToken(user *models.User, scope, clientID string) (string, error) {
 	now := time.Now()
 	issuer := s.Issuer()
 	claims := oidcAccessClaims{
@@ -429,7 +429,7 @@ func (s *OIDCService) signAccessToken(user *model.User, scope, clientID string) 
 	return t.SignedString(s.privateKey)
 }
 
-func (s *OIDCService) signIDToken(user *model.User, scope, clientID, nonce string) (string, error) {
+func (s *OIDCService) signIDToken(user *models.User, scope, clientID, nonce string) (string, error) {
 	now := time.Now()
 	issuer := s.Issuer()
 	claims := oidcIDClaims{
@@ -462,13 +462,13 @@ func (s *OIDCService) signIDToken(user *model.User, scope, clientID, nonce strin
 	return t.SignedString(s.privateKey)
 }
 
-func (s *OIDCService) userGroups(user *model.User) []string {
+func (s *OIDCService) userGroups(user *models.User) []string {
 	rt := s.runtime()
 	groups := make([]string, 0, 2)
 	if rt.UserGroup != "" {
 		groups = append(groups, rt.UserGroup)
 	}
-	if user.Role == model.RoleAdmin && rt.AdminGroup != "" {
+	if user.Role == models.RoleAdmin && rt.AdminGroup != "" {
 		groups = append(groups, rt.AdminGroup)
 	}
 	return groups
@@ -484,8 +484,8 @@ func (s *OIDCService) UserInfo(accessToken string) (map[string]any, error) {
 	if err != nil {
 		return nil, ErrOIDCInvalidToken
 	}
-	var user model.User
-	if err := model.DB.First(&user, uint(uid)).Error; err != nil || user.Banned {
+	var user models.User
+	if err := models.DB.First(&user, uint(uid)).Error; err != nil || user.Banned {
 		return nil, ErrOIDCInvalidToken
 	}
 	rt := s.runtime()
@@ -536,8 +536,8 @@ func (s *OIDCService) ResolveLogoutRedirect(postLogoutRedirectURI, state string)
 	if uri == "" {
 		return "/", nil
 	}
-	var clients []model.OAuthClient
-	if err := model.DB.Where("enabled = ?", true).Find(&clients).Error; err != nil {
+	var clients []models.OAuthClient
+	if err := models.DB.Where("enabled = ?", true).Find(&clients).Error; err != nil {
 		return "", err
 	}
 	allowed := false

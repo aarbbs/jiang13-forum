@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 type CommentService struct {
@@ -25,9 +25,9 @@ func (s *CommentService) HasUserReplied(postID, userID uint) bool {
 		return false
 	}
 	var count int64
-	err := model.DB.Model(&model.Comment{}).
+	err := models.DB.Model(&models.Comment{}).
 		Where("post_id = ? AND user_id = ? AND status IN ?", postID, userID,
-			[]string{model.ContentStatusPublished, model.ContentStatusPending}).
+			[]string{models.ContentStatusPublished, models.ContentStatusPending}).
 		Limit(1).
 		Count(&count).Error
 	return err == nil && count > 0
@@ -44,7 +44,7 @@ type CommentCreateInput struct {
 	IsPrivate  bool
 }
 
-func (s *CommentService) canViewPrivate(c model.Comment, viewerID uint, isAdmin bool, postAuthorID uint, guestSet map[uint]struct{}) bool {
+func (s *CommentService) canViewPrivate(c models.Comment, viewerID uint, isAdmin bool, postAuthorID uint, guestSet map[uint]struct{}) bool {
 	if !c.IsPrivate {
 		return true
 	}
@@ -63,8 +63,8 @@ func (s *CommentService) canViewPrivate(c model.Comment, viewerID uint, isAdmin 
 	return false
 }
 
-func (s *CommentService) fillReplyTargets(comments []model.Comment, loadMissing bool) {
-	idMap := make(map[uint]model.Comment, len(comments))
+func (s *CommentService) fillReplyTargets(comments []models.Comment, loadMissing bool) {
+	idMap := make(map[uint]models.Comment, len(comments))
 	for _, c := range comments {
 		idMap[c.ID] = c
 	}
@@ -78,27 +78,27 @@ func (s *CommentService) fillReplyTargets(comments []model.Comment, loadMissing 
 			continue
 		}
 		if loadMissing {
-			var target model.Comment
-			if model.DB.Preload("User").First(&target, *comments[i].ReplyTo).Error == nil {
+			var target models.Comment
+			if models.DB.Preload("User").First(&target, *comments[i].ReplyTo).Error == nil {
 				comments[i].ReplyTarget = &target
 			}
 		}
 	}
 }
 
-func canViewComment(c model.Comment, viewerID uint, isAdmin bool) bool {
-	if isAdmin || c.Status == model.ContentStatusPublished || c.Status == "" {
+func canViewComment(c models.Comment, viewerID uint, isAdmin bool) bool {
+	if isAdmin || c.Status == models.ContentStatusPublished || c.Status == "" {
 		return true
 	}
-	if c.Status == model.ContentStatusPending || c.Status == model.ContentStatusRejected {
+	if c.Status == models.ContentStatusPending || c.Status == models.ContentStatusRejected {
 		return viewerID > 0 && c.UserID == viewerID
 	}
 	return false
 }
 
-func (s *CommentService) ListByPost(postID, viewerID uint, isAdmin bool, postAuthorID uint, visibleGuestIDs []uint) ([]model.Comment, error) {
-	var comments []model.Comment
-	err := model.DB.Preload("User").Where("post_id = ?", postID).Order("floor asc").Find(&comments).Error
+func (s *CommentService) ListByPost(postID, viewerID uint, isAdmin bool, postAuthorID uint, visibleGuestIDs []uint) ([]models.Comment, error) {
+	var comments []models.Comment
+	err := models.DB.Preload("User").Where("post_id = ?", postID).Order("floor asc").Find(&comments).Error
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +108,12 @@ func (s *CommentService) ListByPost(postID, viewerID uint, isAdmin bool, postAut
 		guestSet[id] = struct{}{}
 	}
 
-	allByID := make(map[uint]model.Comment, len(comments))
+	allByID := make(map[uint]models.Comment, len(comments))
 	for _, c := range comments {
 		allByID[c.ID] = c
 	}
 
-	visible := make([]model.Comment, 0, len(comments))
+	visible := make([]models.Comment, 0, len(comments))
 	visibleIDs := make(map[uint]struct{}, len(comments))
 	for i := range comments {
 		if !canViewComment(comments[i], viewerID, isAdmin) {
@@ -145,7 +145,7 @@ func (s *CommentService) ListByPost(postID, viewerID uint, isAdmin bool, postAut
 }
 
 // resolveThreadParent 计算嵌套展示父节点：优先直接父评论，否则沿 reply_to 向上找到最近可见祖先
-func resolveThreadParent(replyTo *uint, visibleIDs map[uint]struct{}, allByID map[uint]model.Comment) *uint {
+func resolveThreadParent(replyTo *uint, visibleIDs map[uint]struct{}, allByID map[uint]models.Comment) *uint {
 	if replyTo == nil {
 		return nil
 	}
@@ -169,7 +169,7 @@ func resolveThreadParent(replyTo *uint, visibleIDs map[uint]struct{}, allByID ma
 	return nil
 }
 
-func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
+func (s *CommentService) Create(in CommentCreateInput) (*models.Comment, error) {
 	content := SanitizePostHTML(strings.TrimSpace(in.Content))
 	content = s.filter.Filter(content)
 	if content == "" {
@@ -179,16 +179,16 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 		return nil, err
 	}
 
-	var post model.Post
-	if err := model.DB.First(&post, in.PostID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, in.PostID).Error; err != nil {
 		return nil, ErrPostNotFound
 	}
 
 	if in.UserID == 0 {
 		return nil, errors.New("请登录后评论")
 	}
-	var user model.User
-	if err := model.DB.First(&user, in.UserID).Error; err != nil {
+	var user models.User
+	if err := models.DB.First(&user, in.UserID).Error; err != nil {
 		return nil, errors.New("用户不存在")
 	}
 	if user.Banned {
@@ -201,31 +201,31 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 	}
 
 	// 未公开帖仅作者/管理员可评论
-	if post.Status != model.ContentStatusPublished && post.Status != "" {
-		if user.Role != model.RoleAdmin && post.UserID != in.UserID {
+	if post.Status != models.ContentStatusPublished && post.Status != "" {
+		if user.Role != models.RoleAdmin && post.UserID != in.UserID {
 			return nil, errors.New("帖子审核中，暂不可评论")
 		}
 	}
 
 	var maxFloor int
-	model.DB.Model(&model.Comment{}).Where("post_id = ?", in.PostID).Select("COALESCE(MAX(floor), 0)").Scan(&maxFloor)
+	models.DB.Model(&models.Comment{}).Where("post_id = ?", in.PostID).Select("COALESCE(MAX(floor), 0)").Scan(&maxFloor)
 
 	if in.ReplyTo != nil {
-		var target model.Comment
-		if err := model.DB.Where("id = ? AND post_id = ?", *in.ReplyTo, in.PostID).First(&target).Error; err != nil {
+		var target models.Comment
+		if err := models.DB.Where("id = ? AND post_id = ?", *in.ReplyTo, in.PostID).First(&target).Error; err != nil {
 			return nil, ErrCommentNotFound
 		}
-		if !canViewComment(target, in.UserID, user.Role == model.RoleAdmin) {
+		if !canViewComment(target, in.UserID, user.Role == models.RoleAdmin) {
 			return nil, ErrCommentNotFound
 		}
 	}
 
-	status := model.ContentStatusPending
+	status := models.ContentStatusPending
 	if user.SkipsModeration() {
-		status = model.ContentStatusPublished
+		status = models.ContentStatusPublished
 	}
 
-	comment := &model.Comment{
+	comment := &models.Comment{
 		PostID:     in.PostID,
 		UserID:     in.UserID,
 		Floor:      maxFloor + 1,
@@ -237,10 +237,10 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 		IsPrivate:  in.IsPrivate,
 		Status:     status,
 	}
-	if err := model.DB.Create(comment).Error; err != nil {
+	if err := models.DB.Create(comment).Error; err != nil {
 		return nil, err
 	}
-	if status == model.ContentStatusPublished {
+	if status == models.ContentStatusPublished {
 		AddExp(in.UserID, 2)
 	}
 	return comment, nil
@@ -249,39 +249,39 @@ func (s *CommentService) Create(in CommentCreateInput) (*model.Comment, error) {
 // SetStatus 设置评论审核状态
 func (s *CommentService) SetStatus(commentID uint, status string) error {
 	switch status {
-	case model.ContentStatusPending, model.ContentStatusPublished, model.ContentStatusRejected:
+	case models.ContentStatusPending, models.ContentStatusPublished, models.ContentStatusRejected:
 	default:
 		return errors.New("无效的审核状态")
 	}
-	var comment model.Comment
-	if err := model.DB.Select("id", "user_id", "status").First(&comment, commentID).Error; err != nil {
+	var comment models.Comment
+	if err := models.DB.Select("id", "user_id", "status").First(&comment, commentID).Error; err != nil {
 		return ErrCommentNotFound
 	}
 	prev := comment.Status
-	res := model.DB.Model(&model.Comment{}).Where("id = ?", commentID).Update("status", status)
+	res := models.DB.Model(&models.Comment{}).Where("id = ?", commentID).Update("status", status)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
 		return ErrCommentNotFound
 	}
-	if status == model.ContentStatusPublished && prev != model.ContentStatusPublished && comment.UserID > 0 {
+	if status == models.ContentStatusPublished && prev != models.ContentStatusPublished && comment.UserID > 0 {
 		AddExp(comment.UserID, 2)
 	}
 	return nil
 }
 
 // GetByID 获取评论
-func (s *CommentService) GetByID(id uint) (*model.Comment, error) {
-	var c model.Comment
-	if err := model.DB.Preload("User").Preload("Post").First(&c, id).Error; err != nil {
+func (s *CommentService) GetByID(id uint) (*models.Comment, error) {
+	var c models.Comment
+	if err := models.DB.Preload("User").Preload("Post").First(&c, id).Error; err != nil {
 		return nil, ErrCommentNotFound
 	}
 	return &c, nil
 }
 
 // fillLiked 批量标记当前用户是否已点赞
-func (s *CommentService) fillLiked(comments []model.Comment, viewerID uint) {
+func (s *CommentService) fillLiked(comments []models.Comment, viewerID uint) {
 	if viewerID == 0 || len(comments) == 0 {
 		return
 	}
@@ -289,8 +289,8 @@ func (s *CommentService) fillLiked(comments []model.Comment, viewerID uint) {
 	for _, c := range comments {
 		ids = append(ids, c.ID)
 	}
-	var likes []model.CommentLike
-	model.DB.Where("user_id = ? AND comment_id IN ?", viewerID, ids).Find(&likes)
+	var likes []models.CommentLike
+	models.DB.Where("user_id = ? AND comment_id IN ?", viewerID, ids).Find(&likes)
 	likedSet := make(map[uint]struct{}, len(likes))
 	for _, l := range likes {
 		likedSet[l.CommentID] = struct{}{}
@@ -302,29 +302,29 @@ func (s *CommentService) fillLiked(comments []model.Comment, viewerID uint) {
 
 // ToggleLike 切换评论点赞
 func (s *CommentService) ToggleLike(userID, commentID uint) (liked bool, likeCount int, err error) {
-	var comment model.Comment
-	if err := model.DB.Select("id", "like_count").First(&comment, commentID).Error; err != nil {
+	var comment models.Comment
+	if err := models.DB.Select("id", "like_count").First(&comment, commentID).Error; err != nil {
 		return false, 0, ErrCommentNotFound
 	}
-	var like model.CommentLike
-	result := model.DB.Where("comment_id = ? AND user_id = ?", commentID, userID).Limit(1).Find(&like)
+	var like models.CommentLike
+	result := models.DB.Where("comment_id = ? AND user_id = ?", commentID, userID).Limit(1).Find(&like)
 	if result.Error != nil {
 		return false, 0, result.Error
 	}
 	if result.RowsAffected > 0 {
-		if err := model.DB.Delete(&like).Error; err != nil {
+		if err := models.DB.Delete(&like).Error; err != nil {
 			return false, 0, err
 		}
-		model.DB.Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END"))
-		_ = model.DB.Select("like_count").First(&comment, commentID)
+		models.DB.Model(&models.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END"))
+		_ = models.DB.Select("like_count").First(&comment, commentID)
 		return false, comment.LikeCount, nil
 	}
-	like = model.CommentLike{CommentID: commentID, UserID: userID}
-	if err := model.DB.Create(&like).Error; err != nil {
+	like = models.CommentLike{CommentID: commentID, UserID: userID}
+	if err := models.DB.Create(&like).Error; err != nil {
 		return false, 0, err
 	}
-	model.DB.Model(&model.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
-	_ = model.DB.Select("like_count").First(&comment, commentID)
+	models.DB.Model(&models.Comment{}).Where("id = ?", commentID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
+	_ = models.DB.Select("like_count").First(&comment, commentID)
 	return true, comment.LikeCount, nil
 }
 
@@ -334,14 +334,14 @@ func (s *CommentService) IsLiked(userID, commentID uint) bool {
 		return false
 	}
 	var count int64
-	model.DB.Model(&model.CommentLike{}).Where("comment_id = ? AND user_id = ?", commentID, userID).Count(&count)
+	models.DB.Model(&models.CommentLike{}).Where("comment_id = ? AND user_id = ?", commentID, userID).Count(&count)
 	return count > 0
 }
 
 // PendingCommentCount 待审评论数
 func (s *CommentService) PendingCommentCount() (int64, error) {
 	var n int64
-	err := model.DB.Model(&model.Comment{}).Where("status = ?", model.ContentStatusPending).Count(&n).Error
+	err := models.DB.Model(&models.Comment{}).Where("status = ?", models.ContentStatusPending).Count(&n).Error
 	return n, err
 }
 
@@ -353,8 +353,8 @@ func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
 }
 
 func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration bool, content string) (string, bool, error) {
-	var comment model.Comment
-	if err := model.DB.First(&comment, commentID).Error; err != nil {
+	var comment models.Comment
+	if err := models.DB.First(&comment, commentID).Error; err != nil {
 		return "", false, ErrCommentNotFound
 	}
 	if !isAdmin && (comment.UserID == 0 || comment.UserID != userID) {
@@ -380,8 +380,8 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration 
 	}
 
 	enteredPending := false
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		rev := model.CommentRevision{
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		rev := models.CommentRevision{
 			CommentID: commentID,
 			EditorID:  userID,
 			Content:   comment.Content,
@@ -391,7 +391,7 @@ func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration 
 		}
 		updates := map[string]interface{}{"content": content}
 		if !skipModeration {
-			updates["status"] = model.ContentStatusPending
+			updates["status"] = models.ContentStatusPending
 			enteredPending = true
 		}
 		return tx.Model(&comment).Updates(updates).Error
@@ -413,11 +413,11 @@ func collectReplySubtreeIDs(db *gorm.DB, rootID uint, softDeletedOnly bool) ([]u
 	seen := map[uint]struct{}{rootID: {}}
 	frontier := []uint{rootID}
 	for len(frontier) > 0 {
-		childQ := q.Model(&model.Comment{}).Select("id").Where("reply_to IN ?", frontier)
+		childQ := q.Model(&models.Comment{}).Select("id").Where("reply_to IN ?", frontier)
 		if softDeletedOnly {
 			childQ = childQ.Where("deleted_at IS NOT NULL")
 		}
-		var children []model.Comment
+		var children []models.Comment
 		if err := childQ.Find(&children).Error; err != nil {
 			return nil, err
 		}
@@ -436,20 +436,20 @@ func collectReplySubtreeIDs(db *gorm.DB, rootID uint, softDeletedOnly bool) ([]u
 
 // AdminDelete 软删除评论及其回复树（进入回收站）；修订与点赞保留以便恢复
 func (s *CommentService) AdminDelete(commentID uint) error {
-	var root model.Comment
-	if err := model.DB.First(&root, commentID).Error; err != nil {
+	var root models.Comment
+	if err := models.DB.First(&root, commentID).Error; err != nil {
 		return ErrCommentNotFound
 	}
-	ids, err := collectReplySubtreeIDs(model.DB, commentID, false)
+	ids, err := collectReplySubtreeIDs(models.DB, commentID, false)
 	if err != nil {
 		return err
 	}
-	return model.DB.Where("id IN ?", ids).Delete(&model.Comment{}).Error
+	return models.DB.Where("id IN ?", ids).Delete(&models.Comment{}).Error
 }
 
 // TrashCommentItem 评论回收站列表项
 type TrashCommentItem struct {
-	model.Comment
+	models.Comment
 	DeletedAt time.Time `json:"deleted_at"`
 }
 
@@ -459,7 +459,7 @@ func (s *CommentService) ListTrash(page, size int, keyword string) ([]TrashComme
 		page = 1
 	}
 	size = s.settings.NormalizePageSize(size)
-	db := model.DB.Unscoped().Model(&model.Comment{}).
+	db := models.DB.Unscoped().Model(&models.Comment{}).
 		Where("comments.deleted_at IS NOT NULL").
 		Joins("JOIN posts ON posts.id = comments.post_id AND posts.deleted_at IS NULL").
 		Preload("User").Preload("Post")
@@ -475,7 +475,7 @@ func (s *CommentService) ListTrash(page, size int, keyword string) ([]TrashComme
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var comments []model.Comment
+	var comments []models.Comment
 	if err := db.Order("comments.deleted_at DESC").Offset((page - 1) * size).Limit(size).Find(&comments).Error; err != nil {
 		return nil, 0, err
 	}
@@ -491,65 +491,65 @@ func (s *CommentService) ListTrash(page, size int, keyword string) ([]TrashComme
 
 // Restore 从回收站恢复评论及其已软删的回复树
 func (s *CommentService) Restore(commentID uint) error {
-	var comment model.Comment
-	if err := model.DB.Unscoped().First(&comment, commentID).Error; err != nil {
+	var comment models.Comment
+	if err := models.DB.Unscoped().First(&comment, commentID).Error; err != nil {
 		return ErrCommentNotFound
 	}
 	if !comment.DeletedAt.Valid {
 		return errors.New("评论未被删除")
 	}
 	// 所属帖子必须仍存在且未删除
-	var post model.Post
-	if err := model.DB.First(&post, comment.PostID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, comment.PostID).Error; err != nil {
 		return errors.New("所属帖子不存在或已在回收站，请先恢复帖子")
 	}
-	ids, err := collectReplySubtreeIDs(model.DB, commentID, true)
+	ids, err := collectReplySubtreeIDs(models.DB, commentID, true)
 	if err != nil {
 		return err
 	}
-	return model.DB.Unscoped().Model(&model.Comment{}).
+	return models.DB.Unscoped().Model(&models.Comment{}).
 		Where("id IN ?", ids).
 		Update("deleted_at", nil).Error
 }
 
 // Purge 永久删除回收站中的评论及其已软删回复（含修订、点赞）
 func (s *CommentService) Purge(commentID uint) error {
-	var comment model.Comment
-	if err := model.DB.Unscoped().First(&comment, commentID).Error; err != nil {
+	var comment models.Comment
+	if err := models.DB.Unscoped().First(&comment, commentID).Error; err != nil {
 		return ErrCommentNotFound
 	}
 	if !comment.DeletedAt.Valid {
 		return errors.New("仅可彻底删除回收站中的评论，请先删除评论")
 	}
-	ids, err := collectReplySubtreeIDs(model.DB, commentID, true)
+	ids, err := collectReplySubtreeIDs(models.DB, commentID, true)
 	if err != nil {
 		return err
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("comment_id IN ?", ids).Delete(&model.CommentRevision{}).Error; err != nil {
+	return models.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("comment_id IN ?", ids).Delete(&models.CommentRevision{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("comment_id IN ?", ids).Delete(&model.CommentLike{}).Error; err != nil {
+		if err := tx.Where("comment_id IN ?", ids).Delete(&models.CommentLike{}).Error; err != nil {
 			return err
 		}
-		return tx.Unscoped().Where("id IN ?", ids).Delete(&model.Comment{}).Error
+		return tx.Unscoped().Where("id IN ?", ids).Delete(&models.Comment{}).Error
 	})
 }
 
 // ListRevisions 评论编辑历史（管理员查看）
-func (s *CommentService) ListRevisions(commentID uint) ([]model.CommentRevision, error) {
+func (s *CommentService) ListRevisions(commentID uint) ([]models.CommentRevision, error) {
 	if _, err := s.GetByID(commentID); err != nil {
 		return nil, err
 	}
-	var revs []model.CommentRevision
-	err := model.DB.Preload("Editor").
+	var revs []models.CommentRevision
+	err := models.DB.Preload("Editor").
 		Where("comment_id = ?", commentID).
 		Order("id desc").Find(&revs).Error
 	if err != nil {
 		return nil, err
 	}
 	if revs == nil {
-		revs = []model.CommentRevision{}
+		revs = []models.CommentRevision{}
 	}
 	return revs, nil
 }
@@ -572,9 +572,9 @@ func (s *CommentService) ListRecentPublic(limit int) ([]RecentCommentItem, error
 	if limit < 1 {
 		limit = 8
 	}
-	var comments []model.Comment
-	err := model.DB.Preload("User").Preload("Post").
-		Where("is_private = ? AND status = ?", false, model.ContentStatusPublished).
+	var comments []models.Comment
+	err := models.DB.Preload("User").Preload("Post").
+		Where("is_private = ? AND status = ?", false, models.ContentStatusPublished).
 		Order("id desc").Limit(limit * 2). // 多取一些以跳过已删帖
 		Find(&comments).Error
 	if err != nil {
@@ -630,21 +630,21 @@ func truncateRunes(s string, n int) string {
 }
 
 // ListRecent 管理员查看最近评论
-func (s *CommentService) ListRecent(page, size int, status string) ([]model.Comment, int64, error) {
+func (s *CommentService) ListRecent(page, size int, status string) ([]models.Comment, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if size < 1 {
 		size = 20
 	}
-	db := model.DB.Model(&model.Comment{})
+	db := models.DB.Model(&models.Comment{})
 	switch status {
-	case model.ContentStatusPending, model.ContentStatusPublished, model.ContentStatusRejected:
+	case models.ContentStatusPending, models.ContentStatusPublished, models.ContentStatusRejected:
 		db = db.Where("status = ?", status)
 	}
 	var total int64
 	db.Count(&total)
-	var comments []model.Comment
+	var comments []models.Comment
 	err := db.Preload("User").Preload("Post").
 		Order("CASE WHEN status = 'pending' THEN 0 ELSE 1 END, id DESC").
 		Offset((page - 1) * size).Limit(size).Find(&comments).Error

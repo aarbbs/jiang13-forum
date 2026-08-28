@@ -1,19 +1,19 @@
-package handler
+﻿package api
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // APIMessageConversations 会话列表（按对方聚合）
 func (h *Handlers) APIMessageConversations(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "30"))
-	list, total, err := h.Message.ListConversations(service.ConversationListQuery{
+	list, total, err := h.Message.ListConversations(services.ConversationListQuery{
 		UserID: h.currentUserID(c),
 		Page:   page,
 		Size:   size,
@@ -41,7 +41,7 @@ func (h *Handlers) APIConversationMessages(c *gin.Context) {
 	before, _ := strconv.ParseUint(c.DefaultQuery("before", "0"), 10, 64)
 	uid := h.currentUserID(c)
 
-	list, total, err := h.Message.ListConversationMessages(service.ConversationMessagesQuery{
+	list, total, err := h.Message.ListConversationMessages(services.ConversationMessagesQuery{
 		UserID: uid,
 		PeerID: uint(peerID),
 		Page:   page,
@@ -63,10 +63,10 @@ func (h *Handlers) APIConversationMessages(c *gin.Context) {
 		}
 	}
 
-	var peer *model.User
+	var peer *models.User
 	if peerID > 0 {
-		var u model.User
-		if err := model.DB.First(&u, uint(peerID)).Error; err == nil {
+		var u models.User
+		if err := models.DB.First(&u, uint(peerID)).Error; err == nil {
 			peer = &u
 		}
 	}
@@ -147,7 +147,7 @@ func (h *Handlers) APISendMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	msg, err := h.Message.Send(service.MessageSendInput{
+	msg, err := h.Message.Send(services.MessageSendInput{
 		FromUserID: h.currentUserID(c),
 		ToUserID:   req.ToUserID,
 		Subject:    req.Subject,

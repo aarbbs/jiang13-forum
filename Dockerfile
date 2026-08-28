@@ -1,4 +1,4 @@
-# 姜十三论坛 — 多阶段构建：Node 前端 → Go 单二进制 → Alpine 运行镜像
+# 姜十三论坛 — 多阶段构建：web_src → Go 单二进制 → Alpine 运行镜像
 # 不使用 # syntax=docker/dockerfile:1，避免构建前额外拉取 docker.io/docker/dockerfile
 #
 # 国内网络：默认经 DaoCloud 拉取基础镜像，npm/go 走国内代理
@@ -8,14 +8,12 @@
 ARG IMAGE_PREFIX=docker.m.daocloud.io/library/
 ARG VERSION=dev
 
-# ── Stage 1: 前端构建（Vite → embed_static/static/spa）────────────────────
-FROM ${IMAGE_PREFIX}node:22-bookworm-slim AS frontend
-WORKDIR /src/frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm config set registry https://registry.npmmirror.com \
-    && npm ci
-COPY frontend/ ./
-RUN npm run build
+# ── Stage 1: SSR 渐进资源（web_src → public/assets）────────────────────────
+FROM ${IMAGE_PREFIX}node:22-bookworm-slim AS websrc
+WORKDIR /src/web_src
+COPY web_src/package.json ./
+COPY web_src/ ./
+RUN node build.mjs
 
 # ── Stage 2: Go 编译（纯 Go SQLite，CGO_ENABLED=0）────────────────────────
 FROM ${IMAGE_PREFIX}golang:1.26-bookworm AS builder
@@ -25,7 +23,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=frontend /src/embed_static/static/spa ./embed_static/static/spa
+COPY --from=websrc /src/public/assets ./public/assets
 RUN CGO_ENABLED=0 go build -trimpath \
     -ldflags "-s -w -X main.version=${VERSION}" \
     -o /out/jiang13 ./cmd/jiang13

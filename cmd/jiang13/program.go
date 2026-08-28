@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/kardianos/service"
+	kardsvc "github.com/kardianos/service"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/router"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/routers"
 )
 
 const (
@@ -28,7 +28,7 @@ type program struct {
 	server *http.Server
 }
 
-func (p *program) Start(s service.Service) error {
+func (p *program) Start(s kardsvc.Service) error {
 	if err := p.setup(); err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (p *program) Start(s service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(s service.Service) error {
+func (p *program) Stop(s kardsvc.Service) error {
 	log.Println("收到关机信号，正在优雅关闭...")
 	if p.server == nil {
 		return nil
@@ -63,7 +63,7 @@ func (p *program) setup() error {
 		return fmt.Errorf("打开日志文件失败: %w", err)
 	}
 	// 服务模式下 stdout 可能不可用，仅写文件；前台运行则双写
-	if service.Interactive() {
+	if kardsvc.Interactive() {
 		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
 	} else {
 		log.SetOutput(logFile)
@@ -75,11 +75,11 @@ func (p *program) setup() error {
 	log.Printf("  版本: %s", version)
 	log.Println("========================================")
 
-	if err := model.InitDB(cfg.DBPath()); err != nil {
+	if err := models.InitDB(cfg.DBPath()); err != nil {
 		return fmt.Errorf("数据库初始化失败: %w", err)
 	}
 
-	engine, err := router.Setup(cfg)
+	engine, err := routers.Setup(cfg)
 	if err != nil {
 		return fmt.Errorf("路由初始化失败: %w", err)
 	}
@@ -98,9 +98,9 @@ func (p *program) setup() error {
 	return nil
 }
 
-func buildServiceConfig(cfg *config.Config) (*service.Config, error) {
+func buildServiceConfig(cfg *config.Config) (*kardsvc.Config, error) {
 	// 服务只绑定工作目录与配置文件；端口/数据目录改 app.ini 后重启即可，无需重装服务
-	return &service.Config{
+	return &kardsvc.Config{
 		Name:             svcName,
 		DisplayName:      svcDisplayName,
 		Description:      svcDescription,
@@ -109,7 +109,7 @@ func buildServiceConfig(cfg *config.Config) (*service.Config, error) {
 			"--work-path", cfg.WorkPath,
 			"--config", cfg.ConfigFile,
 		},
-		Option: service.KeyValue{
+		Option: kardsvc.KeyValue{
 			// systemd：异常退出后自动拉起
 			"Restart": "always",
 			// Windows：崩溃后重启
@@ -118,16 +118,16 @@ func buildServiceConfig(cfg *config.Config) (*service.Config, error) {
 	}, nil
 }
 
-func runServiceControl(s service.Service, action string) error {
+func runServiceControl(s kardsvc.Service, action string) error {
 	if action == "status" {
 		st, err := s.Status()
 		if err != nil {
 			return err
 		}
 		switch st {
-		case service.StatusRunning:
+		case kardsvc.StatusRunning:
 			fmt.Println("服务状态: 运行中 (running)")
-		case service.StatusStopped:
+		case kardsvc.StatusStopped:
 			fmt.Println("服务状态: 已停止 (stopped)")
 		default:
 			fmt.Println("服务状态: 未知 (unknown)")
@@ -135,7 +135,7 @@ func runServiceControl(s service.Service, action string) error {
 		return nil
 	}
 
-	if err := service.Control(s, action); err != nil {
+	if err := kardsvc.Control(s, action); err != nil {
 		return err
 	}
 

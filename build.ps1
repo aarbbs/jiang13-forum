@@ -1,9 +1,10 @@
 # Jiang13 Forum - Windows build script (replaces GNU Make)
 # Usage: .\build.ps1
 #        .\build.ps1 -Target build-windows
+# Branch rebuild/gitea-ssr: Go templates SSR + web_src (no React SPA)
 
 param(
-    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'frontend', 'web-src', 'tidy', 'run', 'dev', 'clean', 'docker', 'compose-up', 'compose-down', 'help')]
+    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'web-src', 'tidy', 'run', 'dev', 'clean', 'docker', 'compose-up', 'compose-down', 'help')]
     [string]$Target = 'build'
 )
 
@@ -28,20 +29,6 @@ function Build-WebSrc {
     try {
         npm run build
         if ($LASTEXITCODE -ne 0) { throw 'web_src build failed' }
-    } finally {
-        Pop-Location
-    }
-}
-
-function Build-Frontend {
-    Write-Host '[frontend] npm run build...' -ForegroundColor Cyan
-    Push-Location frontend
-    try {
-        if (-not (Test-Path node_modules)) {
-            npm install
-        }
-        npm run build
-        if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
     } finally {
         Pop-Location
     }
@@ -80,23 +67,22 @@ function Build-Go([string]$OutFile, [string]$GoOS = '', [string]$GoArch = '') {
 
 switch ($Target) {
     'help' {
-        Write-Host '.\build.ps1                  build current platform'
-        Write-Host '.\build.ps1 -Target frontend  SPA frontend only (legacy)'
-        Write-Host '.\build.ps1 -Target web-src   SSR progressive assets'
+        Write-Host '.\build.ps1                  build current platform (web_src + go)'
+        Write-Host '.\build.ps1 -Target web-src   SSR progressive assets only'
         Write-Host '.\build.ps1 -Target build-windows'
         Write-Host '.\build.ps1 -Target build-linux'
         Write-Host '.\build.ps1 -Target build-all'
-        Write-Host '.\build.ps1 -Target run       backend (SSR on :3000)'
-        Write-Host '.\build.ps1 -Target dev       backend + Vite SPA对照'
+        Write-Host '.\build.ps1 -Target run       SSR on :3000'
+        Write-Host '.\build.ps1 -Target dev       same as run (SSR; SPA is on main)'
         Write-Host '.\build.ps1 -Target tidy'
         Write-Host '.\build.ps1 -Target clean'
-        Write-Host '.\build.ps1 -Target docker       build Docker image'
-        Write-Host '.\build.ps1 -Target compose-up   docker compose up -d --build'
-        Write-Host '.\build.ps1 -Target compose-down docker compose down'
+        Write-Host '.\build.ps1 -Target docker'
+        Write-Host '.\build.ps1 -Target compose-up'
+        Write-Host '.\build.ps1 -Target compose-down'
         Write-Host ''
         Write-Host 'Note: Windows "make" is often Embarcadero MAKE, not GNU Make.'
+        Write-Host 'SPA reference: git checkout main  (or origin/main).'
     }
-    'frontend' { Build-Frontend }
     'web-src' { Build-WebSrc }
     'tidy' { go mod tidy }
     'clean' {
@@ -105,54 +91,33 @@ switch ($Target) {
     }
     'run' {
         Ensure-Dir $DevDataDir
-        go run $MainPkg --data $DevDataDir
+        Build-WebSrc
+        go run $MainPkg --work-path . --data $DevDataDir
     }
     'dev' {
-        $root = (Get-Location).Path
         Ensure-Dir $DevDataDir
-        Write-Host ''
-        Write-Host '[dev] 前端开发  : http://localhost:5173  (Vite HMR)' -ForegroundColor Green
-        Write-Host '[dev] 后端 API  : http://localhost:3000  (Go)' -ForegroundColor Green
-        Write-Host "[dev] 数据目录  : $DevDataDir (与 dist 二进制一致)" -ForegroundColor Green
-        Write-Host '[dev] 提示     : 请访问 5173 端口，Vite 会自动代理 API 到 3000' -ForegroundColor Yellow
-        Write-Host '[dev] 正在新窗口启动 Go 后端 (仅 API)...' -ForegroundColor Cyan
-        Start-Process powershell -ArgumentList @(
-            '-NoExit', '-Command',
-            "Set-Location '$root'; Write-Host '[backend] Go API on :3000' -ForegroundColor Cyan; go run $MainPkg --dev --data '$DevDataDir'"
-        ) | Out-Null
-        Start-Sleep -Seconds 2
-        Push-Location frontend
-        try {
-            if (-not (Test-Path node_modules)) { npm install }
-            npm run dev
-        } finally {
-            Pop-Location
-        }
+        Build-WebSrc
+        Write-Host '[dev] SSR: http://localhost:3000  (SPA 对照请 checkout main)' -ForegroundColor Green
+        go run $MainPkg --work-path . --data $DevDataDir
     }
     'build' {
         Build-WebSrc
-        Build-Frontend
         Build-Go -OutFile $AppName
     }
     'build-windows' {
         Build-WebSrc
-        Build-Frontend
         Build-Go -OutFile $AppName -GoOS 'windows' -GoArch 'amd64'
     }
     'build-linux' {
-        Write-Host '[build-linux] will build web_src + SPA then go:embed' -ForegroundColor Yellow
         Build-WebSrc
-        Build-Frontend
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'
     }
     'build-darwin' {
         Build-WebSrc
-        Build-Frontend
         Build-Go -OutFile "$AppName-darwin-arm64" -GoOS 'darwin' -GoArch 'arm64'
     }
     'build-all' {
         Build-WebSrc
-        Build-Frontend
         Build-Go -OutFile $AppName -GoOS 'windows' -GoArch 'amd64'
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'
         Build-Go -OutFile "$AppName-darwin-arm64" -GoOS 'darwin' -GoArch 'arm64'
@@ -166,12 +131,10 @@ switch ($Target) {
     }
     'compose-up' {
         docker compose up -d --build
-        if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed' }
-        Write-Host '[ok] compose started' -ForegroundColor Green
+        if ($LASTEXITCODE -ne 0) { throw 'compose up failed' }
     }
     'compose-down' {
         docker compose down
-        if ($LASTEXITCODE -ne 0) { throw 'docker compose down failed' }
-        Write-Host '[ok] compose stopped' -ForegroundColor Green
+        if ($LASTEXITCODE -ne 0) { throw 'compose down failed' }
     }
 }

@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"encoding/base64"
@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/middleware"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/modules/auth"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // OIDCDiscovery OpenID Provider 元数据
@@ -47,7 +47,7 @@ func (h *Handlers) OIDCAuthorize(c *gin.Context) {
 		return
 	}
 
-	req := service.AuthorizeRequest{
+	req := services.AuthorizeRequest{
 		ClientID:            c.Query("client_id"),
 		RedirectURI:         c.Query("redirect_uri"),
 		ResponseType:        c.Query("response_type"),
@@ -60,7 +60,7 @@ func (h *Handlers) OIDCAuthorize(c *gin.Context) {
 
 	if err := h.OIDC.ValidateAuthorize(req); err != nil {
 		// redirect_uri 未通过校验时不能重定向，避免开放重定向
-		if errors.Is(err, service.ErrOIDCInvalidRedirect) || errors.Is(err, service.ErrOIDCInvalidClient) {
+		if errors.Is(err, services.ErrOIDCInvalidRedirect) || errors.Is(err, services.ErrOIDCInvalidClient) {
 			c.String(http.StatusBadRequest, err.Error())
 			return
 		}
@@ -77,7 +77,7 @@ func (h *Handlers) OIDCAuthorize(c *gin.Context) {
 
 	callback, err := h.OIDC.IssueAuthCode(uid, req)
 	if err != nil {
-		if errors.Is(err, service.ErrOIDCUserBanned) {
+		if errors.Is(err, services.ErrOIDCUserBanned) {
 			h.oidcErrorRedirect(c, req.RedirectURI, req.State, "access_denied", "账号已被禁言")
 			return
 		}
@@ -121,7 +121,7 @@ func (h *Handlers) OIDCToken(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.OIDC.ExchangeCode(service.TokenRequest{
+	resp, err := h.OIDC.ExchangeCode(services.TokenRequest{
 		GrantType:    c.PostForm("grant_type"),
 		Code:         c.PostForm("code"),
 		RedirectURI:  c.PostForm("redirect_uri"),
@@ -133,12 +133,12 @@ func (h *Handlers) OIDCToken(c *gin.Context) {
 		status := http.StatusBadRequest
 		code := "invalid_grant"
 		switch {
-		case errors.Is(err, service.ErrOIDCInvalidClient):
+		case errors.Is(err, services.ErrOIDCInvalidClient):
 			status = http.StatusUnauthorized
 			code = "invalid_client"
-		case errors.Is(err, service.ErrOIDCInvalidRequest):
+		case errors.Is(err, services.ErrOIDCInvalidRequest):
 			code = "invalid_request"
-		case errors.Is(err, service.ErrOIDCPKCEFailed):
+		case errors.Is(err, services.ErrOIDCPKCEFailed):
 			code = "invalid_grant"
 		}
 		c.JSON(status, gin.H{"error": code, "error_description": err.Error()})
@@ -179,7 +179,7 @@ func (h *Handlers) OIDCLogout(c *gin.Context) {
 		state = c.PostForm("state")
 	}
 
-	c.SetCookie(middleware.CookieName, "", -1, "/", "", false, true)
+	c.SetCookie(auth.CookieName, "", -1, "/", "", false, true)
 
 	if h.OIDC == nil {
 		c.Redirect(http.StatusFound, "/")

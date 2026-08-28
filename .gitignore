@@ -4,22 +4,28 @@
 # 本地配置（保留 app.ini.example）
 /app.ini
 
-# 前端依赖与构建缓存
+# Node / 构建缓存
 /node_modules/
-/frontend/node_modules/
-/frontend/dist/
-/embed_static/static/spa/
+/web_src/node_modules/
+.vite/
+*.tsbuildinfo
 
-# Go 编译产物
+# Go 编译产物（统一进 dist/；勿把二进制扔在仓库根目录）
 /dist/
 *.exe
+/jiang13
+/jiang13-*
+!/cmd/jiang13/
 
 # 临时文件
 tmp-cookie.txt
+*-err.txt
+*-out.txt
 
-# 编辑器 / OS
+# 编辑器 / AI 草稿 / OS
 .idea/
 .vscode/
+.trae/
 *.swp
 Thumbs.db
 .DS_Store

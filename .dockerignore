@@ -4,17 +4,17 @@
 .idea
 .vscode
 .cursor
+.trae
 
 # 运行时数据与本地配置
 data/
 app.ini
 tmp-cookie.txt
 
-# 编译产物与前端缓存
+# 编译产物与依赖缓存
 dist/
-frontend/node_modules/
-frontend/dist/
-embed_static/static/spa/
+web_src/node_modules/
+public/assets/
 node_modules/
 .vite/
 

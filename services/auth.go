@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 // 最近访问写入节流，避免每次 API 都打库
@@ -19,7 +19,7 @@ const TokenExpire = 7 * 24 * time.Hour
 type Claims struct {
 	UserID   uint       `json:"user_id"`
 	Username string     `json:"username"`
-	Role     model.Role `json:"role"`
+	Role     models.Role `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -36,12 +36,12 @@ func NewAuthService(jwtSecret string, filter *SensitiveFilter, settings *ForumSe
 // UserCount 当前用户数
 func (s *AuthService) UserCount() int64 {
 	var n int64
-	model.DB.Model(&model.User{}).Count(&n)
+	models.DB.Model(&models.User{}).Count(&n)
 	return n
 }
 
 // Register 用户注册
-func (s *AuthService) Register(username, password, nickname, email string) (*model.User, error) {
+func (s *AuthService) Register(username, password, nickname, email string) (*models.User, error) {
 	if err := ValidateUsername(username); err != nil {
 		return nil, err
 	}
@@ -53,11 +53,11 @@ func (s *AuthService) Register(username, password, nickname, email string) (*mod
 		return nil, err
 	}
 
-	var exist model.User
-	if err := model.DB.Where("username = ?", username).First(&exist).Error; err == nil {
+	var exist models.User
+	if err := models.DB.Where("username = ?", username).First(&exist).Error; err == nil {
 		return nil, ErrUserExists
 	}
-	if err := model.DB.Where("email = ?", email).First(&exist).Error; err == nil {
+	if err := models.DB.Where("email = ?", email).First(&exist).Error; err == nil {
 		return nil, ErrEmailExists
 	}
 
@@ -71,28 +71,28 @@ func (s *AuthService) Register(username, password, nickname, email string) (*mod
 	nickname = s.filter.Filter(nickname)
 
 	// 首个注册用户自动成为管理员
-	role := model.RoleUser
+	role := models.RoleUser
 	if s.UserCount() == 0 {
-		role = model.RoleAdmin
+		role = models.RoleAdmin
 	}
 
-	user := &model.User{
+	user := &models.User{
 		Username: username,
 		Email:    email,
 		Password: hash,
 		Nickname: nickname,
 		Role:     role,
 	}
-	if err := model.DB.Create(user).Error; err != nil {
+	if err := models.DB.Create(user).Error; err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
 // Login 用户登录，返回 JWT token；clientIP 写入上次登录记录
-func (s *AuthService) Login(username, password, clientIP string) (string, *model.User, error) {
-	var user model.User
-	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+func (s *AuthService) Login(username, password, clientIP string) (string, *models.User, error) {
+	var user models.User
+	if err := models.DB.Where("username = ?", username).First(&user).Error; err != nil {
 		return "", nil, ErrInvalidCred
 	}
 	if user.Banned {
@@ -107,13 +107,13 @@ func (s *AuthService) Login(username, password, clientIP string) (string, *model
 }
 
 // recordLogin 记录上次登录时间与 IP；登录同时视为一次访问（失败不影响登录）
-func (s *AuthService) recordLogin(user *model.User, clientIP string) {
+func (s *AuthService) recordLogin(user *models.User, clientIP string) {
 	now := time.Now()
 	ip := clientIP
 	if len(ip) > 45 {
 		ip = ip[:45]
 	}
-	_ = model.DB.Model(user).Updates(map[string]interface{}{
+	_ = models.DB.Model(user).Updates(map[string]interface{}{
 		"last_login_at":  now,
 		"last_login_ip":  ip,
 		"last_access_at": now,
@@ -136,11 +136,11 @@ func (s *AuthService) TouchLastAccess(userID uint) {
 		}
 	}
 	lastAccessTouchCache.Store(userID, now)
-	_ = model.DB.Model(&model.User{}).Where("id = ?", userID).Update("last_access_at", now).Error
+	_ = models.DB.Model(&models.User{}).Where("id = ?", userID).Update("last_access_at", now).Error
 }
 
 // GenerateToken 生成 JWT
-func (s *AuthService) GenerateToken(user *model.User) (string, error) {
+func (s *AuthService) GenerateToken(user *models.User) (string, error) {
 	claims := Claims{
 		UserID:   user.ID,
 		Username: user.Username,

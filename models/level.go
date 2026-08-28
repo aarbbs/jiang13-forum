@@ -1,4 +1,4 @@
-package model
+﻿package models
 
 // LevelThresholds 各等级所需最低 Exp（下标 0 对应 Lv1）
 var LevelThresholds = []int{0, 20, 50, 100, 200, 400, 800, 1500, 3000, 5000}

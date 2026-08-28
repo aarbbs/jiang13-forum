@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -21,21 +21,21 @@ func NewPostService(filter *SensitiveFilter, settings *ForumSettingsService) *Po
 
 func normalizePostType(raw string) string {
 	switch strings.TrimSpace(raw) {
-	case model.PostTypeQuestion:
-		return model.PostTypeQuestion
-	case model.PostTypePoll:
-		return model.PostTypePoll
-	case model.PostTypeBounty:
-		return model.PostTypeBounty
-	case model.PostTypeLottery:
-		return model.PostTypeLottery
+	case models.PostTypeQuestion:
+		return models.PostTypeQuestion
+	case models.PostTypePoll:
+		return models.PostTypePoll
+	case models.PostTypeBounty:
+		return models.PostTypeBounty
+	case models.PostTypeLottery:
+		return models.PostTypeLottery
 	default:
-		return model.PostTypeNormal
+		return models.PostTypeNormal
 	}
 }
 
 func isSpecialPostType(t string) bool {
-	return t == model.PostTypePoll || t == model.PostTypeBounty || t == model.PostTypeLottery
+	return t == models.PostTypePoll || t == models.PostTypeBounty || t == models.PostTypeLottery
 }
 
 type PostListQuery struct {
@@ -55,16 +55,16 @@ type PostListQuery struct {
 
 // PostListItem 帖子列表项（含评论数等扩展字段）
 type PostListItem struct {
-	model.Post
+	models.Post
 	CommentCount       int         `json:"comment_count"`
 	LastReplyAt        *time.Time  `json:"last_reply_at,omitempty"`
-	LastReplyUser      *model.User `json:"last_reply_user,omitempty"`
+	LastReplyUser      *models.User `json:"last_reply_user,omitempty"`
 	LastReplyGuestNick string      `json:"last_reply_guest_nick,omitempty"`
 }
 
 type lastReplyInfo struct {
 	At        *time.Time
-	User      *model.User
+	User      *models.User
 	GuestNick string
 }
 
@@ -102,8 +102,8 @@ func (s *PostService) commentCountMap(postIDs []uint) map[uint]int {
 		Count  int
 	}
 	var rows []row
-	model.DB.Model(&model.Comment{}).Select("post_id, count(*) as count").
-		Where("post_id IN ? AND status = ?", postIDs, model.ContentStatusPublished).
+	models.DB.Model(&models.Comment{}).Select("post_id, count(*) as count").
+		Where("post_id IN ? AND status = ?", postIDs, models.ContentStatusPublished).
 		Group("post_id").Scan(&rows)
 	m := make(map[uint]int)
 	for _, r := range rows {
@@ -122,9 +122,9 @@ func (s *PostService) lastReplyInfoMap(postIDs []uint) map[uint]lastReplyInfo {
 		MaxID  uint
 	}
 	var idRows []idRow
-	model.DB.Model(&model.Comment{}).
+	models.DB.Model(&models.Comment{}).
 		Select("post_id, MAX(id) as max_id").
-		Where("post_id IN ? AND status = ?", postIDs, model.ContentStatusPublished).
+		Where("post_id IN ? AND status = ?", postIDs, models.ContentStatusPublished).
 		Group("post_id").
 		Scan(&idRows)
 	if len(idRows) == 0 {
@@ -134,8 +134,8 @@ func (s *PostService) lastReplyInfoMap(postIDs []uint) map[uint]lastReplyInfo {
 	for i, r := range idRows {
 		commentIDs[i] = r.MaxID
 	}
-	var comments []model.Comment
-	if err := model.DB.Preload("User").Where("id IN ?", commentIDs).Find(&comments).Error; err != nil {
+	var comments []models.Comment
+	if err := models.DB.Preload("User").Where("id IN ?", commentIDs).Find(&comments).Error; err != nil {
 		return m
 	}
 	for i := range comments {
@@ -162,16 +162,16 @@ func (s *PostService) HotPosts(limit int) ([]PostListItem, error) {
 		limit = 10
 	}
 	since := time.Now().Add(-7 * 24 * time.Hour)
-	var posts []model.Post
-	err := model.DB.Preload("User").Preload("Board").
-		Where("status = ?", model.ContentStatusPublished).
+	var posts []models.Post
+	err := models.DB.Preload("User").Preload("Board").
+		Where("status = ?", models.ContentStatusPublished).
 		Where(`EXISTS (
 			SELECT 1 FROM comments
 			WHERE comments.post_id = posts.id
 			AND comments.deleted_at IS NULL
 			AND comments.status = ?
 			AND comments.created_at >= ?
-		)`, model.ContentStatusPublished, since).
+		)`, models.ContentStatusPublished, since).
 		Order(`(
 			SELECT MAX(created_at) FROM comments
 			WHERE comments.post_id = posts.id
@@ -214,9 +214,9 @@ func (s *PostService) PopularTags(limit int) ([]TagCount, error) {
 		limit = 40
 	}
 	var rows []struct{ Tags string }
-	if err := model.DB.Model(&model.Post{}).
+	if err := models.DB.Model(&models.Post{}).
 		Select("tags").
-		Where("status = ? AND tags <> '' AND tags IS NOT NULL", model.ContentStatusPublished).
+		Where("status = ? AND tags <> '' AND tags IS NOT NULL", models.ContentStatusPublished).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -258,21 +258,21 @@ func (s *PostService) PopularTags(limit int) ([]TagCount, error) {
 
 func (s *PostService) CommentCount(postID uint) int {
 	var count int64
-	model.DB.Model(&model.Comment{}).
-		Where("post_id = ? AND status = ?", postID, model.ContentStatusPublished).
+	models.DB.Model(&models.Comment{}).
+		Where("post_id = ? AND status = ?", postID, models.ContentStatusPublished).
 		Count(&count)
 	return int(count)
 }
 
 // CanViewPost 是否可查看该帖（pending/rejected 仅作者与管理员）
-func CanViewPost(post *model.Post, viewerID uint, isAdmin bool) bool {
+func CanViewPost(post *models.Post, viewerID uint, isAdmin bool) bool {
 	if post == nil {
 		return false
 	}
-	if isAdmin || post.Status == model.ContentStatusPublished || post.Status == "" {
+	if isAdmin || post.Status == models.ContentStatusPublished || post.Status == "" {
 		return true
 	}
-	if post.Status == model.ContentStatusPending || post.Status == model.ContentStatusRejected {
+	if post.Status == models.ContentStatusPending || post.Status == models.ContentStatusRejected {
 		return viewerID > 0 && post.UserID == viewerID
 	}
 	return false
@@ -281,7 +281,7 @@ func CanViewPost(post *model.Post, viewerID uint, isAdmin bool) bool {
 func applyPostVisibility(db *gorm.DB, q PostListQuery) *gorm.DB {
 	if q.ViewerIsAdmin {
 		switch q.Status {
-		case model.ContentStatusPending, model.ContentStatusPublished, model.ContentStatusRejected:
+		case models.ContentStatusPending, models.ContentStatusPublished, models.ContentStatusRejected:
 			return db.Where("status = ?", q.Status)
 		case "all", "":
 			return db
@@ -292,15 +292,15 @@ func applyPostVisibility(db *gorm.DB, q PostListQuery) *gorm.DB {
 	if q.ViewerID > 0 {
 		return db.Where(
 			"status = ? OR (status IN ? AND user_id = ?)",
-			model.ContentStatusPublished,
-			[]string{model.ContentStatusPending, model.ContentStatusRejected},
+			models.ContentStatusPublished,
+			[]string{models.ContentStatusPending, models.ContentStatusRejected},
 			q.ViewerID,
 		)
 	}
-	return db.Where("status = ?", model.ContentStatusPublished)
+	return db.Where("status = ?", models.ContentStatusPublished)
 }
 
-func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
+func (s *PostService) List(q PostListQuery) ([]models.Post, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
@@ -317,11 +317,11 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 			if uid, ok := resolveAuthorUserID(author); ok {
 				q.UserID = uid
 			} else {
-				return []model.Post{}, 0, nil
+				return []models.Post{}, 0, nil
 			}
 		}
 	}
-	db := model.DB.Model(&model.Post{}).Preload("User").Preload("Board")
+	db := models.DB.Model(&models.Post{}).Preload("User").Preload("Board")
 	db = applyPostVisibility(db, q)
 	if q.BoardID > 0 {
 		db = db.Where("board_id = ?", q.BoardID)
@@ -345,7 +345,7 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	}
 	var total int64
 	db.Count(&total)
-	var posts []model.Post
+	var posts []models.Post
 	db = db.Order("pinned desc")
 	if q.BoardID > 0 {
 		db = db.Order("board_pinned desc")
@@ -396,19 +396,19 @@ func resolveAuthorUserID(author string) (uint, bool) {
 	if author == "" {
 		return 0, false
 	}
-	var u model.User
-	if err := model.DB.Select("id").Where("username = ?", author).First(&u).Error; err == nil {
+	var u models.User
+	if err := models.DB.Select("id").Where("username = ?", author).First(&u).Error; err == nil {
 		return u.ID, true
 	}
-	if err := model.DB.Select("id").Where("nickname = ?", author).First(&u).Error; err == nil {
+	if err := models.DB.Select("id").Where("nickname = ?", author).First(&u).Error; err == nil {
 		return u.ID, true
 	}
 	return 0, false
 }
 
-func (s *PostService) FindByID(id uint) (*model.Post, error) {
-	var post model.Post
-	err := model.DB.Preload("User").Preload("Board").First(&post, id).Error
+func (s *PostService) FindByID(id uint) (*models.Post, error) {
+	var post models.Post
+	err := models.DB.Preload("User").Preload("Board").First(&post, id).Error
 	if err != nil {
 		return nil, ErrPostNotFound
 	}
@@ -416,11 +416,11 @@ func (s *PostService) FindByID(id uint) (*model.Post, error) {
 }
 
 func (s *PostService) RecordView(id uint) {
-	model.DB.Model(&model.Post{}).Where("id = ?", id).
+	models.DB.Model(&models.Post{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1"))
 }
 
-func (s *PostService) GetByID(id uint) (*model.Post, error) {
+func (s *PostService) GetByID(id uint) (*models.Post, error) {
 	post, err := s.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -429,7 +429,7 @@ func (s *PostService) GetByID(id uint) (*model.Post, error) {
 	return post, nil
 }
 
-func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, skipModeration bool) (*model.Post, error) {
+func (s *PostService) Create(userID, boardID uint, title, content, tags, postType string, skipModeration bool) (*models.Post, error) {
 	title = s.filter.Filter(strings.TrimSpace(title))
 	content = s.filter.Filter(SanitizePostHTML(content))
 	tags = s.filter.Filter(strings.TrimSpace(tags))
@@ -449,11 +449,11 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags, postTyp
 	if _, err := NewBoardService().GetByID(boardID); err != nil {
 		return nil, err
 	}
-	status := model.ContentStatusPending
+	status := models.ContentStatusPending
 	if skipModeration {
-		status = model.ContentStatusPublished
+		status = models.ContentStatusPublished
 	}
-	post := &model.Post{
+	post := &models.Post{
 		BoardID:          boardID,
 		UserID:           userID,
 		Title:            title,
@@ -464,10 +464,10 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags, postTyp
 		QuestionResolved: false,
 		Status:           status,
 	}
-	if err := model.DB.Create(post).Error; err != nil {
+	if err := models.DB.Create(post).Error; err != nil {
 		return nil, err
 	}
-	if status == model.ContentStatusPublished {
+	if status == models.ContentStatusPublished {
 		AddExp(userID, 10)
 	}
 	return post, nil
@@ -476,8 +476,8 @@ func (s *PostService) Create(userID, boardID uint, title, content, tags, postTyp
 // Update 更新帖子。boardID>0 时可改板块；为 0 时保持原板块。
 // postType 为空时保持原类型；改为非 question 时清除已解决标记。
 func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, title, content, tags, postType string, boardID uint) error {
-	var post model.Post
-	if err := model.DB.First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
 	if !isAdmin && post.UserID != userID {
@@ -517,11 +517,11 @@ func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, 
     return errors.New("不能改为特殊帖子类型")
   }
 	nextResolved := post.QuestionResolved
-	if nextType != model.PostTypeQuestion {
+	if nextType != models.PostTypeQuestion {
 		nextResolved = false
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		rev := model.PostRevision{
+	return models.DB.Transaction(func(tx *gorm.DB) error {
+		rev := models.PostRevision{
 			PostID: postID, EditorID: userID,
 			Title: post.Title, Content: post.Content, Tags: post.Tags,
 		}
@@ -539,7 +539,7 @@ func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, 
 		}
 		// 非免审用户修改后重新进入审核
 		if !skipModeration {
-			updates["status"] = model.ContentStatusPending
+			updates["status"] = models.ContentStatusPending
 		}
 		return tx.Model(&post).Updates(updates).Error
 	})
@@ -548,16 +548,16 @@ func (s *PostService) Update(userID, postID uint, isAdmin, skipModeration bool, 
 // SetStatus 设置帖子审核状态
 func (s *PostService) SetStatus(postID uint, status string) error {
 	switch status {
-	case model.ContentStatusPending, model.ContentStatusPublished, model.ContentStatusRejected:
+	case models.ContentStatusPending, models.ContentStatusPublished, models.ContentStatusRejected:
 	default:
 		return errors.New("无效的审核状态")
 	}
-	var post model.Post
-	if err := model.DB.Select("id", "user_id", "status").First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.Select("id", "user_id", "status").First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
 	prev := post.Status
-	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("status", status)
+	res := models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("status", status)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -565,7 +565,7 @@ func (s *PostService) SetStatus(postID uint, status string) error {
 		return ErrPostNotFound
 	}
 	// 首次变为已发布时加经验
-	if status == model.ContentStatusPublished && prev != model.ContentStatusPublished {
+	if status == models.ContentStatusPublished && prev != models.ContentStatusPublished {
 		AddExp(post.UserID, 10)
 	}
 	return nil
@@ -574,24 +574,24 @@ func (s *PostService) SetStatus(postID uint, status string) error {
 // PendingPostCount 待审帖数量
 func (s *PostService) PendingPostCount() (int64, error) {
 	var n int64
-	err := model.DB.Model(&model.Post{}).Where("status = ?", model.ContentStatusPending).Count(&n).Error
+	err := models.DB.Model(&models.Post{}).Where("status = ?", models.ContentStatusPending).Count(&n).Error
 	return n, err
 }
 
 // CanEdit 判断当前用户是否可编辑帖子
-func (s *PostService) CanEdit(post *model.Post, isAdmin bool) bool {
+func (s *PostService) CanEdit(post *models.Post, isAdmin bool) bool {
 	return s.checkEditable(post, isAdmin) == nil
 }
 
 // EditBlockReason 返回不可编辑的原因（可编辑时返回空字符串）
-func (s *PostService) EditBlockReason(post *model.Post, isAdmin bool) string {
+func (s *PostService) EditBlockReason(post *models.Post, isAdmin bool) string {
 	if err := s.checkEditable(post, isAdmin); err != nil {
 		return err.Error()
 	}
 	return ""
 }
 
-func (s *PostService) checkEditable(post *model.Post, isAdmin bool) error {
+func (s *PostService) checkEditable(post *models.Post, isAdmin bool) error {
 	if isAdmin {
 		return nil
 	}
@@ -606,7 +606,7 @@ func (s *PostService) checkEditable(post *model.Post, isAdmin bool) error {
 }
 
 // CanUserEdit 判断指定用户是否可编辑帖子
-func (s *PostService) CanUserEdit(post *model.Post, userID uint, isAdmin bool) bool {
+func (s *PostService) CanUserEdit(post *models.Post, userID uint, isAdmin bool) bool {
 	if userID == 0 {
 		return false
 	}
@@ -617,7 +617,7 @@ func (s *PostService) CanUserEdit(post *model.Post, userID uint, isAdmin bool) b
 }
 
 // UserEditBlockReason 返回用户不可编辑的原因
-func (s *PostService) UserEditBlockReason(post *model.Post, userID uint, isAdmin bool) string {
+func (s *PostService) UserEditBlockReason(post *models.Post, userID uint, isAdmin bool) string {
 	if userID == 0 {
 		return "请先登录"
 	}
@@ -628,7 +628,7 @@ func (s *PostService) UserEditBlockReason(post *model.Post, userID uint, isAdmin
 }
 
 func (s *PostService) SetEditLocked(postID uint, locked bool) error {
-	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("edit_locked", locked)
+	res := models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("edit_locked", locked)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -640,7 +640,7 @@ func (s *PostService) SetEditLocked(postID uint, locked bool) error {
 
 // SetCommentsLocked 锁定/解锁讨论（禁止新评论）
 func (s *PostService) SetCommentsLocked(postID uint, locked bool) error {
-	res := model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("comments_locked", locked)
+	res := models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("comments_locked", locked)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -650,22 +650,22 @@ func (s *PostService) SetCommentsLocked(postID uint, locked bool) error {
 	return nil
 }
 
-func (s *PostService) ListRevisions(postID uint) ([]model.PostRevision, error) {
-	var revs []model.PostRevision
-	err := model.DB.Preload("Editor").Where("post_id = ?", postID).
+func (s *PostService) ListRevisions(postID uint) ([]models.PostRevision, error) {
+	var revs []models.PostRevision
+	err := models.DB.Preload("Editor").Where("post_id = ?", postID).
 		Order("id desc").Find(&revs).Error
 	if err != nil {
 		return nil, err
 	}
 	if revs == nil {
-		revs = []model.PostRevision{}
+		revs = []models.PostRevision{}
 	}
 	return revs, nil
 }
 
-func (s *PostService) GetRevision(postID, revID uint) (*model.PostRevision, error) {
-	var rev model.PostRevision
-	err := model.DB.Preload("Editor").
+func (s *PostService) GetRevision(postID, revID uint) (*models.PostRevision, error) {
+	var rev models.PostRevision
+	err := models.DB.Preload("Editor").
 		Where("id = ? AND post_id = ?", revID, postID).First(&rev).Error
 	if err != nil {
 		return nil, ErrRevisionNotFound
@@ -678,17 +678,17 @@ func (s *PostService) Delete(userID, postID uint, isAdmin bool) error {
 	if !isAdmin {
 		return ErrPermissionDenied
 	}
-	var post model.Post
-	if err := model.DB.First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	return models.DB.Transaction(func(tx *gorm.DB) error {
 		if err := RefundBountyIfOpen(tx, &post); err != nil {
 			return err
 		}
 		DeletePollData(tx, postID)
 		DeleteLotteryData(tx, postID)
-		if err := tx.Where("post_id = ?", postID).Delete(&model.Comment{}).Error; err != nil {
+		if err := tx.Where("post_id = ?", postID).Delete(&models.Comment{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&post).Error
@@ -707,7 +707,7 @@ func (s *PostService) ListTrash(page, size int, keyword string) ([]TrashPostItem
 		page = 1
 	}
 	size = s.settings.NormalizePageSize(size)
-	db := model.DB.Unscoped().Model(&model.Post{}).
+	db := models.DB.Unscoped().Model(&models.Post{}).
 		Where("deleted_at IS NOT NULL").
 		Preload("User").Preload("Board")
 	if keyword != "" {
@@ -722,7 +722,7 @@ func (s *PostService) ListTrash(page, size int, keyword string) ([]TrashPostItem
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var posts []model.Post
+	var posts []models.Post
 	if err := db.Order("deleted_at DESC").Offset((page - 1) * size).Limit(size).Find(&posts).Error; err != nil {
 		return nil, 0, err
 	}
@@ -739,7 +739,7 @@ func (s *PostService) ListTrash(page, size int, keyword string) ([]TrashPostItem
 		Cnt    int
 	}
 	var rows []row
-	_ = model.DB.Unscoped().Model(&model.Comment{}).
+	_ = models.DB.Unscoped().Model(&models.Comment{}).
 		Select("post_id, COUNT(*) as cnt").
 		Where("post_id IN ?", ids).
 		Group("post_id").Scan(&rows)
@@ -760,15 +760,15 @@ func (s *PostService) ListTrash(page, size int, keyword string) ([]TrashPostItem
 
 // Restore 从回收站恢复帖子及评论
 func (s *PostService) Restore(postID uint) error {
-	var post model.Post
-	if err := model.DB.Unscoped().First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.Unscoped().First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
 	if !post.DeletedAt.Valid {
 		return errors.New("帖子未被删除")
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Unscoped().Model(&model.Comment{}).
+	return models.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Model(&models.Comment{}).
 			Where("post_id = ? AND deleted_at IS NOT NULL", postID).
 			Update("deleted_at", nil).Error; err != nil {
 			return err
@@ -779,33 +779,33 @@ func (s *PostService) Restore(postID uint) error {
 
 // Purge 永久删除回收站中的帖子（含评论、点赞、收藏、修订）
 func (s *PostService) Purge(postID uint) error {
-	var post model.Post
-	if err := model.DB.Unscoped().First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.Unscoped().First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
 	if !post.DeletedAt.Valid {
 		return errors.New("仅可彻底删除回收站中的帖子，请先删除帖子")
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	return models.DB.Transaction(func(tx *gorm.DB) error {
 		var commentIDs []uint
-		if err := tx.Unscoped().Model(&model.Comment{}).Where("post_id = ?", postID).Pluck("id", &commentIDs).Error; err != nil {
+		if err := tx.Unscoped().Model(&models.Comment{}).Where("post_id = ?", postID).Pluck("id", &commentIDs).Error; err != nil {
 			return err
 		}
 		if len(commentIDs) > 0 {
-			if err := tx.Where("comment_id IN ?", commentIDs).Delete(&model.CommentRevision{}).Error; err != nil {
+			if err := tx.Where("comment_id IN ?", commentIDs).Delete(&models.CommentRevision{}).Error; err != nil {
 				return err
 			}
 		}
-		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&model.Comment{}).Error; err != nil {
+		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&models.Comment{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&model.PostLike{}).Error; err != nil {
+		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&models.PostLike{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&model.PostFavorite{}).Error; err != nil {
+		if err := tx.Unscoped().Where("post_id = ?", postID).Delete(&models.PostFavorite{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("post_id = ?", postID).Delete(&model.PostRevision{}).Error; err != nil {
+		if err := tx.Where("post_id = ?", postID).Delete(&models.PostRevision{}).Error; err != nil {
 			return err
 		}
 		return tx.Unscoped().Delete(&post).Error
@@ -813,52 +813,52 @@ func (s *PostService) Purge(postID uint) error {
 }
 
 func (s *PostService) SetPinned(postID uint, pinned bool) error {
-	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("pinned", pinned).Error
+	return models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("pinned", pinned).Error
 }
 
 func (s *PostService) SetBoardPinned(postID uint, boardPinned bool) error {
-	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("board_pinned", boardPinned).Error
+	return models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("board_pinned", boardPinned).Error
 }
 
 func (s *PostService) SetFeatured(postID uint, featured bool) error {
-	return model.DB.Model(&model.Post{}).Where("id = ?", postID).Update("featured", featured).Error
+	return models.DB.Model(&models.Post{}).Where("id = ?", postID).Update("featured", featured).Error
 }
 
 // SetQuestionResolved 标记问答帖已解决 / 未解决（作者或管理员）
 func (s *PostService) SetQuestionResolved(userID, postID uint, isAdmin bool, resolved bool) error {
-	var post model.Post
-	if err := model.DB.First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.First(&post, postID).Error; err != nil {
 		return ErrPostNotFound
 	}
 	if !isAdmin && post.UserID != userID {
 		return ErrPermissionDenied
 	}
-	if post.PostType != model.PostTypeQuestion {
+	if post.PostType != models.PostTypeQuestion {
 		return errors.New("仅问答帖可标记解决状态")
 	}
-	return model.DB.Model(&post).Update("question_resolved", resolved).Error
+	return models.DB.Model(&post).Update("question_resolved", resolved).Error
 }
 
 func (s *PostService) ToggleLike(userID, postID uint) (liked bool, err error) {
-	var post model.Post
-	if err := model.DB.Select("id", "user_id").First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.Select("id", "user_id").First(&post, postID).Error; err != nil {
 		return false, ErrPostNotFound
 	}
-	var like model.PostLike
-	result := model.DB.Where("post_id = ? AND user_id = ?", postID, userID).Limit(1).Find(&like)
+	var like models.PostLike
+	result := models.DB.Where("post_id = ? AND user_id = ?", postID, userID).Limit(1).Find(&like)
 	if result.Error != nil {
 		return false, result.Error
 	}
 	if result.RowsAffected > 0 {
-		model.DB.Delete(&like)
-		model.DB.Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count - 1"))
+		models.DB.Delete(&like)
+		models.DB.Model(&models.Post{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count - 1"))
 		return false, nil
 	}
-	like = model.PostLike{PostID: postID, UserID: userID}
-	if err := model.DB.Create(&like).Error; err != nil {
+	like = models.PostLike{PostID: postID, UserID: userID}
+	if err := models.DB.Create(&like).Error; err != nil {
 		return false, err
 	}
-	model.DB.Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
+	models.DB.Model(&models.Post{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
 	// 他人点赞给作者加经验；自赞不计
 	if userID != post.UserID {
 		AddExp(post.UserID, 1)
@@ -871,24 +871,24 @@ func (s *PostService) ToggleLike(userID, postID uint) (liked bool, err error) {
 
 func (s *PostService) IsLiked(userID, postID uint) bool {
 	var count int64
-	model.DB.Model(&model.PostLike{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&count)
+	models.DB.Model(&models.PostLike{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&count)
 	return count > 0
 }
 
 func (s *PostService) ToggleFavorite(userID, postID uint) (faved bool, err error) {
-	var fav model.PostFavorite
-	result := model.DB.Where("post_id = ? AND user_id = ?", postID, userID).Limit(1).Find(&fav)
+	var fav models.PostFavorite
+	result := models.DB.Where("post_id = ? AND user_id = ?", postID, userID).Limit(1).Find(&fav)
 	if result.Error != nil {
 		return false, result.Error
 	}
 	if result.RowsAffected > 0 {
-		if err := model.DB.Delete(&fav).Error; err != nil {
+		if err := models.DB.Delete(&fav).Error; err != nil {
 			return false, err
 		}
 		return false, nil
 	}
-	fav = model.PostFavorite{PostID: postID, UserID: userID}
-	if err := model.DB.Create(&fav).Error; err != nil {
+	fav = models.PostFavorite{PostID: postID, UserID: userID}
+	if err := models.DB.Create(&fav).Error; err != nil {
 		return false, err
 	}
 	return true, nil
@@ -896,11 +896,11 @@ func (s *PostService) ToggleFavorite(userID, postID uint) (faved bool, err error
 
 func (s *PostService) IsFavorited(userID, postID uint) bool {
 	var count int64
-	model.DB.Model(&model.PostFavorite{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&count)
+	models.DB.Model(&models.PostFavorite{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&count)
 	return count > 0
 }
 
-func (s *PostService) ListFavorites(userID uint, page, size int) ([]model.PostFavorite, int64, error) {
+func (s *PostService) ListFavorites(userID uint, page, size int) ([]models.PostFavorite, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -908,17 +908,17 @@ func (s *PostService) ListFavorites(userID uint, page, size int) ([]model.PostFa
 		size = 20
 	}
 	// 仅统计可查看的收藏（已公开，或本人未公开帖）
-	base := model.DB.Model(&model.PostFavorite{}).
+	base := models.DB.Model(&models.PostFavorite{}).
 		Joins("JOIN posts ON posts.id = post_favorites.post_id AND posts.deleted_at IS NULL").
 		Where("post_favorites.user_id = ?", userID).
-		Where("posts.status = ? OR posts.user_id = ?", model.ContentStatusPublished, userID)
+		Where("posts.status = ? OR posts.user_id = ?", models.ContentStatusPublished, userID)
 	var total int64
 	base.Count(&total)
-	var favs []model.PostFavorite
-	err := model.DB.Preload("Post.User").Preload("Post.Board").
+	var favs []models.PostFavorite
+	err := models.DB.Preload("Post.User").Preload("Post.Board").
 		Joins("JOIN posts ON posts.id = post_favorites.post_id AND posts.deleted_at IS NULL").
 		Where("post_favorites.user_id = ?", userID).
-		Where("posts.status = ? OR posts.user_id = ?", model.ContentStatusPublished, userID).
+		Where("posts.status = ? OR posts.user_id = ?", models.ContentStatusPublished, userID).
 		Order("post_favorites.id desc").
 		Offset((page - 1) * size).Limit(size).Find(&favs).Error
 	return favs, total, err
@@ -937,9 +937,9 @@ func (s *PostService) ListSitemap(limit int) ([]SitemapPost, error) {
 		limit = 5000
 	}
 	var rows []SitemapPost
-	err := model.DB.Model(&model.Post{}).
+	err := models.DB.Model(&models.Post{}).
 		Select("id, created_at, updated_at").
-		Where("status = ?", model.ContentStatusPublished).
+		Where("status = ?", models.ContentStatusPublished).
 		Order("updated_at desc, id desc").
 		Limit(limit).
 		Find(&rows).Error

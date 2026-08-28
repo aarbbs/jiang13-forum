@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 var (
@@ -34,7 +34,7 @@ type MessageSendInput struct {
 }
 
 // Send 发送私信（用户互发或系统通知）
-func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error) {
+func (s *MessageService) Send(in MessageSendInput) (*models.PrivateMessage, error) {
 	if in.ToUserID == 0 {
 		return nil, errors.New("收件人不存在")
 	}
@@ -42,8 +42,8 @@ func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error
 		return nil, ErrCannotMessageSelf
 	}
 	if in.FromUserID > 0 {
-		var to model.User
-		if err := model.DB.Select("id", "banned").First(&to, in.ToUserID).Error; err != nil {
+		var to models.User
+		if err := models.DB.Select("id", "banned").First(&to, in.ToUserID).Error; err != nil {
 			return nil, errors.New("收件人不存在")
 		}
 		if to.Banned {
@@ -75,13 +75,13 @@ func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error
 	kind := in.Kind
 	if kind == "" {
 		if in.FromUserID == 0 {
-			kind = model.MessageKindSystem
+			kind = models.MessageKindSystem
 		} else {
-			kind = model.MessageKindUser
+			kind = models.MessageKindUser
 		}
 	}
 
-	msg := &model.PrivateMessage{
+	msg := &models.PrivateMessage{
 		FromUserID:      in.FromUserID,
 		ToUserID:        in.ToUserID,
 		Subject:         subject,
@@ -91,17 +91,17 @@ func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error
 		RelatedReportID: in.RelatedReportID,
 		IsRead:          false,
 	}
-	if err := model.DB.Create(msg).Error; err != nil {
+	if err := models.DB.Create(msg).Error; err != nil {
 		return nil, err
 	}
-	_ = model.DB.Preload("FromUser").Preload("ToUser").First(msg, msg.ID).Error
+	_ = models.DB.Preload("FromUser").Preload("ToUser").First(msg, msg.ID).Error
 	return msg, nil
 }
 
 // SendSystem 系统私信（管理员/系统 → 用户）
-func (s *MessageService) SendSystem(toUserID uint, subject, content, kind string, relatedPostID, relatedReportID *uint) (*model.PrivateMessage, error) {
+func (s *MessageService) SendSystem(toUserID uint, subject, content, kind string, relatedPostID, relatedReportID *uint) (*models.PrivateMessage, error) {
 	if kind == "" {
-		kind = model.MessageKindSystem
+		kind = models.MessageKindSystem
 	}
 	return s.Send(MessageSendInput{
 		FromUserID:      0,
@@ -116,7 +116,7 @@ func (s *MessageService) SendSystem(toUserID uint, subject, content, kind string
 
 // MarkAllRead 全部标为已读
 func (s *MessageService) MarkAllRead(userID uint) error {
-	return model.DB.Model(&model.PrivateMessage{}).
+	return models.DB.Model(&models.PrivateMessage{}).
 		Where("to_user_id = ? AND is_read = ?", userID, false).
 		Update("is_read", true).Error
 }
@@ -124,7 +124,7 @@ func (s *MessageService) MarkAllRead(userID uint) error {
 // UnreadCount 未读数
 func (s *MessageService) UnreadCount(userID uint) (int64, error) {
 	var n int64
-	err := model.DB.Model(&model.PrivateMessage{}).
+	err := models.DB.Model(&models.PrivateMessage{}).
 		Where("to_user_id = ? AND is_read = ?", userID, false).
 		Count(&n).Error
 	return n, err
@@ -132,13 +132,13 @@ func (s *MessageService) UnreadCount(userID uint) (int64, error) {
 
 // UnreadCounts 未读总数，以及私信 / 系统通知分项
 func (s *MessageService) UnreadCounts(userID uint) (total, dm, notify int64, err error) {
-	err = model.DB.Model(&model.PrivateMessage{}).
+	err = models.DB.Model(&models.PrivateMessage{}).
 		Where("to_user_id = ? AND is_read = ?", userID, false).
 		Count(&total).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	err = model.DB.Model(&model.PrivateMessage{}).
+	err = models.DB.Model(&models.PrivateMessage{}).
 		Where("to_user_id = ? AND is_read = ? AND from_user_id = 0", userID, false).
 		Count(&notify).Error
 	if err != nil {
@@ -152,12 +152,12 @@ func (s *MessageService) UnreadCounts(userID uint) (total, dm, notify int64, err
 }
 
 // ListNotifications 系统通知列表（按时间倒序，非聊天气泡）
-func (s *MessageService) ListNotifications(userID uint, page, size int, kind string) ([]model.PrivateMessage, int64, error) {
+func (s *MessageService) ListNotifications(userID uint, page, size int, kind string) ([]models.PrivateMessage, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	size = s.settings.NormalizePageSize(size)
-	db := model.DB.Model(&model.PrivateMessage{}).
+	db := models.DB.Model(&models.PrivateMessage{}).
 		Where("from_user_id = 0 AND to_user_id = ?", userID)
 	kind = strings.TrimSpace(kind)
 	if kind != "" && kind != "all" {
@@ -167,13 +167,13 @@ func (s *MessageService) ListNotifications(userID uint, page, size int, kind str
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var list []model.PrivateMessage
+	var list []models.PrivateMessage
 	err := db.Order("id desc").Offset((page - 1) * size).Limit(size).Find(&list).Error
 	if err != nil {
 		return nil, 0, err
 	}
 	if list == nil {
-		list = []model.PrivateMessage{}
+		list = []models.PrivateMessage{}
 	}
 	return list, total, nil
 }
@@ -186,9 +186,9 @@ func (s *MessageService) MarkNotificationsRead(userID uint) error {
 // MessageConversation 按对方聚合的会话摘要
 type MessageConversation struct {
 	PeerUserID  uint                 `json:"peer_user_id"` // 0 = 系统通知
-	PeerUser    *model.User          `json:"peer_user,omitempty"`
+	PeerUser    *models.User          `json:"peer_user,omitempty"`
 	IsSystem    bool                 `json:"is_system"`
-	LastMessage *model.PrivateMessage `json:"last_message,omitempty"`
+	LastMessage *models.PrivateMessage `json:"last_message,omitempty"`
 	UnreadCount int64                `json:"unread_count"`
 	UpdatedAt   time.Time            `json:"updated_at"`
 }
@@ -220,7 +220,7 @@ func (s *MessageService) ListConversations(q ConversationListQuery) ([]MessageCo
 	}
 	var rows []peerRow
 	// peer_id：系统通知为 0；否则为对话另一方
-	err := model.DB.Raw(`
+	err := models.DB.Raw(`
 		SELECT
 			CASE
 				WHEN from_user_id = 0 THEN 0
@@ -239,7 +239,7 @@ func (s *MessageService) ListConversations(q ConversationListQuery) ([]MessageCo
 	}
 
 	var total int64
-	err = model.DB.Raw(`
+	err = models.DB.Raw(`
 		SELECT COUNT(*) FROM (
 			SELECT
 				CASE
@@ -268,20 +268,20 @@ func (s *MessageService) ListConversations(q ConversationListQuery) ([]MessageCo
 		}
 	}
 
-	var lastMsgs []model.PrivateMessage
-	if err := model.DB.Preload("FromUser").Preload("ToUser").
+	var lastMsgs []models.PrivateMessage
+	if err := models.DB.Preload("FromUser").Preload("ToUser").
 		Where("id IN ?", lastIDs).Find(&lastMsgs).Error; err != nil {
 		return nil, 0, err
 	}
-	msgByID := make(map[uint]model.PrivateMessage, len(lastMsgs))
+	msgByID := make(map[uint]models.PrivateMessage, len(lastMsgs))
 	for i := range lastMsgs {
 		msgByID[lastMsgs[i].ID] = lastMsgs[i]
 	}
 
-	usersByID := make(map[uint]model.User)
+	usersByID := make(map[uint]models.User)
 	if len(peerIDs) > 0 {
-		var users []model.User
-		if err := model.DB.Where("id IN ?", peerIDs).Find(&users).Error; err != nil {
+		var users []models.User
+		if err := models.DB.Where("id IN ?", peerIDs).Find(&users).Error; err != nil {
 			return nil, 0, err
 		}
 		for i := range users {
@@ -294,7 +294,7 @@ func (s *MessageService) ListConversations(q ConversationListQuery) ([]MessageCo
 		Cnt    int64
 	}
 	var unreadRows []unreadRow
-	_ = model.DB.Raw(`
+	_ = models.DB.Raw(`
 		SELECT
 			CASE WHEN from_user_id = 0 THEN 0 ELSE from_user_id END AS peer_id,
 			COUNT(*) AS cnt
@@ -332,13 +332,13 @@ func (s *MessageService) ListConversations(q ConversationListQuery) ([]MessageCo
 }
 
 // ListConversationMessages 某会话内消息（时间正序，支持 Before 向上翻页）
-func (s *MessageService) ListConversationMessages(q ConversationMessagesQuery) ([]model.PrivateMessage, int64, error) {
+func (s *MessageService) ListConversationMessages(q ConversationMessagesQuery) ([]models.PrivateMessage, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
 	q.Size = s.settings.NormalizePageSize(q.Size)
 
-	countDB := model.DB.Model(&model.PrivateMessage{})
+	countDB := models.DB.Model(&models.PrivateMessage{})
 	if q.PeerID == 0 {
 		countDB = countDB.Where("from_user_id = 0 AND to_user_id = ?", q.UserID)
 	} else {
@@ -353,7 +353,7 @@ func (s *MessageService) ListConversationMessages(q ConversationMessagesQuery) (
 		return nil, 0, err
 	}
 
-	qdb := model.DB.Preload("FromUser").Preload("ToUser")
+	qdb := models.DB.Preload("FromUser").Preload("ToUser")
 	if q.PeerID == 0 {
 		qdb = qdb.Where("from_user_id = 0 AND to_user_id = ?", q.UserID)
 	} else {
@@ -366,7 +366,7 @@ func (s *MessageService) ListConversationMessages(q ConversationMessagesQuery) (
 		qdb = qdb.Where("id < ?", q.Before)
 	}
 
-	var list []model.PrivateMessage
+	var list []models.PrivateMessage
 	// 先按 id desc 取一页，再反转为正序（聊天从旧到新）
 	err := qdb.Order("id desc").Limit(q.Size).Find(&list).Error
 	if err != nil {
@@ -380,7 +380,7 @@ func (s *MessageService) ListConversationMessages(q ConversationMessagesQuery) (
 
 // MarkConversationRead 将会话内未读标为已读
 func (s *MessageService) MarkConversationRead(userID, peerID uint) error {
-	db := model.DB.Model(&model.PrivateMessage{}).
+	db := models.DB.Model(&models.PrivateMessage{}).
 		Where("to_user_id = ? AND is_read = ?", userID, false)
 	if peerID == 0 {
 		db = db.Where("from_user_id = 0")

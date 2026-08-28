@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"crypto/rand"
@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -31,13 +31,13 @@ func todayLocal() string {
 // AdjustPointsTx 在已有事务内调整积分并写流水；返回变动后余额
 func AdjustPointsTx(tx *gorm.DB, userID uint, delta int, reason, refType string, refID uint, note string) (int, error) {
 	if delta == 0 {
-		var u model.User
+		var u models.User
 		if err := tx.Select("points").First(&u, userID).Error; err != nil {
 			return 0, err
 		}
 		return u.Points, nil
 	}
-	var user model.User
+	var user models.User
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
 		return 0, err
 	}
@@ -48,7 +48,7 @@ func AdjustPointsTx(tx *gorm.DB, userID uint, delta int, reason, refType string,
 	if err := tx.Model(&user).Update("points", newBal).Error; err != nil {
 		return 0, err
 	}
-	led := model.PointLedger{
+	led := models.PointLedger{
 		UserID:  userID,
 		Delta:   delta,
 		Balance: newBal,
@@ -66,7 +66,7 @@ func AdjustPointsTx(tx *gorm.DB, userID uint, delta int, reason, refType string,
 // AdjustPoints 独立事务调整积分
 func (s *PointsService) AdjustPoints(userID uint, delta int, reason, refType string, refID uint, note string) (int, error) {
 	var bal int
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
 		var e error
 		bal, e = AdjustPointsTx(tx, userID, delta, reason, refType, refID, note)
 		return e
@@ -79,7 +79,7 @@ func (s *PointsService) AdminAdjust(userID uint, delta int, note string) (int, e
 	if delta == 0 {
 		return 0, ErrInvalidPointsDelta
 	}
-	return s.AdjustPoints(userID, delta, model.PointReasonAdminAdjust, "admin", 0, note)
+	return s.AdjustPoints(userID, delta, models.PointReasonAdminAdjust, "admin", 0, note)
 }
 
 // CheckInStatus 今日签到状态
@@ -93,8 +93,8 @@ type CheckInStatus struct {
 func (s *PointsService) GetCheckInStatus(userID uint) (CheckInStatus, error) {
 	day := todayLocal()
 	st := CheckInStatus{Day: day}
-	var row model.CheckIn
-	err := model.DB.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&row).Error
+	var row models.CheckIn
+	err := models.DB.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&row).Error
 	if err != nil {
 		return st, err
 	}
@@ -112,8 +112,8 @@ func (s *PointsService) GetCheckInStatus(userID uint) (CheckInStatus, error) {
 
 func (s *PointsService) computeNextStreak(userID uint, today string) int {
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	var prev model.CheckIn
-	model.DB.Where("user_id = ? AND day = ?", userID, yesterday).Limit(1).Find(&prev)
+	var prev models.CheckIn
+	models.DB.Where("user_id = ? AND day = ?", userID, yesterday).Limit(1).Find(&prev)
 	if prev.ID > 0 {
 		return prev.Streak + 1
 	}
@@ -136,8 +136,8 @@ func checkInReward(streak int) int {
 func (s *PointsService) CheckIn(userID uint) (CheckInStatus, error) {
 	day := todayLocal()
 	var out CheckInStatus
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		var existing model.CheckIn
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		var existing models.CheckIn
 		if err := tx.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&existing).Error; err != nil {
 			return err
 		}
@@ -145,18 +145,18 @@ func (s *PointsService) CheckIn(userID uint) (CheckInStatus, error) {
 			return ErrAlreadyCheckedIn
 		}
 		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-		var prev model.CheckIn
+		var prev models.CheckIn
 		_ = tx.Where("user_id = ? AND day = ?", userID, yesterday).Limit(1).Find(&prev).Error
 		streak := 1
 		if prev.ID > 0 {
 			streak = prev.Streak + 1
 		}
 		pts := checkInReward(streak)
-		row := model.CheckIn{UserID: userID, Day: day, Points: pts, Streak: streak}
+		row := models.CheckIn{UserID: userID, Day: day, Points: pts, Streak: streak}
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		if _, err := AdjustPointsTx(tx, userID, pts, model.PointReasonCheckIn, "check_in", row.ID, fmt.Sprintf("连续签到 %d 天", streak)); err != nil {
+		if _, err := AdjustPointsTx(tx, userID, pts, models.PointReasonCheckIn, "check_in", row.ID, fmt.Sprintf("连续签到 %d 天", streak)); err != nil {
 			return err
 		}
 		out = CheckInStatus{CheckedIn: true, Streak: streak, TodayPoints: pts, Day: day}
@@ -191,8 +191,8 @@ type LotteryStatus struct {
 func (s *PointsService) GetLotteryStatus(userID uint) (LotteryStatus, error) {
 	day := todayLocal()
 	st := LotteryStatus{Day: day, Pool: defaultLotteryPool, Cost: 0}
-	var row model.LotteryDraw
-	if err := model.DB.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&row).Error; err != nil {
+	var row models.LotteryDraw
+	if err := models.DB.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&row).Error; err != nil {
 		return st, err
 	}
 	if row.ID > 0 {
@@ -228,8 +228,8 @@ func pickLottery(pool []LotteryPrize) (int, error) {
 func (s *PointsService) DrawLottery(userID uint) (LotteryStatus, error) {
 	day := todayLocal()
 	var out LotteryStatus
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		var existing model.LotteryDraw
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		var existing models.LotteryDraw
 		if err := tx.Where("user_id = ? AND day = ?", userID, day).Limit(1).Find(&existing).Error; err != nil {
 			return err
 		}
@@ -240,12 +240,12 @@ func (s *PointsService) DrawLottery(userID uint) (LotteryStatus, error) {
 		if err != nil {
 			return err
 		}
-		row := model.LotteryDraw{UserID: userID, Day: day, Points: pts}
+		row := models.LotteryDraw{UserID: userID, Day: day, Points: pts}
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
 		if pts > 0 {
-			if _, err := AdjustPointsTx(tx, userID, pts, model.PointReasonLottery, "lottery", row.ID, "每日抽奖"); err != nil {
+			if _, err := AdjustPointsTx(tx, userID, pts, models.PointReasonLottery, "lottery", row.ID, "每日抽奖"); err != nil {
 				return err
 			}
 		}
@@ -256,7 +256,7 @@ func (s *PointsService) DrawLottery(userID uint) (LotteryStatus, error) {
 }
 
 // ListLedger 积分流水
-func (s *PointsService) ListLedger(userID uint, page, size int) ([]model.PointLedger, int64, error) {
+func (s *PointsService) ListLedger(userID uint, page, size int) ([]models.PointLedger, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -264,9 +264,9 @@ func (s *PointsService) ListLedger(userID uint, page, size int) ([]model.PointLe
 		size = 20
 	}
 	var total int64
-	model.DB.Model(&model.PointLedger{}).Where("user_id = ?", userID).Count(&total)
-	var rows []model.PointLedger
-	err := model.DB.Where("user_id = ?", userID).Order("id desc").
+	models.DB.Model(&models.PointLedger{}).Where("user_id = ?", userID).Count(&total)
+	var rows []models.PointLedger
+	err := models.DB.Where("user_id = ?", userID).Order("id desc").
 		Offset((page - 1) * size).Limit(size).Find(&rows).Error
 	return rows, total, err
 }

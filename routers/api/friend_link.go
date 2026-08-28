@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +28,7 @@ func (h *Handlers) APIApplyFriendLink(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	result, err := h.FriendLinkApply.Create(service.FriendLinkApplyInput{
+	result, err := h.FriendLinkApply.Create(services.FriendLinkApplyInput{
 		UserID:            uid,
 		Name:              req.Name,
 		URL:               req.URL,
@@ -65,10 +65,10 @@ func (h *Handlers) APIUploadFriendLinkLogo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "图片文件过大"})
 		return
 	}
-	url, err := service.SaveUploadedImage(
+	url, err := services.SaveUploadedImage(
 		h.Store,
 		file,
-		service.UploadCategorySite,
+		services.UploadCategorySite,
 		fmt.Sprintf("fl_%d", uid),
 	)
 	if err != nil {
@@ -83,7 +83,7 @@ func (h *Handlers) APIAdminFriendLinkApplies(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	status := strings.TrimSpace(c.DefaultQuery("status", "pending"))
-	list, total, err := h.FriendLinkApply.ListAdmin(service.FriendLinkApplyListQuery{
+	list, total, err := h.FriendLinkApply.ListAdmin(services.FriendLinkApplyListQuery{
 		Page: page, Size: size, Status: status,
 	})
 	if err != nil {
@@ -236,7 +236,7 @@ func (h *Handlers) APIUpdateFriendLinkApply(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	result, err := h.FriendLinkApply.Update(uid, uint(id), service.FriendLinkApplyInput{
+	result, err := h.FriendLinkApply.Update(uid, uint(id), services.FriendLinkApplyInput{
 		UserID:            uid,
 		Name:              req.Name,
 		URL:               req.URL,

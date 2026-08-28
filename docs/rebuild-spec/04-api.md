@@ -2,7 +2,7 @@
 
 > **读者**：实现后端 / BFF / 前端数据层的 AI  
 > **前置**：[03-data-model.md](03-data-model.md)  
-> **源码**：[`router/router.go`](../../router/router.go)、[`frontend/src/api/client.ts`](../../frontend/src/api/client.ts)、[`frontend/src/api/types.ts`](../../frontend/src/api/types.ts)、[`middleware/auth.go`](../../middleware/auth.go)
+> **源码**：[`router/router.go`](../../routers/setup.go)、[`frontend/src/api/client.ts`](（仅 main）frontend/src/api/client.ts)、[`frontend/src/api/types.ts`](（仅 main）frontend/src/api/types.ts)、[`middleware/auth.go`](../../modules/auth/auth.go)
 
 不要求 OpenAPI YAML；以下表格 + JSON 形状即为合约。新站可加 `/v1` 前缀，但**字段名建议保持**以便对照迁移。
 
@@ -54,7 +54,7 @@
 | GET/POST | `/oauth/userinfo` | Bearer | 用户信息 |
 | GET/POST | `/oauth/logout` | 视实现 | 登出 |
 
-细节以 [`service/oidc.go`](../../service/oidc.go) / [`handler/oidc.go`](../../handler/oidc.go) 为准。
+细节以 [`service/oidc.go`](../../services/oidc.go) / [`handler/oidc.go`](../../routers/api/oidc.go) 为准。
 
 ---
 
@@ -356,7 +356,7 @@
 
 ## 7. 核心类型速查（与前端对齐）
 
-详见 [`frontend/src/api/types.ts`](../../frontend/src/api/types.ts)。实现时至少对齐：
+详见 [`frontend/src/api/types.ts`](（仅 main）frontend/src/api/types.ts)。实现时至少对齐：
 
 - `User` / `UserPublic` / `UserActivityStats`
 - `Board` / `PostItem` / `PostDetailResponse` / `Comment`
@@ -373,4 +373,4 @@
 
 中间件对未登录 / 过期 / 禁言返回 JSON error（并可能清 cookie）。前端统一 `throw new Error(data.error)`。新站应保持可区分的错误文案或错误码，避免前端无法提示。
 
-源：[`middleware/auth.go`](../../middleware/auth.go)。
+源：[`middleware/auth.go`](../../modules/auth/auth.go)。

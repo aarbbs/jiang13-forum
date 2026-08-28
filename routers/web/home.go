@@ -1,4 +1,4 @@
-package web
+﻿package web
 
 import (
 	"net/http"
@@ -6,18 +6,18 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/middleware"
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/modules/auth"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"git.iioio.com/freefire/jiang13-forum/modules/webrender"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
 
 // Deps 页面路由依赖（复用现有 service，避免 Phase 1 大搬家）
 type Deps struct {
-	Settings *service.ForumSettingsService
-	Board    *service.BoardService
-	Post     *service.PostService
+	Settings *services.ForumSettingsService
+	Board    *services.BoardService
+	Post     *services.PostService
 }
 
 // BoardView 侧栏板块
@@ -61,7 +61,7 @@ type HomePageData struct {
 }
 
 // Register 注册已迁移的 SSR 页面（优先于 SPA）
-func Register(r *gin.Engine, deps Deps, authMW *middleware.AuthMiddleware) {
+func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g := r.Group("/", authMW.OptionalAuth())
 	g.GET("/", deps.Home)
 	g.GET("/board/:id", deps.Home)
@@ -99,21 +99,21 @@ func (d Deps) Home(c *gin.Context) {
 	}
 
 	var uid uint
-	if v, ok := c.Get(middleware.CtxUserID); ok {
+	if v, ok := c.Get(auth.CtxUserID); ok {
 		uid, _ = v.(uint)
 	}
 	isAdmin := false
-	if v, ok := c.Get(middleware.CtxRole); ok {
+	if v, ok := c.Get(auth.CtxRole); ok {
 		switch r := v.(type) {
-		case model.Role:
-			isAdmin = r == model.RoleAdmin
+		case models.Role:
+			isAdmin = r == models.RoleAdmin
 		case string:
-			isAdmin = r == string(model.RoleAdmin)
+			isAdmin = r == string(models.RoleAdmin)
 		}
 	}
-	username, _ := c.Get(middleware.CtxUsername)
+	username, _ := c.Get(auth.CtxUsername)
 
-	q := service.PostListQuery{
+	q := services.PostListQuery{
 		BoardID:       boardID,
 		Page:          page,
 		Size:          size,

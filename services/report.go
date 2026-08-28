@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -38,11 +38,11 @@ func NewReportService(
 
 func normalizeReportReason(reason string) (string, error) {
 	switch strings.TrimSpace(reason) {
-	case model.ReportReasonSpam,
-		model.ReportReasonAbuse,
-		model.ReportReasonIllegal,
-		model.ReportReasonIrrelevant,
-		model.ReportReasonOther:
+	case models.ReportReasonSpam,
+		models.ReportReasonAbuse,
+		models.ReportReasonIllegal,
+		models.ReportReasonIrrelevant,
+		models.ReportReasonOther:
 		return reason, nil
 	default:
 		return "", errors.New("请选择有效的举报原因")
@@ -51,15 +51,15 @@ func normalizeReportReason(reason string) (string, error) {
 
 func ReportReasonLabel(reason string) string {
 	switch reason {
-	case model.ReportReasonSpam:
+	case models.ReportReasonSpam:
 		return "垃圾广告"
-	case model.ReportReasonAbuse:
+	case models.ReportReasonAbuse:
 		return "人身攻击 / 辱骂"
-	case model.ReportReasonIllegal:
+	case models.ReportReasonIllegal:
 		return "违法违规"
-	case model.ReportReasonIrrelevant:
+	case models.ReportReasonIrrelevant:
 		return "内容无关 / 灌水"
-	case model.ReportReasonOther:
+	case models.ReportReasonOther:
 		return "其他"
 	default:
 		return reason
@@ -67,7 +67,7 @@ func ReportReasonLabel(reason string) string {
 }
 
 // Create 用户举报帖子
-func (s *ReportService) Create(reporterID, postID uint, reason, detail string) (*model.PostReport, error) {
+func (s *ReportService) Create(reporterID, postID uint, reason, detail string) (*models.PostReport, error) {
 	reason, err := normalizeReportReason(reason)
 	if err != nil {
 		return nil, err
@@ -80,8 +80,8 @@ func (s *ReportService) Create(reporterID, postID uint, reason, detail string) (
 		detail = s.filter.Filter(detail)
 	}
 
-	var post model.Post
-	if err := model.DB.Select("id", "user_id", "title").First(&post, postID).Error; err != nil {
+	var post models.Post
+	if err := models.DB.Select("id", "user_id", "title").First(&post, postID).Error; err != nil {
 		return nil, ErrPostNotFound
 	}
 	if post.UserID == reporterID {
@@ -89,29 +89,29 @@ func (s *ReportService) Create(reporterID, postID uint, reason, detail string) (
 	}
 
 	var existing int64
-	model.DB.Model(&model.PostReport{}).
-		Where("post_id = ? AND reporter_id = ? AND status = ?", postID, reporterID, model.ReportStatusPending).
+	models.DB.Model(&models.PostReport{}).
+		Where("post_id = ? AND reporter_id = ? AND status = ?", postID, reporterID, models.ReportStatusPending).
 		Count(&existing)
 	if existing > 0 {
 		return nil, ErrReportAlreadyExists
 	}
 
-	rep := &model.PostReport{
+	rep := &models.PostReport{
 		PostID:     postID,
 		ReporterID: reporterID,
 		Reason:     reason,
 		Detail:     detail,
-		Status:     model.ReportStatusPending,
+		Status:     models.ReportStatusPending,
 	}
-	if err := model.DB.Create(rep).Error; err != nil {
+	if err := models.DB.Create(rep).Error; err != nil {
 		return nil, err
 	}
-	_ = model.DB.Preload("Post").Preload("Reporter").First(rep, rep.ID).Error
+	_ = models.DB.Preload("Post").Preload("Reporter").First(rep, rep.ID).Error
 	return rep, nil
 }
 
 // CreateCommentReport 用户举报评论
-func (s *ReportService) CreateCommentReport(reporterID, commentID uint, reason, detail string) (*model.PostReport, error) {
+func (s *ReportService) CreateCommentReport(reporterID, commentID uint, reason, detail string) (*models.PostReport, error) {
 	reason, err := normalizeReportReason(reason)
 	if err != nil {
 		return nil, err
@@ -133,26 +133,26 @@ func (s *ReportService) CreateCommentReport(reporterID, commentID uint, reason, 
 	}
 
 	var existing int64
-	model.DB.Model(&model.PostReport{}).
-		Where("comment_id = ? AND reporter_id = ? AND status = ?", commentID, reporterID, model.ReportStatusPending).
+	models.DB.Model(&models.PostReport{}).
+		Where("comment_id = ? AND reporter_id = ? AND status = ?", commentID, reporterID, models.ReportStatusPending).
 		Count(&existing)
 	if existing > 0 {
 		return nil, ErrReportAlreadyExists
 	}
 
 	cid := commentID
-	rep := &model.PostReport{
+	rep := &models.PostReport{
 		PostID:     comment.PostID,
 		CommentID:  &cid,
 		ReporterID: reporterID,
 		Reason:     reason,
 		Detail:     detail,
-		Status:     model.ReportStatusPending,
+		Status:     models.ReportStatusPending,
 	}
-	if err := model.DB.Create(rep).Error; err != nil {
+	if err := models.DB.Create(rep).Error; err != nil {
 		return nil, err
 	}
-	_ = model.DB.Preload("Post").Preload("Comment").Preload("Reporter").First(rep, rep.ID).Error
+	_ = models.DB.Preload("Post").Preload("Comment").Preload("Reporter").First(rep, rep.ID).Error
 	return rep, nil
 }
 
@@ -163,13 +163,13 @@ type ReportListQuery struct {
 }
 
 // ListAdmin 管理员举报列表
-func (s *ReportService) ListAdmin(q ReportListQuery) ([]model.PostReport, int64, error) {
+func (s *ReportService) ListAdmin(q ReportListQuery) ([]models.PostReport, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
 	q.Size = s.settings.NormalizePageSize(q.Size)
 
-	db := model.DB.Model(&model.PostReport{})
+	db := models.DB.Model(&models.PostReport{})
 	if q.Status != "" && q.Status != "all" {
 		db = db.Where("status = ?", q.Status)
 	}
@@ -179,7 +179,7 @@ func (s *ReportService) ListAdmin(q ReportListQuery) ([]model.PostReport, int64,
 		return nil, 0, err
 	}
 
-	var list []model.PostReport
+	var list []models.PostReport
 	err := db.Preload("Post", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).Preload("Post.User").Preload("Comment", func(tx *gorm.DB) *gorm.DB {
@@ -195,8 +195,8 @@ func (s *ReportService) ListAdmin(q ReportListQuery) ([]model.PostReport, int64,
 // PendingCount 待处理举报数
 func (s *ReportService) PendingCount() (int64, error) {
 	var n int64
-	err := model.DB.Model(&model.PostReport{}).
-		Where("status = ?", model.ReportStatusPending).
+	err := models.DB.Model(&models.PostReport{}).
+		Where("status = ?", models.ReportStatusPending).
 		Count(&n).Error
 	return n, err
 }
@@ -210,16 +210,16 @@ type HandleReportInput struct {
 }
 
 // Handle 处理举报
-func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) {
-	var rep model.PostReport
-	if err := model.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
+func (s *ReportService) Handle(in HandleReportInput) (*models.PostReport, error) {
+	var rep models.PostReport
+	if err := models.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).Preload("Comment", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).First(&rep, in.ReportID).Error; err != nil {
 		return nil, ErrReportNotFound
 	}
-	if rep.Status != model.ReportStatusPending {
+	if rep.Status != models.ReportStatusPending {
 		return nil, errors.New("该举报已处理")
 	}
 
@@ -251,9 +251,9 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 
 	switch in.Action {
 	case "dismiss":
-		rep.Status = model.ReportStatusDismissed
+		rep.Status = models.ReportStatusDismissed
 	case "resolve":
-		rep.Status = model.ReportStatusResolved
+		rep.Status = models.ReportStatusResolved
 	case "reject_post":
 		if isCommentReport {
 			return nil, errors.New("评论举报请使用「拒绝该评论」")
@@ -265,10 +265,10 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		if utf8.RuneCountInString(reason) > 1000 {
 			return nil, errors.New("拒绝原因过长")
 		}
-		if err := s.posts.SetStatus(postID, model.ContentStatusRejected); err != nil {
+		if err := s.posts.SetStatus(postID, models.ContentStatusRejected); err != nil {
 			return nil, err
 		}
-		rep.Status = model.ReportStatusResolved
+		rep.Status = models.ReportStatusResolved
 		if note == "" {
 			rep.HandleNote = "已拒绝该帖并通知作者"
 		}
@@ -279,7 +279,7 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 				authorID,
 				fmt.Sprintf("帖子《%s》未通过审核", postTitle),
 				FormatRejectContent(postTitle, postID, reason),
-				model.MessageKindReject,
+				models.MessageKindReject,
 				&pid,
 				&rid,
 			)
@@ -295,10 +295,10 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		if utf8.RuneCountInString(reason) > 1000 {
 			return nil, errors.New("拒绝原因过长")
 		}
-		if err := s.comments.SetStatus(*rep.CommentID, model.ContentStatusRejected); err != nil {
+		if err := s.comments.SetStatus(*rep.CommentID, models.ContentStatusRejected); err != nil {
 			return nil, err
 		}
-		rep.Status = model.ReportStatusResolved
+		rep.Status = models.ReportStatusResolved
 		if note == "" {
 			rep.HandleNote = "已拒绝该评论并通知作者"
 		}
@@ -310,7 +310,7 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 				commentAuthorID,
 				fmt.Sprintf("评论未通过审核 · 《%s》", postTitle),
 				body,
-				model.MessageKindReject,
+				models.MessageKindReject,
 				&pid,
 				&rid,
 			)
@@ -319,13 +319,13 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		return nil, errors.New("无效的处理操作")
 	}
 
-	if err := model.DB.Save(&rep).Error; err != nil {
+	if err := models.DB.Save(&rep).Error; err != nil {
 		return nil, err
 	}
 
 	// 通知举报人处理结果
 	resultText := "已忽略"
-	if rep.Status == model.ReportStatusResolved {
+	if rep.Status == models.ReportStatusResolved {
 		switch in.Action {
 		case "reject_post":
 			resultText = "已核实并下架该帖"
@@ -349,12 +349,12 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		rep.ReporterID,
 		"举报处理结果通知",
 		content,
-		model.MessageKindReportResult,
+		models.MessageKindReportResult,
 		&pid,
 		&rid,
 	)
 
-	_ = model.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
+	_ = models.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()
 	}).Preload("Comment", func(tx *gorm.DB) *gorm.DB {
 		return tx.Unscoped()

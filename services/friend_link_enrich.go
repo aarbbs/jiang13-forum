@@ -1,10 +1,10 @@
-package service
+﻿package services
 
 import (
 	"encoding/json"
 	"strings"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 // EnrichFriendLinksLogos 为缺少 LOGO 的已发布友链，从已通过申请中按 URL 回填
@@ -27,9 +27,9 @@ func EnrichFriendLinksLogos(links []FriendLink) []FriendLink {
 		return links
 	}
 
-	var applies []model.FriendLinkApply
-	_ = model.DB.
-		Where("status = ? AND logo <> ''", model.FriendLinkApplyStatusApproved).
+	var applies []models.FriendLinkApply
+	_ = models.DB.
+		Where("status = ? AND logo <> ''", models.FriendLinkApplyStatusApproved).
 		Order("id DESC").
 		Find(&applies).Error
 

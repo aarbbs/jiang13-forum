@@ -1,10 +1,10 @@
-package service
+﻿package services
 
 import (
 	"sync"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 const reciprocalCheckConcurrency = 3
@@ -45,7 +45,7 @@ func runReciprocalCheck(applyID uint, gen uint64, pageURL, ourSiteURL string) {
 	}
 	reciprocalCheckMu.Unlock()
 
-	_ = model.DB.Model(&model.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
+	_ = models.DB.Model(&models.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
 		"reciprocal_verified":   verified,
 		"reciprocal_check_note": note,
 		"reciprocal_checked_at": now,
@@ -54,7 +54,7 @@ func runReciprocalCheck(applyID uint, gen uint64, pageURL, ourSiteURL string) {
 
 // ResetReciprocalCheckState 重置为检测中，供重新检测使用
 func ResetReciprocalCheckState(applyID uint) {
-	_ = model.DB.Model(&model.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
+	_ = models.DB.Model(&models.FriendLinkApply{}).Where("id = ?", applyID).Updates(map[string]interface{}{
 		"reciprocal_verified":   false,
 		"reciprocal_check_note": "",
 		"reciprocal_checked_at": nil,

@@ -3,7 +3,7 @@
 > **读者**：实现数据库与领域层的 AI  
 > **前置**：[01-product.md](01-product.md)  
 > **后续**：[04-api.md](04-api.md)、[05-business-rules.md](05-business-rules.md)  
-> **源码**：[`model/models.go`](../../model/models.go)、[`model/oauth.go`](../../model/oauth.go)、[`model/gitea.go`](../../model/gitea.go)、[`model/level.go`](../../model/level.go)、[`model/db.go`](../../model/db.go)、[`model/user_view.go`](../../model/user_view.go)、[`service/settings.go`](../../service/settings.go)
+> **源码**：[`model/models.go`](../../models/models.go)、[`model/oauth.go`](../../models/oauth.go)、[`model/gitea.go`](../../models/gitea.go)、[`model/level.go`](../../models/level.go)、[`model/db.go`](../../models/db.go)、[`model/user_view.go`](../../models/user_view.go)、[`service/settings.go`](../../services/settings.go)
 
 当前无独立 SQL migration；表由 GORM `AutoMigrate` 创建。新站可用正式 migration，但**字段语义应对齐**。
 
@@ -72,7 +72,7 @@ erDiagram
 
 **非落库展示字段**：`level`（由 Exp 推导）、`badges`（附加）。
 
-视图结构：`UserPublic` / `UserSelf` / `UserAdmin`（见 [`model/user_view.go`](../../model/user_view.go)）。
+视图结构：`UserPublic` / `UserSelf` / `UserAdmin`（见 [`model/user_view.go`](../../models/user_view.go)）。
 
 ### 2.2 boards
 
@@ -278,7 +278,7 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 
 ## 4. 等级（Exp → Level）
 
-源：[`model/level.go`](../../model/level.go)
+源：[`model/level.go`](../../models/level.go)
 
 | Level | 最低 Exp |
 |-------|----------|
@@ -299,7 +299,7 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 
 ## 5. 内置自动徽章（seed）
 
-源：[`model/db.go`](../../model/db.go) `seedDefaultBadges`
+源：[`model/db.go`](../../models/db.go) `seedDefaultBadges`
 
 | code | 名称 | metric | threshold |
 |------|------|--------|-----------|
@@ -317,7 +317,7 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 
 ## 6. forum_settings 键与默认值
 
-源：[`service/settings.go`](../../service/settings.go)、[`service/permalink.go`](../../service/permalink.go)
+源：[`service/settings.go`](../../services/settings.go)、[`service/permalink.go`](../../services/permalink.go)
 
 ### 6.1 论坛限制
 
@@ -429,7 +429,7 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 
 ## 7. 升级兼容补丁（现网 InitDB）
 
-[`model/db.go`](../../model/db.go) 在 AutoMigrate 后：
+[`model/db.go`](../../models/db.go) 在 AutoMigrate 后：
 
 - 空 `status` 的帖/评 → `published`
 - 空 `post_type` → `normal`
@@ -449,4 +449,4 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 <points-only data-cost="10">...</points-only>
 ```
 
-积分解锁 `block_key` = `sha256(innerHTML)[:16]`（hex），见 [`service/unlock.go`](../../service/unlock.go)。
+积分解锁 `block_key` = `sha256(innerHTML)[:16]`（hex），见 [`service/unlock.go`](../../services/unlock.go)。

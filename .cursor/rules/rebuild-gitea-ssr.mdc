@@ -21,9 +21,14 @@ alwaysApply: true
 对齐 [Gitea](https://github.com/go-gitea/gitea) 职责划分：
 
 - `routers/web` — HTML 页面路由
+- `routers/api` — JSON API（原 `handler/`）
+- `routers/setup.go` — 路由总装
 - `templates/` — 模板
 - `web_src/` → `public/assets/` — 渐进增强 CSS/JS
-- 现有 `service/`、`model/` 可复用业务逻辑
+- `models/`、`services/` — 数据与业务
+- `modules/auth`、`modules/webrender`、`modules/seo` — 横切
+
+本分支**已删除** `frontend/` 与 `embed_static/`；勿再恢复 SPA 生产回落。
 
 细节见 [`docs/rebuild-spec/08-gitea-ssr-architecture.md`](docs/rebuild-spec/08-gitea-ssr-architecture.md)。
 

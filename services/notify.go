@@ -1,11 +1,11 @@
-package service
+﻿package services
 
 import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 // NotifyService 站内消息 + 邮件提醒编排
@@ -35,7 +35,7 @@ func (s *NotifyService) goNotify(fn func()) {
 }
 
 // AsyncNotifyCommentPublished 异步：评论公开后通知被回复者或楼主
-func (s *NotifyService) AsyncNotifyCommentPublished(comment *model.Comment) {
+func (s *NotifyService) AsyncNotifyCommentPublished(comment *models.Comment) {
 	if s == nil || comment == nil {
 		return
 	}
@@ -44,7 +44,7 @@ func (s *NotifyService) AsyncNotifyCommentPublished(comment *model.Comment) {
 }
 
 // AsyncNotifyCommentMentions 异步：评论公开后通知被 @ 的用户
-func (s *NotifyService) AsyncNotifyCommentMentions(comment *model.Comment) {
+func (s *NotifyService) AsyncNotifyCommentMentions(comment *models.Comment) {
 	if s == nil || comment == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (s *NotifyService) AsyncNotifyCommentMentions(comment *model.Comment) {
 }
 
 // AsyncNotifyPendingPost 异步：待审帖通知管理员
-func (s *NotifyService) AsyncNotifyPendingPost(post *model.Post) {
+func (s *NotifyService) AsyncNotifyPendingPost(post *models.Post) {
 	if s == nil || post == nil {
 		return
 	}
@@ -62,7 +62,7 @@ func (s *NotifyService) AsyncNotifyPendingPost(post *model.Post) {
 }
 
 // AsyncNotifyPendingComment 异步：待审评论通知管理员
-func (s *NotifyService) AsyncNotifyPendingComment(comment *model.Comment) {
+func (s *NotifyService) AsyncNotifyPendingComment(comment *models.Comment) {
 	if s == nil || comment == nil {
 		return
 	}
@@ -71,8 +71,8 @@ func (s *NotifyService) AsyncNotifyPendingComment(comment *model.Comment) {
 }
 
 // NotifyCommentPublished 评论公开后通知被回复者或楼主
-func (s *NotifyService) NotifyCommentPublished(comment *model.Comment) {
-	if s == nil || comment == nil || comment.Status != model.ContentStatusPublished {
+func (s *NotifyService) NotifyCommentPublished(comment *models.Comment) {
+	if s == nil || comment == nil || comment.Status != models.ContentStatusPublished {
 		return
 	}
 
@@ -96,14 +96,14 @@ func (s *NotifyService) NotifyCommentPublished(comment *model.Comment) {
 	subject := "收到新回复"
 	content := FormatReplyContent(authorName, title, displayFloor, isNested)
 	pid := comment.PostID
-	_, _ = s.messages.SendSystem(toUserID, subject, content, model.MessageKindReply, &pid, nil)
+	_, _ = s.messages.SendSystem(toUserID, subject, content, models.MessageKindReply, &pid, nil)
 
 	s.sendReplyMail(toUserID, authorName, title, comment.PostID, displayFloor, isNested, comment.Content)
 }
 
 // NotifyCommentMentions 评论公开后通知被 @提及的用户（跳过已收到回复通知的人）
-func (s *NotifyService) NotifyCommentMentions(comment *model.Comment) {
-	if s == nil || comment == nil || comment.Status != model.ContentStatusPublished {
+func (s *NotifyService) NotifyCommentMentions(comment *models.Comment) {
+	if s == nil || comment == nil || comment.Status != models.ContentStatusPublished {
 		return
 	}
 	names := ExtractMentionNames(comment.Content)
@@ -132,13 +132,13 @@ func (s *NotifyService) NotifyCommentMentions(comment *model.Comment) {
 		if uid == 0 || uid == comment.UserID || uid == replyTo {
 			continue
 		}
-		_, _ = s.messages.SendSystem(uid, subject, content, model.MessageKindMention, &pid, nil)
+		_, _ = s.messages.SendSystem(uid, subject, content, models.MessageKindMention, &pid, nil)
 	}
 }
 
 // NotifyPendingPost 新帖进入待审时通知全部管理员
-func (s *NotifyService) NotifyPendingPost(post *model.Post) {
-	if s == nil || post == nil || post.Status != model.ContentStatusPending {
+func (s *NotifyService) NotifyPendingPost(post *models.Post) {
+	if s == nil || post == nil || post.Status != models.ContentStatusPending {
 		return
 	}
 	title := strings.TrimSpace(post.Title)
@@ -149,14 +149,14 @@ func (s *NotifyService) NotifyPendingPost(post *model.Post) {
 	subject := "新的待审核帖子"
 	content := FormatPendingPostContent(authorName, title, post.ID)
 	pid := post.ID
-	s.notifyAdmins(subject, content, model.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
+	s.notifyAdmins(subject, content, models.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
 		return BuildModerationMail(siteName, "帖子", authorName, title, post.ID, 0, false, AbsoluteURL(baseURL, "/admin/posts"))
 	})
 }
 
 // NotifyPendingComment 新评论进入待审时通知全部管理员
-func (s *NotifyService) NotifyPendingComment(comment *model.Comment) {
-	if s == nil || comment == nil || comment.Status != model.ContentStatusPending {
+func (s *NotifyService) NotifyPendingComment(comment *models.Comment) {
+	if s == nil || comment == nil || comment.Status != models.ContentStatusPending {
 		return
 	}
 	post, err := s.loadPost(comment.PostID)
@@ -173,7 +173,7 @@ func (s *NotifyService) NotifyPendingComment(comment *model.Comment) {
 	isNested := comment.ReplyTo != nil && *comment.ReplyTo > 0
 	content := FormatPendingCommentContent(authorName, title, displayFloor, isNested)
 	pid := comment.PostID
-	s.notifyAdmins(subject, content, model.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
+	s.notifyAdmins(subject, content, models.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
 		return BuildModerationMail(siteName, "评论", authorName, title, comment.PostID, displayFloor, isNested, AbsoluteURL(baseURL, "/admin/comments"))
 	})
 }
@@ -215,8 +215,8 @@ func (s *NotifyService) sendReplyMail(toUserID uint, authorName, postTitle strin
 	if s.mail == nil || !s.settings.MailReady() {
 		return
 	}
-	var user model.User
-	if err := model.DB.Select("id", "email", "nickname", "username").First(&user, toUserID).Error; err != nil {
+	var user models.User
+	if err := models.DB.Select("id", "email", "nickname", "username").First(&user, toUserID).Error; err != nil {
 		return
 	}
 	email := strings.TrimSpace(user.Email)
@@ -232,10 +232,10 @@ func (s *NotifyService) sendReplyMail(toUserID uint, authorName, postTitle strin
 	_ = s.mail.SendHTML(email, subj, text, html)
 }
 
-func (s *NotifyService) resolveReplyRecipient(comment *model.Comment, post *model.Post) (uint, error) {
+func (s *NotifyService) resolveReplyRecipient(comment *models.Comment, post *models.Post) (uint, error) {
 	if comment.ReplyTo != nil && *comment.ReplyTo > 0 {
-		var target model.Comment
-		if err := model.DB.Select("id", "user_id", "post_id").
+		var target models.Comment
+		if err := models.DB.Select("id", "user_id", "post_id").
 			Where("id = ? AND post_id = ?", *comment.ReplyTo, comment.PostID).
 			First(&target).Error; err != nil {
 			return 0, err
@@ -249,7 +249,7 @@ func (s *NotifyService) resolveReplyRecipient(comment *model.Comment, post *mode
 }
 
 // resolveDisplayFloor 解析页面可见的顶层楼号（子回复沿 reply_to 上溯）
-func (s *NotifyService) resolveDisplayFloor(comment *model.Comment) int {
+func (s *NotifyService) resolveDisplayFloor(comment *models.Comment) int {
 	if comment == nil {
 		return 0
 	}
@@ -264,8 +264,8 @@ func (s *NotifyService) resolveDisplayFloor(comment *model.Comment) int {
 			break
 		}
 		seen[curID] = struct{}{}
-		var ancestor model.Comment
-		if err := model.DB.Select("id", "floor", "reply_to").
+		var ancestor models.Comment
+		if err := models.DB.Select("id", "floor", "reply_to").
 			Where("id = ? AND post_id = ?", curID, comment.PostID).
 			First(&ancestor).Error; err != nil {
 			return comment.Floor
@@ -278,18 +278,18 @@ func (s *NotifyService) resolveDisplayFloor(comment *model.Comment) int {
 	return comment.Floor
 }
 
-func (s *NotifyService) loadPost(postID uint) (*model.Post, error) {
-	var post model.Post
-	if err := model.DB.Select("id", "user_id", "title", "status").First(&post, postID).Error; err != nil {
+func (s *NotifyService) loadPost(postID uint) (*models.Post, error) {
+	var post models.Post
+	if err := models.DB.Select("id", "user_id", "title", "status").First(&post, postID).Error; err != nil {
 		return nil, err
 	}
 	return &post, nil
 }
 
-func (s *NotifyService) listAdmins() ([]model.User, error) {
-	var admins []model.User
-	err := model.DB.Select("id", "email", "nickname", "username").
-		Where("role = ? AND banned = ?", model.RoleAdmin, false).
+func (s *NotifyService) listAdmins() ([]models.User, error) {
+	var admins []models.User
+	err := models.DB.Select("id", "email", "nickname", "username").
+		Where("role = ? AND banned = ?", models.RoleAdmin, false).
 		Find(&admins).Error
 	return admins, err
 }
@@ -302,7 +302,7 @@ func (s *NotifyService) siteName() string {
 	return name
 }
 
-func (s *NotifyService) commentAuthorName(comment *model.Comment) string {
+func (s *NotifyService) commentAuthorName(comment *models.Comment) string {
 	if comment.UserID > 0 {
 		if comment.User.ID == comment.UserID {
 			if n := DisplayName(&comment.User); n != "" {
@@ -321,8 +321,8 @@ func (s *NotifyService) userDisplayName(userID uint) string {
 	if userID == 0 {
 		return "用户"
 	}
-	var u model.User
-	if err := model.DB.Select("id", "nickname", "username").First(&u, userID).Error; err != nil {
+	var u models.User
+	if err := models.DB.Select("id", "nickname", "username").First(&u, userID).Error; err != nil {
 		return fmt.Sprintf("用户 #%d", userID)
 	}
 	if n := DisplayName(&u); n != "" {

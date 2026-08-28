@@ -2,7 +2,7 @@
 
 > **读者**：部署与运维、以及实现配置层的 AI  
 > **前置**：[README.md](README.md)  
-> **源码**：[`app.ini.example`](../../app.ini.example)、[`config/`](../../config/)、[`README.md`](../../README.md)、[`handler/seo.go`](../../handler/seo.go)、[`handler/seo_bot.go`](../../handler/seo_bot.go)、[`embed_static/`](../../embed_static/)
+> **源码**：[`app.ini.example`](../../app.ini.example)、[`config/`](../../config/)、[`README.md`](../../README.md)、[`handler/seo.go`](../../routers/api/seo.go)、[`handler/seo_bot.go`](../../routers/api/seo_bot.go)、[`embed_static/`](（仅 main 分支）embed_static/)
 
 运维形态可改；下列描述**现网**行为，便于迁移数据与对齐环境变量语义。
 
@@ -91,8 +91,8 @@ data/
 
 | 机制 | 说明 |
 |------|------|
-| SPA 壳注入 | [`embed_static`](../../embed_static/) 注入 title / branding JSON，**无帖文 DOM** |
-| 爬虫 HTML | User-Agent 命中时 [`seo_bot.go`](../../handler/seo_bot.go) 返回简易 HTML |
+| SPA 壳注入 | `embed_static`（仅 `main` 分支） 注入 title / branding JSON，**无帖文 DOM** |
+| 爬虫 HTML | User-Agent 命中时 [`seo_bot.go`](../../routers/api/seo_bot.go) 返回简易 HTML |
 | robots.txt / sitemap.xml | 动态生成 |
 
 重构验收：用普通浏览器「查看网页源代码」应能看到帖文正文，而不仅是空 div + script。
@@ -110,7 +110,7 @@ data/
 - `/board/2.html`
 - `/page/about.html`
 
-路由应同时接受无后缀与有后缀形式。解析逻辑见 [`service/permalink.go`](../../service/permalink.go)。
+路由应同时接受无后缀与有后缀形式。解析逻辑见 [`service/permalink.go`](../../services/permalink.go)。
 
 ---
 

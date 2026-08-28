@@ -2,13 +2,13 @@
 
 > **读者**：实现领域逻辑的 AI（最易「看起来像但算错」）  
 > **前置**：[03-data-model.md](03-data-model.md)、[04-api.md](04-api.md)  
-> **源码**：[`service/`](../../service/)、[`model/models.go`](../../model/models.go)
+> **源码**：[`service/`](../../services/)、[`model/models.go`](../../models/models.go)
 
 ---
 
 ## 1. 注册与引导
 
-源：[`handler/handlers.go`](../../handler/handlers.go) `APIRegisterConfig`、[`service/auth.go`](../../service/auth.go)
+源：[`handler/handlers.go`](../../routers/api/handlers.go) `APIRegisterConfig`、[`service/auth.go`](../../services/auth.go)
 
 | 规则 | 细节 |
 |------|------|
@@ -41,7 +41,7 @@ stateDiagram-v2
 | 待审提醒 | 通知管理员（kind=`moderation`） |
 | 游客评论 | 通常直接或按实现进入审核；勿假设与登录用户完全相同 |
 
-源：[`service/post.go`](../../service/post.go) `CanViewPost`、[`service/comment.go`](../../service/comment.go)。
+源：[`service/post.go`](../../services/post.go) `CanViewPost`、[`service/comment.go`](../../services/comment.go)。
 
 ---
 
@@ -68,7 +68,7 @@ stateDiagram-v2
 | 评论成功 | +2 |
 | 帖子被点赞 | +1（作者） |
 
-源：[`service/post.go`](../../service/post.go)、[`service/comment.go`](../../service/comment.go)、[`service/badge.go`](../../service/badge.go) `AddExp`。
+源：[`service/post.go`](../../services/post.go)、[`service/comment.go`](../../services/comment.go)、[`service/badge.go`](../../services/badge.go) `AddExp`。
 
 等级门槛见 [03-data-model.md](03-data-model.md) §4。管理员设 level 时应同步 Exp 到门槛值。
 
@@ -76,7 +76,7 @@ stateDiagram-v2
 
 ## 5. 内容门控（红action）
 
-源：[`service/content.go`](../../service/content.go)、[`handler/api.go`](../../handler/api.go) `APIPostDetail`、[`service/unlock.go`](../../service/unlock.go)
+源：[`service/content.go`](../../services/content.go)、[`handler/api.go`](../../routers/api/api.go) `APIPostDetail`、[`service/unlock.go`](../../services/unlock.go)
 
 ### 5.1 出口顺序（详情）
 
@@ -148,7 +148,7 @@ stateDiagram-v2
 
 ## 7. 签到与每日抽奖
 
-源：[`service/points.go`](../../service/points.go)
+源：[`service/points.go`](../../services/points.go)
 
 ### 签到
 
@@ -225,4 +225,4 @@ stateDiagram-v2
 | `board_pinned` | **不**抬升 | 抬升 |
 | `featured` | 标记展示，不一定改变排序 | 同左 |
 
-具体 SQL/排序实现见 [`service/post.go`](../../service/post.go) ListItems。
+具体 SQL/排序实现见 [`service/post.go`](../../services/post.go) ListItems。

@@ -1,4 +1,4 @@
-package service
+﻿package services
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"git.iioio.com/freefire/jiang13-forum/model"
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"gorm.io/gorm"
 )
 
@@ -54,7 +54,7 @@ func CreatePollForPost(tx *gorm.DB, postID uint, multi bool, maxChoices int, end
 	} else if maxChoices < 1 || maxChoices > len(options) {
 		maxChoices = len(options)
 	}
-	poll := model.Poll{PostID: postID, Multi: multi, MaxChoices: maxChoices, EndsAt: endsAt}
+	poll := models.Poll{PostID: postID, Multi: multi, MaxChoices: maxChoices, EndsAt: endsAt}
 	if err := tx.Create(&poll).Error; err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func CreatePollForPost(tx *gorm.DB, postID uint, multi bool, maxChoices int, end
 		if len([]rune(text)) > 64 {
 			return errors.New("投票选项最多 64 字")
 		}
-		row := model.PollOption{PostID: postID, Text: text, SortOrder: i}
+		row := models.PollOption{PostID: postID, Text: text, SortOrder: i}
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
@@ -131,8 +131,8 @@ func parsePollEndsAt(raw string) (*time.Time, error) {
 
 // closePollIfExpired 若已过截止时间则自动关闭投票
 func closePollIfExpired(postID uint) error {
-	var poll model.Poll
-	if err := model.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
+	var poll models.Poll
+	if err := models.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
 		return err
 	}
 	if poll.Closed || poll.EndsAt == nil {
@@ -141,7 +141,7 @@ func closePollIfExpired(postID uint) error {
 	if time.Now().Before(*poll.EndsAt) {
 		return nil
 	}
-	res := model.DB.Model(&poll).Where("post_id = ? AND closed = ?", postID, false).Update("closed", true)
+	res := models.DB.Model(&poll).Where("post_id = ? AND closed = ?", postID, false).Update("closed", true)
 	return res.Error
 }
 
@@ -150,12 +150,12 @@ func GetPollView(postID, viewerID uint) (*PollView, error) {
 	if err := closePollIfExpired(postID); err != nil {
 		return nil, err
 	}
-	var poll model.Poll
-	if err := model.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
+	var poll models.Poll
+	if err := models.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
 		return nil, err
 	}
-	var opts []model.PollOption
-	if err := model.DB.Where("post_id = ?", postID).Order("sort_order ASC, id ASC").Find(&opts).Error; err != nil {
+	var opts []models.PollOption
+	if err := models.DB.Where("post_id = ?", postID).Order("sort_order ASC, id ASC").Find(&opts).Error; err != nil {
 		return nil, err
 	}
 	total := 0
@@ -165,8 +165,8 @@ func GetPollView(postID, viewerID uint) (*PollView, error) {
 	showResults := poll.Closed
 	var myIDs []uint
 	if viewerID > 0 {
-		var votes []model.PollVote
-		model.DB.Where("post_id = ? AND user_id = ?", postID, viewerID).Find(&votes)
+		var votes []models.PollVote
+		models.DB.Where("post_id = ? AND user_id = ?", postID, viewerID).Find(&votes)
 		for _, v := range votes {
 			myIDs = append(myIDs, v.OptionID)
 		}
@@ -196,15 +196,15 @@ func VotePoll(postID, userID uint, optionIDs []uint) error {
 	if err := closePollIfExpired(postID); err != nil {
 		return err
 	}
-	var poll model.Poll
-	if err := model.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
+	var poll models.Poll
+	if err := models.DB.Where("post_id = ?", postID).First(&poll).Error; err != nil {
 		return err
 	}
 	if poll.Closed {
 		return ErrPollClosed
 	}
 	var existing int64
-	model.DB.Model(&model.PollVote{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&existing)
+	models.DB.Model(&models.PollVote{}).Where("post_id = ? AND user_id = ?", postID, userID).Count(&existing)
 	if existing > 0 {
 		return ErrPollAlreadyVoted
 	}
@@ -223,18 +223,18 @@ func VotePoll(postID, userID uint, optionIDs []uint) error {
 			return ErrPollInvalidVote
 		}
 		seen[oid] = true
-		var opt model.PollOption
-		if err := model.DB.Where("id = ? AND post_id = ?", oid, postID).First(&opt).Error; err != nil {
+		var opt models.PollOption
+		if err := models.DB.Where("id = ? AND post_id = ?", oid, postID).First(&opt).Error; err != nil {
 			return ErrPollInvalidVote
 		}
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	return models.DB.Transaction(func(tx *gorm.DB) error {
 		for _, oid := range optionIDs {
-			v := model.PollVote{PostID: postID, OptionID: oid, UserID: userID}
+			v := models.PollVote{PostID: postID, OptionID: oid, UserID: userID}
 			if err := tx.Create(&v).Error; err != nil {
 				return err
 			}
-			if err := tx.Model(&model.PollOption{}).Where("id = ?", oid).
+			if err := tx.Model(&models.PollOption{}).Where("id = ?", oid).
 				UpdateColumn("vote_count", gorm.Expr("vote_count + 1")).Error; err != nil {
 				return err
 			}
@@ -248,7 +248,7 @@ func ClosePoll(postID, userID uint, isAdmin bool, postAuthorID uint) error {
 	if !isAdmin && userID != postAuthorID {
 		return ErrPermissionDenied
 	}
-	res := model.DB.Model(&model.Poll{}).Where("post_id = ?", postID).Update("closed", true)
+	res := models.DB.Model(&models.Poll{}).Where("post_id = ?", postID).Update("closed", true)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -261,20 +261,20 @@ func ClosePoll(postID, userID uint, isAdmin bool, postAuthorID uint) error {
 // LockPollOptions 编辑时锁定选项（已发布帖不允许改选项文案）
 func LockPollOptions(postID uint) bool {
 	var n int64
-	model.DB.Model(&model.PollVote{}).Where("post_id = ?", postID).Count(&n)
+	models.DB.Model(&models.PollVote{}).Where("post_id = ?", postID).Count(&n)
 	return n > 0
 }
 
 // EnsurePollExists 检查投票帖是否有 poll 记录
 func EnsurePollExists(postID uint) bool {
 	var n int64
-	model.DB.Model(&model.Poll{}).Where("post_id = ?", postID).Count(&n)
+	models.DB.Model(&models.Poll{}).Where("post_id = ?", postID).Count(&n)
 	return n > 0
 }
 
 // DeletePollData 删帖时清理投票数据
 func DeletePollData(tx *gorm.DB, postID uint) {
-	tx.Where("post_id = ?", postID).Delete(&model.PollVote{})
-	tx.Where("post_id = ?", postID).Delete(&model.PollOption{})
-	tx.Where("post_id = ?", postID).Delete(&model.Poll{})
+	tx.Where("post_id = ?", postID).Delete(&models.PollVote{})
+	tx.Where("post_id = ?", postID).Delete(&models.PollOption{})
+	tx.Where("post_id = ?", postID).Delete(&models.Poll{})
 }

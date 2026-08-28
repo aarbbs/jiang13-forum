@@ -61,9 +61,9 @@ flowchart LR
 
 | 痛点 | 现状 | 对用户的影响 |
 |------|------|----------------|
-| 非真 SSR | 生产入口 [`embed_static`](../../embed_static/) 只注入 title / branding / Open Graph，**不渲染帖文 DOM** | 刷新先出壳再灌数据，体验不如 SSR |
-| 爬虫双轨 | [`handler/seo_bot.go`](../../handler/seo_bot.go) 对爬虫返回独立 HTML | 用户与爬虫看到的不是同一套渲染路径 |
-| 无正式 migration | Schema 靠 GORM `AutoMigrate`（[`model/db.go`](../../model/db.go)） | 升级靠「加字段」，难做破坏性迁移与审计 |
+| 非真 SSR | 生产入口（`main` 的 `embed_static`）只注入 title / branding / Open Graph，**不渲染帖文 DOM** | 刷新先出壳再灌数据，体验不如 SSR |
+| 爬虫双轨 | [`routers/api/seo_bot.go`](../../routers/api/seo_bot.go) 对爬虫返回独立 HTML | 用户与爬虫看到的不是同一套渲染路径 |
+| 无正式 migration | Schema 靠 GORM `AutoMigrate`（[`models/db.go`](../../models/db.go)） | 升级靠「加字段」，难做破坏性迁移与审计 |
 | Cookie JWT | 无 session 表，密钥在 `data/.jwt_secret` | 可保留语义，实现可换成更好的会话方案 |
 
 **新站目标**：用户首屏即可看到帖文 / 列表的服务端渲染（SSR）HTML；SEO meta 与正文同源。技术选型自定（Next.js / Nuxt / Remix / 其它均可）。
@@ -113,13 +113,13 @@ flowchart LR
 
 | 主题 | 路径 |
 |------|------|
-| 路由总表 | [`router/router.go`](../../router/router.go) |
-| GORM 模型 | [`model/models.go`](../../model/models.go) |
-| AutoMigrate | [`model/db.go`](../../model/db.go) |
-| 论坛设置键 | [`service/settings.go`](../../service/settings.go) |
-| 前端 API 客户端 | [`frontend/src/api/client.ts`](../../frontend/src/api/client.ts) |
-| 前端类型 | [`frontend/src/api/types.ts`](../../frontend/src/api/types.ts) |
-| 页面路由 | [`frontend/src/App.tsx`](../../frontend/src/App.tsx) |
+| 路由总装 | [`routers/setup.go`](../../routers/setup.go) |
+| GORM 模型 | [`models/models.go`](../../models/models.go) |
+| AutoMigrate | [`models/db.go`](../../models/db.go) |
+| 论坛设置键 | [`services/settings.go`](../../services/settings.go) |
+| SSR 页面路由 | [`routers/web/`](../../routers/web/) |
+| JSON API | [`routers/api/`](../../routers/api/) |
+| 前端 API / 页面（对照） | 仅 `main`：`frontend/src/api/`、`frontend/src/App.tsx` |
 | 产品介绍 | [`docs/introduction.md`](../introduction.md)、[`README.md`](../../README.md) |
 
 ---

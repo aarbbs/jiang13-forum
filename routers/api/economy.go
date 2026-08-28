@@ -1,4 +1,4 @@
-package handler
+﻿package api
 
 import (
 	"errors"
@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/model"
-	"git.iioio.com/freefire/jiang13-forum/service"
+	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/services"
 )
 
 // APIMePoints 余额与流水
@@ -53,7 +53,7 @@ func (h *Handlers) APIMeCheckInGet(c *gin.Context) {
 func (h *Handlers) APIMeCheckIn(c *gin.Context) {
 	st, err := h.Points.CheckIn(h.currentUserID(c))
 	if err != nil {
-		if errors.Is(err, service.ErrAlreadyCheckedIn) {
+		if errors.Is(err, services.ErrAlreadyCheckedIn) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -102,7 +102,7 @@ func (h *Handlers) APIUnlockPostBlock(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 block_key"})
 		return
 	}
-	res, err := service.UnlockPointsBlock(h.currentUserID(c), uint(id), req.BlockKey)
+	res, err := services.UnlockPointsBlock(h.currentUserID(c), uint(id), req.BlockKey)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -120,7 +120,7 @@ func (h *Handlers) APIAdminVerifyUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := service.SetVerified(uint(id), req.Verified); err != nil {
+	if err := services.SetVerified(uint(id), req.Verified); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -141,11 +141,11 @@ func (h *Handlers) APIAdminSetUserLevel(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := service.SetUserLevel(uint(id), req.Level); err != nil {
+	if err := services.SetUserLevel(uint(id), req.Level); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "等级已更新", "level": req.Level, "exp": model.ExpForLevel(req.Level)})
+	c.JSON(http.StatusOK, gin.H{"message": "等级已更新", "level": req.Level, "exp": models.ExpForLevel(req.Level)})
 }
 
 // APIAdminAdjustPoints 调积分
@@ -179,7 +179,7 @@ func (h *Handlers) APIAdminListBadges(c *gin.Context) {
 
 // APIAdminUpsertBadge 创建/更新徽章定义
 func (h *Handlers) APIAdminUpsertBadge(c *gin.Context) {
-	var def model.BadgeDef
+	var def models.BadgeDef
 	if err := c.ShouldBindJSON(&def); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
