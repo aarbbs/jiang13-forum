@@ -1,0 +1,9 @@
+{{define "admin/nav"}}
+<nav class="j13-admin-nav">
+  <a href="/admin/dashboard"{{if eq .NavActive "dashboard"}} class="is-active"{{end}}>仪表盘</a>
+  <a href="/admin/boards"{{if eq .NavActive "boards"}} class="is-active"{{end}}>板块</a>
+  <a href="/admin/moderation"{{if eq .NavActive "moderation"}} class="is-active"{{end}}>审核</a>
+  <a href="/admin/settings"{{if eq .NavActive "settings"}} class="is-active"{{end}}>设置</a>
+  <a href="/">返回前台</a>
+</nav>
+{{end}}

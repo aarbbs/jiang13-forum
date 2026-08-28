@@ -10,50 +10,46 @@
 
 ## 1. 路由表
 
-### 1.1 认证（无 MainLayout 壳或独立简洁壳）
+> **本分支（`rebuild/gitea-ssr`）**：浏览器 UI 走 `routers/web` 模板 + 表单，**不依赖**论坛 JSON `/api`。下表「SSR」列表示是否已迁。
 
-| 路径 | 页面 | 说明 |
-|------|------|------|
-| `/login` | LoginPage | |
-| `/register` | RegisterPage | 读 register/config；可能关闭 |
-| `/forgot-password` | ForgotPasswordPage | 依赖邮件 |
+### 1.1 认证
 
-### 1.2 前台（MainLayout）
+| 路径 | 说明 | SSR |
+|------|------|-----|
+| `/login` | 登录 / 登出 | 已迁 |
+| `/register` | 注册（邮件就绪时要验证码） | 已迁 |
+| `/forgot-password` | 忘记密码 | 未迁 |
 
-| 路径 | 页面 |
-|------|------|
-| `/` | HomePage（全部 Feed） |
-| `/board/:id` | HomePage（板块 Feed；id 可带伪静态后缀） |
-| `/post/:id` | PostDetailPage |
-| `/compose` | ComposePage 发帖 |
-| `/post/:id/edit` | ComposePage 编辑 |
-| `/profile` | ProfilePage（需登录） |
-| `/user/:id` | UserProfilePage |
-| `/favorites` | FavoritesPage |
-| `/projects` | ProjectsPage（Gitea 码桶） |
-| `/links` | LinksPage |
-| `/messages` | MessagesPage |
-| `/page/:slug` | SitePageView |
-| `*` | NotFoundPage |
+### 1.2 前台
 
-重定向：`/boards` → `/admin/boards`。
+| 路径 | 说明 | SSR |
+|------|------|-----|
+| `/` | Feed | 已迁 |
+| `/board/:id` | 板块 Feed | 已迁 |
+| `/post/:id` | 帖详情 + 评论/赞/藏 | 已迁 |
+| `/compose` | 发帖（normal；Markdown textarea + 图片上传） | 已迁 |
+| `/post/:id/edit` | 编辑帖 | 已迁 |
+| `/profile` | 个人中心 | pending |
+| `/user/:id` | 公开用户页 | 未注册 |
+| `/favorites` | 收藏 | pending |
+| `/projects` | Gitea 码桶 | 后置 |
+| `/links` | 友链 | pending |
+| `/messages` | 私信 | pending |
+| `/page/:slug` | 站点单页 | 未注册 |
+| `*` | 404 / pending | 已迁 |
 
-### 1.3 后台（AdminLayout，需管理员）
+### 1.3 后台（Admin SSR，表单 + CSRF，不挂管理 JSON `/api`）
 
-| 路径 | 页面 |
-|------|------|
-| `/admin` → `/admin/dashboard` | 仪表盘 |
-| `/admin/boards` | 板块管理 |
-| `/admin/pages` | 单页列表 |
-| `/admin/pages/new`、`/admin/pages/:id/edit` | 单页编辑 |
-| `/admin/links` | 友链与申请 |
-| `/admin/posts` | 帖子审核/运营 |
-| `/admin/comments` | 评论 |
-| `/admin/reports` | 举报 |
-| `/admin/users` | 用户 |
-| `/admin/badges` | 徽章定义 |
-| `/admin/media` | 媒体 |
-| `/admin/settings` | 系统设置（多 Tab） |
+| 路径 | 说明 | SSR |
+|------|------|-----|
+| `/admin` | 重定向 dashboard | 已迁 |
+| `/admin/dashboard` | 概览计数 | 已迁 |
+| `/admin/boards` | 板块 CRUD | 已迁 |
+| `/admin/moderation` | 待审帖/评 通过/拒绝 | 已迁 |
+| `/admin/settings` | 品牌 + 基础限流 + 敏感词 | 已迁 |
+| `/admin/login` | 重定向前台登录 | 已迁 |
+
+未迁（原 SPA）：reports / users / badges / media / pages / links / SMTP / 完整 Limits 等。
 
 ---
 

@@ -1,0 +1,69 @@
+{{define "post/body"}}
+<article class="j13-post">
+  <header class="j13-post__header">
+    <h1 class="j13-post__title">{{.PostTitle}}</h1>
+    <div class="j13-post__meta">
+      {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
+      {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
+      {{if .PostTypeLabel}}<span class="j13-tag">{{.PostTypeLabel}}</span>{{end}}
+      {{if .BoardName}}<a class="j13-tag" href="/board/{{.BoardID}}">{{.BoardName}}</a>{{end}}
+      <span>{{.AuthorName}}</span>
+      <span>{{.CreatedLabel}}</span>
+      <span>{{.ViewCount}} 阅读</span>
+    </div>
+    {{if .LoggedIn}}
+    <div class="j13-post__actions">
+      <form method="post" action="/post/{{.PostID}}/like" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <button type="submit">{{if .Liked}}取消赞{{else}}赞{{end}} ({{.LikeCount}})</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/favorite" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <button type="submit">{{if .Favorited}}取消收藏{{else}}收藏{{end}}</button>
+      </form>
+      {{if .CanEdit}}<a class="j13-linkbtn" href="/post/{{.PostID}}/edit">编辑</a>{{end}}
+    </div>
+    {{end}}
+  </header>
+  <div class="j13-post__content post-detail-content">{{safeHTML .BodyHTML}}</div>
+</article>
+
+<section class="j13-comments" id="comments">
+  <h2>评论 ({{.CommentCount}})</h2>
+  {{if not .Comments}}
+  <p class="j13-empty">暂无评论。</p>
+  {{else}}
+  <ul class="j13-comment-list">
+    {{range .Comments}}
+    <li class="j13-comment" id="floor-{{.Floor}}">
+      <div class="j13-comment__meta">
+        <span class="j13-comment__floor">#{{.Floor}}</span>
+        <span>{{.AuthorName}}</span>
+        <span>{{.CreatedLabel}}</span>
+      </div>
+      {{if .ContentHidden}}
+      <p class="j13-muted">（私密评论不可见）</p>
+      {{else}}
+      <div class="j13-comment__body">{{safeHTML .Content}}</div>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .LoggedIn}}
+  {{if .CommentsLocked}}
+  <p class="j13-muted">评论已锁定。</p>
+  {{else}}
+  <form class="j13-comment-form" method="post" action="/post/{{.PostID}}/comments">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label for="comment-content">发表评论</label>
+    <textarea id="comment-content" name="content" rows="4" required maxlength="8000"></textarea>
+    <button type="submit">提交</button>
+  </form>
+  {{end}}
+  {{else}}
+  <p><a href="/login?redirect={{.PostPath}}">登录</a> 后回复。</p>
+  {{end}}
+</section>
+{{end}}

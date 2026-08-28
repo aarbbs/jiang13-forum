@@ -115,7 +115,12 @@ func (f *SensitiveFilter) LoadFromFile(path string) {
 	if err != nil {
 		return
 	}
-	lines := strings.Split(string(data), "\n")
+	f.LoadFromContent(string(data))
+}
+
+// LoadFromContent 从文本内容加载敏感词（每行一词，# 注释）
+func (f *SensitiveFilter) LoadFromContent(content string) {
+	lines := strings.Split(content, "\n")
 	var words []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -123,11 +128,12 @@ func (f *SensitiveFilter) LoadFromFile(path string) {
 			words = append(words, line)
 		}
 	}
-	if len(words) > 0 {
-		f.mu.Lock()
-		f.words = words
-		f.mu.Unlock()
+	if len(words) == 0 {
+		return
 	}
+	f.mu.Lock()
+	f.words = words
+	f.mu.Unlock()
 }
 
 func (f *SensitiveFilter) Filter(text string) string {

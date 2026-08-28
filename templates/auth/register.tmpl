@@ -1,0 +1,39 @@
+{{define "auth/register"}}
+{{template "base/head" .}}
+<main class="j13-main j13-main--solo j13-auth">
+  <h1>注册</h1>
+  {{template "base/alert" .}}
+  <form method="post" action="/register" class="j13-form" id="register-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>用户名
+      <input name="username" required autocomplete="username" value="{{.Username}}" maxlength="32"/>
+    </label>
+    <label>昵称
+      <input name="nickname" autocomplete="nickname" value="{{.Nickname}}" maxlength="32" placeholder="可选，默认与用户名相同"/>
+    </label>
+    <label>邮箱
+      <input type="email" name="email" required autocomplete="email" value="{{.Email}}"/>
+    </label>
+    {{if .RequireEmailCode}}
+    <label>邮箱验证码
+      <div class="j13-form__row">
+        <input name="email_code" required inputmode="numeric" autocomplete="one-time-code" maxlength="8"/>
+        <button type="submit" formaction="/register/send-code" formnovalidate class="j13-btn-secondary">发送验证码</button>
+      </div>
+    </label>
+    <p class="j13-muted">邮件服务已启用，注册需验证邮箱。</p>
+    {{else}}
+    <p class="j13-muted">邮件服务未配置，可直接注册（管理员可稍后在后台启用 SMTP）。</p>
+    {{end}}
+    <label>密码
+      <input type="password" name="password" required autocomplete="new-password" minlength="6"/>
+    </label>
+    <label>确认密码
+      <input type="password" name="password2" required autocomplete="new-password" minlength="6"/>
+    </label>
+    <button type="submit">注册</button>
+  </form>
+  <p><a href="/login">已有账号？登录</a> · <a href="/">返回首页</a></p>
+</main>
+{{template "base/footer" .}}
+{{end}}

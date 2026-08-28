@@ -1,0 +1,20 @@
+{{define "auth/login"}}
+{{template "base/head" .}}
+<main class="j13-main j13-main--solo j13-auth">
+  <h1>登录</h1>
+  {{template "base/alert" .}}
+  <form method="post" action="/login" class="j13-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <input type="hidden" name="redirect" value="{{.Redirect}}"/>
+    <label>用户名
+      <input name="username" required autocomplete="username" value="{{.Username}}"/>
+    </label>
+    <label>密码
+      <input type="password" name="password" required autocomplete="current-password"/>
+    </label>
+    <button type="submit">登录</button>
+  </form>
+  <p><a href="/register">没有账号？注册</a> · <a href="/">返回首页</a></p>
+</main>
+{{template "base/footer" .}}
+{{end}}

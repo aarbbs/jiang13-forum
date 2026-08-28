@@ -345,6 +345,29 @@ func (s *CommentService) PendingCommentCount() (int64, error) {
 	return n, err
 }
 
+// ListPending 待审评论列表（管理端）
+func (s *CommentService) ListPending(page, size int) ([]models.Comment, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 30
+	}
+	if size > 100 {
+		size = 100
+	}
+	db := models.DB.Model(&models.Comment{}).
+		Where("status = ?", models.ContentStatusPending).
+		Preload("User").Preload("Post")
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []models.Comment
+	err := db.Order("id asc").Offset((page - 1) * size).Limit(size).Find(&list).Error
+	return list, total, err
+}
+
 func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
 	if !isAdmin {
 		return ErrPermissionDenied

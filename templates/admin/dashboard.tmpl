@@ -1,0 +1,18 @@
+{{define "admin/dashboard"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>管理后台</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+  <ul class="j13-admin-stats">
+    <li><strong>{{.UserCount}}</strong><span>用户</span></li>
+    <li><strong>{{.PostCount}}</strong><span>已发布帖</span></li>
+    <li><strong>{{.BoardCount}}</strong><span>板块</span></li>
+    <li><strong>{{.PendingPosts}}</strong><span>待审帖</span></li>
+    <li><strong>{{.PendingComments}}</strong><span>待审评</span></li>
+  </ul>
+  <p class="j13-muted">有待审内容时请前往 <a href="/admin/moderation">内容审核</a>。</p>
+</main>
+{{template "base/footer" .}}
+{{end}}

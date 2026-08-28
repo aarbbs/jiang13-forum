@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
 type BackupService struct {
@@ -17,8 +19,11 @@ func NewBackupService(dbPath, dataDir string) *BackupService {
 	return &BackupService{dbPath: dbPath, dataDir: dataDir}
 }
 
-// ExportSQLite 导出 SQLite 备份文件到 data 目录
+// ExportSQLite 导出 SQLite 备份文件到 data 目录（仅 sqlite）
 func (s *BackupService) ExportSQLite() (string, error) {
+	if models.DialectorName() != "sqlite" {
+		return "", fmt.Errorf("一键文件备份仅支持 SQLite；当前为 %s，请使用数据库自带备份工具", models.DialectorName())
+	}
 	src, err := os.Open(s.dbPath)
 	if err != nil {
 		return "", fmt.Errorf("打开数据库失败: %w", err)
@@ -37,16 +42,4 @@ func (s *BackupService) ExportSQLite() (string, error) {
 		return "", err
 	}
 	return destPath, nil
-}
-
-// WriteDefaultFilterWords 写入默认敏感词配置
-func WriteDefaultFilterWords(path string) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	content := `# 姜十三论坛敏感词配置，每行一个词，# 开头为注释
-违禁词示例
-广告刷单
-`
-	return os.WriteFile(path, []byte(content), 0644)
 }

@@ -1,0 +1,37 @@
+{{define "install"}}
+{{template "base/head" .}}
+<main class="j13-main j13-main--solo j13-install">
+  <h1>安装姜十三论坛</h1>
+  <p class="j13-muted">首次运行配置站点与管理员账号。</p>
+  {{template "base/alert" .}}
+  <form method="post" action="/install" class="j13-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <fieldset>
+      <legend>站点</legend>
+      <label>站点名称
+        <input name="site_name" required value="{{.SiteName}}" maxlength="64"/>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>管理员</legend>
+      <label>用户名
+        <input name="admin_username" required autocomplete="username" value="{{.AdminUsername}}" pattern="[a-zA-Z0-9_]{3,32}"/>
+      </label>
+      <label>邮箱
+        <input type="email" name="admin_email" required autocomplete="email" value="{{.AdminEmail}}"/>
+      </label>
+      <label>昵称
+        <input name="admin_nickname" value="{{.AdminNickname}}" maxlength="32"/>
+      </label>
+      <label>密码
+        <input type="password" name="admin_password" required autocomplete="new-password" minlength="6"/>
+      </label>
+      <label>确认密码
+        <input type="password" name="admin_password2" required autocomplete="new-password" minlength="6"/>
+      </label>
+    </fieldset>
+    <button type="submit">安装</button>
+  </form>
+</main>
+{{template "base/footer" .}}
+{{end}}

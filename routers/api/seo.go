@@ -1,30 +1,15 @@
 ﻿package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"html"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"git.iioio.com/freefire/jiang13-forum/modules/seo"
-	"git.iioio.com/freefire/jiang13-forum/models"
 	"git.iioio.com/freefire/jiang13-forum/services"
+	"github.com/gin-gonic/gin"
 )
 
-var (
-	seoPostEditRe = regexp.MustCompile(`^/post/(\d+)/edit/?$`)
-)
-
-const (
-	seoDescMax      = 160
-	seoPrerenderMax = 4000
-	seoSitemapLimit = 5000
-)
+const seoSitemapLimit = 5000
 
 // RobotsTxt 搜索引擎抓取规则
 func (h *Handlers) RobotsTxt(c *gin.Context) {
@@ -34,14 +19,10 @@ func (h *Handlers) RobotsTxt(c *gin.Context) {
 	b.WriteString("Allow: /\n")
 	b.WriteString("Disallow: /api/\n")
 	b.WriteString("Disallow: /admin\n")
-	b.WriteString("Disallow: /compose\n")
+	b.WriteString("Disallow: /install\n")
 	b.WriteString("Disallow: /login\n")
-	b.WriteString("Disallow: /register\n")
-	b.WriteString("Disallow: /profile\n")
-	b.WriteString("Disallow: /favorites\n")
+	b.WriteString("Disallow: /compose\n")
 	b.WriteString("Disallow: /oauth/\n")
-	b.WriteString("Disallow: /media/\n")
-	b.WriteString("Disallow: /*/edit\n")
 	if base != "" {
 		b.WriteString("\nSitemap: ")
 		b.WriteString(base)
@@ -50,7 +31,7 @@ func (h *Handlers) RobotsTxt(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(b.String()))
 }
 
-// SitemapXML 公开页面站点地图
+// SitemapXML 公开页面站点地图（与 SSR 同源路径）
 func (h *Handlers) SitemapXML(c *gin.Context) {
 	base := h.publicBaseURL(c)
 	if base == "" {
@@ -62,8 +43,6 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 	permalink := h.Settings.Permalink()
 	urls := []services.SitemapURL{
 		{Loc: base + "/", LastMod: now, ChangeFreq: "hourly", Priority: "1.0"},
-		{Loc: base + "/projects", LastMod: now, ChangeFreq: "daily", Priority: "0.6"},
-		{Loc: base + "/links", LastMod: now, ChangeFreq: "weekly", Priority: "0.6"},
 	}
 
 	if boards, err := h.Board.List(); err == nil {
@@ -92,38 +71,11 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 		}
 	}
 
-	if users, e2 := h.User.ListSitemap(seoSitemapLimit); e2 == nil {
-		for _, u := range users {
-			urls = append(urls, services.SitemapURL{
-				Loc:        base + permalink.UserPath(u.ID),
-				LastMod:    u.UpdatedAt.UTC(),
-				ChangeFreq: "weekly",
-				Priority:   "0.5",
-			})
-		}
-	}
-
-	if pages, e3 := h.SitePage.ListSitemap(seoSitemapLimit); e3 == nil {
-		for _, p := range pages {
-			lm := p.UpdatedAt
-			if lm.IsZero() {
-				lm = p.CreatedAt
-			}
-			urls = append(urls, services.SitemapURL{
-				Loc:        base + permalink.PagePath(p.Slug),
-				LastMod:    lm.UTC(),
-				ChangeFreq: "monthly",
-				Priority:   "0.5",
-			})
-		}
-	}
-
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
 	for _, u := range urls {
-		b.WriteString("<url>")
-		b.WriteString("<loc>")
+		b.WriteString("<url><loc>")
 		b.WriteString(xmlEscape(u.Loc))
 		b.WriteString("</loc>")
 		if !u.LastMod.IsZero() {
@@ -145,382 +97,6 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 	}
 	b.WriteString("</urlset>")
 	c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(b.String()))
-}
-
-// ServePublicSPA 公开页入口：
-// - 普通用户：干净 SPA + <head> meta（无正文预渲染，避免刷新闪屏）
-// - 搜索/社交爬虫：服务端 HTML（动态渲染）
-// - 伪静态：按后台配置的后缀做规范 URL，非规范路径 301
-func (h *Handlers) ServePublicSPA(c *gin.Context) {
-	path := c.Request.URL.Path
-
-	brand := h.Settings.SiteBranding()
-	base := h.publicBaseURL(c)
-	siteName := strings.TrimSpace(brand.Name)
-	if siteName == "" {
-		siteName = "姜十三论坛"
-	}
-	defaultImage := services.AbsoluteURL(base, brand.DefaultShareImage())
-	siteKeywords := brand.MetaKeywords()
-	permalink := h.Settings.Permalink()
-
-	// 旧版 /?board=id → 规范板块路径
-	if path == "/" || path == "" {
-		if boardID, err := strconv.ParseUint(c.Query("board"), 10, 64); err == nil && boardID > 0 {
-			target := services.QueryBoardHome(uint(boardID), permalink)
-			if q := c.Request.URL.RawQuery; q != "" {
-				// 保留 sort/keyword 等 query，去掉 board
-				vals := c.Request.URL.Query()
-				vals.Del("board")
-				if rest := vals.Encode(); rest != "" {
-					target += "?" + rest
-				}
-			}
-			c.Redirect(http.StatusMovedPermanently, target)
-			return
-		}
-	}
-
-	isBot := services.IsSEOCrawler(c.Request.UserAgent())
-	if isBot {
-		c.Header("Vary", "User-Agent")
-	}
-
-	// 板块首页（含可选伪静态后缀）
-	if bm := permalink.MatchBoardPath(path); bm.OK {
-		if bm.NeedsCanonicalRedirect(path) {
-			c.Redirect(http.StatusMovedPermanently, bm.Canonical+preserveQueryExceptBoard(c))
-			return
-		}
-		board, err := h.Board.GetByID(bm.ID)
-		if err != nil {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-			return
-		}
-		desc := strings.TrimSpace(board.Description)
-		if desc == "" {
-			desc = brand.MetaDescription()
-		}
-		meta := attachSiteSEO(&seo.PageMeta{
-			Title:       pageTitle(board.Name, siteName),
-			Description: services.TruncateRunes(desc, seoDescMax),
-			Keywords:    services.JoinSEOKeywords(board.Name, siteKeywords),
-			Canonical:   services.AbsoluteURL(base, bm.Canonical),
-			OGType:      "website",
-			OGImage:     defaultImage,
-		}, siteName, siteKeywords)
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botBoardHTML(meta, *board)))
-			return
-		}
-		servePendingSSR(c, meta.Title, `<p>板块页 SSR 迁移中，请先从 <a href="/">首页</a> 浏览。</p>`)
-		return
-	}
-
-	// 帖子详情（含可选伪静态后缀）
-	if pm := permalink.MatchPostPath(path); pm.OK {
-		if pm.NeedsCanonicalRedirect(path) {
-			c.Redirect(http.StatusMovedPermanently, pm.Canonical)
-			return
-		}
-		post, err := h.Post.FindByID(pm.ID)
-		if err != nil || !services.CanViewPost(post, h.currentUserID(c), h.isAdmin(c)) {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-			return
-		}
-		postKeywords := services.JoinSEOKeywords(post.Board.Name, siteKeywords)
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botPostHTML(base, siteName, defaultImage, postKeywords, post)))
-			return
-		}
-		servePendingSSR(c, pageTitle(post.Title, siteName), `<p>帖子详情 SSR 迁移中，请先从 <a href="/">首页</a> 返回。</p>`)
-		return
-	}
-
-	// 用户主页
-	if um := permalink.MatchUserPath(path); um.OK {
-		if um.NeedsCanonicalRedirect(path) {
-			c.Redirect(http.StatusMovedPermanently, um.Canonical)
-			return
-		}
-		user, err := h.User.GetByID(um.ID)
-		if err != nil || user.Banned {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-			return
-		}
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botUserHTML(base, siteName, defaultImage, siteKeywords, user)))
-			return
-		}
-		servePendingSSR(c, pageTitle(user.Nickname, siteName), `<p>用户主页 SSR 迁移中，请先从 <a href="/">首页</a> 返回。</p>`)
-		return
-	}
-
-	// 自定义单页
-	if pg := permalink.MatchPagePath(path); pg.OK {
-		if strings.TrimSuffix(path, "/") != strings.TrimSuffix(pg.Canonical, "/") {
-			c.Redirect(http.StatusMovedPermanently, pg.Canonical)
-			return
-		}
-		page, err := h.SitePage.GetBySlug(pg.Slug, h.isAdmin(c))
-		if err != nil {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-			return
-		}
-		desc := services.ExcerptFromHTML(page.Content, seoDescMax)
-		meta := attachSiteSEO(&seo.PageMeta{
-			Title:       pageTitle(page.Title, siteName),
-			Description: desc,
-			Keywords:    services.JoinSEOKeywords(page.Title, siteKeywords),
-			Canonical:   services.AbsoluteURL(base, pg.Canonical),
-			OGType:      "article",
-			OGImage:     defaultImage,
-		}, siteName, siteKeywords)
-		if isBot {
-			body := fmt.Sprintf(`<h1>%s</h1><div>%s</div>`, html.EscapeString(page.Title), page.Content)
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(renderBotHTML(meta, body)))
-			return
-		}
-		servePendingSSR(c, meta.Title, page.Content)
-		return
-	}
-
-	// 未知路径 → 404
-	if !isKnownPublicPath(path) {
-		h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-		return
-	}
-
-	// 其余已知路由：爬虫可读首页；用户走占位页（首页本身已由 routers/web SSR）
-	meta := h.buildSPAPageMeta(c, path, brand, base, siteName, defaultImage)
-	if isBot && (path == "/" || path == "") {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botHomeHTML(meta, brand)))
-		return
-	}
-	servePendingSSR(c, meta.Title, `<p>该页面 SSR 迁移中。<a href="/">返回首页</a></p>`)
-}
-
-func servePendingSSR(c *gin.Context, title, bodyHTML string) {
-	if strings.TrimSpace(title) == "" {
-		title = "姜十三论坛"
-	}
-	page := fmt.Sprintf(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>%s</title><link rel="stylesheet" href="/ssr-assets/site.css"/></head><body class="j13-body"><main class="j13-main" style="max-width:800px;margin:2rem auto;padding:1rem">%s</main></body></html>`,
-		html.EscapeString(title), bodyHTML)
-	c.Header("Cache-Control", "no-cache")
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
-}
-
-func (h *Handlers) serveNotFound(c *gin.Context, base, siteName, keywords, path string, isBot bool) {
-	if isBot {
-		c.Header("Vary", "User-Agent")
-		c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(botNotFoundHTML(base, siteName, keywords, path)))
-		return
-	}
-	page := fmt.Sprintf(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/><title>%s</title></head><body><h1>404</h1><p>页面不存在。</p><p><a href="/">返回首页</a></p></body></html>`,
-		html.EscapeString(pageTitle("页面不存在", siteName)))
-	c.Header("Cache-Control", "no-cache")
-	c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(page))
-}
-
-func notFoundPageMeta(base, siteName, keywords, path string) *seo.PageMeta {
-	return attachSiteSEO(&seo.PageMeta{
-		Title:       pageTitle("页面不存在", siteName),
-		Description: "您访问的页面不存在或已删除",
-		Canonical:   services.AbsoluteURL(base, path),
-		OGType:      "website",
-		Robots:      "noindex,follow",
-		Status:      http.StatusNotFound,
-	}, siteName, keywords)
-}
-
-// attachSiteSEO 填充站点级 keywords / og:site_name / og:locale
-func attachSiteSEO(meta *seo.PageMeta, siteName, keywords string) *seo.PageMeta {
-	if meta == nil {
-		return nil
-	}
-	meta.SiteName = strings.TrimSpace(siteName)
-	if strings.TrimSpace(meta.Keywords) == "" {
-		meta.Keywords = strings.TrimSpace(keywords)
-	}
-	meta.Locale = "zh_CN"
-	return meta
-}
-
-func isKnownPublicPath(path string) bool {
-	switch path {
-	case "/", "/login", "/register", "/compose", "/profile", "/favorites", "/projects", "/links", "/boards":
-		return true
-	}
-	if seoPostEditRe.MatchString(path) {
-		return true
-	}
-	permalink := services.PermalinkConfig{}
-	if permalink.MatchBoardPath(path).OK {
-		return true
-	}
-	if permalink.MatchPagePath(path).OK {
-		return true
-	}
-	return false
-}
-
-func (h *Handlers) buildSPAPageMeta(c *gin.Context, path string, brand services.SiteBranding, base, siteName, defaultImage string) *seo.PageMeta {
-	siteTitle := brand.DocumentTitle()
-	homeDesc := services.TruncateRunes(brand.MetaDescription(), seoDescMax)
-	siteKeywords := brand.MetaKeywords()
-	meta := attachSiteSEO(&seo.PageMeta{
-		Title:       siteTitle,
-		Description: homeDesc,
-		Keywords:    siteKeywords,
-		Canonical:   services.AbsoluteURL(base, pathWithQuery(c)),
-		OGType:      "website",
-		OGImage:     defaultImage,
-	}, siteName, siteKeywords)
-
-	if isNoIndexPath(path) {
-		meta.Robots = "noindex,nofollow"
-		meta.Title = pageTitle(pathLabel(path), siteName)
-		return meta
-	}
-
-	if path == "/" || path == "" {
-		boardID, _ := strconv.ParseUint(c.Query("board"), 10, 64)
-		if boardID > 0 {
-			if board, err := h.Board.GetByID(uint(boardID)); err == nil {
-				desc := strings.TrimSpace(board.Description)
-				if desc == "" {
-					desc = brand.MetaDescription()
-				}
-				meta.Title = pageTitle(board.Name, siteName)
-				meta.Description = services.TruncateRunes(desc, seoDescMax)
-				meta.Canonical = services.AbsoluteURL(base, services.QueryBoardHome(board.ID, h.Settings.Permalink()))
-				meta.Keywords = services.JoinSEOKeywords(board.Name, siteKeywords)
-				return meta
-			}
-			// 无效板块 id：仍显示首页，但可标记 noindex
-			meta.Robots = "noindex,follow"
-			return meta
-		}
-		meta.JSONLD = mustJSON(map[string]any{
-			"@context":    "https://schema.org",
-			"@type":       "WebSite",
-			"name":        siteName,
-			"description": meta.Description,
-			"url":         services.AbsoluteURL(base, "/"),
-		})
-	}
-
-	if path == "/projects" {
-		meta.Title = pageTitle("项目", siteName)
-		meta.Description = services.TruncateRunes(siteName+" 的公开项目列表", seoDescMax)
-		meta.Keywords = services.JoinSEOKeywords("项目", siteKeywords)
-	}
-
-	if path == "/links" {
-		meta.Title = pageTitle("友情链接", siteName)
-		meta.Description = services.TruncateRunes(siteName+" 的友情链接与申请入口", seoDescMax)
-		meta.Keywords = services.JoinSEOKeywords("友情链接", siteKeywords)
-	}
-
-	return meta
-}
-
-func (h *Handlers) postPageMeta(base, siteName, defaultImage string, post *models.Post) *seo.PageMeta {
-	permalink := h.Settings.Permalink()
-	content := services.RedactGatedPostHTML(post.Content)
-	plain := post.ContentPlain
-	if plain == "" {
-		plain = services.StripHTMLForSearch(content)
-	}
-	desc := services.TruncateRunes(plain, seoDescMax)
-	author := services.DisplayName(&post.User)
-	canonical := services.AbsoluteURL(base, permalink.PostPath(post.ID))
-	ogImage := services.AbsoluteURL(base, services.FirstImageURL(content))
-	if ogImage == "" {
-		ogImage = services.AbsoluteURL(base, post.User.Avatar)
-	}
-	if ogImage == "" {
-		ogImage = defaultImage
-	}
-
-	jsonld := map[string]any{
-		"@context":         "https://schema.org",
-		"@type":            "DiscussionForumPosting",
-		"headline":         post.Title,
-		"description":      desc,
-		"datePublished":    post.CreatedAt.UTC().Format(time.RFC3339),
-		"dateModified":     post.UpdatedAt.UTC().Format(time.RFC3339),
-		"url":              canonical,
-		"mainEntityOfPage": canonical,
-		"author": map[string]any{
-			"@type": "Person",
-			"name":  author,
-			"url":   services.AbsoluteURL(base, permalink.UserPath(post.UserID)),
-		},
-		"interactionStatistic": map[string]any{
-			"@type":                "InteractionCounter",
-			"interactionType":      "https://schema.org/ViewAction",
-			"userInteractionCount": post.ViewCount,
-		},
-	}
-	if post.Board.Name != "" {
-		jsonld["articleSection"] = post.Board.Name
-	}
-	if ogImage != "" {
-		jsonld["image"] = []string{ogImage}
-	}
-	body := services.TruncateRunes(plain, seoPrerenderMax)
-	if body != "" {
-		jsonld["articleBody"] = body
-	}
-
-	return &seo.PageMeta{
-		Title:       pageTitle(post.Title, siteName),
-		Description: desc,
-		Canonical:   canonical,
-		OGType:      "article",
-		OGImage:     ogImage,
-		JSONLD:      mustJSON(jsonld),
-	}
-}
-
-func (h *Handlers) userPageMeta(base, siteName, defaultImage string, user *models.User) *seo.PageMeta {
-	permalink := h.Settings.Permalink()
-	name := services.DisplayName(user)
-	desc := strings.TrimSpace(user.Signature)
-	if desc == "" {
-		desc = name + " 的主页"
-	}
-	desc = services.TruncateRunes(desc, seoDescMax)
-	canonical := services.AbsoluteURL(base, permalink.UserPath(user.ID))
-	ogImage := services.AbsoluteURL(base, user.Avatar)
-	if ogImage == "" {
-		ogImage = defaultImage
-	}
-
-	jsonld := map[string]any{
-		"@context": "https://schema.org",
-		"@type":    "ProfilePage",
-		"url":      canonical,
-		"mainEntity": map[string]any{
-			"@type":       "Person",
-			"name":        name,
-			"description": desc,
-			"url":         canonical,
-		},
-	}
-	if ogImage != "" {
-		jsonld["mainEntity"].(map[string]any)["image"] = ogImage
-	}
-
-	return &seo.PageMeta{
-		Title:       pageTitle(name+" 的主页", siteName),
-		Description: desc,
-		Canonical:   canonical,
-		OGType:      "profile",
-		OGImage:     ogImage,
-		JSONLD:      mustJSON(jsonld),
-	}
 }
 
 func (h *Handlers) publicBaseURL(c *gin.Context) string {
@@ -546,105 +122,11 @@ func requestOrigin(c *gin.Context) string {
 	return proto + "://" + host
 }
 
-func pathWithQuery(c *gin.Context) string {
-	path := c.Request.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	permalink := services.PermalinkConfig{} // 由调用方在 buildSPAPageMeta 中单独处理 board
-	if q := c.Request.URL.RawQuery; q != "" {
-		if path == "/" {
-			board := c.Query("board")
-			if board != "" {
-				_ = permalink
-				return services.LegacyQueryBoardHome(uint(parseUintOrZero(board)))
-			}
-			return "/"
-		}
-		return path + "?" + q
-	}
-	return path
-}
-
-func preserveQueryExceptBoard(c *gin.Context) string {
-	vals := c.Request.URL.Query()
-	vals.Del("board")
-	if rest := vals.Encode(); rest != "" {
-		return "?" + rest
-	}
-	return ""
-}
-
-func parseUintOrZero(s string) uint64 {
-	n, _ := strconv.ParseUint(s, 10, 64)
-	return n
-}
-
-func isNoIndexPath(path string) bool {
-	switch {
-	case path == "/login", path == "/register", path == "/compose",
-		path == "/profile", path == "/favorites":
-		return true
-	case strings.HasPrefix(path, "/admin"):
-		return true
-	case strings.HasSuffix(path, "/edit"):
-		return true
-	default:
-		return false
-	}
-}
-
-func pathLabel(path string) string {
-	switch {
-	case path == "/login":
-		return "登录"
-	case path == "/register":
-		return "注册"
-	case path == "/compose":
-		return "发帖"
-	case path == "/profile":
-		return "个人中心"
-	case path == "/favorites":
-		return "我的收藏"
-	case strings.HasSuffix(path, "/edit"):
-		return "编辑帖子"
-	case strings.HasPrefix(path, "/admin"):
-		return "管理后台"
-	default:
-		return ""
-	}
-}
-
-func pageTitle(page, siteName string) string {
-	page = strings.TrimSpace(page)
-	siteName = strings.TrimSpace(siteName)
-	switch {
-	case page == "" && siteName == "":
-		return "姜十三论坛"
-	case page == "":
-		return siteName
-	case siteName == "":
-		return page
-	default:
-		return page + " - " + siteName
-	}
-}
-
-func mustJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return string(b)
-}
-
 func xmlEscape(s string) string {
-	r := strings.NewReplacer(
-		`&`, "&amp;",
-		`<`, "&lt;",
-		`>`, "&gt;",
-		`"`, "&quot;",
-		`'`, "&apos;",
-	)
-	return r.Replace(s)
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&apos;")
+	return s
 }

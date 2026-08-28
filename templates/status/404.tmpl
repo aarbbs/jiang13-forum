@@ -1,0 +1,21 @@
+{{define "status/404"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-main--solo">
+  <h1>页面不存在</h1>
+  <p>您访问的页面不存在或已删除。</p>
+  <p><a href="/">返回首页</a></p>
+</main>
+{{template "base/footer" .}}
+{{end}}
+
+{{define "status/pending"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-main--solo">
+  <h1>{{.Heading}}</h1>
+  <p>{{.Message}}</p>
+  <p><a href="/">返回首页</a></p>
+</main>
+{{template "base/footer" .}}
+{{end}}

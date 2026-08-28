@@ -1,0 +1,47 @@
+{{define "admin/boards"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>板块管理</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <h2>新建板块</h2>
+  <form method="post" action="/admin/boards" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>名称 <input name="name" required value="{{.Form.Name}}"/></label>
+    <label>简介 <input name="description" value="{{.Form.Description}}"/></label>
+    <label>图标（可选） <input name="icon" value="{{.Form.Icon}}"/></label>
+    <label>色号 <input name="color_index" type="number" value="{{.Form.ColorIndex}}"/></label>
+    <label>排序 <input name="sort_order" type="number" value="{{.Form.SortOrder}}"/></label>
+    <button type="submit">创建</button>
+  </form>
+
+  <h2>已有板块</h2>
+  {{if .Boards}}
+  <ul class="j13-admin-list">
+    {{range .Boards}}
+    <li class="j13-admin-card">
+      <form method="post" action="/admin/boards/{{.ID}}" class="j13-form j13-admin-form">
+        <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+        <label>名称 <input name="name" required value="{{.Name}}"/></label>
+        <label>简介 <input name="description" value="{{.Description}}"/></label>
+        <label>图标 <input name="icon" value="{{.Icon}}"/></label>
+        <label>色号 <input name="color_index" type="number" value="{{.ColorIndex}}"/></label>
+        <label>排序 <input name="sort_order" type="number" value="{{.SortOrder}}"/></label>
+        <p class="j13-muted">已发布帖 {{.PostCount}}</p>
+        <button type="submit">保存</button>
+      </form>
+      <form method="post" action="/admin/boards/{{.ID}}/delete" class="j13-inline-form" onsubmit="return confirm('确认删除该板块？');">
+        <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+        <button type="submit" class="j13-linkbtn">删除</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">暂无板块</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

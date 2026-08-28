@@ -1,6 +1,4 @@
-{{define "home"}}{{template "base" .}}{{end}}
-
-{{define "content"}}
+{{define "home/feed"}}
 <section class="j13-feed">
   <header class="j13-feed__header">
     <h1 class="j13-feed__title">{{if .BoardName}}{{.BoardName}}{{else}}全部帖子{{end}}</h1>
@@ -10,14 +8,13 @@
       <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{sortURL .ActiveBoard "hot"}}">热门讨论</a>
     </div>
   </header>
-
   {{if not .Posts}}
-  <p class="j13-empty">暂无帖子。登录后可以发第一帖。</p>
+  <p class="j13-empty">暂无帖子。</p>
   {{else}}
   <ul class="j13-post-list">
     {{range .Posts}}
     <li class="j13-post-item">
-      <a class="j13-post-item__title" href="/post/{{.ID}}">{{.Title}}</a>
+      <a class="j13-post-item__title" href="{{postURL .ID}}">{{.Title}}</a>
       <div class="j13-post-item__meta">
         {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
         {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
@@ -30,7 +27,6 @@
     {{end}}
   </ul>
   {{end}}
-
   {{if or .HasPrev .HasMore}}
   <nav class="j13-pager">
     {{if .HasPrev}}<a href="{{pageURL .ActiveBoard .Sort .PrevPage}}">上一页</a>{{end}}

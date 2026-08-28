@@ -1,0 +1,60 @@
+{{define "admin/moderation"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>内容审核</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <h2>待审帖子（{{len .Posts}}）</h2>
+  {{if .Posts}}
+  <ul class="j13-admin-list">
+    {{range .Posts}}
+    <li class="j13-admin-card">
+      <p><a href="/post/{{.ID}}">{{.Title}}</a></p>
+      <p class="j13-muted">{{.AuthorName}} · {{.BoardName}} · {{.CreatedAt}}</p>
+      <div class="j13-admin-actions">
+        <form method="post" action="/admin/posts/{{.ID}}/approve" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <button type="submit">通过</button>
+        </form>
+        <form method="post" action="/admin/posts/{{.ID}}/reject" class="j13-form j13-admin-reject">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <input name="reason" required placeholder="拒绝原因" />
+          <button type="submit" class="j13-btn-secondary">拒绝</button>
+        </form>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">无待审帖子</p>
+  {{end}}
+
+  <h2>待审评论（{{len .Comments}}）</h2>
+  {{if .Comments}}
+  <ul class="j13-admin-list">
+    {{range .Comments}}
+    <li class="j13-admin-card">
+      <p class="j13-muted">#{{.Floor}} · {{.AuthorName}} · {{.CreatedAt}} · <a href="/post/{{.PostID}}">{{.PostTitle}}</a></p>
+      <p>{{.Excerpt}}</p>
+      <div class="j13-admin-actions">
+        <form method="post" action="/admin/comments/{{.ID}}/approve" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <button type="submit">通过</button>
+        </form>
+        <form method="post" action="/admin/comments/{{.ID}}/reject" class="j13-form j13-admin-reject">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <input name="reason" required placeholder="拒绝原因" />
+          <button type="submit" class="j13-btn-secondary">拒绝</button>
+        </form>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">无待审评论</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

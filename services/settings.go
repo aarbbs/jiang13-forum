@@ -11,6 +11,9 @@ import (
 	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
+// ForumSettingsService 读写 forum_settings：全部为运行时热更新（改后无需重启进程）。
+// 需重启的项仅在 CLI/Env（端口、DATA、DB_*）与 data 下密钥文件，见 docs/rebuild-spec/07-config-ops.md。
+
 // 论坛设置键名
 const (
 	SettingPostEditWindowHours      = "post_edit_window_hours"
@@ -64,6 +67,7 @@ const (
 	SettingOIDCAdminGroup = "oidc_admin_group"
 	SettingOIDCUserGroup  = "oidc_user_group"
 
+	// Gitea 同步键保留兼容，产品能力已后置（见 02-features.md §K）
 	SettingGiteaSyncEnabled     = "gitea_sync_enabled"
 	SettingGiteaBaseURL         = "gitea_base_url"
 	SettingGiteaToken           = "gitea_token"
@@ -92,6 +96,10 @@ const (
 	SettingSiteICPBeianURL           = "site_icp_beian_url"
 	SettingSiteFriendLinks           = "site_friend_links"
 	SettingFriendLinkReciprocalCheck = "friend_link_reciprocal_check"
+
+	SettingFilterWords = "filter_words"
+
+	SettingOIDCRSAPrivatePEM = "oidc_rsa_private_pem"
 
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
@@ -403,63 +411,63 @@ func NewForumSettingsService() *ForumSettingsService {
 func (s *ForumSettingsService) ensureDefaults() {
 	for _, def := range forumSettingDefs {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", def.key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: def.key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: def.key, Value: def.defaultVal})
 		}
 	}
 	for key, val := range feedSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range asideSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range mailSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range oidcSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range giteaSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range storageSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range siteBrandingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
 	}
 	for key, val := range friendLinkSettingDefaults {
 		var count int64
-		models.DB.Model(&models.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		models.DB.Model(&models.ForumSetting{}).Where(&models.ForumSetting{Key: key}).Count(&count)
 		if count == 0 {
 			models.DB.Create(&models.ForumSetting{Key: key, Value: val})
 		}
@@ -468,7 +476,7 @@ func (s *ForumSettingsService) ensureDefaults() {
 
 func (s *ForumSettingsService) getString(key, fallback string) string {
 	var setting models.ForumSetting
-	if err := models.DB.First(&setting, "`key` = ?", key).Error; err != nil {
+	if err := models.DB.First(&setting, &models.ForumSetting{Key: key}).Error; err != nil {
 		return fallback
 	}
 	return setting.Value
@@ -482,7 +490,7 @@ func (s *ForumSettingsService) setString(key, value string) error {
 
 func (s *ForumSettingsService) getInt(key string, fallback int) int {
 	var setting models.ForumSetting
-	if err := models.DB.First(&setting, "`key` = ?", key).Error; err != nil {
+	if err := models.DB.First(&setting, &models.ForumSetting{Key: key}).Error; err != nil {
 		return fallback
 	}
 	v, err := strconv.Atoi(setting.Value)
@@ -587,6 +595,23 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		PermalinkEnabled: limits.PermalinkEnabled,
 		PermalinkExt:     limits.PermalinkExt,
 	}
+}
+
+// UpdateRateLimits 仅更新基础限流（Admin SSR 子集，不影响其它 limits）
+func (s *ForumSettingsService) UpdateRateLimits(post, comment, register, login, windowSec int) error {
+	updates := map[string]int{
+		SettingRateLimitPost:     post,
+		SettingRateLimitComment:  comment,
+		SettingRateLimitRegister: register,
+		SettingRateLimitLogin:    login,
+		SettingRateLimitWindow:   windowSec,
+	}
+	for key, val := range updates {
+		if err := s.setInt(key, val); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {

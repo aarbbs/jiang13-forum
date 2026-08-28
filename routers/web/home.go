@@ -7,27 +7,74 @@ import (
 	"time"
 
 	"git.iioio.com/freefire/jiang13-forum/modules/auth"
-	"git.iioio.com/freefire/jiang13-forum/models"
-	"git.iioio.com/freefire/jiang13-forum/modules/webrender"
 	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
 
-// Deps 页面路由依赖（复用现有 service，避免 Phase 1 大搬家）
-type Deps struct {
-	Settings *services.ForumSettingsService
-	Board    *services.BoardService
-	Post     *services.PostService
+// Register 注册已安装后的 web 路由
+func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
+	g := r.Group("/", authMW.OptionalAuth())
+	g.GET("/", deps.Home)
+	g.GET("/board/:id", deps.Home)
+	g.GET("/post/:id", deps.PostView)
+	g.GET("/post/:id/edit", authMW.RequireAuth(), deps.PostEditGet)
+	g.POST("/post/:id/edit", authMW.RequireAuth(), deps.PostEditPost)
+	g.POST("/post/:id/comments", authMW.RequireAuth(), deps.PostComment)
+	g.POST("/post/:id/like", authMW.RequireAuth(), deps.PostLike)
+	g.POST("/post/:id/favorite", authMW.RequireAuth(), deps.PostFavorite)
+	g.GET("/login", deps.LoginGet)
+	g.POST("/login", deps.LoginPost)
+	g.POST("/logout", deps.LogoutPost)
+	g.GET("/register", deps.RegisterGet)
+	g.POST("/register", deps.RegisterPost)
+	g.POST("/register/send-code", deps.RegisterSendCode)
+	g.GET("/compose", authMW.RequireAuth(), deps.ComposeGet)
+	g.POST("/compose", authMW.RequireAuth(), deps.ComposePost)
+	g.POST("/compose/upload", authMW.RequireAuth(), deps.ComposeUpload)
+	g.GET("/admin/login", func(c *gin.Context) { c.Redirect(http.StatusFound, "/login?redirect=/admin/dashboard") })
+
+	admin := g.Group("/admin", authMW.RequireAuth(), authMW.RequireAdmin())
+	{
+		admin.GET("", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
+		admin.GET("/dashboard", deps.AdminDashboard)
+		admin.GET("/boards", deps.AdminBoardsGet)
+		admin.POST("/boards", deps.AdminBoardCreate)
+		admin.POST("/boards/:id", deps.AdminBoardUpdate)
+		admin.POST("/boards/:id/delete", deps.AdminBoardDelete)
+		admin.GET("/moderation", deps.AdminModerationGet)
+		admin.POST("/posts/:id/approve", deps.AdminPostApprove)
+		admin.POST("/posts/:id/reject", deps.AdminPostReject)
+		admin.POST("/comments/:id/approve", deps.AdminCommentApprove)
+		admin.POST("/comments/:id/reject", deps.AdminCommentReject)
+		admin.GET("/settings", deps.AdminSettingsGet)
+		admin.POST("/settings/brand", deps.AdminSettingsBrandPost)
+		admin.POST("/settings/limits", deps.AdminSettingsLimitsPost)
+		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
+	}
+
+	g.GET("/profile", deps.PendingPage)
+	g.GET("/messages", deps.PendingPage)
+	g.GET("/favorites", deps.PendingPage)
+	g.GET("/projects", deps.PendingPage)
+	g.GET("/links", deps.PendingPage)
+	g.GET("/boards", deps.PendingPage)
 }
 
-// BoardView 侧栏板块
-type BoardView struct {
-	ID   uint
-	Name string
+// HomePageData Feed
+type HomePageData struct {
+	PageChrome
+	BoardName string
+	Sort      string
+	Posts     []PostListItem
+	Page      int
+	PrevPage  int
+	NextPage  int
+	HasPrev   bool
+	HasMore   bool
 }
 
-// PostView 列表项
-type PostView struct {
+// PostListItem 列表项
+type PostListItem struct {
 	ID           uint
 	Title        string
 	AuthorName   string
@@ -38,39 +85,10 @@ type PostView struct {
 	CreatedLabel string
 }
 
-// HomePageData 首页 / 板块 Feed
-type HomePageData struct {
-	Title       string
-	Description string
-	SiteName    string
-	Slogan      string
-	LogoMark    string
-	LoggedIn    bool
-	IsAdmin     bool
-	ViewerName  string
-	Boards      []BoardView
-	ActiveBoard uint
-	BoardName   string
-	Sort        string
-	Posts       []PostView
-	Page        int
-	PrevPage    int
-	NextPage    int
-	HasPrev     bool
-	HasMore     bool
-}
-
-// Register 注册已迁移的 SSR 页面（优先于 SPA）
-func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
-	g := r.Group("/", authMW.OptionalAuth())
-	g.GET("/", deps.Home)
-	g.GET("/board/:id", deps.Home)
-}
-
-// Home SSR 首页与板块列表
+// Home 首页 / 板块
 func (d Deps) Home(c *gin.Context) {
-	brand := d.Settings.SiteBranding()
-	sort := c.DefaultQuery("sort", "latest")
+	ctx := d.ctx(c)
+	sort := normalizeSort(c.DefaultQuery("sort", "latest"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if page < 1 {
 		page = 1
@@ -80,54 +98,38 @@ func (d Deps) Home(c *gin.Context) {
 	var boardID uint
 	var boardName string
 	if idStr := c.Param("id"); idStr != "" {
-		// 兼容伪静态后缀 123.html
-		idStr = strings.TrimSuffix(idStr, "."+d.Settings.Permalink().Ext)
-		idStr = strings.TrimSuffix(idStr, ".html")
-		idStr = strings.TrimSuffix(idStr, ".htm")
+		idStr = stripIDParam(idStr, d.Settings.Permalink().Ext)
 		if n, err := strconv.ParseUint(idStr, 10, 64); err == nil {
 			boardID = uint(n)
 		}
 	}
 
-	boards, _ := d.Board.List()
-	boardViews := make([]BoardView, 0, len(boards))
-	for _, b := range boards {
-		boardViews = append(boardViews, BoardView{ID: b.ID, Name: b.Name})
+	chrome := d.chrome(ctx, "", "", "home/feed")
+	chrome.ActiveBoard = boardID
+	for _, b := range chrome.Boards {
 		if b.ID == boardID {
 			boardName = b.Name
+			break
 		}
 	}
-
-	var uid uint
-	if v, ok := c.Get(auth.CtxUserID); ok {
-		uid, _ = v.(uint)
+	if boardName != "" {
+		chrome.Title = boardName + " · " + chrome.SiteName
 	}
-	isAdmin := false
-	if v, ok := c.Get(auth.CtxRole); ok {
-		switch r := v.(type) {
-		case models.Role:
-			isAdmin = r == models.RoleAdmin
-		case string:
-			isAdmin = r == string(models.RoleAdmin)
-		}
-	}
-	username, _ := c.Get(auth.CtxUsername)
 
-	q := services.PostListQuery{
+	items, total, err := d.Post.ListItems(services.PostListQuery{
 		BoardID:       boardID,
 		Page:          page,
 		Size:          size,
 		Sort:          sort,
-		ViewerID:      uid,
-		ViewerIsAdmin: isAdmin,
-	}
-	items, total, err := d.Post.ListItems(q)
+		ViewerID:      ctx.UserID(),
+		ViewerIsAdmin: ctx.IsAdmin(),
+	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "加载帖子失败")
 		return
 	}
 
-	posts := make([]PostView, 0, len(items))
+	posts := make([]PostListItem, 0, len(items))
 	for _, it := range items {
 		author := strings.TrimSpace(it.User.Nickname)
 		if author == "" {
@@ -137,49 +139,24 @@ func (d Deps) Home(c *gin.Context) {
 		if it.Board.ID > 0 {
 			bname = it.Board.Name
 		}
-		posts = append(posts, PostView{
-			ID:           it.ID,
-			Title:        it.Title,
-			AuthorName:   author,
-			BoardName:    bname,
-			Pinned:       it.Pinned,
-			Featured:     it.Featured,
-			CommentCount: it.CommentCount,
-			CreatedLabel: formatTime(it.CreatedAt),
+		posts = append(posts, PostListItem{
+			ID: it.ID, Title: it.Title, AuthorName: author, BoardName: bname,
+			Pinned: it.Pinned, Featured: it.Featured, CommentCount: it.CommentCount,
+			CreatedLabel: it.CreatedAt.Local().Format("2006-01-02 15:04"),
 		})
 	}
 
-	title := brand.DocumentTitle()
-	if boardName != "" {
-		title = boardName + " · " + brand.Name
-	}
-
-	data := HomePageData{
-		Title:       title,
-		Description: brand.MetaDescription(),
-		SiteName:    brand.Name,
-		Slogan:      brand.Slogan,
-		LogoMark:    firstRuneOr(brand.LogoMark, "姜"),
-		LoggedIn:    uid > 0,
-		IsAdmin:     isAdmin,
-		ViewerName:  fmtViewer(username),
-		Boards:      boardViews,
-		ActiveBoard: boardID,
-		BoardName:   boardName,
-		Sort:        normalizeSort(sort),
-		Posts:       posts,
-		Page:        page,
-		PrevPage:    page - 1,
-		NextPage:    page + 1,
-		HasPrev:     page > 1,
-		HasMore:     int64(page*size) < total,
-	}
-
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.Status(http.StatusOK)
-	if err := webrender.Execute(c.Writer, "home", data); err != nil {
-		c.String(http.StatusInternalServerError, "模板渲染失败: %v", err)
-	}
+	ctx.HTML(http.StatusOK, "home", HomePageData{
+		PageChrome: chrome,
+		BoardName:  boardName,
+		Sort:       sort,
+		Posts:      posts,
+		Page:       page,
+		PrevPage:   page - 1,
+		NextPage:   page + 1,
+		HasPrev:    page > 1,
+		HasMore:    int64(page*size) < total,
+	})
 }
 
 func normalizeSort(s string) string {
@@ -193,27 +170,4 @@ func normalizeSort(s string) string {
 
 func formatTime(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04")
-}
-
-func firstRuneOr(s, fallback string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return fallback
-	}
-	for _, r := range s {
-		return string(r)
-	}
-	return fallback
-}
-
-func fmtViewer(v any) string {
-	if v == nil {
-		return "我的"
-	}
-	s, _ := v.(string)
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "我的"
-	}
-	return s
 }

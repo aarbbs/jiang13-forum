@@ -3,18 +3,20 @@
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/models"
 	"git.iioio.com/freefire/jiang13-forum/services"
+	"github.com/gin-gonic/gin"
 )
 
 const (
-	CtxUserID   = "user_id"
-	CtxUsername = "username"
-	CtxRole     = "role"
-	CookieName  = "jiang13_token"
+	CtxUserID    = "user_id"
+	CtxUsername  = "username"
+	CtxRole      = "role"
+	CtxSessionID = "session_id"
+	CookieName   = "jiang13_session"
 )
 
 type AuthMiddleware struct {
@@ -25,67 +27,81 @@ func NewAuthMiddleware(auth *services.AuthService) *AuthMiddleware {
 	return &AuthMiddleware{auth: auth}
 }
 
-// OptionalAuth 可选鉴权：有 token 则解析，无 token 不拦截。
-// 用户已删除或不存在时清除失效 cookie，避免前端误显示为已登录。
+// OptionalAuth 可选鉴权：有会话则加载用户；禁言/无效则清 Cookie
 func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := extractToken(c)
-		if token != "" {
-			if claims, err := m.auth.ParseToken(token); err == nil {
-				var user models.User
-				if err := models.DB.Select("id", "username", "role").First(&user, claims.UserID).Error; err != nil {
-					c.SetCookie(CookieName, "", -1, "/", "", false, true)
-				} else {
-					c.Set(CtxUserID, user.ID)
-					c.Set(CtxUsername, user.Username)
-					c.Set(CtxRole, user.Role)
-					m.auth.TouchLastAccess(user.ID)
-				}
-			}
+		sid := extractSessionID(c)
+		if sid == "" {
+			c.Next()
+			return
 		}
+		user, sess, err := services.ResolveSession(sid)
+		if err != nil || user == nil {
+			ClearAuthCookie(c)
+			c.Next()
+			return
+		}
+		if user.Banned {
+			services.RevokeUserSessions(user.ID)
+			ClearAuthCookie(c)
+			c.Next()
+			return
+		}
+		c.Set(CtxUserID, user.ID)
+		c.Set(CtxUsername, user.Username)
+		c.Set(CtxRole, user.Role)
+		c.Set(CtxSessionID, sess.ID)
+		m.auth.TouchLastAccess(user.ID)
 		c.Next()
 	}
 }
 
-// RequireAuth 必须登录
+// RequireAuth 必须登录且未禁言
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := extractToken(c)
-		if token == "" {
+		sid := extractSessionID(c)
+		if sid == "" {
 			respondAuthRequired(c)
 			c.Abort()
 			return
 		}
-		claims, err := m.auth.ParseToken(token)
-		if err != nil {
+		user, sess, err := services.ResolveSession(sid)
+		if err != nil || user == nil {
 			respondAuthExpired(c)
 			c.Abort()
 			return
 		}
-		// 检查禁言
-		var user models.User
-		if err := models.DB.First(&user, claims.UserID).Error; err != nil || user.Banned {
+		if user.Banned {
+			services.RevokeUserSessions(user.ID)
+			ClearAuthCookie(c)
 			respondBanned(c)
 			c.Abort()
 			return
 		}
-		c.Set(CtxUserID, claims.UserID)
-		c.Set(CtxUsername, claims.Username)
-		c.Set(CtxRole, claims.Role)
-		m.auth.TouchLastAccess(claims.UserID)
+		c.Set(CtxUserID, user.ID)
+		c.Set(CtxUsername, user.Username)
+		c.Set(CtxRole, user.Role)
+		c.Set(CtxSessionID, sess.ID)
+		m.auth.TouchLastAccess(user.ID)
 		c.Next()
 	}
 }
 
-// RequireAdmin 必须管理员
+// RequireAdmin 必须管理员（依赖上游已跑 OptionalAuth/RequireAuth，role 来自 DB）
 func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		uid, ok := c.Get(CtxUserID)
+		if !ok || uid == nil {
+			respondAuthRequired(c)
+			c.Abort()
+			return
+		}
 		role, exists := c.Get(CtxRole)
 		if !exists || role != models.RoleAdmin {
 			if isAPI(c) {
 				c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
 			} else {
-				c.Redirect(http.StatusFound, "/admin/login")
+				c.Redirect(http.StatusFound, "/")
 			}
 			c.Abort()
 			return
@@ -94,14 +110,13 @@ func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
 	}
 }
 
-func extractToken(c *gin.Context) string {
-	if auth := c.GetHeader("Authorization"); auth != "" {
-		if strings.HasPrefix(auth, "Bearer ") {
-			return strings.TrimPrefix(auth, "Bearer ")
-		}
+func extractSessionID(c *gin.Context) string {
+	if sid, err := c.Cookie(CookieName); err == nil && sid != "" {
+		return sid
 	}
-	if token, err := c.Cookie(CookieName); err == nil {
-		return token
+	// 兼容清理旧 Cookie 名（一次性）
+	if old, err := c.Cookie("jiang13_token"); err == nil && old != "" {
+		ClearNamedCookie(c, "jiang13_token")
 	}
 	return ""
 }
@@ -112,7 +127,7 @@ func isAPI(c *gin.Context) bool {
 
 func adminLoginPath(c *gin.Context) string {
 	if strings.HasPrefix(c.Request.URL.Path, "/admin") {
-		return "/admin/login"
+		return "/login?redirect=" + url.QueryEscape("/admin/dashboard")
 	}
 	return "/login"
 }
@@ -122,11 +137,15 @@ func respondAuthRequired(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
 		return
 	}
-	c.Redirect(http.StatusFound, adminLoginPath(c))
+	redir := c.Request.URL.RequestURI()
+	if strings.HasPrefix(c.Request.URL.Path, "/admin") {
+		redir = "/admin/dashboard"
+	}
+	c.Redirect(http.StatusFound, "/login?redirect="+url.QueryEscape(redir))
 }
 
 func respondAuthExpired(c *gin.Context) {
-	c.SetCookie(CookieName, "", -1, "/", "", false, true)
+	ClearAuthCookie(c)
 	if isAPI(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录已过期"})
 		return
@@ -137,10 +156,6 @@ func respondAuthExpired(c *gin.Context) {
 func respondBanned(c *gin.Context) {
 	if isAPI(c) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "账号已被禁言"})
-		return
-	}
-	if strings.HasPrefix(c.Request.URL.Path, "/admin") {
-		c.Redirect(http.StatusFound, "/admin/login?banned=1")
 		return
 	}
 	c.Redirect(http.StatusFound, "/login?banned=1")

@@ -1,0 +1,43 @@
+{{define "admin/settings"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>站点设置</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <h2>品牌</h2>
+  <form method="post" action="/admin/settings/brand" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>站点名称 <input name="name" required value="{{.Brand.Name}}"/></label>
+    <label>标语 <input name="slogan" value="{{.Brand.Slogan}}"/></label>
+    <label>简介 <textarea name="description" rows="3">{{.Brand.Description}}</textarea></label>
+    <label>关键词 <input name="keywords" value="{{.Brand.Keywords}}"/></label>
+    <label>Logo 字标（单字） <input name="logo_mark" maxlength="4" value="{{.Brand.LogoMark}}"/></label>
+    <label>ICP 备案号 <input name="icp_beian" value="{{.Brand.ICPBeian}}"/></label>
+    <label>ICP 链接 <input name="icp_beian_url" value="{{.Brand.ICPBeianURL}}"/></label>
+    <button type="submit">保存品牌</button>
+  </form>
+
+  <h2>基础限流</h2>
+  <p class="j13-muted">窗口内允许的操作次数（秒）。</p>
+  <form method="post" action="/admin/settings/limits" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>发帖 <input name="rate_limit_post" type="number" min="1" value="{{.RatePost}}"/></label>
+    <label>评论 <input name="rate_limit_comment" type="number" min="1" value="{{.RateComment}}"/></label>
+    <label>注册 <input name="rate_limit_register" type="number" min="1" value="{{.RateReg}}"/></label>
+    <label>登录 <input name="rate_limit_login" type="number" min="1" value="{{.RateLogin}}"/></label>
+    <label>窗口秒数 <input name="rate_limit_window_sec" type="number" min="10" value="{{.RateWindow}}"/></label>
+    <button type="submit">保存限流</button>
+  </form>
+
+  <h2>敏感词（有效 {{.FilterCount}} 个）</h2>
+  <p class="j13-muted">每行一个词，# 开头为注释。保存后立即热更新。</p>
+  <form method="post" action="/admin/settings/filter-words" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>词表 <textarea name="filter_words" rows="12">{{.FilterWords}}</textarea></label>
+    <button type="submit">保存敏感词</button>
+  </form>
+</main>
+{{template "base/footer" .}}
+{{end}}

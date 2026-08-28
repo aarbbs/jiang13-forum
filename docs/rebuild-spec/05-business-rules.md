@@ -8,14 +8,16 @@
 
 ## 1. 注册与引导
 
-源：[`handler/handlers.go`](../../routers/api/handlers.go) `APIRegisterConfig`、[`service/auth.go`](../../services/auth.go)
+源：[`routers/web/auth.go`](../../routers/web/auth.go)、[`services/auth.go`](../../services/auth.go)
 
 | 规则 | 细节 |
 |------|------|
-| 首用户 = 管理员 | `UserCount() == 0` 时注册的用户 `role=admin` |
-| 开放注册 | `register_open = (userCount == 0) \|\| mailReady` |
-| 邮箱验证码 | `require_email_code = mailReady`；邮件未就绪时首用户仍可无码注册 |
-| 后续用户 | 邮件未配置则注册关闭，直到管理员配好 SMTP |
+| 管理员 | **仅** `/install` 向导创建（不再「首注册变管理员」） |
+| 开放注册 | 安装完成后开放；不依赖 SMTP |
+| 邮箱验证码 | `require_email_code = mailReady`；邮件未就绪时可无码注册 |
+| 会话 | Cookie `jiang13_session` = opaque id；表 `sessions`；HttpOnly + SameSite=Lax；HTTPS 时 Secure；TTL 7 天滑动续期 |
+| 吊销 | 登出删当前 session；禁言 / 重置密码删该用户全部 session |
+| HMAC 密钥 | `{DATA}/.jwt_secret` 仅 CSRF 等 HMAC（**不是**浏览器登录 JWT） |
 
 密码：bcrypt；最小长度来自 `password_min_len`（默认 6）。
 
@@ -206,8 +208,8 @@ stateDiagram-v2
 
 ## 11. 敏感词与限流
 
-- 敏感词文件：`data/filter_words.txt`；发帖/评/私信等路径过滤
-- 限流动作键：post / comment / register / login / report / message / friend_link 等；窗口秒与次数来自 settings
+- 敏感词：`forum_settings.filter_words`（Admin SSR 可改并热更）；旧文件可导入
+- 限流动作键：post / comment / register / login / report / message / friend_link 等；窗口秒与次数来自 settings（Admin 可改基础四项+窗口）
 
 ---
 

@@ -37,7 +37,7 @@
 | 后端 | Go · Gin · GORM · SQLite |
 | 前端 | React 18 SPA · TipTap · Tailwind · TanStack Virtual |
 | 发布 | Vite 构建 → `go:embed` 打进单二进制 |
-| 认证 | bcrypt + JWT Cookie（`jiang13_token`） |
+| 认证 | bcrypt + DB opaque session Cookie（`jiang13_session`） |
 
 演示站：https://bbs.iioio.com/
 
@@ -64,7 +64,7 @@ flowchart LR
 | 非真 SSR | 生产入口（`main` 的 `embed_static`）只注入 title / branding / Open Graph，**不渲染帖文 DOM** | 刷新先出壳再灌数据，体验不如 SSR |
 | 爬虫双轨 | [`routers/api/seo_bot.go`](../../routers/api/seo_bot.go) 对爬虫返回独立 HTML | 用户与爬虫看到的不是同一套渲染路径 |
 | 无正式 migration | Schema 靠 GORM `AutoMigrate`（[`models/db.go`](../../models/db.go)） | 升级靠「加字段」，难做破坏性迁移与审计 |
-| Cookie JWT | 无 session 表，密钥在 `data/.jwt_secret` | 可保留语义，实现可换成更好的会话方案 |
+| Cookie JWT（旧） | 浏览器登录曾用 JWT Cookie | **本分支已改为** DB `sessions` + opaque Cookie `jiang13_session`；`.jwt_secret` 仅 CSRF/HMAC |
 
 **新站目标**：用户首屏即可看到帖文 / 列表的服务端渲染（SSR）HTML；SEO meta 与正文同源。技术选型自定（Next.js / Nuxt / Remix / 其它均可）。
 
@@ -77,13 +77,13 @@ flowchart LR
 - [02-features.md](02-features.md) 中列出的功能能力
 - [03-data-model.md](03-data-model.md) 中的实体关系与枚举含义（表名可改，语义对齐）
 - [05-business-rules.md](05-business-rules.md) 中的数值与状态机（积分、审核、门控、悬赏分成等）
-- 角色模型：游客 / 用户 / 认证用户（`verified` 免审）/ 管理员；首个注册用户为管理员
+- 角色模型：游客 / 用户 / 认证用户（`verified` 免审）/ 管理员；**管理员仅由 `/install` 创建**（不再首注册变管理员）
 
 ### 建议兼容（降低迁移成本）
 
 - [04-api.md](04-api.md) 的 JSON 字段命名与路径形状（可做版本前缀，但旧字段名便于对照）
-- Cookie 名 `jiang13_token` 或提供清晰的会话迁移方案
-- 数据目录语义：`jiang13.db`、`uploads/`、`filter_words.txt`
+- Cookie 名 `jiang13_session`（opaque session id；重建分支不做 `jiang13_token` 双读）
+- 数据目录语义：`jiang13.db`、`uploads/`；敏感词在 `forum_settings.filter_words`（旧 `filter_words.txt` 可导入）
 
 ### 可以彻底改
 
@@ -102,7 +102,8 @@ flowchart LR
 | SSR | 服务端渲染 | 首屏 HTML 含正文，非纯客户端壳 |
 | SPA | 单页应用 | 当前前台实现形态 |
 | OIDC | 开放身份连接 | 本站可作 Provider，供 Gitea 等 SSO |
-| JWT | JSON Web Token | 当前登录凭证，存 Cookie |
+| JWT | JSON Web Token | OIDC 对外 `id_token`/`access_token` 仍用；**浏览器登录不用 JWT** |
+| Opaque session | 不透明会话 | Cookie 只存随机 id，服务端 `sessions` 表可吊销 |
 | Feed | 信息流 | 首页 / 板块帖列表 |
 | 门控 | Content gate | 登录可见 / 回复可见 / 积分可见区块 |
 | 伪静态 | Permalink | 如 `/post/123.html` 的可选后缀 |

@@ -1,0 +1,27 @@
+{{define "base/navbar"}}
+  <header class="j13-header">
+    <div class="j13-header__inner">
+      <a class="j13-brand" href="/">
+        <span class="j13-brand__mark">{{.LogoMark}}</span>
+        <span class="j13-brand__text">
+          <strong>{{.SiteName}}</strong>
+          {{if .Slogan}}<span class="j13-brand__slogan">{{.Slogan}}</span>{{end}}
+        </span>
+      </a>
+      <nav class="j13-nav">
+        {{if .LoggedIn}}
+          <a href="/compose">发帖</a>
+          <a href="/profile">{{.ViewerName}}</a>
+          {{if .IsAdmin}}<a href="/admin/dashboard">后台</a>{{end}}
+          <form class="j13-inline-form" method="post" action="/logout">
+            <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+            <button type="submit" class="j13-linkbtn">退出</button>
+          </form>
+        {{else}}
+          <a href="/register">注册</a>
+          <a href="/login">登录</a>
+        {{end}}
+      </nav>
+    </div>
+  </header>
+{{end}}

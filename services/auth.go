@@ -1,37 +1,32 @@
 ﻿package services
 
 import (
-	"errors"
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"git.iioio.com/freefire/jiang13-forum/models"
 )
 
-// 最近访问写入节流，避免每次 API 都打库
+// 最近访问写入节流，避免每次请求都打库
 const lastAccessTouchInterval = 5 * time.Minute
 
 var lastAccessTouchCache sync.Map // userID(uint) -> time.Time
 
-const TokenExpire = 7 * 24 * time.Hour
-
-type Claims struct {
-	UserID   uint       `json:"user_id"`
-	Username string     `json:"username"`
-	Role     models.Role `json:"role"`
-	jwt.RegisteredClaims
-}
+// SessionTTL 与浏览器会话对齐（兼容旧常量名）
+const TokenExpire = SessionTTL
 
 type AuthService struct {
-	jwtSecret string
-	filter    *SensitiveFilter
-	settings  *ForumSettingsService
+	hmacSecret string // CSRF 等 HMAC；不再用于浏览器登录 JWT
+	filter     *SensitiveFilter
+	settings   *ForumSettingsService
 }
 
-func NewAuthService(jwtSecret string, filter *SensitiveFilter, settings *ForumSettingsService) *AuthService {
-	return &AuthService{jwtSecret: jwtSecret, filter: filter, settings: settings}
+func NewAuthService(hmacSecret string, filter *SensitiveFilter, settings *ForumSettingsService) *AuthService {
+	return &AuthService{hmacSecret: hmacSecret, filter: filter, settings: settings}
 }
+
+// HMACSecret 供 CSRF 等使用
+func (s *AuthService) HMACSecret() string { return s.hmacSecret }
 
 // UserCount 当前用户数
 func (s *AuthService) UserCount() int64 {
@@ -70,18 +65,12 @@ func (s *AuthService) Register(username, password, nickname, email string) (*mod
 	}
 	nickname = s.filter.Filter(nickname)
 
-	// 首个注册用户自动成为管理员
-	role := models.RoleUser
-	if s.UserCount() == 0 {
-		role = models.RoleAdmin
-	}
-
 	user := &models.User{
 		Username: username,
 		Email:    email,
 		Password: hash,
 		Nickname: nickname,
-		Role:     role,
+		Role:     models.RoleUser,
 	}
 	if err := models.DB.Create(user).Error; err != nil {
 		return nil, err
@@ -89,24 +78,69 @@ func (s *AuthService) Register(username, password, nickname, email string) (*mod
 	return user, nil
 }
 
-// Login 用户登录，返回 JWT token；clientIP 写入上次登录记录
-func (s *AuthService) Login(username, password, clientIP string) (string, *models.User, error) {
-	var user models.User
-	if err := models.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		return "", nil, ErrInvalidCred
+// CreateAdmin 安装向导创建管理员（仅应在未安装时调用）
+func (s *AuthService) CreateAdmin(username, password, nickname, email string) (*models.User, error) {
+	if err := ValidateUsername(username); err != nil {
+		return nil, err
 	}
-	if user.Banned {
-		return "", nil, ErrUserBanned
+	if err := ValidatePassword(password, s.settings.PasswordMinLen()); err != nil {
+		return nil, err
 	}
-	if !CheckPassword(user.Password, password) {
-		return "", nil, ErrInvalidCred
+	email = NormalizeEmail(email)
+	if err := ValidateEmail(email); err != nil {
+		return nil, err
 	}
-	s.recordLogin(&user, clientIP)
-	token, err := s.GenerateToken(&user)
-	return token, &user, err
+	if nickname == "" {
+		nickname = username
+	}
+	nickname = s.filter.Filter(nickname)
+	hash, err := HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	user := &models.User{
+		Username: username,
+		Email:    email,
+		Password: hash,
+		Nickname: nickname,
+		Role:     models.RoleAdmin,
+		Verified: true,
+	}
+	if err := models.DB.Create(user).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
-// recordLogin 记录上次登录时间与 IP；登录同时视为一次访问（失败不影响登录）
+// Login 校验密码并创建会话，返回 session id
+func (s *AuthService) Login(username, password, clientIP, userAgent string) (sessionID string, user *models.User, err error) {
+	var u models.User
+	if err := models.DB.Where("username = ?", username).First(&u).Error; err != nil {
+		return "", nil, ErrInvalidCred
+	}
+	if u.Banned {
+		return "", nil, ErrUserBanned
+	}
+	if !CheckPassword(u.Password, password) {
+		return "", nil, ErrInvalidCred
+	}
+	s.recordLogin(&u, clientIP)
+	sid, err := CreateSession(u.ID, clientIP, userAgent)
+	if err != nil {
+		return "", nil, err
+	}
+	return sid, &u, nil
+}
+
+// CreateSessionForUser 已认证用户直接建会话（注册后自动登录）
+func (s *AuthService) CreateSessionForUser(user *models.User, clientIP, userAgent string) (string, error) {
+	if user == nil {
+		return "", ErrInvalidCred
+	}
+	s.recordLogin(user, clientIP)
+	return CreateSession(user.ID, clientIP, userAgent)
+}
+
 func (s *AuthService) recordLogin(user *models.User, clientIP string) {
 	now := time.Now()
 	ip := clientIP
@@ -137,34 +171,4 @@ func (s *AuthService) TouchLastAccess(userID uint) {
 	}
 	lastAccessTouchCache.Store(userID, now)
 	_ = models.DB.Model(&models.User{}).Where("id = ?", userID).Update("last_access_at", now).Error
-}
-
-// GenerateToken 生成 JWT
-func (s *AuthService) GenerateToken(user *models.User) (string, error) {
-	claims := Claims{
-		UserID:   user.ID,
-		Username: user.Username,
-		Role:     user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExpire)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.jwtSecret))
-}
-
-// ParseToken 解析 JWT
-func (s *AuthService) ParseToken(tokenStr string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-		return []byte(s.jwtSecret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(*Claims)
-	if !ok || !token.Valid {
-		return nil, errors.New("invalid token")
-	}
-	return claims, nil
 }

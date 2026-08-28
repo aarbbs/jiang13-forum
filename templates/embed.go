@@ -2,5 +2,5 @@ package templates
 
 import "embed"
 
-//go:embed *.tmpl
+//go:embed *.tmpl base/*.tmpl home/*.tmpl post/*.tmpl shared/*.tmpl status/*.tmpl auth/*.tmpl admin/*.tmpl
 var FS embed.FS

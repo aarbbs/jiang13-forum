@@ -758,21 +758,9 @@ func (h *Handlers) APIProjects(c *gin.Context) {
 	})
 }
 
-// APIAdminUpdateGiteaSettings 更新 Gitea 同步配置
+// APIAdminUpdateGiteaSettings Gitea 同步已后置
 func (h *Handlers) APIAdminUpdateGiteaSettings(c *gin.Context) {
-	var req services.GiteaSyncConfig
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
-		return
-	}
-	if err := h.Settings.UpdateGiteaSyncConfig(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Gitea 同步设置已保存",
-		"gitea":   h.Settings.GiteaSyncConfigPublic(),
-	})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Gitea 仓库同步已后置，本版本不可用"})
 }
 
 // APIAdminUpdateStorageSettings 更新上传存储（本地 / S3 兼容），保存后立即热切换
@@ -796,22 +784,9 @@ func (h *Handlers) APIAdminUpdateStorageSettings(c *gin.Context) {
 	})
 }
 
-// APIAdminSyncGitea 立即同步 Gitea 公开仓库
+// APIAdminSyncGitea Gitea 同步已后置
 func (h *Handlers) APIAdminSyncGitea(c *gin.Context) {
-	if h.Gitea == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": services.ErrGiteaNotConfigured.Error()})
-		return
-	}
-	n, err := h.Gitea.SyncRepos()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("同步完成，共更新 %d 个仓库", n),
-		"count":   n,
-		"gitea":   h.Settings.GiteaSyncConfigPublic(),
-	})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Gitea 仓库同步已后置，本版本不可用"})
 }
 
 // APIAdminListOAuthClients 列出 OAuth 应用

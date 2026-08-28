@@ -38,13 +38,25 @@ erDiagram
   User ||--o{ Media : uploads
 ```
 
-另有：`ForumSetting`（键值）、`OAuthClient` / `OAuthAuthCode`、`GiteaRepo`、`SitePage`。
+另有：`ForumSetting`（键值）、`Session`（浏览器 opaque 会话）、`OAuthClient` / `OAuthAuthCode`、`GiteaRepo`、`SitePage`。
 
 ---
 
 ## 2. 表与字段
 
 说明：`json:"-"` 表示默认 API 序列化隐藏；软删列 `deleted_at` 表示 GORM soft delete。
+
+### 2.0 sessions
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| id | string(64) PK | 密码学随机 opaque id（Cookie `jiang13_session` 的值） |
+| user_id | uint index | 用户 |
+| expires_at | time index | 过期；默认 TTL 7 天，滑动续期 |
+| created_at / last_seen_at | time | |
+| ip / user_agent | string | 可选审计 |
+
+登出删单行；禁言 / 改密删该用户全部 session。每次请求以 DB 中 `users.role` / 禁言为准。
 
 ### 2.1 users
 
@@ -391,8 +403,15 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 | oidc_group_claim | groups |
 | oidc_admin_group | gitea-admin |
 | oidc_user_group | gitea-users |
+| oidc_rsa_private_pem | （空）启用 OIDC 时懒生成并写入；未启用不落盘 `.oidc_rsa.pem` |
 
-### 6.5 Gitea 同步
+### 6.4b 敏感词
+
+| Key | 默认 |
+|-----|------|
+| filter_words | 默认词表文本；启动时从旧 `filter_words.txt` 导入（若键为空） |
+
+### 6.5 Gitea 同步（**后置**，键保留兼容）
 
 | Key | 默认 |
 |-----|------|
@@ -400,6 +419,8 @@ Metric：`tenure_days` | `likes_received` | `creator_income`
 | gitea_base_url | |
 | gitea_token | |
 | gitea_sync_interval_min | 60 |
+
+本迭代不启同步任务；见 [02-features.md](02-features.md) §K。
 
 ### 6.6 存储
 

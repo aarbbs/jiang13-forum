@@ -6,13 +6,22 @@ import (
 	"strings"
 )
 
-// 容器 / 编排常用环境变量（优先级：命令行 > 环境变量 > app.ini > 内置默认）
+// 引导环境变量（无 INI）
 const (
 	envWorkPath  = "JIANG13_WORK_PATH"
-	envConfig    = "JIANG13_CONFIG"
 	envHTTPPort  = "JIANG13_HTTP_PORT"
+	envHTTPAddr  = "JIANG13_HTTP_ADDR"
 	envData      = "JIANG13_DATA"
-	envJWTSecret = "JIANG13_JWT_SECRET"
+	envDBType    = "JIANG13_DB_TYPE"
+	envDBDSN     = "JIANG13_DB_DSN"
+	envDBHost    = "JIANG13_DB_HOST"
+	envDBUser    = "JIANG13_DB_USER"
+	envDBPass    = "JIANG13_DB_PASS"
+	envDBName    = "JIANG13_DB_NAME"
+	envDBSSLMode = "JIANG13_DB_SSLMODE"
+	envDBMaxOpen = "JIANG13_DB_MAX_OPEN"
+	envDBMaxIdle = "JIANG13_DB_MAX_IDLE"
+	envDBConnLife = "JIANG13_DB_CONN_MAX_LIFETIME_SEC"
 )
 
 func envOrDefault(key string) string {

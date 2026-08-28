@@ -42,8 +42,11 @@ type Handlers struct {
 	FriendLinkApply *services.FriendLinkApplyService
 }
 
-func (h *Handlers) setAuthCookie(c *gin.Context, token string) {
-	c.SetCookie(auth.CookieName, token, int(services.TokenExpire.Seconds()), "/", "", false, true)
+func (h *Handlers) setAuthCookie(c *gin.Context, sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	auth.SetSessionCookie(c, sessionID)
 }
 
 func (h *Handlers) currentUserID(c *gin.Context) uint {
@@ -126,13 +129,12 @@ func (h *Handlers) APICaptcha(c *gin.Context) {
 
 // APIRegisterConfig 注册页所需公开配置
 func (h *Handlers) APIRegisterConfig(c *gin.Context) {
-	userCount := h.Auth.UserCount()
 	mailReady := h.Settings.MailReady()
 	c.JSON(http.StatusOK, gin.H{
-		"is_first_user":      userCount == 0,
+		"is_first_user":      false, // 已废弃：管理员仅由 /install 创建
 		"mail_ready":         mailReady,
 		"require_email_code": mailReady,
-		"register_open":      userCount == 0 || mailReady,
+		"register_open":      mailReady,
 		"email_code_len":     services.EmailCodeLen,
 	})
 }
@@ -259,7 +261,7 @@ func (h *Handlers) APIRegister(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	token, _, _ := h.Auth.Login(req.Username, req.Password, c.ClientIP())
+	token, _, _ := h.Auth.Login(req.Username, req.Password, c.ClientIP(), c.Request.UserAgent())
 	h.setAuthCookie(c, token)
 	c.JSON(http.StatusOK, gin.H{"message": "注册成功", "user_id": user.ID})
 }
@@ -273,7 +275,7 @@ func (h *Handlers) APILogin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	token, user, err := h.Auth.Login(req.Username, req.Password, c.ClientIP())
+	token, user, err := h.Auth.Login(req.Username, req.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return

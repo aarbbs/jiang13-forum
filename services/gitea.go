@@ -71,31 +71,9 @@ func NewGiteaService(settings *ForumSettingsService) *GiteaService {
 	}
 }
 
-// StartBackgroundSync 按配置间隔后台同步；失败只记日志
+// StartBackgroundSync 已后置：本阶段不启动定时同步（保留空实现以免旧调用 panic）
 func (g *GiteaService) StartBackgroundSync() {
-	g.wg.Add(1)
-	go func() {
-		defer g.wg.Done()
-		// 启动后稍等再首次尝试，避免拖慢启动
-		timer := time.NewTimer(15 * time.Second)
-		defer timer.Stop()
-		for {
-			select {
-			case <-g.stopCh:
-				return
-			case <-timer.C:
-				if _, err := g.SyncRepos(); err != nil && !errors.Is(err, ErrGiteaNotConfigured) && !errors.Is(err, ErrGiteaSyncBusy) {
-					log.Printf("[gitea] 后台同步失败: %v", err)
-				}
-				cfg := g.settings.GiteaSyncConfig()
-				interval := time.Duration(cfg.SyncIntervalMin) * time.Minute
-				if interval < 5*time.Minute {
-					interval = 5 * time.Minute
-				}
-				timer.Reset(interval)
-			}
-		}
-	}()
+	log.Printf("[gitea] 仓库同步已后置，跳过后台定时任务")
 }
 
 // Stop 停止后台同步

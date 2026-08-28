@@ -338,10 +338,9 @@ func (s *PostService) List(q PostListQuery) ([]models.Post, int64, error) {
 		}
 	}
 	if tag := strings.TrimSpace(q.Tag); tag != "" {
-		// 整枚标签匹配：逗号/中文逗号分隔，忽略标签两侧空格，大小写不敏感
+		// 整枚标签匹配：逗号/中文逗号分隔，忽略标签两侧空格，大小写不敏感（跨 sqlite/postgres/mysql）
 		escaped := escapeLikePattern(strings.ToLower(tag))
-		normalized := "LOWER(',' || REPLACE(REPLACE(REPLACE(IFNULL(tags,''), '，', ','), ', ', ','), ' ,', ',') || ',')"
-		db = db.Where(normalized+" LIKE ? ESCAPE '\\'", "%,"+escaped+",%")
+		db = db.Where(tagsNormalizedExpr()+" LIKE ? ESCAPE '\\'", "%,"+escaped+",%")
 	}
 	var total int64
 	db.Count(&total)
@@ -388,6 +387,18 @@ func escapeLikePattern(s string) string {
 	s = strings.ReplaceAll(s, `%`, `\%`)
 	s = strings.ReplaceAll(s, `_`, `\_`)
 	return s
+}
+
+// tagsNormalizedExpr 标签列规范化表达式（跨方言）
+// 方言：sqlite / postgres 用 ||；mysql 用 CONCAT；COALESCE 三库通用
+func tagsNormalizedExpr() string {
+	inner := "REPLACE(REPLACE(REPLACE(COALESCE(tags,''), '，', ','), ', ', ','), ' ,', ',')"
+	switch models.DialectorName() {
+	case "mysql":
+		return "LOWER(CONCAT(',', " + inner + ", ','))"
+	default:
+		return "LOWER(',' || " + inner + " || ',')"
+	}
 }
 
 // resolveAuthorUserID 按用户名精确匹配，否则按昵称精确匹配（优先用户名）

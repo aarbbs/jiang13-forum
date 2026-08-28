@@ -1,0 +1,4 @@
+{{define "base/alert"}}
+{{if .Error}}<div class="j13-alert j13-alert--error" role="alert">{{.Error}}</div>{{end}}
+{{if .Flash}}<div class="j13-flash" role="status">{{.Flash}}</div>{{end}}
+{{end}}

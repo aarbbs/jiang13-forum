@@ -1,25 +1,40 @@
 # 04 · HTTP API 合约
 
-> **读者**：实现后端 / BFF / 前端数据层的 AI  
-> **前置**：[03-data-model.md](03-data-model.md)  
-> **源码**：[`router/router.go`](../../routers/setup.go)、[`frontend/src/api/client.ts`](（仅 main）frontend/src/api/client.ts)、[`frontend/src/api/types.ts`](（仅 main）frontend/src/api/types.ts)、[`middleware/auth.go`](../../modules/auth/auth.go)
+> **读者**：机器客户端 / 集成方；浏览器 UI **不**使用本文件作为主路径  
+> **前置**：[03-data-model.md](03-data-model.md)、[08-gitea-ssr-architecture.md](08-gitea-ssr-architecture.md)  
+> **源码**：[`routers/setup.go`](../../routers/setup.go)、[`modules/auth/auth.go`](../../modules/auth/auth.go)
 
-不要求 OpenAPI YAML；以下表格 + JSON 形状即为合约。新站可加 `/v1` 前缀，但**字段名建议保持**以便对照迁移。
+本分支（`rebuild/gitea-ssr`）浏览器走 **`routers/web` 模板 + 表单**。  
+下列 JSON 合约保留作历史对照与未来机器 API；**当前进程仅注册** health / OIDC / robots / sitemap / media 等机器相关路由，论坛 CRUD 的 `/api/*` 已从路由表移除（handler 源码可删可留，不以 SPA 兼容为目的）。
+
+`main` 分支 SPA 仍完整实现下表；对照请 checkout `main`。
 
 ---
 
-## 1. 通用约定
+## 1. 本分支已注册的机器入口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/health` | 探活 |
+| GET | `/robots.txt` | 抓取规则 |
+| GET | `/sitemap.xml` | 站点地图 |
+| GET/POST | `/oauth/*`、`/.well-known/openid-configuration` | OIDC Provider |
+| GET | `/media/thumb/*`、`/uploads/*` | 媒体 |
+
+---
+
+## 2. 历史 JSON 合约（main / 对照，本分支默认不挂载）
+
+以下章节描述原 SPA 使用的 `/api` 形状，便于迁移业务语义；**实现 UI 时请用 web 表单，勿恢复双轨。**
+
+### 通用约定（历史）
 
 | 项 | 约定 |
 |----|------|
-| Base | 同源；前端 `credentials: 'same-origin'` |
+| Base | 同源；`credentials: 'same-origin'` |
 | 成功 | HTTP 2xx + JSON body |
-| 失败 | 非 2xx + `{ "error": "人类可读中文或英文消息" }` |
-| 鉴权 | Cookie `jiang13_token`（HttpOnly）；部分也接受 Authorization Bearer（以实现为准） |
-| 内容类型 | JSON 默认；部分写接口用 `multipart/form-data`（FormData） |
-| OptionalAuth | 有 cookie 则解析用户，无则游客继续 |
-| RequireAuth | 必须登录且未禁言 |
-| RequireAdmin | 必须 `role=admin` |
+| 失败 | 非 2xx + `{ "error": "..." }` |
+| 鉴权 | Cookie `jiang13_session`（opaque）；机器 OIDC 用 Bearer |
 
 ### 分页形态差异
 
@@ -31,11 +46,11 @@
 
 ---
 
-## 2. 基础设施 / SEO / 静态
+## 3. 基础设施 / SEO / 静态（节选，仍有效）
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
-| GET | `/health` | 无 | `{ "status": "ok" }`（DB ping 失败则非 ok，以实现为准） |
+| GET | `/health` | 无 | `{ "status": "ok" }` |
 | GET | `/robots.txt` | 无 | 文本 |
 | GET | `/sitemap.xml` | 无 | XML |
 | GET | `/media/thumb/*filepath` | 无 | 缩略图 / WebP 等 |
@@ -282,8 +297,8 @@
 | PUT | `/settings/mail` | MailConfig |
 | POST | `/settings/mail/test` | `{ to }` |
 | PUT | `/settings/oidc` | OIDCConfig |
-| PUT | `/settings/gitea` | GiteaSyncConfig |
-| POST | `/settings/gitea/sync` | 手动同步 |
+| PUT | `/settings/gitea` | **后置**（501） |
+| POST | `/settings/gitea/sync` | **后置**（501） |
 | PUT | `/settings/storage` | StorageConfig |
 | PUT | `/settings/branding` | SiteBranding |
 | POST | `/settings/branding/upload` | Form kind=`logo`\|`favicon`\|`og_image`, file |

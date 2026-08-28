@@ -1,0 +1,39 @@
+{{define "compose"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+{{if .Flash}}<div class="j13-flash" role="status">{{.Flash}}</div>{{end}}
+<main class="j13-main j13-main--solo j13-compose">
+  <h1>{{if .IsEdit}}编辑帖子{{else}}发帖{{end}}</h1>
+  {{template "base/alert" .}}
+  <form method="post" action="{{.FormAction}}" class="j13-form" id="compose-form" data-csrf="{{.CSRF}}" data-upload="/compose/upload">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>板块
+      <select name="board_id" required>
+        <option value="">请选择</option>
+        {{range .Boards}}
+        <option value="{{.ID}}" {{if eq $.BoardID .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>标题
+      <input name="title" required maxlength="{{.TitleMax}}" value="{{.Title}}"/>
+    </label>
+    <label>标签
+      <input name="tags" maxlength="{{.TagsMax}}" value="{{.Tags}}" placeholder="逗号分隔，可选"/>
+    </label>
+    <label>正文
+      <textarea name="content" id="compose-content" rows="16" required maxlength="{{.ContentMax}}" placeholder="支持纯文本；图片上传后插入 Markdown 图片语法">{{.Content}}</textarea>
+    </label>
+    <div class="j13-compose__tools">
+      <label class="j13-btn-secondary j13-filebtn">
+        插入图片
+        <input type="file" id="compose-image" accept="image/*" hidden/>
+      </label>
+      <span class="j13-muted" id="compose-upload-status"></span>
+    </div>
+    <p class="j13-muted">本版仅发普通讨论帖；投票 / 悬赏 / 抽奖后续迭代。</p>
+    <button type="submit">{{if .IsEdit}}保存{{else}}发布{{end}}</button>
+  </form>
+</main>
+{{template "base/footer" .}}
+{{end}}

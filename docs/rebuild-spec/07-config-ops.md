@@ -2,26 +2,106 @@
 
 > **读者**：部署与运维、以及实现配置层的 AI  
 > **前置**：[README.md](README.md)  
-> **源码**：[`app.ini.example`](../../app.ini.example)、[`config/`](../../config/)、[`README.md`](../../README.md)、[`handler/seo.go`](../../routers/api/seo.go)、[`handler/seo_bot.go`](../../routers/api/seo_bot.go)、[`embed_static/`](（仅 main 分支）embed_static/)
+> **源码**：[`config/`](../../config/)、[`README.md`](../../README.md)、[`routers/api/seo.go`](../../routers/api/seo.go)、[`routers/install/`](../../routers/install/)
 
-运维形态可改；下列描述**现网**行为，便于迁移数据与对齐环境变量语义。
+运维形态可改；下列描述**本分支**行为。
 
 ---
 
-## 1. 进程配置优先级
+## 0. 首次安装（Gitea 式）
 
-**命令行显式参数 > 环境变量 > `app.ini` > 内置默认**
+| 项 | 说明 |
+|----|------|
+| 锁文件 | `data/install.lock` |
+| 向导 | `GET/POST /install`（`templates/install.tmpl`） |
+| 未锁定 | 除 `/install`、`/ssr-assets/*`、`/health` 外重定向到向导 |
+| 管理员 | 仅安装向导创建；不再「首个注册用户变管理员」 |
+| 向导内容 | 站点名 + 管理员账号（数据库已在进程启动时连上） |
+| 旧数据 | 启动时若已有用户且无锁，自动补写锁 |
 
-| CLI | 环境变量 | INI | 默认 | 说明 |
-|-----|----------|-----|------|------|
-| `--port` | `JIANG13_HTTP_PORT` | `[server] HTTP_PORT` | 3000 | 监听端口 |
-| `--data` | `JIANG13_DATA` | `[paths] DATA` | `data` | 数据目录 |
-| `--jwt-secret` | `JIANG13_JWT_SECRET` | `[security] JWT_SECRET` | 自动生成 | JWT 密钥 |
-| `--config` | `JIANG13_CONFIG` | | `{work}/app.ini` | 配置文件路径 |
-| `--work-path` | `JIANG13_WORK_PATH` | | 可执行文件目录 | 工作目录 |
-| `--service` | | | | install/uninstall/start/stop/restart/status |
+**无 `app.ini`。** 引导仅 CLI / Env。
 
-`app.ini` 示例见 [`app.ini.example`](../../app.ini.example)。业务配置（邮件、OIDC、Gitea、存储、品牌等）在 **DB `forum_settings`**，管理后台热更新，不必写进 ini。
+---
+
+## 1. 配置分层与重启边界
+
+| 层 | 存什么 | 变更方式 | 需重启 |
+|----|--------|----------|--------|
+| **Bootstrap** | `DATA`、`HTTP_PORT`/`ADDR`、`DB_TYPE` + DSN/连接参数、工作目录 | CLI / Env | **是** |
+| **密钥文件** | App HMAC（`data/.jwt_secret`，文件名历史遗留）；OIDC RSA **仅启用时**写入 settings（可选遗留文件迁移） | 自动生成 | HMAC 换钥需重启 |
+| **站点运行时** | 品牌、邮件、OIDC 开关、限流、敏感词、存储、伪静态… | DB `forum_settings` | **否**（热更） |
+
+**优先级：** 命令行显式参数 > 环境变量 > 内置默认。
+
+### 进程引导
+
+| CLI | 环境变量 | 默认 | 说明 |
+|-----|----------|------|------|
+| `--port` | `JIANG13_HTTP_PORT` | 3000 | 监听端口 |
+| `--http-addr` | `JIANG13_HTTP_ADDR` | （空=全接口） | 监听地址 |
+| `--data` | `JIANG13_DATA` | `data` | 数据目录 |
+| `--work-path` | `JIANG13_WORK_PATH` | 可执行文件目录 | 工作目录 |
+| `--db-type` | `JIANG13_DB_TYPE` | `sqlite` | `sqlite` \| `postgres` \| `mysql` |
+| `--db-dsn` | `JIANG13_DB_DSN` | （sqlite 默认 `{DATA}/jiang13.db`） | 完整 DSN，优先 |
+| `--db-host` 等 | `JIANG13_DB_HOST` / `USER` / `PASS` / `NAME` / `SSLMODE` | | DSN 为空时拼接（pg/mysql） |
+| `--service` | | | install/uninstall/start/stop/restart/status |
+
+`{DATA}/.jwt_secret`：**App HMAC 密钥**（CSRF 双提交等），启动时自动生成。**不是**浏览器登录 JWT。`--config` / `--jwt-secret` / `JIANG13_JWT_SECRET` 已废弃。
+
+浏览器登录：DB `sessions` + Cookie `jiang13_session`。OIDC 对外 token 仍为 JWT，私钥在 `forum_settings.oidc_rsa_private_pem`（启用时懒加载；未启用不生成 `.oidc_rsa.pem`）。
+
+业务配置（邮件、OIDC、存储、品牌、敏感词等）在 **DB `forum_settings`**，管理后台热更新。
+
+### 数据库 Env 示例
+
+**SQLite（默认）：**
+
+```bash
+JIANG13_DATA=/data
+# 可不设 DB_*；库文件 = $JIANG13_DATA/jiang13.db
+```
+
+**PostgreSQL：**
+
+```bash
+JIANG13_DB_TYPE=postgres
+JIANG13_DB_DSN="postgres://forum:secret@db:5432/jiang13?sslmode=disable"
+# 或拆分：
+# JIANG13_DB_HOST=db:5432
+# JIANG13_DB_USER=forum
+# JIANG13_DB_PASS=secret
+# JIANG13_DB_NAME=jiang13
+# JIANG13_DB_SSLMODE=disable
+```
+
+**MySQL / MariaDB：**
+
+```bash
+JIANG13_DB_TYPE=mysql
+JIANG13_DB_DSN="forum:secret@tcp(db:3306)/jiang13?parseTime=true&loc=Local&charset=utf8mb4"
+```
+
+连库失败时进程**退出并打印 Env 提示**，不会静默回落 sqlite。
+
+### Docker Compose 多库示意
+
+```yaml
+services:
+  jiang13:
+    image: hangzhang714128/jiang13-forum:latest
+    environment:
+      JIANG13_DB_TYPE: postgres
+      JIANG13_DB_DSN: postgres://forum:secret@postgres:5432/jiang13?sslmode=disable
+    volumes:
+      - jiang13-data:/data
+    depends_on: [postgres]
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: forum
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: jiang13
+```
 
 ---
 
@@ -29,18 +109,18 @@
 
 ```text
 data/
-├── jiang13.db              # SQLite 主库
+├── install.lock            # 安装完成锁（与 DB 引擎无关）
+├── jiang13.db              # 仅 SQLite 时的主库文件（含 sessions / forum_settings）
 ├── jiang13.log             # 运行日志
-├── filter_words.txt        # 敏感词
-├── .jwt_secret             # 自动生成的 JWT 密钥（勿提交仓库）
+├── filter_words.txt        # 遗留：启动时可导入 settings；新源以 DB 为准
+├── .jwt_secret             # App HMAC（CSRF 等；勿提交；非登录 JWT）
+├── .oidc_rsa.pem           # 遗留：仅启用 OIDC 且从文件迁移时可能存在；新站优先 DB
 ├── uploads/
 │   ├── avatars/
 │   ├── posts/
-│   └── site/               # 品牌资源等
-└── jiang13_backup_*.db     # 后台导出备份
+│   └── site/
+└── jiang13_backup_*.db     # SQLite 一键备份（其它引擎请用库方工具）
 ```
-
-开发时后端常与 `dist/data` 共用，避免 dev 与产物数据分裂（见根 README）。
 
 ---
 
@@ -55,8 +135,6 @@ data/
 
 构建约定见 [`.cursor/rules/build-scripts.mdc`](../../.cursor/rules/build-scripts.mdc)：Windows 用 `build.bat`，勿直接 `make` / `.\build.ps1`。
 
-容器常用环境变量与上表 `JIANG13_*` 一致。旧镜像权限问题：数据目录属主 uid 1000。
-
 ---
 
 ## 4. 存储后端
@@ -66,7 +144,7 @@ data/
 | `local` | 文件落在 `data/uploads`；URL 通常 `/uploads/...` |
 | `s3` | S3 兼容；endpoint、bucket、密钥、public_base_url、prefix、force_path_style |
 
-`image_delivery`：`webp`（默认，经 `/media/thumb`）或 `original`。上传始终可保留原图策略以实现为准。
+`image_delivery`：`webp`（默认，经 `/media/thumb`）或 `original`。
 
 媒体索引表 `media` 供后台列表；启动时可后台 SyncMediaIndex。
 
@@ -82,20 +160,15 @@ data/
 | meta description | 站点简介优先，否则标语；帖文则摘要 |
 | meta keywords | 站点 keywords |
 | canonical | 绝对 URL |
-| og:type / site_name / locale / title / description / url / image | |
-| twitter:card / title / description / image | |
-| JSON-LD | 结构化数据（站点或 Article） |
-| robots | 个别页可 noindex（以实现为准） |
-
-### 现网额外机制（可废弃）
+| og:* / twitter:* | |
+| JSON-LD | 结构化数据 |
+| robots | 个别页可 noindex |
 
 | 机制 | 说明 |
 |------|------|
-| SPA 壳注入 | `embed_static`（仅 `main` 分支） 注入 title / branding JSON，**无帖文 DOM** |
-| 爬虫 HTML | User-Agent 命中时 [`seo_bot.go`](../../routers/api/seo_bot.go) 返回简易 HTML |
 | robots.txt / sitemap.xml | 动态生成 |
 
-重构验收：用普通浏览器「查看网页源代码」应能看到帖文正文，而不仅是空 div + script。
+重构验收：普通浏览器「查看网页源代码」应能看到帖文正文。
 
 ---
 
@@ -103,43 +176,33 @@ data/
 
 设置：`permalink_enabled`、`permalink_ext`（默认 `html`）。
 
-规范路径示例：
-
-- `/post/123.html`
-- `/user/1.html`
-- `/board/2.html`
-- `/page/about.html`
-
-路由应同时接受无后缀与有后缀形式。解析逻辑见 [`service/permalink.go`](../../services/permalink.go)。
-
 ---
 
 ## 7. 安全相关运维注意
 
 | 项 | 说明 |
 |----|------|
-| JWT 密钥 | 生产必须固定且保密；勿提交 `.jwt_secret` |
-| Cookie | `jiang13_token` HttpOnly；生产应 Secure + 合适 SameSite |
-| 上传 | 类型/大小限制（头像 MB、帖图策略） |
-| 敏感词 | 后台可改；影响发帖评论私信等 |
-| OAuth 密钥 | 仅存 bcrypt 哈希；创建时明文只回显一次 |
-| 备份 | 含用户哈希与私信，下载需管理员权限、传输加密 |
+| HMAC / OIDC | 勿提交 `.jwt_secret`；OIDC PEM 优先在 DB；遗留 `.oidc_rsa.pem` 亦勿提交 |
+| Cookie | `jiang13_session` HttpOnly + SameSite=Lax；生产 HTTPS 下 Secure |
+| 上传 | 类型/大小限制 |
+| 敏感词 | `forum_settings.filter_words`，后台可改热更 |
+| 备份 | SQLite 文件备份含哈希与私信；PG/MySQL 用官方工具 |
 
 ---
 
 ## 8. 健康检查
 
-`GET /health` → JSON `status`。Docker / 负载均衡探活依赖此接口；实现应在 DB 不可用时返回非 200。
+`GET /health` → JSON `status`。DB 不可用时非 200。
 
 ---
 
 ## 9. 从旧站迁数据建议
 
-1. 导出 / 复制 `jiang13.db`（或 dump 到新库并映射表）
-2. 复制 `uploads/` 与 `filter_words.txt`
-3. 迁移 `forum_settings` 键值（或后台重新配置）
-4. 会话：旧 JWT 密钥兼容一阶段，或强制全员重登
-5. OIDC 客户端：`oauth_clients` 表 + 重新下发密钥（若无法迁移哈希）
+1. SQLite：复制 `jiang13.db`；或 dump 到 PG/MySQL 并映射表  
+2. 复制 `uploads/`、`.jwt_secret`（HMAC 兼容）；敏感词若仍在文件可启动导入  
+3. 迁移 `forum_settings` 或后台重配（含 `filter_words`）  
+4. OIDC：`oauth_clients` + settings 中 PEM（或遗留 `.oidc_rsa.pem` 一次迁移）  
+5. 旧站 JWT Cookie 无效；用户需重新登录（opaque session）
 
 表语义以 [03-data-model.md](03-data-model.md) 为准。
 

@@ -6,8 +6,9 @@ alwaysApply: false
 
 # 模板约定
 
-- 布局：`base.tmpl` + 各页定义 `content` 等 block（或 `{{template}}` 组合）；保持片段小而可复用。
-- **默认转义**：`{{.Title}}` 等普通插值；用户生成 HTML 必须先经现有消毒（如 `SanitizePostHTML`），再用显式安全函数输出，禁止随意放开。
-- 静态资源走 `/ssr-assets/...`（`public/assets` 嵌入），不要写死外链 CDN（除非产品规格要求）。
-- 页面数据通过 handler 组装的 view model 传入；模板内不做复杂业务判断。
-- 中文 UI 文案可写在模板；与品牌相关的站点名等从 settings/view 传入。
+- 目录对齐 Gitea：`templates/base/`、`home/`、`post/`、`shared/`、`status/`、`auth/`，根级 `install.tmpl` / `post-install.tmpl`。
+- 页面入口用固定 `{{define "home"}}` / `{{define "post"}}` 等显式 `{{template "base/head"}}`…；**禁止** `{{template .Name}}`（标准库不支持动态名）。
+- **默认转义**；用户 HTML 须先消毒 + 门控后再 `{{safeHTML ...}}`。
+- 静态资源 `/ssr-assets/...`。
+- 浏览器写操作走 `routers/web` 表单 POST + CSRF（`webctx`），不依赖 JSON `/api`。
+- 中文文案可写在模板；站点名等从 PageChrome / settings 传入。

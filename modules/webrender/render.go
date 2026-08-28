@@ -19,6 +19,7 @@ var (
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
+		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
 		"sortURL": func(boardID uint, sort string) string {
 			q := url.Values{}
 			if sort != "" && sort != "latest" {
@@ -50,13 +51,36 @@ func funcMap() template.FuncMap {
 			}
 			return path
 		},
+		"postURL": func(id uint) string {
+			return fmt.Sprintf("/post/%d", id)
+		},
 	}
+}
+
+var parseGlobs = []string{
+	"*.tmpl",
+	"base/*.tmpl",
+	"home/*.tmpl",
+	"post/*.tmpl",
+	"shared/*.tmpl",
+	"status/*.tmpl",
+	"auth/*.tmpl",
+	"admin/*.tmpl",
 }
 
 // Load 解析全部模板（进程内一次）
 func Load() (*template.Template, error) {
 	loadOnce.Do(func() {
-		tpl, loadErr = template.New("root").Funcs(funcMap()).ParseFS(apptemplates.FS, "*.tmpl")
+		root := template.New("root").Funcs(funcMap())
+		var err error
+		for _, g := range parseGlobs {
+			root, err = root.ParseFS(apptemplates.FS, g)
+			if err != nil {
+				loadErr = err
+				return
+			}
+		}
+		tpl = root
 	})
 	return tpl, loadErr
 }
@@ -68,4 +92,11 @@ func Execute(w io.Writer, name string, data any) error {
 		return err
 	}
 	return t.ExecuteTemplate(w, name, data)
+}
+
+// ResetForTest 测试用重置
+func ResetForTest() {
+	loadOnce = sync.Once{}
+	tpl = nil
+	loadErr = nil
 }

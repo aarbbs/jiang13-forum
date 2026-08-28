@@ -75,7 +75,14 @@ func (p *program) setup() error {
 	log.Printf("  版本: %s", version)
 	log.Println("========================================")
 
-	if err := models.InitDB(cfg.DBPath()); err != nil {
+	if err := models.InitDB(models.DatabaseConfig{
+		Type:             cfg.DB.Type,
+		DSN:              cfg.DB.DSN,
+		SQLitePath:       cfg.DB.SQLitePath,
+		MaxOpenConns:     cfg.DB.MaxOpenConns,
+		MaxIdleConns:     cfg.DB.MaxIdleConns,
+		ConnMaxLifetimeSec: cfg.DB.ConnMaxLifetimeSec,
+	}); err != nil {
 		return fmt.Errorf("数据库初始化失败: %w", err)
 	}
 
@@ -84,31 +91,39 @@ func (p *program) setup() error {
 		return fmt.Errorf("路由初始化失败: %w", err)
 	}
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	addr := cfg.ListenAddr()
 	p.server = &http.Server{
 		Addr:    addr,
 		Handler: engine,
 	}
 
-	log.Printf("姜十三论坛已启动: http://localhost%s", addr)
-	log.Printf("后台管理地址: http://localhost%s/admin/dashboard", addr)
+	log.Printf("姜十三论坛已启动: http://localhost:%d", cfg.Port)
+	log.Printf("后台管理地址: http://localhost:%d/admin/dashboard", cfg.Port)
 	log.Printf("工作目录: %s", cfg.WorkPath)
-	log.Printf("配置文件: %s", cfg.ConfigFile)
 	log.Printf("数据目录: %s", cfg.DataDir)
+	log.Printf("数据库: %s", cfg.DB.Type)
 	return nil
 }
 
 func buildServiceConfig(cfg *config.Config) (*kardsvc.Config, error) {
-	// 服务只绑定工作目录与配置文件；端口/数据目录改 app.ini 后重启即可，无需重装服务
+	// 服务绑定工作目录与数据目录；改端口 / DB_* 需重启进程（可用 Env 或重装服务参数）
+	args := []string{
+		"--work-path", cfg.WorkPath,
+		"--data", cfg.DataDir,
+		"--port", fmt.Sprintf("%d", cfg.Port),
+		"--db-type", cfg.DB.Type,
+	}
+	if cfg.DB.Type == config.DBTypeSQLite {
+		args = append(args, "--db-dsn", cfg.DB.SQLitePath)
+	} else if cfg.DB.DSN != "" {
+		args = append(args, "--db-dsn", cfg.DB.DSN)
+	}
 	return &kardsvc.Config{
 		Name:             svcName,
 		DisplayName:      svcDisplayName,
 		Description:      svcDescription,
 		WorkingDirectory: cfg.WorkPath,
-		Arguments: []string{
-			"--work-path", cfg.WorkPath,
-			"--config", cfg.ConfigFile,
-		},
+		Arguments:        args,
 		Option: kardsvc.KeyValue{
 			// systemd：异常退出后自动拉起
 			"Restart": "always",

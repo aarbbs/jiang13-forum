@@ -110,12 +110,12 @@
 - 楼层式评论：回复指定楼层、@ 高亮、引用回复；支持回复可见等内容门控
 - 点赞、收藏、热门帖、最新评论、站内私信、公开用户主页
 - 管理后台：仪表盘、删帖 / 删评、禁言、举报、敏感词、限流、SQLite 一键备份
-- 可选：邮件验证码、OIDC Provider、Gitea 仓库同步（开源码桶）、S3 兼容对象存储
+- 可选：邮件验证码、OIDC Provider、S3 兼容对象存储（Gitea 仓库同步后置）
 
 ### 部署体验
 
-- **单二进制** — `go:embed` 打包前端，无需再单独部署静态资源
-- **零依赖数据库** — SQLite 内建，数据目录由 `app.ini` 统一管理
+- **单二进制** — `go:embed` 打包模板与 SSR 资源
+- **可切换数据库** — 默认 SQLite；可选 PostgreSQL / MySQL（Env 引导）
 - **跨平台** — Windows / Linux / macOS 一键编译
 - **系统服务** — 内置 Linux systemd / Windows Service 注册
 - **Docker 单容器** — 多阶段镜像，挂载 `data/` 即可持久化
@@ -171,7 +171,7 @@ docker compose up -d --build
 make compose-up
 ```
 
-浏览器打开 `http://localhost:3000/register` 注册；**首个用户自动成为管理员**。
+浏览器打开 `http://localhost:3000/install` 完成安装向导（站点名 + 管理员）。
 
 **拉取已构建镜像（Docker Hub）：**
 
@@ -184,7 +184,7 @@ docker run -d --name jiang13 \
   hangzhang714128/jiang13-forum:latest
 ```
 
-**数据持久化：** 容器内 `/data` 对应 SQLite、上传、日志与 JWT 密钥，与下方「数据目录」结构一致。可用 Docker volume 或绑定宿主机目录。镜像启动时会自动将 `/data` 卷属主修正为 uid `1000`（`jiang13` 用户），适配 1Panel 等面板挂载的目录。
+**数据持久化：** 容器内 `/data` 对应 SQLite（默认）、上传、日志与 JWT/OIDC 密钥。可用 Docker volume 或绑定宿主机目录。镜像启动时会自动将 `/data` 卷属主修正为 uid `1000`（`jiang13` 用户）。
 
 **若使用旧版镜像仍报 permission denied**，可在宿主机执行：`chown -R 1000:1000 /你的数据目录`
 
@@ -194,9 +194,11 @@ docker run -d --name jiang13 \
 |------|------|
 | `JIANG13_HTTP_PORT` | HTTP 端口（默认 `3000`） |
 | `JIANG13_DATA` | 数据目录（默认 `/data`） |
-| `JIANG13_JWT_SECRET` | JWT 密钥（留空则自动生成并写入 `/data/.jwt_secret`） |
-| `JIANG13_CONFIG` | 配置文件路径 |
+| `JIANG13_DB_TYPE` | `sqlite`（默认）\| `postgres` \| `mysql` |
+| `JIANG13_DB_DSN` | 完整 DSN（非 sqlite 时推荐） |
 | `JIANG13_WORK_PATH` | 工作目录 |
+
+JWT 自动写入 `/data/.jwt_secret`，无需 Env。
 
 **健康检查：** `GET /health` 返回 `{"status":"ok"}`，供 Docker / 负载均衡探活。
 
@@ -235,90 +237,72 @@ docker push hangzhang714128/jiang13-forum:latest
 1. 容器镜像填 `hangzhang714128/jiang13-forum:latest`
 2. 端口映射 `3000:3000`
 3. 挂载数据卷到容器内 `/data`（镜像会自动修正目录权限）
-4. 首次访问 `http://服务器IP:3000/register` 注册管理员
+4. 首次访问 `http://服务器IP:3000/install` 完成安装
 
 ### 3. 直接启动（二进制）
 
-把二进制放到目标目录后直接运行（首次会在同目录生成 `app.ini`）：
-
 ```bash
 # Windows
-.\dist\jiang13.exe
+.\dist\jiang13.exe --data .\dist\data
 
 # Linux / macOS
-./dist/jiang13
+./dist/jiang13 --data ./data
 ```
 
-也可先复制示例配置再改端口 / 数据目录：
-
-```bash
-cp app.ini.example /opt/jiang13/app.ini
-# 编辑 app.ini 后：
-./jiang13
-```
+默认 SQLite，库文件在 `{DATA}/jiang13.db`。无 `app.ini`。
 
 ### 4. 首次使用
 
-1. 浏览器打开 `http://localhost:3000/register` 注册账号
-2. **第一个注册的用户自动成为管理员**
-3. 登录后访问 `http://localhost:3000/admin` 进入后台
+1. 浏览器打开 `http://localhost:3000/install`
+2. 填写站点名与管理员账号
+3. 完成后登录，访问管理后台配置品牌等（热更新，无需重启）
 
-### 配置文件（`app.ini`）
+### 配置分层（无 INI）
 
-默认读取**工作目录**下的 `app.ini`（工作目录默认可执行文件所在目录）。
+| 层 | 内容 | 需重启 |
+|----|------|--------|
+| CLI / Env | 端口、数据目录、数据库类型与 DSN | 是 |
+| `data/.jwt_secret`、`.oidc_rsa.pem` | 密钥 | 换密钥需重启 |
+| DB `forum_settings` | 品牌、邮件、OIDC 开关、限流、存储… | 否 |
 
-```ini
-[server]
-HTTP_PORT = 3000
-
-[paths]
-DATA = data
-
-[security]
-JWT_SECRET =
-```
-
-完整示例见 [`app.ini.example`](app.ini.example)。OIDC、邮件、Gitea 同步、对象存储等请在管理后台「系统设置」配置（保存即生效）。
-
-**优先级：** 命令行显式参数 > `app.ini` > 内置默认值。
+**优先级：** 命令行显式参数 > 环境变量 > 内置默认。
 
 ### 启动参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--work-path` | 可执行文件目录 | 工作目录（`app.ini` 与相对 `DATA` 的基准） |
-| `--config` | `{work-path}/app.ini` | 配置文件路径 |
-| `--port` | （读配置 / `3000`） | HTTP 监听端口 |
-| `--data` | （读配置 / `data`） | 数据目录 |
-| `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
+| `--work-path` | 可执行文件目录 | 工作目录 |
+| `--port` | `3000` | HTTP 监听端口 |
+| `--http-addr` | （空） | 监听地址 |
+| `--data` | `data` | 数据目录 |
+| `--db-type` | `sqlite` | `sqlite` \| `postgres` \| `mysql` |
+| `--db-dsn` | （sqlite 默认 `{data}/jiang13.db`） | 完整 DSN |
 | `--service` | （空） | `install` / `uninstall` / `start` / `stop` / `restart` / `status` |
 
-**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`
+**环境变量：** `JIANG13_HTTP_PORT`、`JIANG13_HTTP_ADDR`、`JIANG13_DATA`、`JIANG13_WORK_PATH`、`JIANG13_DB_TYPE`、`JIANG13_DB_DSN`、以及 `JIANG13_DB_HOST` / `USER` / `PASS` / `NAME` / `SSLMODE`。
+
+PostgreSQL / MySQL 示例见 [`docs/rebuild-spec/07-config-ops.md`](docs/rebuild-spec/07-config-ops.md)。
 
 ### 5. 注册为系统服务（可选）
-
-将二进制与 `app.ini` 放到同一目录后注册即可。之后改端口或数据目录只需编辑 `app.ini` 并重启服务，不必重新安装。
-
-**Ubuntu / Linux（systemd，需 root）：**
 
 ```bash
 sudo mkdir -p /opt/jiang13
 sudo cp jiang13 /opt/jiang13/
-sudo /opt/jiang13/jiang13 --service install
+sudo /opt/jiang13/jiang13 --work-path /opt/jiang13 --data /opt/jiang13/data --service install
 sudo /opt/jiang13/jiang13 --service start
 sudo systemctl enable jiang13
 ```
 
-**Windows（Windows Service，需管理员 PowerShell）：**
+**Windows（管理员 PowerShell）：**
 
 ```powershell
 New-Item -ItemType Directory -Force -Path C:\jiang13 | Out-Null
 Copy-Item .\jiang13.exe C:\jiang13\
-C:\jiang13\jiang13.exe --service install
+C:\jiang13\jiang13.exe --work-path C:\jiang13 --data C:\jiang13\data --service install
 C:\jiang13\jiang13.exe --service start
 ```
 
-> 改 `app.ini` 后执行 `--service restart`。运行日志写入数据目录下的 `jiang13.log`。
+> 改端口或 `DB_*` 后执行 `--service restart`（必要时重装服务以更新参数）。日志：`data/jiang13.log`。
 
 ---
 
@@ -326,7 +310,7 @@ C:\jiang13\jiang13.exe --service start
 
 | 层级 | 技术 |
 |------|------|
-| **后端 / SSR** | Go 1.26 · Gin · GORM · SQLite · `html/template` |
+| **后端 / SSR** | Go 1.26 · Gin · GORM · SQLite / PostgreSQL / MySQL · `html/template` |
 | **渐进资源** | `web_src/`（构建到 `public/assets/`，URL `/ssr-assets/`） |
 | **构建** | `web_src` → `go:embed` templates + assets，单二进制发布 |
 | **认证** | bcrypt · JWT Cookie · 可选 OIDC Provider |
@@ -357,8 +341,7 @@ make run
 ```
 jiang13-forum/                 # 分支 rebuild/gitea-ssr
 ├── cmd/jiang13/               # 程序入口（含系统服务注册）
-├── config/                    # app.ini 与命令行配置
-├── app.ini.example
+├── config/                    # CLI / Env 引导配置（无 INI）
 ├── Dockerfile                 # web_src → Go → Alpine
 ├── docker-compose.yml
 ├── models/                    # GORM 模型

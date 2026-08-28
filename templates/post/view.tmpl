@@ -1,0 +1,12 @@
+{{define "post"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+{{if .Flash}}<div class="j13-flash" role="status">{{.Flash}}</div>{{end}}
+  <div class="j13-layout">
+    {{template "shared/board_aside" .}}
+    <main class="j13-main">
+      {{template "post/body" .}}
+    </main>
+  </div>
+{{template "base/footer" .}}
+{{end}}

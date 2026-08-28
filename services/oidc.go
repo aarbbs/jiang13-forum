@@ -52,11 +52,13 @@ type OIDCService struct {
 	privateKey *rsa.PrivateKey
 }
 
-// NewOIDCService 创建并加载/生成 RSA 密钥
+// NewOIDCService 创建；RSA 密钥仅在启用 OIDC 时懒加载/生成（存 forum_settings）
 func NewOIDCService(cfg *config.Config, settings *ForumSettingsService) (*OIDCService, error) {
 	s := &OIDCService{cfg: cfg, settings: settings}
-	if err := s.loadOrCreateKey(); err != nil {
-		return nil, err
+	if s.runtime().Enabled {
+		if err := s.ensureKey(); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -68,29 +70,36 @@ func (s *OIDCService) runtime() OIDCConfig {
 	return OIDCConfig{}
 }
 
-func (s *OIDCService) loadOrCreateKey() error {
-	keyPath := filepath.Join(s.cfg.DataDir, ".oidc_rsa.pem")
-	if data, err := os.ReadFile(keyPath); err == nil && len(data) > 0 {
-		block, _ := pem.Decode(data)
-		if block == nil {
-			return fmt.Errorf("解析 OIDC RSA 密钥失败")
-		}
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			parsed, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
-			if err2 != nil {
-				return fmt.Errorf("解析 OIDC RSA 密钥失败: %w", err)
-			}
-			var ok bool
-			key, ok = parsed.(*rsa.PrivateKey)
-			if !ok {
-				return fmt.Errorf("OIDC 密钥不是 RSA")
-			}
-		}
-		s.privateKey = key
+// ensureKey 懒加载：settings PEM → 旧文件迁移 → 新生成写入 settings（不再主动写 .oidc_rsa.pem）
+func (s *OIDCService) ensureKey() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.privateKey != nil {
 		return nil
 	}
-
+	if s.settings != nil {
+		if pemStr := strings.TrimSpace(s.settings.getString(SettingOIDCRSAPrivatePEM, "")); pemStr != "" {
+			key, err := parseOIDCRSAPrivateKey([]byte(pemStr))
+			if err != nil {
+				return err
+			}
+			s.privateKey = key
+			return nil
+		}
+	}
+	// 兼容旧文件一次迁入
+	keyPath := filepath.Join(s.cfg.DataDir, ".oidc_rsa.pem")
+	if data, err := os.ReadFile(keyPath); err == nil && len(data) > 0 {
+		key, err := parseOIDCRSAPrivateKey(data)
+		if err != nil {
+			return err
+		}
+		s.privateKey = key
+		if s.settings != nil {
+			_ = s.settings.setString(SettingOIDCRSAPrivatePEM, string(data))
+		}
+		return nil
+	}
 	key, err := rsa.GenerateKey(rand.Reader, oidcRSABits)
 	if err != nil {
 		return fmt.Errorf("生成 OIDC RSA 密钥失败: %w", err)
@@ -99,11 +108,37 @@ func (s *OIDCService) loadOrCreateKey() error {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
-	if err := os.WriteFile(keyPath, pemBytes, 0600); err != nil {
-		return fmt.Errorf("写入 OIDC RSA 密钥失败: %w", err)
+	if s.settings != nil {
+		if err := s.settings.setString(SettingOIDCRSAPrivatePEM, string(pemBytes)); err != nil {
+			return fmt.Errorf("持久化 OIDC RSA 密钥失败: %w", err)
+		}
 	}
 	s.privateKey = key
 	return nil
+}
+
+func parseOIDCRSAPrivateKey(data []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("解析 OIDC RSA 密钥失败")
+	}
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		parsed, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err2 != nil {
+			return nil, fmt.Errorf("解析 OIDC RSA 密钥失败: %w", err)
+		}
+		var ok bool
+		key, ok = parsed.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("OIDC 密钥不是 RSA")
+		}
+	}
+	return key, nil
+}
+
+func (s *OIDCService) loadOrCreateKey() error {
+	return s.ensureKey()
 }
 
 // Enabled 是否可对外提供 OIDC
@@ -144,6 +179,12 @@ func (s *OIDCService) Discovery() (map[string]any, error) {
 
 // JWKS 返回 JSON Web Key Set
 func (s *OIDCService) JWKS() (map[string]any, error) {
+	if !s.Enabled() {
+		return nil, ErrOIDCNotConfigured
+	}
+	if err := s.ensureKey(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	key := s.privateKey
 	s.mu.RUnlock()
@@ -424,6 +465,9 @@ func (s *OIDCService) signAccessToken(user *models.User, scope, clientID string)
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	t.Header["kid"] = oidcKeyID
+	if err := s.ensureKey(); err != nil {
+		return "", err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return t.SignedString(s.privateKey)
@@ -457,6 +501,9 @@ func (s *OIDCService) signIDToken(user *models.User, scope, clientID, nonce stri
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	t.Header["kid"] = oidcKeyID
+	if err := s.ensureKey(); err != nil {
+		return "", err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return t.SignedString(s.privateKey)

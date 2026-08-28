@@ -95,7 +95,11 @@ func (s *UserService) ResetPasswordByEmail(email, newPass string) error {
 	if err != nil {
 		return err
 	}
-	return models.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("password", hash).Error
+	if err := models.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("password", hash).Error; err != nil {
+		return err
+	}
+	RevokeUserSessions(user.ID)
+	return nil
 }
 
 // SearchUsersBrief 公开用户搜索（@补全）：匹配用户名/昵称，不含邮箱
@@ -288,7 +292,13 @@ func (s *UserService) BanUser(userID uint, banned bool) error {
 	if banned {
 		updates["banned_at"] = &now
 	}
-	return models.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
+	if err := models.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		return err
+	}
+	if banned {
+		RevokeUserSessions(userID)
+	}
+	return nil
 }
 
 // SitemapUser 站点地图用的轻量用户字段
