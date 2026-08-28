@@ -1,0 +1,40 @@
+{{define "messages/list"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-messages">
+  <h1>私信与通知</h1>
+  {{template "base/alert" .}}
+  <p class="j13-muted">
+    未读 {{.UnreadTotal}}
+    （私信 {{.UnreadDM}} · 通知 {{.UnreadNotify}}）
+    {{if gt .UnreadTotal 0}}
+    <form method="post" action="/messages/read-all" class="j13-inline-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <button type="submit" class="j13-linkbtn">全部标已读</button>
+    </form>
+    {{end}}
+  </p>
+
+  {{if .Conversations}}
+  <ul class="j13-msg-list">
+    {{range .Conversations}}
+    <li class="j13-msg-item{{if gt .Unread 0}} is-unread{{end}}">
+      <a href="/messages/with/{{.PeerID}}">
+        <strong>{{.PeerName}}</strong>
+        {{if gt .Unread 0}}<span class="j13-badge">{{.Unread}}</span>{{end}}
+        <span class="j13-msg-item__preview">{{.Preview}}</span>
+        <span class="j13-muted">{{.UpdatedLabel}}</span>
+      </a>
+    </li>
+    {{end}}
+  </ul>
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="/messages?page={{.PrevPage}}">上一页</a>{{end}}
+    {{if .HasMore}}<a href="/messages?page={{.NextPage}}">下一页</a>{{end}}
+  </nav>
+  {{else}}
+  <p class="j13-empty">暂无会话。可在用户主页点击「发私信」开始对话。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

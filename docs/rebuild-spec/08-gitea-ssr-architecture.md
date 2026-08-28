@@ -45,7 +45,7 @@ modules/
 templates/
   install.tmpl
   post-install.tmpl
-  base/ home/ post/ shared/ status/ auth/ admin/ profile/ user/ favorites/
+  base/ home/ post/ shared/ status/ auth/ admin/ profile/ user/ favorites/ messages/
 services/
 web_src/ → public/assets/
 ```
@@ -84,5 +84,7 @@ web_src/ → public/assets/
 公开写：`/install`、`/login`、`/logout`、`/register`、`/compose`、`/post/:id/edit`、帖详情评论/赞/藏。
 
 个人闭环：`/profile`（昵称/签名/密码/头像）、`/user/:id`、`/favorites`。
+
+私信：`/messages`、`/messages/with/:peerId`（系统 peer=0 只读；打开会话标已读）。
 
 Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词）。

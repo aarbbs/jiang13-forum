@@ -114,12 +114,12 @@
 
 ## G. 私信与通知
 
-- [ ] 会话列表（含系统会话 peer=0）
-- [ ] 会话消息（分页 / before 游标）
-- [ ] 发送私信
-- [ ] 未读数（可分私信 / 通知）
-- [ ] 标记会话已读 / 通知已读 / 全部已读
-- [ ] 系统通知种类：`system` / `reject` / `report_result` / `reply` / `mention` / `moderation` 等
+- [x] 会话列表（含系统会话 peer=0）— SSR `/messages`
+- [x] 会话消息（分页 / before 游标）— SSR `/messages/with/:peerId`
+- [x] 发送私信 — 表单 PRG；用户主页「发私信」入口
+- [x] 未读数（可分私信 / 通知）— 列表分项 + 导航角标
+- [x] 标记会话已读 / 通知已读 / 全部已读 — 打开会话自动已读；全部标已读
+- [ ] 系统通知种类：`system` / `reject` / `report_result` / `reply` / `mention` / `moderation` 等（写入已有；筛选 UI 未迁）
 
 ---
 

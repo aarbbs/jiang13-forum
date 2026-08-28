@@ -34,7 +34,8 @@
 | `/favorites` | 收藏 | 已迁 |
 | `/projects` | Gitea 码桶 | 后置 |
 | `/links` | 友链 | pending |
-| `/messages` | 私信 | pending |
+| `/messages` | 私信/通知会话列表 | 已迁 |
+| `/messages/with/:peerId` | 会话详情（peer=0 系统通知） | 已迁 |
 | `/page/:slug` | 站点单页 | 未注册 |
 | `*` | 404 / pending | 已迁 |
 

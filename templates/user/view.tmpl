@@ -12,7 +12,8 @@
       <h1>{{if .Nickname}}{{.Nickname}}{{else}}{{.Username}}{{end}}</h1>
       <p class="j13-muted">@{{.Username}} · Lv.{{.Level}} · 积分 {{.Points}}</p>
       {{if .Signature}}<p class="j13-user-sig">{{.Signature}}</p>{{end}}
-      {{if .IsSelf}}<p><a href="/profile">编辑资料</a></p>{{end}}
+      {{if .IsSelf}}<p><a href="/profile">编辑资料</a></p>
+      {{else if .LoggedIn}}<p><a href="/messages/with/{{.UserID}}">发私信</a></p>{{end}}
     </div>
   </header>
   {{template "base/alert" .}}

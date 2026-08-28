@@ -1,0 +1,39 @@
+{{define "messages/thread"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-messages">
+  <p><a href="/messages">← 返回会话列表</a></p>
+  <h1>{{.PeerName}}</h1>
+  {{if .IsSystem}}<p class="j13-muted">系统通知（只读）</p>{{else}}<p class="j13-muted"><a href="/user/{{.PeerID}}">查看主页</a></p>{{end}}
+  {{template "base/alert" .}}
+
+  {{if .HasOlder}}
+  <p><a href="/messages/with/{{.PeerID}}?before={{.OlderBefore}}">加载更早消息</a></p>
+  {{end}}
+
+  {{if .Messages}}
+  <ul class="j13-msg-thread">
+    {{range .Messages}}
+    <li class="j13-msg-bubble{{if .FromSelf}} is-self{{end}}{{if .IsSystem}} is-system{{end}}">
+      {{if .Subject}}<div class="j13-msg-bubble__subj">{{.Subject}}</div>{{end}}
+      <div class="j13-msg-bubble__body">{{.Content}}</div>
+      <div class="j13-muted">{{.CreatedLabel}}{{if .Kind}} · {{.Kind}}{{end}}</div>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">还没有消息。{{if .CanReply}}发送第一条私信开始对话。{{end}}</p>
+  {{end}}
+
+  {{if .CanReply}}
+  <form method="post" action="/messages/with/{{.PeerID}}" class="j13-form j13-msg-compose">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>回复
+      <textarea name="content" rows="4" required maxlength="4000">{{.Draft}}</textarea>
+    </label>
+    <button type="submit">发送</button>
+  </form>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

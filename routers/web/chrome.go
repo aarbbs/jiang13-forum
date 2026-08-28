@@ -47,6 +47,7 @@ type PageChrome struct {
 	CSRF        string
 	Flash       string
 	Error       string
+	UnreadCount int64 // 登录用户未读私信/通知总数；未登录为 0
 }
 
 func (d Deps) ctx(c *gin.Context) *webctx.Context {
@@ -73,6 +74,10 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 	for _, b := range boards {
 		bv = append(bv, BoardView{ID: b.ID, Name: b.Name})
 	}
+	var unread int64
+	if ctx.IsSigned() && d.Message != nil {
+		unread, _ = d.Message.UnreadCount(ctx.UserID())
+	}
 	return PageChrome{
 		Title:       title,
 		Description: desc,
@@ -86,6 +91,7 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		Inner:       inner,
 		CSRF:        ctx.EnsureCSRF(),
 		Flash:       ctx.TakeFlash(),
+		UnreadCount: unread,
 	}
 }
 
