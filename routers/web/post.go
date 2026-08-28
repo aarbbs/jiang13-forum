@@ -156,6 +156,40 @@ func (d Deps) PostComment(c *gin.Context) {
 	ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
 }
 
+// PostUnlock POST /post/:id/unlock — 积分解锁（JSON，供详情页渐进增强）
+func (d Deps) PostUnlock(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效请求，请重试"})
+		return
+	}
+	id, err := parsePostID(c, d)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "帖子不存在"})
+		return
+	}
+	var req struct {
+		BlockKey string `json:"block_key" form:"block_key"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if req.BlockKey == "" {
+		req.BlockKey = strings.TrimSpace(c.PostForm("block_key"))
+	}
+	if req.BlockKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 block_key"})
+		return
+	}
+	res, err := services.UnlockPointsBlock(ctx.UserID(), id, req.BlockKey)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "解锁成功",
+		"unlock":  res,
+	})
+}
+
 // PostLike 赞
 func (d Deps) PostLike(c *gin.Context) {
 	ctx := d.ctx(c)

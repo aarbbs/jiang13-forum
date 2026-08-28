@@ -29,9 +29,12 @@
         插入图片
         <input type="file" id="compose-image" accept="image/*" hidden/>
       </label>
+      <button type="button" class="j13-btn-secondary" id="compose-gate-login" data-gate="login">登录可见</button>
+      <button type="button" class="j13-btn-secondary" id="compose-gate-reply" data-gate="reply">回复可见</button>
+      <button type="button" class="j13-btn-secondary" id="compose-gate-points" data-gate="points">积分可见</button>
       <span class="j13-muted" id="compose-upload-status"></span>
     </div>
-    <p class="j13-muted">本版仅发普通讨论帖；投票 / 悬赏 / 抽奖后续迭代。</p>
+    <p class="j13-muted">门控：选中正文后点按钮包裹；积分可见会询问价格（1–9999）。含门控时正文以 HTML 提交。</p>
     <button type="submit">{{if .IsEdit}}保存{{else}}发布{{end}}</button>
   </form>
 </main>

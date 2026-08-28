@@ -27,6 +27,7 @@ func postContentHTMLPolicy() *bluemonday.Policy {
 		p.AllowAttrs("colspan", "rowspan").OnElements("th", "td")
 		p.AllowAttrs(
 			"data-locked", "data-length", "data-gate", "data-cost", "data-block-key",
+			"data-gate-shell",
 			"data-code-copy", "data-code-fold", "data-lang", "data-full",
 			"data-code-style", "data-line-numbers", "data-collapsed",
 			"data-line-count", "data-lineno-digits",

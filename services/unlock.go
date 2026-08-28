@@ -100,7 +100,10 @@ func RedactPointsOnlyHTML(html string, unlocked map[string]bool) string {
 			cost = 1
 		}
 		length := gatedContentLength(inner)
-		return fmt.Sprintf(`<points-only data-gate="points" data-cost="%d" data-block-key="%s" data-locked="true" data-length="%d"></points-only>`, cost, key, length)
+		return fmt.Sprintf(
+			`<points-only data-gate="points" data-cost="%d" data-block-key="%s" data-locked="true" data-length="%d"><div class="j13-gate j13-gate--points" data-gate-shell="points"><p class="j13-gate__title">积分可见</p><p class="j13-gate__meta">需 %d 积分 · 约 %d 字</p><p class="j13-gate__hint">登录后可解锁</p></div></points-only>`,
+			cost, key, length, cost, length,
+		)
 	})
 }
 

@@ -13,7 +13,7 @@
           <a href="/compose">发帖</a>
           <a href="/messages">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>
           <a href="/favorites">收藏</a>
-          <a href="/profile">{{.ViewerName}}</a>
+          <a href="/profile">{{.ViewerName}} · {{.ViewerPoints}} 积分</a>
           {{if .IsAdmin}}<a href="/admin/dashboard">后台</a>{{end}}
           <form class="j13-inline-form" method="post" action="/logout">
             <input type="hidden" name="_csrf" value="{{.CSRF}}"/>

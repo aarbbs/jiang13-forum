@@ -14,13 +14,67 @@
     <li><strong>{{.CommentCount}}</strong><span>评论</span></li>
     <li><strong>{{.FavoriteCount}}</strong><span>收藏</span></li>
     <li><strong>{{.LikeReceived}}</strong><span>获赞</span></li>
+    <li><strong>{{.Points}}</strong><span>积分</span></li>
   </ul>
+
+  <section class="j13-profile__wallet" id="wallet">
+    <h2>积分钱包</h2>
+    <p class="j13-profile__balance">当前余额 <strong>{{.Points}}</strong> 积分</p>
+    <div class="j13-profile__daily">
+      <div class="j13-profile__daily-card">
+        <h3>每日签到</h3>
+        {{if .CheckIn.CheckedIn}}
+        <p class="j13-muted">今日已签到 · 连续 {{.CheckIn.Streak}} 天 · 获得 {{.CheckIn.TodayPoints}} 积分</p>
+        <button type="button" class="j13-btn" disabled>已签到</button>
+        {{else}}
+        <p class="j13-muted">连续将至 {{.CheckIn.Streak}} 天 · 预计可得 {{.CheckIn.TodayPoints}} 积分（基础 5，连签 +1，封顶 15）</p>
+        <form method="post" action="/profile/checkin" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+          <button type="submit" class="j13-btn">签到</button>
+        </form>
+        {{end}}
+      </div>
+      <div class="j13-profile__daily-card">
+        <h3>每日抽奖</h3>
+        {{if .Lottery.Drawn}}
+        <p class="j13-muted">今日已抽 · 结果 {{.Lottery.Points}} 积分</p>
+        <button type="button" class="j13-btn" disabled>已抽奖</button>
+        {{else}}
+        <p class="j13-muted">每日一次 · 成本 {{.Lottery.Cost}} · 奖池 0/2/5/10/20</p>
+        <form method="post" action="/profile/lottery" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+          <button type="submit" class="j13-btn">抽奖</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+    <h3 class="j13-profile__ledger-title">最近流水</h3>
+    {{if .Ledger}}
+    <table class="j13-profile__ledger">
+      <thead>
+        <tr><th>时间</th><th>事由</th><th>变动</th><th>余额</th></tr>
+      </thead>
+      <tbody>
+        {{range .Ledger}}
+        <tr>
+          <td>{{.CreatedAt}}</td>
+          <td>{{.ReasonLabel}}{{if .Note}} <span class="j13-muted">{{.Note}}</span>{{end}}</td>
+          <td class="{{if gt .Delta 0}}j13-delta--pos{{else if lt .Delta 0}}j13-delta--neg{{end}}">{{if gt .Delta 0}}+{{end}}{{.Delta}}</td>
+          <td>{{.Balance}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-muted">暂无积分流水</p>
+    {{end}}
+  </section>
 
   <section class="j13-profile__card">
     <h2>账号</h2>
     <p>用户名 <strong>{{.Username}}</strong></p>
     <p class="j13-muted">邮箱 {{.Email}}</p>
-    <p class="j13-muted">等级 Lv.{{.Level}} · 经验 {{.Exp}} · 积分 {{.Points}}</p>
+    <p class="j13-muted">等级 Lv.{{.Level}} · 经验 {{.Exp}}</p>
     {{if .Avatar}}
     <p><img class="j13-avatar" src="{{.Avatar}}" alt="头像"/></p>
     {{end}}

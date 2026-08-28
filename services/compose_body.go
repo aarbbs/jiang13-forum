@@ -12,7 +12,7 @@ var (
 )
 
 // ComposeBodyToHTML 将发帖表单正文转为可消毒 HTML。
-// 若已含块级 HTML 标签则原样交 Sanitize；否则按纯文本/轻量 Markdown 转段落。
+// 若已含块级 HTML / 门控标签则原样交 Sanitize；否则按纯文本/轻量 Markdown 转段落。
 func ComposeBodyToHTML(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -22,7 +22,9 @@ func ComposeBodyToHTML(raw string) string {
 	if strings.Contains(lower, "<p") || strings.Contains(lower, "<div") ||
 		strings.Contains(lower, "<h1") || strings.Contains(lower, "<ul") ||
 		strings.Contains(lower, "<ol") || strings.Contains(lower, "<pre") ||
-		strings.Contains(lower, "<blockquote") {
+		strings.Contains(lower, "<blockquote") ||
+		strings.Contains(lower, "<members-only") || strings.Contains(lower, "<reply-only") ||
+		strings.Contains(lower, "<points-only") {
 		return raw
 	}
 
@@ -85,6 +87,12 @@ func HTMLToComposePlain(htmlBody string) string {
 	s := strings.TrimSpace(htmlBody)
 	if s == "" {
 		return ""
+	}
+	lower := strings.ToLower(s)
+	// 含门控块时保留 HTML，避免编辑丢失
+	if strings.Contains(lower, "<members-only") || strings.Contains(lower, "<reply-only") ||
+		strings.Contains(lower, "<points-only") {
+		return s
 	}
 	// img → markdown
 	imgRe := regexp.MustCompile(`(?i)<img[^>]+src="([^"]+)"[^>]*>`)

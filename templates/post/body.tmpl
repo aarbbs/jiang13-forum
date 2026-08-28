@@ -1,5 +1,5 @@
 {{define "post/body"}}
-<article class="j13-post">
+<article class="j13-post" data-post-id="{{.PostID}}" data-csrf="{{.CSRF}}" data-logged-in="{{if .LoggedIn}}1{{else}}0{{end}}">
   <header class="j13-post__header">
     <h1 class="j13-post__title">{{.PostTitle}}</h1>
     <div class="j13-post__meta">

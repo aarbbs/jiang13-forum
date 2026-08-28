@@ -1,8 +1,8 @@
 ﻿package services
 
 import (
+	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -54,10 +54,17 @@ func redactGatedBlocks(html string, re *regexp.Regexp, tag string) string {
 		}
 		length := gatedContentLength(inner)
 		gate := "login"
+		title := "登录后可见"
+		hint := "请登录后查看隐藏内容"
 		if tag == "reply-only" {
 			gate = "reply"
+			title = "回复后可见"
+			hint = "参与评论后即可查看"
 		}
-		return `<` + tag + ` data-gate="` + gate + `" data-locked="true" data-length="` + strconv.Itoa(length) + `"></` + tag + `>`
+		return fmt.Sprintf(
+			`<%s data-gate="%s" data-locked="true" data-length="%d"><div class="j13-gate" data-gate-shell="%s"><p class="j13-gate__title">%s</p><p class="j13-gate__meta">约 %d 字</p><p class="j13-gate__hint">%s</p></div></%s>`,
+			tag, gate, length, gate, title, length, hint, tag,
+		)
 	})
 }
 

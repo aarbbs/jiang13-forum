@@ -100,6 +100,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Board: boardSvc, Post: postSvc, Comment: commentSvc,
 		Message: messageSvc, Filter: filter,
 		Limiter: limiter, EmailCode: emailCodeSvc, Store: uploadStore,
+		Points: services.NewPointsService(),
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)

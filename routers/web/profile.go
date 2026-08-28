@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,16 @@ import (
 	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
+
+const profileLedgerLimit = 15
+
+type profileLedgerItem struct {
+	Delta       int
+	Balance     int
+	ReasonLabel string
+	Note        string
+	CreatedAt   string
+}
 
 type profileData struct {
 	PageChrome
@@ -29,6 +40,35 @@ type profileData struct {
 	PublicURL     string
 	AvatarMaxMB   int
 	SignatureMax  int
+	CheckIn       services.CheckInStatus
+	Lottery       services.LotteryStatus
+	Ledger        []profileLedgerItem
+}
+
+func pointReasonLabel(reason string) string {
+	switch reason {
+	case models.PointReasonCheckIn:
+		return "签到"
+	case models.PointReasonLottery:
+		return "每日抽奖"
+	case models.PointReasonUnlockSpend:
+		return "解锁内容"
+	case models.PointReasonCreatorIncome:
+		return "创作分成"
+	case models.PointReasonAdminAdjust:
+		return "站长调整"
+	case models.PointReasonBountyEscrow:
+		return "悬赏托管"
+	case models.PointReasonBountyAward:
+		return "悬赏奖励"
+	case models.PointReasonBountyRefund:
+		return "悬赏退款"
+	default:
+		if reason == "" {
+			return "其他"
+		}
+		return reason
+	}
 }
 
 // ProfileGet 个人中心
@@ -48,6 +88,7 @@ func (d Deps) renderProfile(ctx *webctx.Context, errMsg string) {
 	st, _ := d.User.ActivityStats(uid)
 	chrome := d.chrome(ctx, "个人中心 · "+d.Settings.SiteBranding().Name, "", "")
 	chrome.Error = errMsg
+	chrome.ViewerPoints = user.Points
 	nick := strings.TrimSpace(user.Nickname)
 	if nick == "" {
 		nick = user.Username
@@ -70,6 +111,21 @@ func (d Deps) renderProfile(ctx *webctx.Context, errMsg string) {
 		PublicURL:     fmt.Sprintf("/user/%d", user.ID),
 		AvatarMaxMB:   d.Settings.AvatarMaxMB(),
 		SignatureMax:  d.Settings.SignatureMax(),
+	}
+	if d.Points != nil {
+		data.CheckIn, _ = d.Points.GetCheckInStatus(uid)
+		data.Lottery, _ = d.Points.GetLotteryStatus(uid)
+		rows, _, _ := d.Points.ListLedger(uid, 1, profileLedgerLimit)
+		data.Ledger = make([]profileLedgerItem, 0, len(rows))
+		for _, row := range rows {
+			data.Ledger = append(data.Ledger, profileLedgerItem{
+				Delta:       row.Delta,
+				Balance:     row.Balance,
+				ReasonLabel: pointReasonLabel(row.Reason),
+				Note:        row.Note,
+				CreatedAt:   row.CreatedAt.Format("2006-01-02 15:04"),
+			})
+		}
 	}
 	// 导航显示最新昵称
 	data.ViewerName = nick
@@ -164,5 +220,59 @@ func (d Deps) ProfileAvatarPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("头像已更新")
+	ctx.Redirect("/profile")
+}
+
+// ProfileCheckInPost 每日签到（PRG）
+func (d Deps) ProfileCheckInPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderProfile(ctx, "无效请求，请重试")
+		return
+	}
+	if d.Points == nil {
+		d.renderProfile(ctx, "积分服务未就绪")
+		return
+	}
+	st, err := d.Points.CheckIn(ctx.UserID())
+	if err != nil {
+		if errors.Is(err, services.ErrAlreadyCheckedIn) {
+			ctx.SetFlash("今日已签到")
+			ctx.Redirect("/profile")
+			return
+		}
+		d.renderProfile(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash(fmt.Sprintf("签到成功：连续 %d 天，获得 %d 积分", st.Streak, st.TodayPoints))
+	ctx.Redirect("/profile")
+}
+
+// ProfileLotteryPost 每日抽奖（PRG）
+func (d Deps) ProfileLotteryPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderProfile(ctx, "无效请求，请重试")
+		return
+	}
+	if d.Points == nil {
+		d.renderProfile(ctx, "积分服务未就绪")
+		return
+	}
+	st, err := d.Points.DrawLottery(ctx.UserID())
+	if err != nil {
+		if errors.Is(err, services.ErrAlreadyLottery) {
+			ctx.SetFlash("今日已抽奖")
+			ctx.Redirect("/profile")
+			return
+		}
+		d.renderProfile(ctx, err.Error())
+		return
+	}
+	if st.Points > 0 {
+		ctx.SetFlash(fmt.Sprintf("抽奖结果：获得 %d 积分", st.Points))
+	} else {
+		ctx.SetFlash("抽奖结果：未中奖，明天再来")
+	}
 	ctx.Redirect("/profile")
 }
