@@ -1,0 +1,42 @@
+{{define "home"}}{{template "base" .}}{{end}}
+
+{{define "content"}}
+<section class="j13-feed">
+  <header class="j13-feed__header">
+    <h1 class="j13-feed__title">{{if .BoardName}}{{.BoardName}}{{else}}全部帖子{{end}}</h1>
+    <div class="j13-sort" role="navigation" aria-label="排序">
+      <a class="{{if eq .Sort "latest"}}is-active{{end}}" href="{{sortURL .ActiveBoard "latest"}}">最新发帖</a>
+      <a class="{{if eq .Sort "reply"}}is-active{{end}}" href="{{sortURL .ActiveBoard "reply"}}">最新回复</a>
+      <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{sortURL .ActiveBoard "hot"}}">热门讨论</a>
+    </div>
+  </header>
+
+  {{if not .Posts}}
+  <p class="j13-empty">暂无帖子。登录后可以发第一帖。</p>
+  {{else}}
+  <ul class="j13-post-list">
+    {{range .Posts}}
+    <li class="j13-post-item">
+      <a class="j13-post-item__title" href="/post/{{.ID}}">{{.Title}}</a>
+      <div class="j13-post-item__meta">
+        {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
+        {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
+        {{if .BoardName}}<span class="j13-tag">{{.BoardName}}</span>{{end}}
+        <span>{{.AuthorName}}</span>
+        <span>{{.CreatedLabel}}</span>
+        <span>{{.CommentCount}} 回复</span>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if or .HasPrev .HasMore}}
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="{{pageURL .ActiveBoard .Sort .PrevPage}}">上一页</a>{{end}}
+    <span>第 {{.Page}} 页</span>
+    {{if .HasMore}}<a href="{{pageURL .ActiveBoard .Sort .NextPage}}">下一页</a>{{end}}
+  </nav>
+  {{end}}
+</section>
+{{end}}

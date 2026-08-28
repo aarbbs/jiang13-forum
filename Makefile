@@ -12,39 +12,42 @@ REGISTRY_IMAGE := hangzhang714128/jiang13-forum
 GO          := go
 GOFLAGS     := -trimpath
 
-.PHONY: all build build-windows build-linux build-darwin clean run dev tidy help frontend frontend-build docker compose-up compose-down
+.PHONY: all build build-windows build-linux build-darwin clean run dev tidy help frontend frontend-build web-src-build docker compose-up compose-down
 
 all: build
+
+web-src-build:
+	cd web_src && npm run build
 
 frontend-build:
 	cd frontend && npm install && npm run build
 
 ## 编译当前平台二进制（纯 Go SQLite，无需 CGO）
-build: frontend-build
+build: web-src-build frontend-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PKG)
 	@echo "✓ 编译完成: $(BUILD_DIR)/$(APP_NAME)"
 
 ## Windows amd64（先打包前端再 embed）
-build-windows: frontend-build
+build-windows: web-src-build frontend-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME).exe $(MAIN_PKG)
 	@echo "✓ Windows: $(BUILD_DIR)/$(APP_NAME).exe"
 
 ## Linux amd64（先打包前端再 embed）
-build-linux: frontend-build
+build-linux: web-src-build frontend-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PKG)
 	@echo "✓ Linux: $(BUILD_DIR)/$(APP_NAME)-linux-amd64"
 
 ## macOS arm64 (Apple Silicon)（先打包前端再 embed）
-build-darwin: frontend-build
+build-darwin: web-src-build frontend-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 $(MAIN_PKG)
 	@echo "✓ macOS: $(BUILD_DIR)/$(APP_NAME)-darwin-arm64"
 
-## 跨平台全量编译（frontend-build 只跑一次）
-build-all: frontend-build
+## 跨平台全量编译（web-src + frontend 只跑一次）
+build-all: web-src-build frontend-build
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME).exe $(MAIN_PKG)
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PKG)
@@ -89,13 +92,14 @@ compose-down:
 
 help:
 	@echo "姜十三论坛编译命令:"
+	@echo "  make web-src-build  - 构建 SSR 渐进资源 (web_src)"
 	@echo "  make build          - 编译当前平台"
 	@echo "  make build-windows  - 编译 Windows"
 	@echo "  make build-linux    - 编译 Linux"
 	@echo "  make build-darwin   - 编译 macOS"
 	@echo "  make build-all      - 编译全部平台"
-	@echo "  make run            - 仅启动后端（:3000）"
-	@echo "  make dev            - 前端热更新开发（:5173 + :3000）"
+	@echo "  make run            - 启动后端 SSR（:3000）"
+	@echo "  make dev            - 后端 + 旧 SPA Vite 对照（:5173 + :3000）"
 	@echo "  make docker         - 构建 Docker 镜像"
 	@echo "  make compose-up     - Docker Compose 启动"
 	@echo "  make compose-down   - Docker Compose 停止"

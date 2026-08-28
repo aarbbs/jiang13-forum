@@ -1,0 +1,163 @@
+/* 姜十三论坛 SSR 骨架样式（web_src → public/assets） */
+:root {
+  --j13-bg: #f6f4ef;
+  --j13-surface: #fffdf8;
+  --j13-text: #1c1917;
+  --j13-muted: #78716c;
+  --j13-accent: #0f766e;
+  --j13-border: #e7e5e4;
+  --j13-radius: 8px;
+  --j13-font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body.j13-body {
+  margin: 0;
+  font-family: var(--j13-font);
+  color: var(--j13-text);
+  background: var(--j13-bg);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.j13-header {
+  background: var(--j13-surface);
+  border-bottom: 1px solid var(--j13-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.j13-header__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.j13-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+}
+.j13-brand__mark {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--j13-radius);
+  background: var(--j13-accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.j13-brand__text { display: flex; flex-direction: column; }
+.j13-brand__text strong { font-size: 1rem; }
+.j13-brand__slogan { font-size: 0.75rem; color: var(--j13-muted); }
+.j13-nav { display: flex; gap: 0.85rem; flex-wrap: wrap; }
+.j13-nav a { color: var(--j13-accent); text-decoration: none; font-size: 0.9rem; }
+.j13-nav a:hover { text-decoration: underline; }
+
+.j13-layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 800px) {
+  .j13-layout { grid-template-columns: 1fr; }
+}
+
+.j13-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.j13-aside__link {
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--j13-radius);
+  color: var(--j13-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.j13-aside__link:hover,
+.j13-aside__link.is-active {
+  background: var(--j13-surface);
+  color: var(--j13-accent);
+}
+
+.j13-main {
+  background: var(--j13-surface);
+  border: 1px solid var(--j13-border);
+  border-radius: calc(var(--j13-radius) + 2px);
+  padding: 1rem 1.1rem 1.25rem;
+  min-height: 40vh;
+}
+
+.j13-feed__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.j13-feed__title { margin: 0; font-size: 1.25rem; }
+.j13-sort { display: flex; gap: 0.75rem; font-size: 0.875rem; }
+.j13-sort a { color: var(--j13-muted); text-decoration: none; }
+.j13-sort a.is-active,
+.j13-sort a:hover { color: var(--j13-accent); font-weight: 600; }
+
+.j13-post-list { list-style: none; margin: 0; padding: 0; }
+.j13-post-item {
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--j13-border);
+}
+.j13-post-item:first-child { border-top: 0; }
+.j13-post-item__title {
+  color: var(--j13-text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.j13-post-item__title:hover { color: var(--j13-accent); }
+.j13-post-item__meta {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--j13-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.j13-tag {
+  background: #ecfdf5;
+  color: var(--j13-accent);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+.j13-tag--pin { background: #fef3c7; color: #92400e; }
+.j13-tag--feat { background: #ede9fe; color: #5b21b6; }
+
+.j13-empty { color: var(--j13-muted); }
+.j13-pager {
+  margin-top: 1.25rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.j13-pager a { color: var(--j13-accent); }
+
+.j13-footer {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2rem;
+  color: var(--j13-muted);
+  font-size: 0.8rem;
+}

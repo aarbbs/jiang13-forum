@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"git.iioio.com/freefire/jiang13-forum/embed_static"
 	"git.iioio.com/freefire/jiang13-forum/handler"
 	"git.iioio.com/freefire/jiang13-forum/middleware"
+	webpublic "git.iioio.com/freefire/jiang13-forum/public"
+	webpages "git.iioio.com/freefire/jiang13-forum/routers/web"
 	"git.iioio.com/freefire/jiang13-forum/service"
 	"github.com/gin-gonic/gin"
 )
@@ -21,14 +24,22 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 
-	// dev 模式：跳过内嵌静态资源，前端由 Vite 开发服务器(:5173)提供
-	// 用户应访问 5173 端口，Vite 通过 proxy 将 /api 等请求转发到本服务(:3000)
+	// SSR 静态资源（独立前缀，避免与 SPA /assets/* 冲突）
+	if sub, err := fs.Sub(webpublic.Assets, "assets"); err == nil {
+		ssrFiles := http.StripPrefix("/ssr-assets", http.FileServer(http.FS(sub)))
+		r.GET("/ssr-assets/*filepath", func(c *gin.Context) {
+			c.Header("Cache-Control", "public, max-age=86400")
+			ssrFiles.ServeHTTP(c.Writer, c.Request)
+		})
+	}
+
+	// 生产：内嵌 React SPA（未迁移路径仍走 SPA）；dev：Vite 可对照旧前台
 	if !cfg.DevMode {
 		if err := embed_static.SetupEmbed(r); err != nil {
 			return nil, err
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "[dev] 后端仅提供 API，前端请访问 http://localhost:5173\n")
+		fmt.Fprintf(os.Stderr, "[dev] SSR 页面请访问 http://localhost:3000 ；旧 SPA 对照可用 Vite :5173\n")
 	}
 
 	filter := service.NewSensitiveFilter()
@@ -96,6 +107,13 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		FriendLinkApply: friendLinkApplySvc,
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
+
+	// Gitea 式 SSR 公开页（优先于 SPA）
+	webpages.Register(r, webpages.Deps{
+		Settings: settingsSvc,
+		Board:    boardSvc,
+		Post:     postSvc,
+	}, authMW)
 
 	// 缩略图使用独立前缀，避免与 Static("/uploads/*filepath") 路由冲突
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
@@ -289,17 +307,14 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		}
 	}
 
-	// React SPA 入口
-	// dev 模式：前端由 Vite(:5173) 提供，非 API 请求返回开发提示
-	// 生产模式：注入 SEO meta / JSON-LD / 预渲染摘要
+	// 未迁移路径：生产仍回落 React SPA；/ 与 /board/:id 已由 routers/web 接管
 	if cfg.DevMode {
 		r.NoRoute(func(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{
-				"error": "dev 模式下前端由 Vite 提供，请访问 http://localhost:5173",
+				"error": "页面未找到。SSR 首页请打开 / ；旧 SPA 请用 Vite http://localhost:5173",
 			})
 		})
 	} else {
-		r.GET("/", h.ServePublicSPA)
 		r.NoRoute(func(c *gin.Context) {
 			if embed_static.IsSPARoute(c.Request.URL.Path) {
 				h.ServePublicSPA(c)

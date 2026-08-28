@@ -1,0 +1,20 @@
+---
+description: 产品规格为唯一业务事实来源
+alwaysApply: true
+---
+
+# 规格文档对照
+
+重构实现时以 [`docs/rebuild-spec/`](docs/rebuild-spec/) 为准，不另发明业务语义。
+
+| 需求类型 | 查阅 |
+|----------|------|
+| 要不要做某功能 | `02-features.md` |
+| 表字段 / 枚举 / settings 键 | `03-data-model.md` |
+| HTTP 路径与 JSON 形状 | `04-api.md` |
+| 审核 / 积分 / 门控 / 悬赏等 | `05-business-rules.md` |
+| 路由与交互信息架构 | `06-pages-ux.md` |
+| 配置与部署 | `07-config-ops.md` |
+| SSR 目录与分支 | `08-gitea-ssr-architecture.md` |
+
+规格与代码冲突时：以**当前分支代码**行为为准，并应回写修正规格。

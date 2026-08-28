@@ -68,9 +68,12 @@ func ServeSPANoIndex(c *gin.Context) {
 	})
 }
 
-// IsSPARoute 判断是否应由 SPA 处理
+// IsSPARoute 判断是否应由 SPA 处理（已迁移的 SSR 路径返回 false）
 func IsSPARoute(path string) bool {
-	if path == "/health" || path == "/robots.txt" || path == "/sitemap.xml" {
+	if path == "/" || path == "/health" || path == "/robots.txt" || path == "/sitemap.xml" {
+		return false
+	}
+	if strings.HasPrefix(path, "/board/") {
 		return false
 	}
 	if strings.HasPrefix(path, "/api") ||
@@ -78,6 +81,7 @@ func IsSPARoute(path string) bool {
 		strings.HasPrefix(path, "/uploads") ||
 		strings.HasPrefix(path, "/media") ||
 		strings.HasPrefix(path, "/assets") ||
+		strings.HasPrefix(path, "/ssr-assets") ||
 		strings.HasPrefix(path, "/stickers") ||
 		strings.HasPrefix(path, "/oauth") ||
 		strings.HasPrefix(path, "/.well-known") {

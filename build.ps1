@@ -3,7 +3,7 @@
 #        .\build.ps1 -Target build-windows
 
 param(
-    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'frontend', 'tidy', 'run', 'dev', 'clean', 'docker', 'compose-up', 'compose-down', 'help')]
+    [ValidateSet('build', 'build-windows', 'build-linux', 'build-darwin', 'build-all', 'frontend', 'web-src', 'tidy', 'run', 'dev', 'clean', 'docker', 'compose-up', 'compose-down', 'help')]
     [string]$Target = 'build'
 )
 
@@ -19,6 +19,17 @@ $Ldlags = "-s -w -X main.version=$Version"
 function Ensure-Dir($path) {
     if (-not (Test-Path $path)) {
         New-Item -ItemType Directory -Path $path | Out-Null
+    }
+}
+
+function Build-WebSrc {
+    Write-Host '[web_src] npm run build...' -ForegroundColor Cyan
+    Push-Location web_src
+    try {
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw 'web_src build failed' }
+    } finally {
+        Pop-Location
     }
 }
 
@@ -70,12 +81,13 @@ function Build-Go([string]$OutFile, [string]$GoOS = '', [string]$GoArch = '') {
 switch ($Target) {
     'help' {
         Write-Host '.\build.ps1                  build current platform'
-        Write-Host '.\build.ps1 -Target frontend  frontend only'
+        Write-Host '.\build.ps1 -Target frontend  SPA frontend only (legacy)'
+        Write-Host '.\build.ps1 -Target web-src   SSR progressive assets'
         Write-Host '.\build.ps1 -Target build-windows'
         Write-Host '.\build.ps1 -Target build-linux'
         Write-Host '.\build.ps1 -Target build-all'
-        Write-Host '.\build.ps1 -Target run       backend only (port 3000)'
-        Write-Host '.\build.ps1 -Target dev       backend + Vite HMR (recommended for frontend dev)'
+        Write-Host '.\build.ps1 -Target run       backend (SSR on :3000)'
+        Write-Host '.\build.ps1 -Target dev       backend + Vite SPA对照'
         Write-Host '.\build.ps1 -Target tidy'
         Write-Host '.\build.ps1 -Target clean'
         Write-Host '.\build.ps1 -Target docker       build Docker image'
@@ -85,6 +97,7 @@ switch ($Target) {
         Write-Host 'Note: Windows "make" is often Embarcadero MAKE, not GNU Make.'
     }
     'frontend' { Build-Frontend }
+    'web-src' { Build-WebSrc }
     'tidy' { go mod tidy }
     'clean' {
         if (Test-Path $BuildDir) { Remove-Item -Recurse -Force $BuildDir }
@@ -117,23 +130,28 @@ switch ($Target) {
         }
     }
     'build' {
+        Build-WebSrc
         Build-Frontend
         Build-Go -OutFile $AppName
     }
     'build-windows' {
+        Build-WebSrc
         Build-Frontend
         Build-Go -OutFile $AppName -GoOS 'windows' -GoArch 'amd64'
     }
     'build-linux' {
-        Write-Host '[build-linux] will npm run build then go:embed SPA' -ForegroundColor Yellow
+        Write-Host '[build-linux] will build web_src + SPA then go:embed' -ForegroundColor Yellow
+        Build-WebSrc
         Build-Frontend
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'
     }
     'build-darwin' {
+        Build-WebSrc
         Build-Frontend
         Build-Go -OutFile "$AppName-darwin-arm64" -GoOS 'darwin' -GoArch 'arm64'
     }
     'build-all' {
+        Build-WebSrc
         Build-Frontend
         Build-Go -OutFile $AppName -GoOS 'windows' -GoArch 'amd64'
         Build-Go -OutFile "$AppName-linux-amd64" -GoOS 'linux' -GoArch 'amd64'

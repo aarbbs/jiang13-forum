@@ -1,0 +1,32 @@
+---
+description: Gitea 式 SSR 重构总则（rebuild/gitea-ssr 分支）
+alwaysApply: true
+---
+
+# Gitea 式 SSR 重构
+
+## 分支
+
+- 功能开发在 **`rebuild/gitea-ssr`**；**不要**把破坏性 SSR 替换推到 `main`。
+- `main` 保留 React SPA，用作对照（checkout / worktree）。
+
+## 渲染
+
+- 公开页（首页、板块、帖详情、用户页等）必须用 **Go `html/template` 服务端渲染完整 HTML**。
+- 禁止为已迁移公开页恢复 React SPA 空壳；禁止「用户 SPA + 爬虫专用 HTML」双轨作为长期方案。
+- JSON `/api` 仅用于交互增强与管理后台，**不得**作为公开页首屏唯一数据来源。
+
+## 架构参照
+
+对齐 [Gitea](https://github.com/go-gitea/gitea) 职责划分：
+
+- `routers/web` — HTML 页面路由
+- `templates/` — 模板
+- `web_src/` → `public/assets/` — 渐进增强 CSS/JS
+- 现有 `service/`、`model/` 可复用业务逻辑
+
+细节见 [`docs/rebuild-spec/08-gitea-ssr-architecture.md`](docs/rebuild-spec/08-gitea-ssr-architecture.md)。
+
+## 产品规格
+
+实现功能前按 [`docs/rebuild-spec/README.md`](docs/rebuild-spec/README.md) 阅读顺序核对；业务规则以 `05-business-rules.md` 为准。
