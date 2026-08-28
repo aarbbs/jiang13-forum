@@ -35,16 +35,31 @@
   {{else}}
   <ul class="j13-comment-list">
     {{range .Comments}}
-    <li class="j13-comment" id="floor-{{.Floor}}">
+    <li class="j13-comment" id="floor-{{.Floor}}" data-comment-id="{{.ID}}" data-floor="{{.Floor}}" data-author="{{.AuthorName}}">
       <div class="j13-comment__meta">
         <span class="j13-comment__floor">#{{.Floor}}</span>
         {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
         <span>{{.CreatedLabel}}</span>
+        {{if .IsPrivate}}<span class="j13-tag">私密</span>{{end}}
+        {{if .ReplyToFloor}}
+        <span class="j13-comment__reply-to">回复 <a href="#floor-{{.ReplyToFloor}}">#{{.ReplyToFloor}}</a>{{if .ReplyToAuthor}} {{.ReplyToAuthor}}{{end}}</span>
+        {{end}}
       </div>
       {{if .ContentHidden}}
       <p class="j13-muted">（私密评论不可见）</p>
       {{else}}
       <div class="j13-comment__body">{{safeHTML .Content}}</div>
+      {{end}}
+      {{if $.LoggedIn}}
+      <div class="j13-comment__actions">
+        <form method="post" action="/post/{{$.PostID}}/comments/{{.ID}}/like" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <button type="submit" class="j13-linkbtn">{{if .Liked}}取消赞{{else}}赞{{end}} ({{.LikeCount}})</button>
+        </form>
+        {{if not $.CommentsLocked}}
+        <button type="button" class="j13-linkbtn j13-comment__reply-btn" data-reply-to="{{.ID}}" data-reply-floor="{{.Floor}}" data-reply-author="{{.AuthorName}}">回复</button>
+        {{end}}
+      </div>
       {{end}}
     </li>
     {{end}}
@@ -55,11 +70,20 @@
   {{if .CommentsLocked}}
   <p class="j13-muted">评论已锁定。</p>
   {{else}}
-  <form class="j13-comment-form" method="post" action="/post/{{.PostID}}/comments">
+  <form class="j13-comment-form" method="post" action="/post/{{.PostID}}/comments" id="comment-form">
     <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <input type="hidden" name="reply_to" id="comment-reply-to" value=""/>
+    <p class="j13-muted j13-comment-reply-hint" id="comment-reply-hint" hidden></p>
     <label for="comment-content">发表评论</label>
     <textarea id="comment-content" name="content" rows="4" required maxlength="8000"></textarea>
-    <button type="submit">提交</button>
+    <label class="j13-check">
+      <input type="checkbox" name="is_private" value="1"/>
+      私密评论（仅相关可见）
+    </label>
+    <div class="j13-form__row">
+      <button type="submit">提交</button>
+      <button type="button" class="j13-btn-secondary" id="comment-reply-clear" hidden>取消回复</button>
+    </div>
   </form>
   {{end}}
   {{else}}

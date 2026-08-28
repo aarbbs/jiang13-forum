@@ -203,3 +203,42 @@ document.documentElement.dataset.j13Ssr = "1";
     }
   });
 })();
+
+// 评论回复：点击「回复」填入 reply_to
+(function () {
+  const form = document.getElementById("comment-form");
+  if (!form) return;
+  const replyInput = document.getElementById("comment-reply-to");
+  const hint = document.getElementById("comment-reply-hint");
+  const clearBtn = document.getElementById("comment-reply-clear");
+  const content = document.getElementById("comment-content");
+  function clearReply() {
+    if (replyInput) replyInput.value = "";
+    if (hint) {
+      hint.hidden = true;
+      hint.textContent = "";
+    }
+    if (clearBtn) clearBtn.hidden = true;
+  }
+  function setReply(id, floor, author) {
+    if (!replyInput) return;
+    replyInput.value = id;
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = "回复 #" + floor + (author ? " " + author : "");
+    }
+    if (clearBtn) clearBtn.hidden = false;
+    if (content) content.focus();
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  document.querySelectorAll(".j13-comment__reply-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setReply(
+        btn.getAttribute("data-reply-to") || "",
+        btn.getAttribute("data-reply-floor") || "",
+        btn.getAttribute("data-reply-author") || ""
+      );
+    });
+  });
+  if (clearBtn) clearBtn.addEventListener("click", clearReply);
+})();

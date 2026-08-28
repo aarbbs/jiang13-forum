@@ -20,6 +20,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.GET("/post/:id/edit", authMW.RequireAuth(), deps.PostEditGet)
 	g.POST("/post/:id/edit", authMW.RequireAuth(), deps.PostEditPost)
 	g.POST("/post/:id/comments", authMW.RequireAuth(), deps.PostComment)
+	g.POST("/post/:id/comments/:cid/like", authMW.RequireAuth(), deps.PostCommentLike)
 	g.POST("/post/:id/like", authMW.RequireAuth(), deps.PostLike)
 	g.POST("/post/:id/favorite", authMW.RequireAuth(), deps.PostFavorite)
 	g.POST("/post/:id/unlock", authMW.RequireAuth(), deps.PostUnlock)

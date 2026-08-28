@@ -40,12 +40,19 @@ type PostPageData struct {
 
 // CommentView 评论
 type CommentView struct {
-	Floor         int
-	AuthorName    string
-	AuthorID      uint
-	CreatedLabel  string
-	Content       string
-	ContentHidden bool
+	ID             uint
+	Floor          int
+	AuthorName     string
+	AuthorID       uint
+	CreatedLabel   string
+	Content        string
+	ContentHidden  bool
+	ReplyToID      uint
+	ReplyToFloor   int
+	ReplyToAuthor  string
+	LikeCount      int
+	Liked          bool
+	IsPrivate      bool
 }
 
 // PostView GET /post/:id
@@ -76,11 +83,27 @@ func (d Deps) PostView(c *gin.Context) {
 		if an == "" {
 			an = cm.User.Username
 		}
-		cv = append(cv, CommentView{
-			Floor: cm.Floor, AuthorName: an, AuthorID: cm.UserID,
+		view := CommentView{
+			ID: cm.ID, Floor: cm.Floor, AuthorName: an, AuthorID: cm.UserID,
 			CreatedLabel: formatTime(cm.CreatedAt),
 			Content: cm.Content, ContentHidden: cm.ContentHidden,
-		})
+			LikeCount: cm.LikeCount, Liked: cm.Liked, IsPrivate: cm.IsPrivate,
+		}
+		if cm.ReplyTarget != nil {
+			view.ReplyToID = cm.ReplyTarget.ID
+			view.ReplyToFloor = cm.ReplyTarget.Floor
+			rn := strings.TrimSpace(cm.ReplyTarget.User.Nickname)
+			if rn == "" {
+				rn = cm.ReplyTarget.User.Username
+			}
+			if rn == "" {
+				rn = cm.ReplyTarget.GuestNick
+			}
+			view.ReplyToAuthor = rn
+		} else if cm.ReplyTo != nil {
+			view.ReplyToID = *cm.ReplyTo
+		}
+		cv = append(cv, view)
 	}
 
 	author := strings.TrimSpace(post.User.Nickname)
@@ -144,16 +167,57 @@ func (d Deps) PostComment(c *gin.Context) {
 		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
 		return
 	}
+	var replyTo *uint
+	if raw := strings.TrimSpace(c.PostForm("reply_to")); raw != "" {
+		rid, err := strconv.ParseUint(raw, 10, 64)
+		if err == nil && rid > 0 {
+			v := uint(rid)
+			replyTo = &v
+		}
+	}
+	isPrivate := c.PostForm("is_private") == "1" || c.PostForm("is_private") == "on"
 	safe := "<p>" + html.EscapeString(content) + "</p>"
-	_, err = d.Comment.Create(services.CommentCreateInput{
+	cm, err := d.Comment.Create(services.CommentCreateInput{
 		PostID: id, UserID: ctx.UserID(), Content: safe,
+		ReplyTo: replyTo, IsPrivate: isPrivate,
 	})
 	if err != nil {
 		ctx.SetFlash(err.Error())
 		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
 		return
 	}
-	ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
+	anchor := "#comments"
+	if cm != nil && cm.Floor > 0 {
+		anchor = fmt.Sprintf("#floor-%d", cm.Floor)
+	}
+	ctx.Redirect(fmt.Sprintf("/post/%d%s", id, anchor))
+}
+
+// PostCommentLike 评论点赞切换（PRG）
+func (d Deps) PostCommentLike(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求")
+		ctx.Redirect("/")
+		return
+	}
+	postID, err := parsePostID(c, d)
+	if err != nil {
+		d.render404(ctx)
+		return
+	}
+	cid, err := strconv.ParseUint(c.Param("cid"), 10, 64)
+	if err != nil || cid == 0 {
+		d.render404(ctx)
+		return
+	}
+	cm, err := d.Comment.GetByID(uint(cid))
+	if err != nil || cm.PostID != postID {
+		d.render404(ctx)
+		return
+	}
+	_, _, _ = d.Comment.ToggleLike(ctx.UserID(), uint(cid))
+	ctx.Redirect(fmt.Sprintf("/post/%d#floor-%d", postID, cm.Floor))
 }
 
 // PostUnlock POST /post/:id/unlock — 积分解锁（JSON，供详情页渐进增强）

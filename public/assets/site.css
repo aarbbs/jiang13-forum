@@ -235,12 +235,23 @@ body.j13-body {
 }
 .j13-comment__meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   color: var(--j13-muted);
   font-size: 0.8rem;
   margin-bottom: 0.35rem;
+  align-items: center;
 }
+.j13-comment__reply-to a { color: var(--j13-accent); text-decoration: none; }
+.j13-comment__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+.j13-comment-reply-hint { margin: 0 0 0.5rem; }
 .j13-comment-form textarea { width: 100%; }
+.j13-comment-form .j13-form__row { margin-top: 0.5rem; }
 .j13-muted { color: var(--j13-muted); }
 .j13-install fieldset {
   border: 1px solid var(--j13-border);
