@@ -202,18 +202,17 @@ export function renderPostContentHtml(
     if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
     if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
 
-    const rawSrc = img.getAttribute('src') || '';
-    const full = img.getAttribute('data-full') || rawSrc;
-    const thumb = toPostImageThumbSrc(full) || toPostImageThumbSrc(rawSrc);
-    if (thumb && full) {
-      // 正文加载缩略图，点击灯箱用原图
-      if (!img.getAttribute('data-full')) img.setAttribute('data-full', full);
-      if (rawSrc !== thumb) img.setAttribute('src', thumb);
-      img.classList.add('post-content-img--zoomable');
-      img.setAttribute('role', 'button');
-      img.setAttribute('tabindex', '0');
-      img.setAttribute('title', img.getAttribute('title') || '点击查看原图');
-    }
+    const rawSrc = (img.getAttribute('src') || '').trim();
+    const full = (img.getAttribute('data-full') || rawSrc).trim();
+    // 表情贴纸保持行内展示，不进灯箱；本地上传图与外链图均可点击查看
+    if (!full || full.startsWith('data:') || full.startsWith('blob:')) return;
+    if (rawSrc.includes('/stickers/') || full.includes('/stickers/')) return;
+
+    if (!img.getAttribute('data-full')) img.setAttribute('data-full', full);
+    img.classList.add('post-content-img--zoomable');
+    img.setAttribute('role', 'button');
+    img.setAttribute('tabindex', '0');
+    img.setAttribute('title', img.getAttribute('title') || '点击查看原图');
   });
 
   // 规范化图组 class，保证阅读态宫格样式生效

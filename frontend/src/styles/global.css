@@ -162,6 +162,8 @@ html {
 html, body, #root {
   height: 100%;
   margin: 0;
+  /* 允许单指平移滚动，禁止 pinch / 双击放大 */
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -171,6 +173,20 @@ body {
   color: var(--color-text-1);
   background: var(--j13-bg-page);
   overflow: hidden;
+}
+
+/* 嵌套滚动壳会截断祖先 touch-action，需在壳上再次声明 */
+.app-shell,
+.app-frame,
+.app-body,
+.content-workspace,
+.main-content,
+.virtual-list-wrap,
+.post-list-scroll,
+.list-page-panel,
+.article-editor-scroll,
+.comment-rev-detail {
+  touch-action: pan-x pan-y;
 }
 
 a { color: var(--j13-green); text-decoration: none; }
@@ -5531,16 +5547,22 @@ a.post-title:visited {
   clear: both;
 }
 
-.post-detail-content img.post-content-img--zoomable {
+.post-detail-content img.post-content-img--zoomable,
+.site-page__body img.post-content-img--zoomable,
+.post-body img.post-content-img--zoomable {
   cursor: zoom-in;
   transition: box-shadow 0.15s, transform 0.15s;
 }
 
-.post-detail-content img.post-content-img--zoomable:hover {
+.post-detail-content img.post-content-img--zoomable:hover,
+.site-page__body img.post-content-img--zoomable:hover,
+.post-body img.post-content-img--zoomable:hover {
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.14);
 }
 
-.post-detail-content img.post-content-img--zoomable:focus-visible {
+.post-detail-content img.post-content-img--zoomable:focus-visible,
+.site-page__body img.post-content-img--zoomable:focus-visible,
+.post-body img.post-content-img--zoomable:focus-visible {
   outline: 2px solid var(--j13-green);
   outline-offset: 3px;
 }
@@ -5596,6 +5618,9 @@ a.post-title:visited {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 由组件接管 pinch / pan，禁止浏览器默认手势 */
+  touch-action: none;
+  overflow: visible;
 }
 
 .image-lightbox-img {
@@ -5607,6 +5632,14 @@ a.post-title:visited {
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.image-lightbox-img--settling {
+  transition: transform 0.18s ease-out;
 }
 
 .image-lightbox-hint {
@@ -5621,13 +5654,21 @@ a.post-title:visited {
   pointer-events: none;
 }
 
+.image-lightbox-hint--mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .image-lightbox {
     padding: 12px;
   }
 
-  .image-lightbox-hint {
+  .image-lightbox-hint--desktop {
     display: none;
+  }
+
+  .image-lightbox-hint--mobile {
+    display: block;
   }
 }
 
@@ -8613,6 +8654,8 @@ button.profile-stat:hover strong {
   border-radius: 8px;
   overflow: hidden;
   background: #111;
+  /* 放行 pinch，供 react-easy-crop 缩放 */
+  touch-action: auto;
 }
 
 .avatar-crop-loading {
