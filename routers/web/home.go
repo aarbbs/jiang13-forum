@@ -83,7 +83,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.POST("/links/apply/:id/cancel", authMW.RequireAuth(), deps.LinksApplyCancelPost)
 	g.POST("/links/logo", authMW.RequireAuth(), deps.LinksLogoUpload)
 	g.GET("/projects", deps.PendingPage)
-	g.GET("/boards", deps.PendingPage)
+	g.GET("/boards", deps.BoardsGet)
 }
 
 // HomePageData Feed

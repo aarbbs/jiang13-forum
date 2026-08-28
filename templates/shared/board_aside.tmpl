@@ -1,6 +1,7 @@
 {{define "shared/board_aside"}}
 <aside class="j13-aside j13-aside--left">
-  <a class="j13-aside__link{{if eq .ActiveBoard 0}} is-active{{end}}" href="/">全部帖子</a>
+  <a class="j13-aside__link{{if eq .Path "/boards"}} is-active{{end}}" href="/boards">全部板块</a>
+  <a class="j13-aside__link{{if and (eq .ActiveBoard 0) (ne .Path "/boards")}} is-active{{end}}" href="/">全部帖子</a>
   {{range .Boards}}
   <a class="j13-aside__link{{if eq $.ActiveBoard .ID}} is-active{{end}}" href="/board/{{.ID}}">{{.Name}}</a>
   {{end}}

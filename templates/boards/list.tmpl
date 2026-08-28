@@ -1,0 +1,28 @@
+{{define "boards/list"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-boards">
+  <h1>板块</h1>
+  {{template "base/alert" .}}
+  {{if .Items}}
+  <ul class="j13-boards__grid">
+    {{range .Items}}
+    <li>
+      <a class="j13-boards__card" href="/board/{{.ID}}" data-color="{{.ColorIndex}}">
+        <span class="j13-boards__dot" aria-hidden="true"></span>
+        <span class="j13-boards__body">
+          <strong>{{.Name}}</strong>
+          {{if .Icon}}<span class="j13-muted j13-boards__icon">{{.Icon}}</span>{{end}}
+          {{if .Description}}<span class="j13-boards__desc">{{.Description}}</span>{{end}}
+          <span class="j13-muted">{{.PostCount}} 帖</span>
+        </span>
+      </a>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">暂无板块。{{if .IsAdmin}}请前往 <a href="/admin/boards">后台</a> 创建。{{end}}</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

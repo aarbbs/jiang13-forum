@@ -46,6 +46,7 @@ type PageChrome struct {
 	ViewerName  string
 	Boards      []BoardView
 	ActiveBoard uint
+	Path        string // 当前请求路径，供侧栏高亮
 	Inner       string // 保留字段；入口模板已固定组合，不再动态 template
 	CSRF        string
 	Flash       string
@@ -88,6 +89,10 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 	if ctx.IsSigned() && ctx.Doer != nil {
 		viewerPoints = ctx.Doer.Points
 	}
+	path := ""
+	if ctx.C != nil && ctx.C.Request != nil && ctx.C.Request.URL != nil {
+		path = ctx.C.Request.URL.Path
+	}
 	return PageChrome{
 		Title:                 title,
 		Description:           desc,
@@ -98,6 +103,7 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		IsAdmin:               ctx.IsAdmin(),
 		ViewerName:            name,
 		Boards:                bv,
+		Path:                  path,
 		Inner:                 inner,
 		CSRF:                  ctx.EnsureCSRF(),
 		Flash:                 ctx.TakeFlash(),
