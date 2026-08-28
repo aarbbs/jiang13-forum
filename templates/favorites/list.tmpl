@@ -1,0 +1,30 @@
+{{define "favorites/list"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-profile">
+  <h1>我的收藏</h1>
+  {{template "base/alert" .}}
+  <p class="j13-muted">共 {{.Total}} 条 · <a href="/profile">个人中心</a></p>
+  {{if .Items}}
+  <ul class="j13-post-list">
+    {{range .Items}}
+    <li class="j13-post-item">
+      <a class="j13-post-item__title" href="/post/{{.PostID}}">{{.Title}}</a>
+      <div class="j13-post-item__meta">
+        {{if .AuthorName}}<span>{{.AuthorName}}</span>{{end}}
+        {{if .BoardName}}<span>{{.BoardName}}</span>{{end}}
+        <span>{{.CreatedLabel}}</span>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="/favorites?page={{.PrevPage}}">上一页</a>{{end}}
+    {{if .HasMore}}<a href="/favorites?page={{.NextPage}}">下一页</a>{{end}}
+  </nav>
+  {{else}}
+  <p class="j13-empty">还没有收藏。在帖子详情页可点击收藏。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

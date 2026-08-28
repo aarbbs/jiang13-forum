@@ -45,7 +45,7 @@ modules/
 templates/
   install.tmpl
   post-install.tmpl
-  base/ home/ post/ shared/ status/ auth/ admin/
+  base/ home/ post/ shared/ status/ auth/ admin/ profile/ user/ favorites/
 services/
 web_src/ → public/assets/
 ```
@@ -82,5 +82,7 @@ web_src/ → public/assets/
 ### 已迁路径（摘要）
 
 公开写：`/install`、`/login`、`/logout`、`/register`、`/compose`、`/post/:id/edit`、帖详情评论/赞/藏。
+
+个人闭环：`/profile`（昵称/签名/密码/头像）、`/user/:id`、`/favorites`。
 
 Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词）。

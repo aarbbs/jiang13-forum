@@ -344,4 +344,39 @@ body.j13-body {
 .j13-admin-reject input { width: auto; min-width: 12rem; margin: 0; }
 .j13-admin-reject button { margin: 0; }
 
+.j13-profile { max-width: 720px; margin: 0 auto; padding: 1rem 1rem 2.5rem; }
+.j13-profile h1 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+.j13-profile h2 { margin: 1.5rem 0 0.65rem; font-size: 1.05rem; }
+.j13-profile__card {
+  margin: 1rem 0;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--j13-border);
+}
+.j13-avatar {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid var(--j13-border);
+}
+.j13-avatar--lg { width: 88px; height: 88px; }
+.j13-avatar--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--j13-surface);
+  color: var(--j13-muted);
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+.j13-user-hero {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+.j13-user-hero h1 { margin: 0 0 0.35rem; font-size: 1.35rem; }
+.j13-user-sig { margin: 0.5rem 0 0; white-space: pre-wrap; }
+
+
 

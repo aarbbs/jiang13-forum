@@ -52,9 +52,14 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
 	}
 
-	g.GET("/profile", deps.PendingPage)
+	g.GET("/user/:id", deps.UserPublic)
+	g.GET("/profile", authMW.RequireAuth(), deps.ProfileGet)
+	g.POST("/profile/nickname", authMW.RequireAuth(), deps.ProfileNicknamePost)
+	g.POST("/profile/signature", authMW.RequireAuth(), deps.ProfileSignaturePost)
+	g.POST("/profile/password", authMW.RequireAuth(), deps.ProfilePasswordPost)
+	g.POST("/profile/avatar", authMW.RequireAuth(), deps.ProfileAvatarPost)
+	g.GET("/favorites", authMW.RequireAuth(), deps.FavoritesGet)
 	g.GET("/messages", deps.PendingPage)
-	g.GET("/favorites", deps.PendingPage)
 	g.GET("/projects", deps.PendingPage)
 	g.GET("/links", deps.PendingPage)
 	g.GET("/boards", deps.PendingPage)

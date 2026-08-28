@@ -20,6 +20,7 @@ type PostPageData struct {
 	PostPath       string
 	PostTitle      string
 	AuthorName     string
+	AuthorID       uint
 	BoardID        uint
 	BoardName      string
 	Pinned         bool
@@ -41,6 +42,7 @@ type PostPageData struct {
 type CommentView struct {
 	Floor         int
 	AuthorName    string
+	AuthorID      uint
 	CreatedLabel  string
 	Content       string
 	ContentHidden bool
@@ -75,7 +77,8 @@ func (d Deps) PostView(c *gin.Context) {
 			an = cm.User.Username
 		}
 		cv = append(cv, CommentView{
-			Floor: cm.Floor, AuthorName: an, CreatedLabel: formatTime(cm.CreatedAt),
+			Floor: cm.Floor, AuthorName: an, AuthorID: cm.UserID,
+			CreatedLabel: formatTime(cm.CreatedAt),
 			Content: cm.Content, ContentHidden: cm.ContentHidden,
 		})
 	}
@@ -95,7 +98,8 @@ func (d Deps) PostView(c *gin.Context) {
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
-		PostTitle: post.Title, AuthorName: author, BoardID: post.BoardID, BoardName: boardName,
+		PostTitle: post.Title, AuthorName: author, AuthorID: post.UserID,
+		BoardID: post.BoardID, BoardName: boardName,
 		Pinned: post.Pinned || post.BoardPinned, Featured: post.Featured,
 		PostTypeLabel: postTypeLabel(post.PostType), CreatedLabel: formatTime(post.CreatedAt),
 		ViewCount: post.ViewCount, LikeCount: post.LikeCount,

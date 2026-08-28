@@ -96,7 +96,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 
 	webpages.Register(r, webpages.Deps{
 		DataDir: cfg.DataDir, JWTSecret: cfg.JWTSecret,
-		Settings: settingsSvc, Auth: authSvc,
+		Settings: settingsSvc, Auth: authSvc, User: userSvc,
 		Board: boardSvc, Post: postSvc, Comment: commentSvc,
 		Message: messageSvc, Filter: filter,
 		Limiter: limiter, EmailCode: emailCodeSvc, Store: uploadStore,

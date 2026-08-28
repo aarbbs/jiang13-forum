@@ -66,6 +66,9 @@ var parseGlobs = []string{
 	"status/*.tmpl",
 	"auth/*.tmpl",
 	"admin/*.tmpl",
+	"profile/*.tmpl",
+	"user/*.tmpl",
+	"favorites/*.tmpl",
 }
 
 // Load 解析全部模板（进程内一次）

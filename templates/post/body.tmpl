@@ -7,7 +7,7 @@
       {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
       {{if .PostTypeLabel}}<span class="j13-tag">{{.PostTypeLabel}}</span>{{end}}
       {{if .BoardName}}<a class="j13-tag" href="/board/{{.BoardID}}">{{.BoardName}}</a>{{end}}
-      <span>{{.AuthorName}}</span>
+      {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
       <span>{{.CreatedLabel}}</span>
       <span>{{.ViewCount}} 阅读</span>
     </div>
@@ -38,7 +38,7 @@
     <li class="j13-comment" id="floor-{{.Floor}}">
       <div class="j13-comment__meta">
         <span class="j13-comment__floor">#{{.Floor}}</span>
-        <span>{{.AuthorName}}</span>
+        {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
         <span>{{.CreatedLabel}}</span>
       </div>
       {{if .ContentHidden}}

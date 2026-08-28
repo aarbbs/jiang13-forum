@@ -1,0 +1,72 @@
+{{define "profile/view"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-profile">
+  <h1>个人中心</h1>
+  {{template "base/alert" .}}
+  <p class="j13-muted">
+    <a href="{{.PublicURL}}">查看公开主页</a>
+    · <a href="/favorites">我的收藏</a>
+  </p>
+
+  <ul class="j13-admin-stats">
+    <li><strong>{{.PostCount}}</strong><span>帖子</span></li>
+    <li><strong>{{.CommentCount}}</strong><span>评论</span></li>
+    <li><strong>{{.FavoriteCount}}</strong><span>收藏</span></li>
+    <li><strong>{{.LikeReceived}}</strong><span>获赞</span></li>
+  </ul>
+
+  <section class="j13-profile__card">
+    <h2>账号</h2>
+    <p>用户名 <strong>{{.Username}}</strong></p>
+    <p class="j13-muted">邮箱 {{.Email}}</p>
+    <p class="j13-muted">等级 Lv.{{.Level}} · 经验 {{.Exp}} · 积分 {{.Points}}</p>
+    {{if .Avatar}}
+    <p><img class="j13-avatar" src="{{.Avatar}}" alt="头像"/></p>
+    {{end}}
+  </section>
+
+  <section>
+    <h2>头像</h2>
+    <form method="post" action="/profile/avatar" enctype="multipart/form-data" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>图片（最大 {{.AvatarMaxMB}} MB）
+        <input type="file" name="avatar" accept="image/*" required/>
+      </label>
+      <button type="submit">上传头像</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>昵称</h2>
+    <form method="post" action="/profile/nickname" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>昵称 <input name="nickname" value="{{.Nickname}}" maxlength="32" required/></label>
+      <button type="submit">保存昵称</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>签名</h2>
+    <form method="post" action="/profile/signature" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>签名
+        <textarea name="signature" rows="3" maxlength="{{.SignatureMax}}">{{.Signature}}</textarea>
+      </label>
+      <button type="submit">保存签名</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>修改密码</h2>
+    <form method="post" action="/profile/password" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>当前密码 <input type="password" name="old_password" required autocomplete="current-password"/></label>
+      <label>新密码 <input type="password" name="new_password" required minlength="6" autocomplete="new-password"/></label>
+      <label>确认新密码 <input type="password" name="new_password2" required minlength="6" autocomplete="new-password"/></label>
+      <button type="submit">更新密码</button>
+    </form>
+  </section>
+</main>
+{{template "base/footer" .}}
+{{end}}

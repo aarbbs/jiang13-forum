@@ -29,9 +29,9 @@
 | `/post/:id` | 帖详情 + 评论/赞/藏 | 已迁 |
 | `/compose` | 发帖（normal；Markdown textarea + 图片上传） | 已迁 |
 | `/post/:id/edit` | 编辑帖 | 已迁 |
-| `/profile` | 个人中心 | pending |
-| `/user/:id` | 公开用户页 | 未注册 |
-| `/favorites` | 收藏 | pending |
+| `/profile` | 个人中心（资料/密码/头像；无钱包/裁剪） | 已迁 |
+| `/user/:id` | 公开用户页 | 已迁 |
+| `/favorites` | 收藏 | 已迁 |
 | `/projects` | Gitea 码桶 | 后置 |
 | `/links` | 友链 | pending |
 | `/messages` | 私信 | pending |
@@ -157,10 +157,10 @@
 
 ## 6. 个人中心 / 公开主页
 
-- 资料编辑、头像裁剪、密码
-- 积分钱包面板（流水、签到状态）
-- 徽章与等级徽记展示
-- 公开页：签名、徽章、统计、最近帖（按现实现）
+- 资料编辑、密码、头像直传（**本迭代无裁剪器**）— SSR `/profile`
+- 公开页：签名、等级/积分只读、统计、最近帖 — SSR `/user/:id`（无邮箱）
+- 收藏列表 — SSR `/favorites`
+- 积分钱包面板（流水、签到）、徽章展示：**未迁**
 
 ---
 

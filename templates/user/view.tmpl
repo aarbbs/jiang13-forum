@@ -1,0 +1,48 @@
+{{define "user/view"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-profile">
+  <header class="j13-user-hero">
+    {{if .Avatar}}
+    <img class="j13-avatar j13-avatar--lg" src="{{.Avatar}}" alt=""/>
+    {{else}}
+    <span class="j13-avatar j13-avatar--lg j13-avatar--placeholder" aria-hidden="true">·</span>
+    {{end}}
+    <div>
+      <h1>{{if .Nickname}}{{.Nickname}}{{else}}{{.Username}}{{end}}</h1>
+      <p class="j13-muted">@{{.Username}} · Lv.{{.Level}} · 积分 {{.Points}}</p>
+      {{if .Signature}}<p class="j13-user-sig">{{.Signature}}</p>{{end}}
+      {{if .IsSelf}}<p><a href="/profile">编辑资料</a></p>{{end}}
+    </div>
+  </header>
+  {{template "base/alert" .}}
+
+  <ul class="j13-admin-stats">
+    <li><strong>{{.PostCount}}</strong><span>帖子</span></li>
+    <li><strong>{{.CommentCount}}</strong><span>评论</span></li>
+    <li><strong>{{.LikeReceived}}</strong><span>获赞</span></li>
+  </ul>
+
+  <h2>最近帖子</h2>
+  {{if .Posts}}
+  <ul class="j13-post-list">
+    {{range .Posts}}
+    <li class="j13-post-item">
+      <a class="j13-post-item__title" href="/post/{{.ID}}">{{.Title}}</a>
+      <div class="j13-post-item__meta">
+        {{if .BoardName}}<span>{{.BoardName}}</span>{{end}}
+        <span>{{.CreatedLabel}}</span>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="/user/{{.UserID}}?page={{.PrevPage}}">上一页</a>{{end}}
+    {{if .HasMore}}<a href="/user/{{.UserID}}?page={{.NextPage}}">下一页</a>{{end}}
+  </nav>
+  {{else}}
+  <p class="j13-empty">暂无公开帖子。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

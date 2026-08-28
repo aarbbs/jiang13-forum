@@ -14,6 +14,7 @@ type Deps struct {
 	JWTSecret string
 	Settings  *services.ForumSettingsService
 	Auth      *services.AuthService
+	User      *services.UserService
 	Board     *services.BoardService
 	Post      *services.PostService
 	Comment   *services.CommentService
