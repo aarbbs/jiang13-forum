@@ -1,0 +1,90 @@
+{{define "admin/media"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>媒体库</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <div class="j13-admin-media-toolbar">
+    <form method="get" action="/admin/media" class="j13-form j13-admin-form j13-admin-search">
+      <label>搜索 <input name="q" value="{{.Keyword}}" placeholder="文件名 / URL"/></label>
+      <label>分类
+        <select name="category">
+          <option value="all"{{if eq .Category "all"}} selected{{end}}>全部 ({{.CountAll}})</option>
+          <option value="avatars"{{if eq .Category "avatars"}} selected{{end}}>头像 ({{.CountAvatars}})</option>
+          <option value="posts"{{if eq .Category "posts"}} selected{{end}}>帖图 ({{.CountPosts}})</option>
+          <option value="site"{{if eq .Category "site"}} selected{{end}}>站点 ({{.CountSite}})</option>
+        </select>
+      </label>
+      <button type="submit">查询</button>
+    </form>
+    <form method="post" action="/admin/media/sync" class="j13-inline-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <button type="submit" class="j13-btn-secondary">同步索引</button>
+    </form>
+  </div>
+
+  <p class="j13-admin-filters">
+    <a href="/admin/media"{{if eq .Category "all"}} class="is-active"{{end}}>全部 {{.CountAll}}</a>
+    <a href="/admin/media?category=avatars"{{if eq .Category "avatars"}} class="is-active"{{end}}>头像 {{.CountAvatars}}</a>
+    <a href="/admin/media?category=posts"{{if eq .Category "posts"}} class="is-active"{{end}}>帖图 {{.CountPosts}}</a>
+    <a href="/admin/media?category=site"{{if eq .Category "site"}} class="is-active"{{end}}>站点 {{.CountSite}}</a>
+    {{if .StorageType}}<span class="j13-muted">存储：{{.StorageType}}</span>{{end}}
+  </p>
+
+  {{if .Files}}
+  <form method="post" action="/admin/media/delete" id="admin-media-batch" class="j13-admin-media-batch-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <input type="hidden" name="q" value="{{.Keyword}}"/>
+    <input type="hidden" name="category" value="{{.Category}}"/>
+    <input type="hidden" name="page" value="{{.Page}}"/>
+    <p class="j13-admin-media-batch">
+      <button type="submit" class="j13-btn-secondary" onclick="return confirm('确认删除所选媒体？');">删除所选</button>
+      <span class="j13-muted">共 {{.Total}} 项</span>
+    </p>
+  </form>
+  <ul class="j13-admin-media-grid">
+    {{range .Files}}
+    <li class="j13-admin-media-card">
+      <label class="j13-admin-media-check">
+        <input form="admin-media-batch" type="checkbox" name="ids" value="{{.ID}}"/>
+      </label>
+      <a class="j13-admin-media-thumb" href="{{.URL}}" target="_blank" rel="noopener">
+        <img src="{{.ThumbURL}}" alt="{{.Name}}" loading="lazy"/>
+      </a>
+      <div class="j13-admin-media-meta">
+        <div class="j13-admin-media-name" title="{{.Name}}">{{.Name}}</div>
+        <div class="j13-muted">{{.CategoryLabel}} · {{.SizeLabel}}</div>
+        <div class="j13-muted">{{.Modified}}</div>
+        <div class="j13-admin-media-ops">
+          <a href="{{.URL}}" target="_blank" rel="noopener">打开</a>
+          <form method="post" action="/admin/media/{{.ID}}/delete" class="j13-inline-form" onsubmit="return confirm('确认删除该文件？');">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+            <input type="hidden" name="q" value="{{$.Keyword}}"/>
+            <input type="hidden" name="category" value="{{$.Category}}"/>
+            <input type="hidden" name="page" value="{{$.Page}}"/>
+            <button type="submit" class="j13-linkbtn">删除</button>
+          </form>
+        </div>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  {{if or .HasPrev .HasMore}}
+  <nav class="j13-pager">
+    {{if .HasPrev}}
+    <a href="/admin/media?{{if .QuerySuffix}}{{.QuerySuffix}}&amp;{{end}}page={{.PrevPage}}">上一页</a>
+    {{end}}
+    <span>第 {{.Page}} 页</span>
+    {{if .HasMore}}
+    <a href="/admin/media?{{if .QuerySuffix}}{{.QuerySuffix}}&amp;{{end}}page={{.NextPage}}">下一页</a>
+    {{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="j13-empty">暂无媒体。上传头像/帖图后会出现在此；也可点「同步索引」扫盘回填。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

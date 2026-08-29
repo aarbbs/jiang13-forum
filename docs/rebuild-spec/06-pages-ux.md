@@ -54,10 +54,11 @@
 | `/admin/reports` | 举报处理 | 已迁 |
 | `/admin/users` | 用户列表、禁言、认证、调积分 | 已迁 |
 | `/admin/badges` | 徽章定义 CRUD、限定颁发/收回 | 已迁 |
+| `/admin/media` | 媒体库分类浏览、删除、同步索引 | 已迁 |
 | `/admin/trash` | 帖回收站 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：media / 完整 Limits 等。
+未迁（原 SPA）：完整 Limits / OIDC·Gitea·存储热切换 Admin 等。
 
 ---
 
@@ -197,6 +198,7 @@
 | Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |
 | Users | 搜索；禁言；认证；调积分 — SSR `/admin/users`（设等级 / 授徽章挂在徽章页） |
 | Badges | 定义自动/限定徽章；颁发/收回限定 — SSR `/admin/badges` |
+| Media | 分类浏览；单删/批量删；同步索引 — SSR `/admin/media` |
 | Media | 分类浏览；批量删 |
 | Settings | Tab：论坛限制、侧栏组件、伪静态、邮件、OIDC+客户端、Gitea、存储、品牌、敏感词、备份 — SSR `/admin/settings` 已迁品牌/限流/侧栏/敏感词/邮件/SQLite 备份（OIDC/Gitea/存储/伪静态未迁） |
 

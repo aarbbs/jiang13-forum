@@ -12,15 +12,15 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | Admin `/admin/badges`（定义 CRUD + 限定颁发/收回） |
-| **下一刀** | **Admin `/admin/media`**（媒体列表 / 删除） |
+| **上一刀** | Admin `/admin/media`（列表 / 删除 / 同步索引） |
+| **下一刀** | **等级/自动徽章 UI** 或 **防刷分成**（`02` §H P2；开刀前确认偏好） |
 | **工作区** | 应干净；有未提交改动时先处理再开新刀 |
 
 ---
 
 ## 一句话状态
 
-论坛核心闭环（安装、认证、Feed、五种帖类型、评论、私信、友链、审核、回收站、基础设置、备份）**已迁完**。Admin 用户与徽章已齐；余量主要是媒体、成长体系、OIDC/存储产品化与体验打磨。
+论坛核心闭环 + Admin 用户/徽章/媒体 **已迁完**。余量主要是成长体系与防刷、OIDC/存储产品化与体验打磨。
 
 ```mermaid
 flowchart LR
@@ -59,14 +59,12 @@ flowchart LR
 | dashboard / boards / moderation / reports / trash | 已迁 |
 | settings：品牌、限流、敏感词、SMTP、侧栏、SQLite 备份 | 已迁 |
 | friend-links / pages | 已迁 |
-| **users**（禁言 / 认证 / 调积分） | **已迁** |
-| **badges**（定义 CRUD + 限定颁发/收回） | **已迁** |
-| **media** | **未迁** |
+| **users / badges / media** | **已迁** |
 | settings：OIDC / Gitea / 存储 / 伪静态 Tab | **未迁** |
 
 ### 近期提交（摘）
 
-`lottery` → Admin users → **Admin badges**
+Admin users → badges → **media**
 
 ---
 
@@ -77,15 +75,15 @@ flowchart LR
 - 发评路径挂 `RateLimiter` `comment` 动作（服务层已有键，web 未挂）
 - Logo/Favicon/OG 上传、头像裁剪等声明为未做的边角
 
-### P1 — 推荐刀序（服务层多半已齐）
+### P1 — Admin 核心
 
 1. ~~Admin 用户~~ ✓  
 2. ~~Admin 徽章~~ ✓  
-3. **Admin 媒体** ← 当前指针  
+3. ~~Admin 媒体~~ ✓  
 
-### P2 — 成长与防刷
+### P2 — 成长与防刷 ← 当前指针候选
 
-- Exp → Lv1–10、自动徽章调度 UI、短龄同 IP 互刷拒绝分成（`02` §H）
+- Exp → Lv1–10 设定 UI、自动徽章调度说明、短龄同 IP 互刷拒绝分成（`02` §H）
 
 ### P3 — 体验 / 编辑器（可砍或长期）
 
@@ -98,7 +96,7 @@ flowchart LR
 
 - K：Gitea `/projects`  
 - L：OIDC 产品化 Admin CRUD  
-- M：S3 热切换、WebP thumb 全链路  
+- M：S3 热切换、WebP thumb 全链路产品化  
 
 ---
 
@@ -106,39 +104,39 @@ flowchart LR
 
 | 序 | 刀 | 产出 |
 |----|----|------|
-| ✓ | 五种帖类型 + 备份/复检 + §O 勾选 | 核心闭环 |
-| ✓ | 本文 `09` | 可查阅进度 |
-| ✓ | Admin `/admin/users` | 禁言/认证/调积分 |
-| ✓ | Admin `/admin/badges` | 徽章 CRUD + 授予 |
-| → | Admin `/admin/media` | 媒体列表删除 |
-| 5 | 等级/自动徽章 **或** 防刷分成 | 按当时偏好 |
+| ✓ | 五种帖类型 + 备份/复检 + §O | 核心闭环 |
+| ✓ | Admin users / badges / media | Admin P1 |
+| → | 等级设定 **或** 防刷分成 | 需偏好 |
 | … | P3 / 后置 | 需明确点名再开 |
 
 ---
 
-## 下一刀实现提纲：Admin 媒体
+## 下一刀实现提纲：P2 候选
 
-> 确认「继续」后实现媒体库列表与删除；对齐既有上传/存储服务。
+> 「继续」前请点名：**等级/Exp UI**、**防刷分成**，或其它（OIDC/伪静态等）。
 
-### 范围（草案）
+### A. 等级
 
-- `GET /admin/media`：按时间分页列表（缩略图 / 路径 / 引用粗览）  
-- `POST /admin/media/:id/delete`：删库文件 + 记录  
-- 回写 `02` / `06`；指针 → 成长或按偏好  
+- Admin 设用户 Exp/Lv（`SetUserLevel` 已有）  
+- 公开页等级展示对齐  
 
-### 不做
+### B. 防刷分成
 
-S3 热切换产品化、全站未引用扫描清理器。
+- 短龄同 IP 互刷拒绝创作分成（`02` §H）  
 
 ---
 
+## 已完成：Admin 媒体
+
+见 [plans/admin-media.md](plans/admin-media.md)。
+
 ## 已完成：Admin 徽章
 
-见 [plans/admin-badges.md](plans/admin-badges.md)；路由 `/admin/badges` + award / revoke。
+见 [plans/admin-badges.md](plans/admin-badges.md)。
 
 ## 已完成：Admin 用户管理
 
-见 [plans/admin-users.md](plans/admin-users.md)；路由 `/admin/users` + ban / verify / points。
+见 [plans/admin-users.md](plans/admin-users.md)。
 
 ---
 

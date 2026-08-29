@@ -17,6 +17,7 @@ import (
 
 // MediaItem 管理端媒体资源条目
 type MediaItem struct {
+	ID          uint      `json:"id"`
 	Category    string    `json:"category"`
 	Name        string    `json:"name"`
 	URL         string    `json:"url"`
@@ -128,6 +129,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 			mod = r.CreatedAt
 		}
 		files = append(files, MediaItem{
+			ID:          r.ID,
 			Category:    r.Category,
 			Name:        r.Name,
 			URL:         r.URL,
@@ -174,6 +176,37 @@ func (s *UploadStore) DeleteMedia(urls []string) (int, error) {
 		n++
 	}
 	return n, nil
+}
+
+// DeleteMediaByIDs 按索引 ID 删除媒体
+func (s *UploadStore) DeleteMediaByIDs(ids []uint) (int, error) {
+	if s == nil {
+		return 0, errors.New("上传存储未初始化")
+	}
+	if models.DB == nil || len(ids) == 0 {
+		return 0, nil
+	}
+	clean := make([]uint, 0, len(ids))
+	seen := map[uint]bool{}
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		clean = append(clean, id)
+	}
+	if len(clean) == 0 {
+		return 0, nil
+	}
+	var rows []models.Media
+	if err := models.DB.Where("id IN ?", clean).Find(&rows).Error; err != nil {
+		return 0, err
+	}
+	urls := make([]string, 0, len(rows))
+	for _, r := range rows {
+		urls = append(urls, r.URL)
+	}
+	return s.DeleteMedia(urls)
 }
 
 // SyncMediaIndex 扫描当前存储后端，回填/校正媒体索引；返回写入或更新条数
