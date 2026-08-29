@@ -52,6 +52,7 @@ type Config struct {
 	LogFile       string
 	ServiceAction string
 	DevMode       bool
+	Version       string // 构建版本（ldflags）；用于 /ssr-assets ?v= 缓存穿透
 	DB            DatabaseConfig
 }
 

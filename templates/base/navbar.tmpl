@@ -12,27 +12,41 @@
           {{if .Slogan}}<span class="j13-brand__slogan">{{.Slogan}}</span>{{end}}
         </span>
       </a>
-      <nav class="j13-nav">
-        <button type="button" class="j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">主题</button>
-        <a href="/#search">搜索</a>
-        <a href="/boards">板块</a>
-        {{if .ShowFriendLinksNav}}<a href="/links">友链</a>{{end}}
-        {{range .NavPages}}<a href="/page/{{.Slug}}">{{.Title}}</a>{{end}}
+      <form class="j13-header-search" method="get" action="/" role="search">
+        <label class="j13-header-search__label">
+          <span class="j13-visually-hidden">搜索帖子</span>
+          <input type="search" name="keyword" placeholder="搜索帖子…" autocomplete="off"/>
+        </label>
+      </form>
+      <div class="j13-header__actions">
         {{if .LoggedIn}}
-          <a href="/compose">发帖</a>
-          <a href="/messages">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>
-          <a href="/favorites">收藏</a>
-          <a href="/profile">{{.ViewerName}} · {{.ViewerPoints}} 积分</a>
-          {{if .IsAdmin}}<a href="/admin/dashboard">后台</a>{{end}}
-          <form class="j13-inline-form" method="post" action="/logout">
-            <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
-            <button type="submit" class="j13-linkbtn">退出</button>
-          </form>
+          <a class="j13-btn j13-btn--compose" href="/compose">发帖</a>
         {{else}}
-          <a href="/register">注册</a>
-          <a href="/login">登录</a>
+          <a class="j13-btn j13-btn--compose" href="/login">登录</a>
+          <a class="j13-header__textlink" href="/register">注册</a>
         {{end}}
-      </nav>
+        <button type="button" class="j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">主题</button>
+        {{if .LoggedIn}}
+          <a class="j13-header__iconlink" href="/messages" title="私信">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>
+          <a class="j13-header__user" href="/profile" title="个人中心">{{.ViewerName}} · {{.ViewerPoints}}</a>
+        {{end}}
+        <details class="j13-more">
+          <summary>更多</summary>
+          <div class="j13-more__menu" role="menu">
+            <a href="/boards" role="menuitem">板块</a>
+            {{if .ShowFriendLinksNav}}<a href="/links" role="menuitem">友链</a>{{end}}
+            {{range .NavPages}}<a href="/page/{{.Slug}}" role="menuitem">{{.Title}}</a>{{end}}
+            {{if .LoggedIn}}
+              <a href="/favorites" role="menuitem">收藏</a>
+              {{if .IsAdmin}}<a href="/admin/dashboard" role="menuitem">后台</a>{{end}}
+              <form method="post" action="/logout">
+                <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+                <button type="submit" role="menuitem">退出</button>
+              </form>
+            {{end}}
+          </div>
+        </details>
+      </div>
     </div>
   </header>
 {{end}}

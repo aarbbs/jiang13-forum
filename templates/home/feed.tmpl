@@ -8,7 +8,7 @@
       <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{.SortHref "hot"}}">热门讨论</a>
     </div>
   </header>
-  <form id="search" class="j13-search" method="get" action="{{.FormAction}}" role="search">
+  <form id="search" class="j13-search j13-search--toolbar" method="get" action="{{.FormAction}}" role="search">
     {{if and .Sort (ne .Sort "latest")}}<input type="hidden" name="sort" value="{{.Sort}}"/>{{end}}
     <div class="j13-search__row">
       <label class="j13-search__field">
@@ -44,7 +44,7 @@
         {{if .BoardName}}<span class="j13-tag">{{.BoardName}}</span>{{end}}
         <span>{{.AuthorName}}</span>
         <span>{{.CreatedLabel}}</span>
-        <span>{{.CommentCount}} 回复</span>
+        <span class="j13-post-item__replies">{{.CommentCount}} 回复</span>
       </div>
     </li>
     {{end}}

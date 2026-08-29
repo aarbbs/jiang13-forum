@@ -11,10 +11,11 @@ import (
 
 // Deps 安装依赖
 type Deps struct {
-	DataDir   string
-	JWTSecret string
-	Auth      *services.AuthService
-	Settings  *services.ForumSettingsService
+	DataDir      string
+	JWTSecret    string
+	AssetVersion string
+	Auth         *services.AuthService
+	Settings     *services.ForumSettingsService
 }
 
 type pageData struct {
@@ -26,6 +27,7 @@ type pageData struct {
 	LogoURL               string
 	FaviconURL            string
 	OGImageURL            string
+	AssetVersion          string
 	ShowFriendLinksFooter bool
 	FooterPages           []struct {
 		Title string
@@ -59,6 +61,7 @@ func (d Deps) Get(c *gin.Context) {
 	}
 	ctx.HTML(http.StatusOK, "install", pageData{
 		Title: "安装 · " + name, SiteName: name, LogoMark: "姜",
+		AssetVersion: d.assetVersion(),
 		CSRF: ctx.EnsureCSRF(), AdminUsername: "admin",
 	})
 }
@@ -77,7 +80,8 @@ func (d Deps) Post(c *gin.Context) {
 	}
 	data := pageData{
 		Title: "安装 · " + siteName, SiteName: siteName, LogoMark: "姜",
-		CSRF: ctx.EnsureCSRF(),
+		AssetVersion:  d.assetVersion(),
+		CSRF:          ctx.EnsureCSRF(),
 		AdminUsername: strings.TrimSpace(c.PostForm("admin_username")),
 		AdminEmail:    strings.TrimSpace(c.PostForm("admin_email")),
 		AdminNickname: strings.TrimSpace(c.PostForm("admin_nickname")),
@@ -109,8 +113,17 @@ func (d Deps) Post(c *gin.Context) {
 	}
 	ctx.HTML(http.StatusOK, "post-install", pageData{
 		Title: "安装完成", SiteName: siteName, LogoMark: "姜",
+		AssetVersion: d.assetVersion(),
 	})
 	_ = brand
+}
+
+func (d Deps) assetVersion() string {
+	v := strings.TrimSpace(d.AssetVersion)
+	if v == "" {
+		return "dev"
+	}
+	return v
 }
 
 // Guard 未安装则只允许 install / assets / health

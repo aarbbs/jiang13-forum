@@ -6,7 +6,7 @@
       {{range .FooterPages}} · <a href="/page/{{.Slug}}">{{.Title}}</a>{{end}}
     </p>
   </footer>
-  <script src="/ssr-assets/site.js" defer></script>
+  <script src="/ssr-assets/site.js?v={{.AssetVersion}}" defer></script>
 </body>
 </html>
 {{end}}

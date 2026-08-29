@@ -11,28 +11,29 @@ import (
 
 // Deps 页面依赖
 type Deps struct {
-	DataDir   string
-	JWTSecret string
-	Settings  *services.ForumSettingsService
-	Auth      *services.AuthService
-	User      *services.UserService
-	Board     *services.BoardService
-	Post      *services.PostService
-	Comment   *services.CommentService
-	Message   *services.MessageService
-	Filter    *services.SensitiveFilter
-	Limiter   *services.RateLimiter
-	EmailCode *services.EmailCodeService
-	Store      *services.UploadStore
-	Points     *services.PointsService
-	Badge      *services.BadgeService
-	FriendLink *services.FriendLinkApplyService
-	Mail       *services.MailService
-	SitePage   *services.SitePageService
-	Report     *services.ReportService
-	Captcha    *services.CaptchaService
-	Notify     *services.NotifyService
-	Backup     *services.BackupService
+	DataDir      string
+	JWTSecret    string
+	AssetVersion string // 静态资源 ?v=；来自构建 ldflags
+	Settings     *services.ForumSettingsService
+	Auth         *services.AuthService
+	User         *services.UserService
+	Board        *services.BoardService
+	Post         *services.PostService
+	Comment      *services.CommentService
+	Message      *services.MessageService
+	Filter       *services.SensitiveFilter
+	Limiter      *services.RateLimiter
+	EmailCode    *services.EmailCodeService
+	Store        *services.UploadStore
+	Points       *services.PointsService
+	Badge        *services.BadgeService
+	FriendLink   *services.FriendLinkApplyService
+	Mail         *services.MailService
+	SitePage     *services.SitePageService
+	Report       *services.ReportService
+	Captcha      *services.CaptchaService
+	Notify       *services.NotifyService
+	Backup       *services.BackupService
 }
 
 // SitePageLink 导航/页脚站点单页链接
@@ -135,6 +136,7 @@ type PageChrome struct {
 	NavPages              []SitePageLink
 	FooterPages           []SitePageLink
 	RightAside            RightAsideData
+	AssetVersion          string
 }
 
 func (d Deps) ctx(c *gin.Context) *webctx.Context {
@@ -175,6 +177,10 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		path = ctx.C.Request.URL.Path
 	}
 	navPages, footerPages := d.sitePageLinks()
+	assetVer := strings.TrimSpace(d.AssetVersion)
+	if assetVer == "" {
+		assetVer = "dev"
+	}
 	return PageChrome{
 		Title:                 title,
 		Description:           desc,
@@ -201,6 +207,7 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		NavPages:              navPages,
 		FooterPages:           footerPages,
 		RightAside:            d.loadRightAside(ctx, brand),
+		AssetVersion:          assetVer,
 	}
 }
 

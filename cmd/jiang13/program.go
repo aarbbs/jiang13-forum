@@ -57,6 +57,7 @@ func (p *program) Stop(s kardsvc.Service) error {
 
 func (p *program) setup() error {
 	cfg := p.cfg
+	cfg.Version = version
 
 	logFile, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {

@@ -14,6 +14,12 @@ $MainPkg = './cmd/jiang13'
 $BuildDir = 'dist'
 $DevDataDir = 'dist/data'
 $Version = '1.0.0'
+try {
+    $gitSha = (git rev-parse --short HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $gitSha) {
+        $Version = "1.0.0+$gitSha"
+    }
+} catch {}
 $RegistryImage = 'hangzhang714128/jiang13-forum'
 $Ldlags = "-s -w -X main.version=$Version"
 

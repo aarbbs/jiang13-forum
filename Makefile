@@ -5,7 +5,7 @@ APP_NAME    := jiang13
 MAIN_PKG    := ./cmd/jiang13
 BUILD_DIR   := dist
 DEV_DATA_DIR := dist/data
-VERSION     := 1.0.0
+VERSION     := $(shell git rev-parse --short HEAD 2>/dev/null | sed 's/^/1.0.0+/' || echo 1.0.0)
 LDFLAGS     := -s -w -X main.version=$(VERSION)
 REGISTRY_IMAGE := hangzhang714128/jiang13-forum
 

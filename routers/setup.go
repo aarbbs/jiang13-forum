@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
 	"git.iioio.com/freefire/jiang13-forum/modules/auth"
@@ -30,7 +31,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	if sub, err := fs.Sub(webpublic.Assets, "assets"); err == nil {
 		ssrFiles := http.StripPrefix("/ssr-assets", http.FileServer(http.FS(sub)))
 		r.GET("/ssr-assets/*filepath", func(c *gin.Context) {
-			c.Header("Cache-Control", "public, max-age=86400")
+			// 模板带 ?v=AssetVersion；部署换版本即穿透，可长缓存
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
 			ssrFiles.ServeHTTP(c.Writer, c.Request)
 		})
 	}
@@ -83,9 +85,15 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	}
 	authMW := auth.NewAuthMiddleware(authSvc)
 
+	assetVer := strings.TrimSpace(cfg.Version)
+	if assetVer == "" {
+		assetVer = "dev"
+	}
+
 	install.Register(r, install.Deps{
 		DataDir: cfg.DataDir, JWTSecret: cfg.JWTSecret,
 		Auth: authSvc, Settings: settingsSvc,
+		AssetVersion: assetVer,
 	})
 
 	webpages.Register(r, webpages.Deps{
@@ -103,6 +111,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Captcha:    captchaSvc,
 		Notify:     notifySvc,
 		Backup:     backupSvc,
+		AssetVersion: assetVer,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
@@ -126,6 +135,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		DataDir: cfg.DataDir, JWTSecret: cfg.JWTSecret,
 		Settings: settingsSvc, Auth: authSvc,
 		Board: boardSvc, Post: postSvc, Comment: commentSvc,
+		AssetVersion: assetVer,
 	}.NotFound)
 
 	return r, nil
