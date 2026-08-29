@@ -32,6 +32,72 @@
   --j13-overlay: rgba(255, 255, 255, 0.85);
 }
 
+/* 跟随系统：无 data-theme 时由媒体查询决定 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --j13-bg: #1c1917;
+    --j13-surface: #292524;
+    --j13-text: #f5f5f4;
+    --j13-muted: #a8a29e;
+    --j13-accent: #2dd4bf;
+    --j13-on-accent: #134e4a;
+    --j13-border: #44403c;
+    --j13-danger: #f87171;
+    --j13-ok-bg: #064e3b;
+    --j13-ok-fg: #a7f3d0;
+    --j13-warn-bg: #7c2d12;
+    --j13-warn-fg: #fed7aa;
+    --j13-warn-border: #9a3412;
+    --j13-err-bg: #7f1d1d;
+    --j13-err-fg: #fecaca;
+    --j13-err-border: #991b1b;
+    --j13-pin-bg: #78350f;
+    --j13-pin-fg: #fde68a;
+    --j13-feat-bg: #4c1d95;
+    --j13-feat-fg: #ddd6fe;
+    --j13-neutral-bg: #334155;
+    --j13-neutral-fg: #e2e8f0;
+    --j13-self-bg: #1e3a5f;
+    --j13-self-border: #1d4ed8;
+    --j13-delta-pos: #4ade80;
+    --j13-delta-neg: #f87171;
+    --j13-overlay: rgba(28, 25, 23, 0.85);
+  }
+}
+
+/* 显式浅色/暗色覆盖系统偏好 */
+html[data-theme="light"] {
+  color-scheme: light;
+  --j13-bg: #f6f4ef;
+  --j13-surface: #fffdf8;
+  --j13-text: #1c1917;
+  --j13-muted: #78716c;
+  --j13-accent: #0f766e;
+  --j13-on-accent: #fff;
+  --j13-border: #e7e5e4;
+  --j13-danger: #b91c1c;
+  --j13-ok-bg: #ecfdf5;
+  --j13-ok-fg: #065f46;
+  --j13-warn-bg: #fff7ed;
+  --j13-warn-fg: #9a3412;
+  --j13-warn-border: #fed7aa;
+  --j13-err-bg: #fef2f2;
+  --j13-err-fg: #991b1b;
+  --j13-err-border: #fecaca;
+  --j13-pin-bg: #fef3c7;
+  --j13-pin-fg: #92400e;
+  --j13-feat-bg: #ede9fe;
+  --j13-feat-fg: #5b21b6;
+  --j13-neutral-bg: #f8fafc;
+  --j13-neutral-fg: #475569;
+  --j13-self-bg: #eff6ff;
+  --j13-self-border: #bfdbfe;
+  --j13-delta-pos: #15803d;
+  --j13-delta-neg: #b91c1c;
+  --j13-overlay: rgba(255, 255, 255, 0.85);
+}
+
 html[data-theme="dark"] {
   color-scheme: dark;
   --j13-bg: #1c1917;

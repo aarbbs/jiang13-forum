@@ -11,22 +11,17 @@ document.documentElement.dataset.j13Ssr = "1";
     return "system";
   }
 
-  function resolve(pref) {
-    if (pref === "dark") return "dark";
-    if (pref === "light") return "light";
-    try {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    } catch (e) {
-      return "light";
-    }
-  }
-
   function apply(pref) {
     pref = normalizePref(pref);
-    var resolved = resolve(pref);
-    document.documentElement.setAttribute("data-theme", resolved);
-    document.documentElement.setAttribute("data-theme-pref", pref);
-    document.documentElement.style.colorScheme = resolved;
+    var root = document.documentElement;
+    if (pref === "system") {
+      root.removeAttribute("data-theme");
+      root.style.removeProperty("color-scheme");
+    } else {
+      root.setAttribute("data-theme", pref);
+      root.style.colorScheme = pref;
+    }
+    root.setAttribute("data-theme-pref", pref);
     try {
       localStorage.setItem(KEY, pref);
     } catch (e) {}
@@ -40,7 +35,7 @@ document.documentElement.dataset.j13Ssr = "1";
 
   function currentPref() {
     try {
-      return normalizePref(localStorage.getItem(KEY) || document.documentElement.getAttribute("data-theme-pref") || "system");
+      return normalizePref(localStorage.getItem(KEY) || "system");
     } catch (e) {
       return "system";
     }
@@ -57,15 +52,6 @@ document.documentElement.dataset.j13Ssr = "1";
       apply(next);
     });
   }
-
-  try {
-    var mq = window.matchMedia("(prefers-color-scheme: dark)");
-    var onChange = function () {
-      if (currentPref() === "system") apply("system");
-    };
-    if (mq.addEventListener) mq.addEventListener("change", onChange);
-    else if (mq.addListener) mq.addListener(onChange);
-  } catch (e) {}
 })();
 
 (function mdEditors() {

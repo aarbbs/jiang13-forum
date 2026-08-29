@@ -10,15 +10,15 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | 浅色/暗色主题（跟随系统 + localStorage） |
-| **下一刀** | 需点名（OIDC / S3 / Gitea / 表格表情…） |
+| **上一刀** | 主题去防闪 + 删未挂载 JSON API / crawler + 文档对齐 |
+| **下一刀** | 需点名（OIDC Admin / S3 / Gitea / 表格表情…） |
 | **工作区** | 应干净 |
 
 ---
 
 ## 一句话状态
 
-核心论坛、Admin、Limits/伪静态、嵌套评论、Markdown 编辑器、**主题**已齐。余量多为后置与体验打磨。
+核心论坛、Admin、Limits/伪静态、嵌套评论、Markdown 编辑器、主题已齐；本分支 `routers/api` 仅保留机器入口。余量多为后置与体验打磨。
 
 ---
 
@@ -30,15 +30,16 @@
 | Limits / 伪静态 / 品牌图 | 已迁 |
 | 评论嵌套树 UI | 已迁 |
 | Markdown 工具栏 + preview | 已迁 |
-| 浅色 / 暗色 / 跟随系统 | 已迁 |
+| 浅色 / 暗色 / 跟随系统 | 已迁（CSS 媒体查询，无 head 防闪脚本） |
+| 未挂载论坛 JSON API | 已删（对照 `main`） |
 
 ---
 
 ## 未完成
 
-- P3：TipTip、游客评论、修订 diff、响应式侧栏抽屉  
+- P3：游客评论、修订 diff、响应式侧栏抽屉  
 - 编辑器后置：TipTap、表格、图片组、表情贴纸  
-- 后置：OIDC、S3 热切换、Gitea `/projects`  
+- 后置：OIDC Admin UI、S3 热切换、Gitea `/projects`  
 
 ---
 

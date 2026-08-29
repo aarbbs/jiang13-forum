@@ -60,8 +60,6 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Gitea 仓库同步后置：本阶段不启动后台同步，亦不挂管理入口
-	giteaSvc := services.NewGiteaService(settingsSvc)
 
 	uploadStore := services.NewUploadStore(cfg.DataDir, settingsSvc)
 	if err := uploadStore.ReloadFromSettings(settingsSvc); err != nil {
@@ -79,15 +77,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	sitePageSvc := services.NewSitePageService(filter)
 
 	h := &api.Handlers{
-		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
-		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
-		Backup: backupSvc,
-		Filter: filter, Limiter: limiter, Settings: settingsSvc,
-		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
-		OIDC: oidcSvc, Gitea: giteaSvc,
-		Points: services.NewPointsService(), Badge: services.NewBadgeService(),
-		SitePage:        sitePageSvc,
-		FriendLinkApply: friendLinkApplySvc,
+		Cfg: cfg, Settings: settingsSvc,
+		Board: boardSvc, Post: postSvc,
+		OIDC: oidcSvc,
 	}
 	authMW := auth.NewAuthMiddleware(authSvc)
 
@@ -118,9 +110,6 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.GET("/health", h.APIHealth)
 	r.GET("/robots.txt", h.RobotsTxt)
 	r.GET("/sitemap.xml", h.SitemapXML)
-	// 机器注册辅助（与 SSR 注册共用 CaptchaService）
-	r.GET("/api/captcha", h.APICaptcha)
-	r.POST("/api/register", h.APIRegister)
 
 	// OIDC Provider（外部机器 / Gitea SSO）
 	r.GET("/.well-known/openid-configuration", h.OIDCDiscovery)
@@ -132,7 +121,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.GET("/oauth/logout", h.OIDCLogout)
 	r.POST("/oauth/logout", h.OIDCLogout)
 
-	// 精简机器 API：健康检查已注册；保留只读探测与 OIDC，论坛 UI 不再走 /api
+	// 机器入口：健康检查 / SEO / OIDC / 缩略图；论坛 UI 仅走 routers/web
 	r.NoRoute(webpages.Deps{
 		DataDir: cfg.DataDir, JWTSecret: cfg.JWTSecret,
 		Settings: settingsSvc, Auth: authSvc,

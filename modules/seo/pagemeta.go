@@ -1,6 +1,6 @@
 package seo
 
-// PageMeta 页面级 SEO / 社交预览元数据（SSR 与爬虫 HTML 共用）
+// PageMeta 页面级 SEO / 社交预览元数据（SSR 模板 head）
 type PageMeta struct {
 	Title       string // 完整 <title>
 	Description string

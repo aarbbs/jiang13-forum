@@ -5,7 +5,7 @@
 > **源码**：[`routers/setup.go`](../../routers/setup.go)、[`modules/auth/auth.go`](../../modules/auth/auth.go)
 
 本分支（`rebuild/gitea-ssr`）浏览器走 **`routers/web` 模板 + 表单**。  
-下列 JSON 合约保留作历史对照与未来机器 API；**当前进程仅注册** health / OIDC / robots / sitemap / media 等机器相关路由，论坛 CRUD 的 `/api/*` 已从路由表移除（handler 源码可删可留，不以 SPA 兼容为目的）。
+**当前进程仅注册** health / OIDC / robots / sitemap / media thumb 等机器相关路由；论坛 CRUD 的 `/api/*` **handler 已从本分支删除**（对照实现见 `main`，合约形状见下文历史章节）。
 
 `main` 分支 SPA 仍完整实现下表；对照请 checkout `main`。
 

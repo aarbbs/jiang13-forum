@@ -4,12 +4,14 @@
 
 ## 开发环境
 
-**要求：** Go 1.26+、Node.js 18+
+**要求：** Go 1.26+、Node.js 18+（仅构建 `web_src` 静态资源）
+
+本分支（`rebuild/gitea-ssr`）为 **Go 模板 SSR**；对照 React SPA 请 `git checkout main`。
 
 ```bat
-REM Windows：一键启动后端 + 前端热更新（请用 build.bat）
+REM Windows：请用 build.bat（内部 Bypass ExecutionPolicy）
 build.bat -Target dev
-REM 浏览器访问 http://localhost:5173
+REM 浏览器访问 http://localhost:3000
 ```
 
 ```bash
@@ -20,15 +22,14 @@ make dev
 ## 提交规范
 
 - 一个 PR 只做一件事，保持 diff 小而清晰
-- 前端改动请确认浅色 / 暗色主题下都正常
+- 前端（`web_src` / 模板）改动请确认浅色 / 暗色主题下都正常
 - 涉及 UI 变更时，建议在 PR 中附上截图
+- 功能语义以 [`docs/rebuild-spec/`](docs/rebuild-spec/) 为准
 
 ## 完整构建
 
-发布单二进制前需先构建前端并 embed：
-
 ```bat
-build.bat            REM Windows
+build.bat            REM Windows：先 web_src，再 go build → dist/
 ```
 
 ```bash
@@ -38,15 +39,6 @@ make build           # Linux / macOS
 ## 报告问题
 
 在本仓库 Issues 中描述（也可参考 [docs/issue-templates.md](docs/issue-templates.md)）：
-
-1. 复现步骤
-2. 期望行为 vs 实际行为
-3. 环境信息（系统、浏览器、Go/Node 版本）
-4. 截图或日志（如有）
-
-演示站：[https://bbs.iioio.com/](https://bbs.iioio.com/)  
-已知问题与计划功能见 [ROADMAP.md](ROADMAP.md)。
-
-## 行为准则
-
-请保持友善、尊重他人。骚扰、歧视或恶意行为不被容忍。
+- 期望行为与实际行为
+- 复现步骤、浏览器 / OS
+- 相关模板或 `routers/web` 路径（若已知）

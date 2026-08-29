@@ -7,7 +7,6 @@
 # Node / 构建缓存
 /node_modules/
 /web_src/node_modules/
-.vite/
 *.tsbuildinfo
 
 # Go 编译产物（统一进 dist/；勿把二进制扔在仓库根目录）
