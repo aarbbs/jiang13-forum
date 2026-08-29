@@ -11,6 +11,7 @@ import (
 type favItem struct {
 	PostID       uint
 	Title        string
+	Href         string
 	AuthorName   string
 	BoardName    string
 	CreatedLabel string
@@ -43,6 +44,7 @@ func (d Deps) FavoritesGet(c *gin.Context) {
 		return
 	}
 	items := make([]favItem, 0, len(favs))
+	pl := d.permalink()
 	for _, f := range favs {
 		title := f.Post.Title
 		author := strings.TrimSpace(f.Post.User.Nickname)
@@ -54,7 +56,7 @@ func (d Deps) FavoritesGet(c *gin.Context) {
 			board = f.Post.Board.Name
 		}
 		items = append(items, favItem{
-			PostID: f.PostID, Title: title, AuthorName: author, BoardName: board,
+			PostID: f.PostID, Title: title, Href: pl.PostPath(f.PostID), AuthorName: author, BoardName: board,
 			CreatedLabel: formatTime(f.CreatedAt),
 		})
 	}

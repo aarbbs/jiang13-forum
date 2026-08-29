@@ -22,7 +22,7 @@
 - [x] 右栏：热门帖、标签云、最新评论、最新用户、友链（可开关排序）— SSR 热门固定 + `aside_widgets`；Admin `/admin/settings` 侧栏组件编辑器
 - [x] 登录用户右栏/侧边：签到与抽奖入口 — SSR 右栏条（钱包详情仍在 `/profile#wallet`）
 - [ ] 下拉刷新（移动端）
-- [ ] 可选伪静态：`/post/123.html` 等形式（后缀后台可配）
+- [x] 可选伪静态：`/post/123.html` 等形式（后缀后台可配）— SSR `/admin/settings` 伪静态；公开路径 301 规范 URL
 - [x] 404 页
 
 ---
@@ -187,7 +187,8 @@
 
 - [x] 仪表盘：用户/帖/板块计数 + 待审帖/评 + 待处理举报 — SSR `/admin/dashboard`
 - [x] 敏感词：`forum_settings.filter_words` 读写 + 热更 — SSR `/admin/settings`
-- [x] 基础限流（post/comment/register/login/window）— SSR；完整 Limits 字数等未迁
+- [x] 基础限流（post/comment/register/login/window）— SSR `/admin/settings`
+- [x] 完整 Limits（字数 / 编辑窗 / 分页 / 签名头像 / Feed 样式 / 新标签）— SSR `/admin/settings/content-limits`
 - [x] SMTP 配置与测试信 — SSR `/admin/settings` 邮件区
 - [x] 站点品牌文案：名称、标语、简介、keywords、Logo 字标、ICP — SSR `/admin/settings`
 - [x] Logo / Favicon / 默认 OG 图上传与清除 — SSR `/admin/settings/brand/upload|clear`；`<head>` favicon + og:image

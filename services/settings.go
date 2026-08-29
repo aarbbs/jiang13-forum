@@ -614,6 +614,73 @@ func (s *ForumSettingsService) UpdateRateLimits(post, comment, register, login, 
 	return nil
 }
 
+// UpdateContentLimits 更新字数/编辑窗/分页/账号相关限制（不改 aside / 伪静态 / 限流）
+func (s *ForumSettingsService) UpdateContentLimits(
+	postEditHours, commentEditMinutes,
+	titleMax, tagsMax, contentMax, commentMax,
+	searchMin, searchMax, pageSize,
+	passwordMin, avatarMB, signatureMax int,
+	openPostsNewTab, openLinksNewTab bool,
+	feedListStyle string,
+) error {
+	updates := map[string]int{
+		SettingPostEditWindowHours:      postEditHours,
+		SettingCommentEditWindowMinutes: commentEditMinutes,
+		SettingPostTitleMax:             titleMax,
+		SettingPostTagsMax:              tagsMax,
+		SettingPostContentMax:           contentMax,
+		SettingCommentMax:               commentMax,
+		SettingSearchKeywordMin:         searchMin,
+		SettingSearchKeywordMax:         searchMax,
+		SettingPageSizeDefault:          pageSize,
+		SettingPasswordMinLen:           passwordMin,
+		SettingAvatarMaxMB:              avatarMB,
+		SettingSignatureMax:             signatureMax,
+	}
+	if searchMax > 0 && searchMin > searchMax {
+		return ErrInvalidSetting
+	}
+	for key, val := range updates {
+		if err := s.setInt(key, val); err != nil {
+			return err
+		}
+	}
+	boolUpdates := map[string]bool{
+		SettingOpenPostsInNewTab:        openPostsNewTab,
+		SettingOpenContentLinksInNewTab: openLinksNewTab,
+	}
+	for key, on := range boolUpdates {
+		v := "0"
+		if on {
+			v = "1"
+		}
+		if err := s.setString(key, v); err != nil {
+			return err
+		}
+	}
+	style, ok := NormalizeFeedListStyle(feedListStyle)
+	if !ok {
+		return ErrInvalidSetting
+	}
+	return s.setString(SettingFeedListStyle, style)
+}
+
+// UpdatePermalinkSettings 更新伪静态开关与后缀
+func (s *ForumSettingsService) UpdatePermalinkSettings(enabled bool, ext string) error {
+	extNorm, ok := NormalizePermalinkExt(ext)
+	if !ok {
+		return ErrInvalidSetting
+	}
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	if err := s.setString(SettingPermalinkEnabled, v); err != nil {
+		return err
+	}
+	return s.setString(SettingPermalinkExt, extNorm)
+}
+
 func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 	updates := map[string]int{
 		SettingPostEditWindowHours:      in.PostEditWindowHours,

@@ -33,7 +33,7 @@
     {{if .RightAside.HotPosts}}
     <ul class="j13-widget__list">
       {{range .RightAside.HotPosts}}
-      <li><a href="{{postURL .ID}}">{{.Title}}</a></li>
+      <li><a href="{{.Href}}">{{.Title}}</a></li>
       {{end}}
     </ul>
     {{else}}
@@ -59,7 +59,7 @@
     <ul class="j13-widget__list">
       {{range .Comments}}
       <li>
-        <a href="{{postURL .PostID}}">{{.Excerpt}}</a>
+        <a href="{{.PostHref}}">{{.Excerpt}}</a>
         <span class="j13-widget__meta">{{.Author}} · {{.PostTitle}}</span>
       </li>
       {{end}}
@@ -72,7 +72,7 @@
     {{if .Users}}
     <ul class="j13-widget__list">
       {{range .Users}}
-      <li><a href="/user/{{.ID}}">{{.Nickname}}</a></li>
+      <li><a href="{{.Href}}">{{.Nickname}}</a></li>
       {{end}}
     </ul>
     {{else}}

@@ -36,7 +36,7 @@
   <ul class="j13-post-list">
     {{range .Posts}}
     <li class="j13-post-item">
-      <a class="j13-post-item__title" href="/post/{{.ID}}">{{.Title}}</a>
+      <a class="j13-post-item__title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
       <div class="j13-post-item__meta">
         {{if .BoardName}}<span>{{.BoardName}}</span>{{end}}
         <span>{{.CreatedLabel}}</span>

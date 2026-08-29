@@ -429,6 +429,7 @@ type adminSettingsData struct {
 	RateReg      int
 	RateLogin    int
 	RateWindow   int
+	Limits       services.ForumLimits
 	FilterWords  string
 	FilterCount  int
 	Mail         services.MailConfig
@@ -465,6 +466,7 @@ func (d Deps) renderAdminSettings(ctx *webctx.Context, errMsg string) {
 		RateReg:      lim.RateLimitRegister,
 		RateLogin:    lim.RateLimitLogin,
 		RateWindow:   lim.RateLimitWindowSec,
+		Limits:       lim,
 		FilterWords:  words,
 		FilterCount:  services.CountFilterWords(words),
 		Mail:         mail,
@@ -621,6 +623,51 @@ func (d Deps) AdminSettingsLimitsPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("限流设置已保存")
+	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsContentLimitsPost 字数与编辑窗等
+func (d Deps) AdminSettingsContentLimitsPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	atoi := func(name string) int {
+		n, _ := strconv.Atoi(strings.TrimSpace(c.PostForm(name)))
+		return n
+	}
+	err := d.Settings.UpdateContentLimits(
+		atoi("post_edit_window_hours"), atoi("comment_edit_window_minutes"),
+		atoi("post_title_max"), atoi("post_tags_max"), atoi("post_content_max"), atoi("comment_max"),
+		atoi("search_keyword_min"), atoi("search_keyword_max"), atoi("page_size_default"),
+		atoi("password_min_len"), atoi("avatar_max_mb"), atoi("signature_max"),
+		c.PostForm("open_posts_in_new_tab") == "1" || c.PostForm("open_posts_in_new_tab") == "on",
+		c.PostForm("open_content_links_in_new_tab") == "1" || c.PostForm("open_content_links_in_new_tab") == "on",
+		strings.TrimSpace(c.PostForm("feed_list_style")),
+	)
+	if err != nil {
+		d.renderAdminSettings(ctx, "内容限制无效，请检查数值范围")
+		return
+	}
+	ctx.SetFlash("内容限制已保存")
+	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsPermalinkPost 伪静态
+func (d Deps) AdminSettingsPermalinkPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	enabled := c.PostForm("permalink_enabled") == "1" || c.PostForm("permalink_enabled") == "on"
+	ext := strings.TrimSpace(c.PostForm("permalink_ext"))
+	if err := d.Settings.UpdatePermalinkSettings(enabled, ext); err != nil {
+		d.renderAdminSettings(ctx, "伪静态后缀无效（1–16 位字母数字）")
+		return
+	}
+	ctx.SetFlash("伪静态设置已保存")
 	ctx.Redirect("/admin/settings")
 }
 

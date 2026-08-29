@@ -106,7 +106,7 @@ func (d Deps) ComposePost(c *gin.Context) {
 	} else {
 		ctx.SetFlash("发帖成功")
 	}
-	ctx.Redirect(fmt.Sprintf("/post/%d", post.ID))
+	ctx.Redirect(d.postHref(post.ID))
 }
 
 // PostEditGet 编辑帖
@@ -152,7 +152,7 @@ func (d Deps) PostEditPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("已保存")
-	ctx.Redirect(fmt.Sprintf("/post/%d", post.ID))
+	ctx.Redirect(d.postHref(post.ID))
 }
 
 // ComposeUpload 帖图上传（JSON，供 compose 页 fetch）

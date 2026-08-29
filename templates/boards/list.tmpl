@@ -8,7 +8,7 @@
   <ul class="j13-boards__grid">
     {{range .Items}}
     <li>
-      <a class="j13-boards__card" href="/board/{{.ID}}" data-color="{{.ColorIndex}}">
+      <a class="j13-boards__card" href="{{.Href}}" data-color="{{.ColorIndex}}">
         <span class="j13-boards__dot" aria-hidden="true"></span>
         <span class="j13-boards__body">
           <strong>{{.Name}}</strong>

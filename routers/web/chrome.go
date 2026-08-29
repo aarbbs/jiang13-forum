@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net/http"
 	"strings"
 
 	"git.iioio.com/freefire/jiang13-forum/modules/webctx"
@@ -44,12 +45,14 @@ type SitePageLink struct {
 type BoardView struct {
 	ID   uint
 	Name string
+	Href string
 }
 
 // RightAsideHotPost 右栏热门帖
 type RightAsideHotPost struct {
 	ID    uint
 	Title string
+	Href  string
 }
 
 // RightAsideTag 右栏标签
@@ -61,6 +64,7 @@ type RightAsideTag struct {
 // RightAsideComment 右栏最新评论
 type RightAsideComment struct {
 	PostID    uint
+	PostHref  string
 	Author    string
 	Excerpt   string
 	PostTitle string
@@ -70,6 +74,7 @@ type RightAsideComment struct {
 type RightAsideUser struct {
 	ID       uint
 	Nickname string
+	Href     string
 }
 
 // RightAsideFriendLink 右栏友链
@@ -111,6 +116,8 @@ type PageChrome struct {
 	LogoURL               string
 	FaviconURL            string
 	OGImageURL            string
+	PermalinkSuffix       string // 如 ".html"；未启用为空
+	OpenPostsInNewTab     bool
 	LoggedIn              bool
 	IsAdmin               bool
 	ViewerName            string
@@ -151,8 +158,9 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 	}
 	boards, _ := d.Board.List()
 	bv := make([]BoardView, 0, len(boards))
+	pl := d.permalink()
 	for _, b := range boards {
-		bv = append(bv, BoardView{ID: b.ID, Name: b.Name})
+		bv = append(bv, BoardView{ID: b.ID, Name: b.Name, Href: pl.BoardPath(b.ID)})
 	}
 	var unread int64
 	if ctx.IsSigned() && d.Message != nil {
@@ -176,6 +184,8 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		LogoURL:               strings.TrimSpace(brand.Logo),
 		FaviconURL:            strings.TrimSpace(brand.Favicon),
 		OGImageURL:            strings.TrimSpace(brand.DefaultShareImage()),
+		PermalinkSuffix:       d.Settings.Permalink().Suffix(),
+		OpenPostsInNewTab:     d.Settings.OpenPostsInNewTab(),
 		LoggedIn:              ctx.IsSigned(),
 		IsAdmin:               ctx.IsAdmin(),
 		ViewerName:            name,
@@ -242,8 +252,9 @@ func (d Deps) loadRightAside(ctx *webctx.Context, brand services.SiteBranding) R
 	}
 	if d.Post != nil {
 		if items, err := d.Post.HotPosts(rightAsideHotLimit); err == nil {
+			pl := d.permalink()
 			for _, it := range items {
-				out.HotPosts = append(out.HotPosts, RightAsideHotPost{ID: it.ID, Title: it.Title})
+				out.HotPosts = append(out.HotPosts, RightAsideHotPost{ID: it.ID, Title: it.Title, Href: pl.PostPath(it.ID)})
 			}
 		}
 	}
@@ -264,9 +275,10 @@ func (d Deps) loadRightAside(ctx *webctx.Context, brand services.SiteBranding) R
 		case services.AsideWidgetRecentComments:
 			if d.Comment != nil {
 				if list, err := d.Comment.ListRecentPublic(rightAsideCommentLimit); err == nil {
+					pl := d.permalink()
 					for _, c := range list {
 						block.Comments = append(block.Comments, RightAsideComment{
-							PostID: c.PostID, Author: c.Author, Excerpt: c.Excerpt, PostTitle: c.PostTitle,
+							PostID: c.PostID, PostHref: pl.PostPath(c.PostID), Author: c.Author, Excerpt: c.Excerpt, PostTitle: c.PostTitle,
 						})
 					}
 				}
@@ -274,8 +286,9 @@ func (d Deps) loadRightAside(ctx *webctx.Context, brand services.SiteBranding) R
 		case services.AsideWidgetRecentUsers:
 			if d.User != nil {
 				if list, err := d.User.ListRecentRegistered(rightAsideUserLimit); err == nil {
+					pl := d.permalink()
 					for _, u := range list {
-						block.Users = append(block.Users, RightAsideUser{ID: u.ID, Nickname: u.Nickname})
+						block.Users = append(block.Users, RightAsideUser{ID: u.ID, Nickname: u.Nickname, Href: pl.UserPath(u.ID)})
 					}
 				}
 			}
@@ -310,4 +323,40 @@ func stripIDParam(raw, permalinkExt string) string {
 	raw = strings.TrimSuffix(raw, ".html")
 	raw = strings.TrimSuffix(raw, ".htm")
 	return raw
+}
+
+func (d Deps) permalink() services.PermalinkConfig {
+	if d.Settings == nil {
+		return services.PermalinkConfig{}
+	}
+	return d.Settings.Permalink()
+}
+
+func (d Deps) postHref(id uint) string {
+	return d.permalink().PostPath(id)
+}
+
+func (d Deps) boardHref(id uint) string {
+	return d.permalink().BoardPath(id)
+}
+
+func (d Deps) userHref(id uint) string {
+	return d.permalink().UserPath(id)
+}
+
+// redirectIfNotCanonical 伪静态开启时把无后缀/错误后缀 301 到规范路径
+func (d Deps) redirectIfNotCanonical(c *gin.Context, match services.PermalinkMatch) bool {
+	if !match.OK || !d.permalink().Enabled {
+		return false
+	}
+	path := c.Request.URL.Path
+	if !match.NeedsCanonicalRedirect(path) {
+		return false
+	}
+	loc := match.Canonical
+	if q := c.Request.URL.RawQuery; q != "" {
+		loc = loc + "?" + q
+	}
+	c.Redirect(http.StatusMovedPermanently, loc)
+	return true
 }

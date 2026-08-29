@@ -94,6 +94,43 @@
     <button type="submit">保存限流</button>
   </form>
 
+  <h2>内容限制</h2>
+  <p class="j13-muted">字数、编辑时间窗、分页与账号相关上限。</p>
+  <form method="post" action="/admin/settings/content-limits" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label>帖标题最大字数 <input name="post_title_max" type="number" min="1" value="{{.Limits.PostTitleMax}}"/></label>
+    <label>标签最大字数 <input name="post_tags_max" type="number" min="0" value="{{.Limits.PostTagsMax}}"/></label>
+    <label>帖正文最大字数 <input name="post_content_max" type="number" min="0" value="{{.Limits.PostContentMax}}"/></label>
+    <label>评论最大字数 <input name="comment_max" type="number" min="1" value="{{.Limits.CommentMax}}"/></label>
+    <label>搜索关键词最短 <input name="search_keyword_min" type="number" min="0" value="{{.Limits.SearchKeywordMin}}"/></label>
+    <label>搜索关键词最长 <input name="search_keyword_max" type="number" min="1" value="{{.Limits.SearchKeywordMax}}"/></label>
+    <label>默认分页大小 <input name="page_size_default" type="number" min="1" value="{{.Limits.PageSizeDefault}}"/></label>
+    <label>发帖可编辑（小时） <input name="post_edit_window_hours" type="number" min="0" value="{{.Limits.PostEditWindowHours}}"/></label>
+    <label>评论可编辑（分钟） <input name="comment_edit_window_minutes" type="number" min="0" value="{{.Limits.CommentEditWindowMinutes}}"/></label>
+    <label>密码最短长度 <input name="password_min_len" type="number" min="4" value="{{.Limits.PasswordMinLen}}"/></label>
+    <label>头像最大 MB <input name="avatar_max_mb" type="number" min="1" value="{{.Limits.AvatarMaxMB}}"/></label>
+    <label>签名最大字数 <input name="signature_max" type="number" min="0" value="{{.Limits.SignatureMax}}"/></label>
+    <label>Feed 列表样式
+      <select name="feed_list_style">
+        <option value="title"{{if eq .Limits.FeedListStyle "title"}} selected{{end}}>仅标题</option>
+        <option value="excerpt"{{if eq .Limits.FeedListStyle "excerpt"}} selected{{end}}>摘要</option>
+        <option value="thumbnail"{{if eq .Limits.FeedListStyle "thumbnail"}} selected{{end}}>缩略图</option>
+      </select>
+    </label>
+    <label class="j13-check"><input type="checkbox" name="open_posts_in_new_tab" value="1"{{if .Limits.OpenPostsInNewTab}} checked{{end}}/> 帖子链接新标签打开</label>
+    <label class="j13-check"><input type="checkbox" name="open_content_links_in_new_tab" value="1"{{if .Limits.OpenContentLinksInNewTab}} checked{{end}}/> 正文外链新标签打开</label>
+    <button type="submit">保存内容限制</button>
+  </form>
+
+  <h2>伪静态</h2>
+  <p class="j13-muted">启用后公开路径形如 <code>/post/123.{{.Limits.PermalinkExt}}</code>；无后缀请求会 301 到规范 URL。</p>
+  <form method="post" action="/admin/settings/permalink" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label class="j13-check"><input type="checkbox" name="permalink_enabled" value="1"{{if .Limits.PermalinkEnabled}} checked{{end}}/> 启用伪静态后缀</label>
+    <label>后缀（不含点） <input name="permalink_ext" maxlength="16" pattern="[A-Za-z0-9]{1,16}" value="{{.Limits.PermalinkExt}}" placeholder="html"/></label>
+    <button type="submit">保存伪静态</button>
+  </form>
+
   <h2>侧栏组件</h2>
   <p class="j13-muted">控制首页与帖详情右栏可选块的显示与顺序（热门帖为固定块，不在此列）。友链页「侧栏显示」与此共用同一配置。</p>
   <form method="post" action="/admin/settings/aside-widgets" class="j13-form j13-admin-form">

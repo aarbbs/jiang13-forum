@@ -42,7 +42,8 @@ type userPublicData struct {
 // UserPublic 公开用户主页（不含邮箱）
 func (d Deps) UserPublic(c *gin.Context) {
 	ctx := d.ctx(c)
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	idStr := stripIDParam(c.Param("id"), d.Settings.Permalink().Ext)
+	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil || id == 0 {
 		d.render404(ctx)
 		return
@@ -50,6 +51,10 @@ func (d Deps) UserPublic(c *gin.Context) {
 	user, err := d.User.GetByID(uint(id))
 	if err != nil {
 		d.render404(ctx)
+		return
+	}
+	match := d.permalink().MatchUserPath(c.Request.URL.Path)
+	if d.redirectIfNotCanonical(c, match) {
 		return
 	}
 	st, _ := d.User.ActivityStats(user.ID)
@@ -67,13 +72,14 @@ func (d Deps) UserPublic(c *gin.Context) {
 		ViewerIsAdmin: ctx.IsAdmin(),
 	})
 	items := make([]PostListItem, 0, len(posts))
+	pl := d.permalink()
 	for _, p := range posts {
 		board := ""
 		if p.Board.ID > 0 {
 			board = p.Board.Name
 		}
 		items = append(items, PostListItem{
-			ID: p.ID, Title: p.Title, AuthorName: displayName(user),
+			ID: p.ID, Title: p.Title, Href: pl.PostPath(p.ID), AuthorName: displayName(user),
 			BoardName: board, Pinned: p.Pinned || p.BoardPinned, Featured: p.Featured,
 			CreatedLabel: formatTime(p.CreatedAt),
 		})

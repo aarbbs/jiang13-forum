@@ -10,6 +10,7 @@ import (
 type boardsItemView struct {
 	ID          uint
 	Name        string
+	Href        string
 	Description string
 	Icon        string
 	ColorIndex  int
@@ -32,6 +33,7 @@ func (d Deps) renderBoards(ctx *webctx.Context) {
 	chrome := d.chrome(ctx, "板块 · "+brand.Name, "", "")
 	list, _ := d.Board.ListWithStats()
 	items := make([]boardsItemView, 0, len(list))
+	pl := d.permalink()
 	for _, b := range list {
 		color := b.ColorIndex
 		if color < 0 {
@@ -40,6 +42,7 @@ func (d Deps) renderBoards(ctx *webctx.Context) {
 		items = append(items, boardsItemView{
 			ID:          b.ID,
 			Name:        b.Name,
+			Href:        pl.BoardPath(b.ID),
 			Description: b.Description,
 			Icon:        b.Icon,
 			ColorIndex:  color,

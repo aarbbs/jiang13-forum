@@ -17,8 +17,8 @@
       {{if .IsQuestion}}
         {{if .QuestionResolved}}<span class="j13-tag j13-tag--resolved">已解决</span>{{else}}<span class="j13-tag j13-tag--unresolved">未解决</span>{{end}}
       {{end}}
-      {{if .BoardName}}<a class="j13-tag" href="/board/{{.BoardID}}">{{.BoardName}}</a>{{end}}
-      {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
+      {{if .BoardName}}<a class="j13-tag" href="{{.BoardHref}}">{{.BoardName}}</a>{{end}}
+      {{if .AuthorID}}<a href="{{.AuthorHref}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
       <span>{{.CreatedLabel}}</span>
       <span>{{.ViewCount}} 阅读</span>
     </div>
@@ -44,8 +44,8 @@
         <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
         <button type="submit">{{if .Favorited}}取消收藏{{else}}收藏{{end}}</button>
       </form>
-      {{if .CanEdit}}<a class="j13-linkbtn" href="/post/{{.PostID}}/edit">编辑</a>{{end}}
-      {{if .CanViewRevisions}}<a class="j13-linkbtn" href="/post/{{.PostID}}/revisions">修订历史</a>{{end}}
+      {{if .CanEdit}}<a class="j13-linkbtn" href="{{.PostHref}}/edit">编辑</a>{{end}}
+      {{if .CanViewRevisions}}<a class="j13-linkbtn" href="{{.PostHref}}/revisions">修订历史</a>{{end}}
       {{if .CanReportPost}}
       <details class="j13-report">
         <summary class="j13-linkbtn">举报</summary>

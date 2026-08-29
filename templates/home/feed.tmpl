@@ -37,7 +37,7 @@
   <ul class="j13-post-list">
     {{range .Posts}}
     <li class="j13-post-item">
-      <a class="j13-post-item__title" href="{{postURL .ID}}">{{.Title}}</a>
+      <a class="j13-post-item__title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
       <div class="j13-post-item__meta">
         {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
         {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}

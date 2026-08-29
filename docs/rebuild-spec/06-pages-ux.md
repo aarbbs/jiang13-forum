@@ -48,7 +48,7 @@
 | `/admin/dashboard` | 概览计数 | 已迁 |
 | `/admin/boards` | 板块 CRUD | 已迁 |
 | `/admin/moderation` | 待审帖/评 通过/拒绝 | 已迁 |
-| `/admin/settings` | 品牌（含 Logo/Favicon/OG 上传）+ 基础限流 + 敏感词 + SMTP + 备份 | 已迁 |
+| `/admin/settings` | 品牌（含 Logo/Favicon/OG）+ 限流 + 内容限制 + 伪静态 + 敏感词 + SMTP + 备份 | 已迁 |
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/pages` | 站点单页 CRUD / 发布 | 已迁 |
 | `/admin/reports` | 举报处理 | 已迁 |
@@ -58,7 +58,7 @@
 | `/admin/trash` | 帖回收站 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：完整 Limits / OIDC·Gitea·存储热切换 Admin 等。
+未迁（原 SPA）：OIDC·Gitea·存储热切换 Admin 等。
 
 ---
 
@@ -200,7 +200,7 @@
 | Badges | 定义自动/限定徽章；颁发/收回限定 — SSR `/admin/badges` |
 | Media | 分类浏览；单删/批量删；同步索引 — SSR `/admin/media` |
 | Media | 分类浏览；批量删 |
-| Settings | Tab：论坛限制、侧栏组件、伪静态、邮件、OIDC+客户端、Gitea、存储、品牌、敏感词、备份 — SSR `/admin/settings` 已迁品牌（含 Logo/Favicon/OG）/限流/侧栏/敏感词/邮件/SQLite 备份（OIDC/Gitea/存储/伪静态未迁） |
+| Settings | 品牌（含 Logo/Favicon/OG）、限流、内容限制、伪静态、侧栏、敏感词、邮件、SQLite 备份 — SSR `/admin/settings`（OIDC/Gitea/存储热切换未迁） |
 
 ---
 

@@ -78,6 +78,8 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/settings/brand/upload", deps.AdminSettingsBrandUploadPost)
 		admin.POST("/settings/brand/clear", deps.AdminSettingsBrandClearPost)
 		admin.POST("/settings/limits", deps.AdminSettingsLimitsPost)
+		admin.POST("/settings/content-limits", deps.AdminSettingsContentLimitsPost)
+		admin.POST("/settings/permalink", deps.AdminSettingsPermalinkPost)
 		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
 		admin.POST("/settings/mail", deps.AdminSettingsMailPost)
 		admin.POST("/settings/mail/test", deps.AdminSettingsMailTestPost)
@@ -165,6 +167,7 @@ type HomePageData struct {
 type PostListItem struct {
 	ID           uint
 	Title        string
+	Href         string
 	AuthorName   string
 	BoardName    string
 	Pinned       bool
@@ -176,22 +179,22 @@ type PostListItem struct {
 // FormAction 搜索表单提交路径（当前 Feed）
 func (d HomePageData) FormAction() string {
 	if d.ActiveBoard > 0 {
-		return fmt.Sprintf("/board/%d", d.ActiveBoard)
+		return fmt.Sprintf("/board/%d%s", d.ActiveBoard, d.PermalinkSuffix)
 	}
 	return "/"
 }
 
 // SortHref 排序链接，保留搜索参数
 func (d HomePageData) SortHref(sort string) string {
-	return buildFeedURL(d.ActiveBoard, sort, 0, d.Keyword, d.Tag, d.Author, d.TitleOnly)
+	return buildFeedURL(d.ActiveBoard, d.PermalinkSuffix, sort, 0, d.Keyword, d.Tag, d.Author, d.TitleOnly)
 }
 
 // PageHref 分页链接，保留搜索与排序
 func (d HomePageData) PageHref(page int) string {
-	return buildFeedURL(d.ActiveBoard, d.Sort, page, d.Keyword, d.Tag, d.Author, d.TitleOnly)
+	return buildFeedURL(d.ActiveBoard, d.PermalinkSuffix, d.Sort, page, d.Keyword, d.Tag, d.Author, d.TitleOnly)
 }
 
-func buildFeedURL(boardID uint, sort string, page int, keyword, tag, author string, titleOnly bool) string {
+func buildFeedURL(boardID uint, permalinkSuffix, sort string, page int, keyword, tag, author string, titleOnly bool) string {
 	q := url.Values{}
 	if sort != "" && sort != "latest" {
 		q.Set("sort", sort)
@@ -213,7 +216,7 @@ func buildFeedURL(boardID uint, sort string, page int, keyword, tag, author stri
 	}
 	path := "/"
 	if boardID > 0 {
-		path = fmt.Sprintf("/board/%d", boardID)
+		path = fmt.Sprintf("/board/%d%s", boardID, permalinkSuffix)
 	}
 	if enc := q.Encode(); enc != "" {
 		return path + "?" + enc
@@ -242,6 +245,12 @@ func (d Deps) Home(c *gin.Context) {
 		idStr = stripIDParam(idStr, d.Settings.Permalink().Ext)
 		if n, err := strconv.ParseUint(idStr, 10, 64); err == nil {
 			boardID = uint(n)
+		}
+		if boardID > 0 {
+			match := d.permalink().MatchBoardPath(c.Request.URL.Path)
+			if d.redirectIfNotCanonical(c, match) {
+				return
+			}
 		}
 	}
 
@@ -309,6 +318,7 @@ func (d Deps) Home(c *gin.Context) {
 	}
 
 	posts := make([]PostListItem, 0, len(items))
+	pl := d.permalink()
 	for _, it := range items {
 		authorName := strings.TrimSpace(it.User.Nickname)
 		if authorName == "" {
@@ -319,7 +329,7 @@ func (d Deps) Home(c *gin.Context) {
 			bname = it.Board.Name
 		}
 		posts = append(posts, PostListItem{
-			ID: it.ID, Title: it.Title, AuthorName: authorName, BoardName: bname,
+			ID: it.ID, Title: it.Title, Href: pl.PostPath(it.ID), AuthorName: authorName, BoardName: bname,
 			Pinned: it.Pinned, Featured: it.Featured, CommentCount: it.CommentCount,
 			CreatedLabel: it.CreatedAt.Local().Format("2006-01-02 15:04"),
 		})

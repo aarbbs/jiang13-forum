@@ -18,11 +18,14 @@ import (
 type PostPageData struct {
 	PageChrome
 	PostID         uint
+	PostHref       string
 	PostPath       string
 	PostTitle      string
 	AuthorName     string
 	AuthorID       uint
+	AuthorHref     string
 	BoardID        uint
+	BoardHref      string
 	BoardName      string
 	Pinned         bool // 展示用：全局或版内置顶
 	GlobalPinned   bool
@@ -130,6 +133,10 @@ func (d Deps) PostView(c *gin.Context) {
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil || id == 0 {
 		d.render404(ctx)
+		return
+	}
+	match := d.permalink().MatchPostPath(c.Request.URL.Path)
+	if d.redirectIfNotCanonical(c, match) {
 		return
 	}
 	post, err := d.Post.FindByID(uint(id))
@@ -260,9 +267,11 @@ func (d Deps) PostView(c *gin.Context) {
 
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
-		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
+		PostHref: d.postHref(post.ID),
+		PostPath: url.QueryEscape(d.postHref(post.ID)),
 		PostTitle: post.Title, AuthorName: author, AuthorID: post.UserID,
-		BoardID: post.BoardID, BoardName: boardName,
+		AuthorHref: d.userHref(post.UserID),
+		BoardID: post.BoardID, BoardHref: d.boardHref(post.BoardID), BoardName: boardName,
 		Pinned: post.Pinned || post.BoardPinned, GlobalPinned: post.Pinned, BoardPinned: post.BoardPinned,
 		Featured: post.Featured, EditLocked: post.EditLocked,
 		PostTypeLabel: postTypeLabel(post.PostType), CreatedLabel: formatTime(post.CreatedAt),
