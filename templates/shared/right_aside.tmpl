@@ -1,0 +1,74 @@
+{{define "shared/right_aside"}}
+<aside class="j13-aside j13-aside--right" aria-label="侧栏">
+  <section class="j13-widget">
+    <h2 class="j13-widget__title">热门讨论</h2>
+    {{if .RightAside.HotPosts}}
+    <ul class="j13-widget__list">
+      {{range .RightAside.HotPosts}}
+      <li><a href="{{postURL .ID}}">{{.Title}}</a></li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="j13-widget__empty">暂无热门帖</p>
+    {{end}}
+  </section>
+  {{range .RightAside.Widgets}}
+  <section class="j13-widget">
+    {{if eq .Kind "tag_cloud"}}
+    <h2 class="j13-widget__title">标签</h2>
+    {{if .Tags}}
+    <ul class="j13-widget__tags">
+      {{range .Tags}}
+      <li><a href="/?tag={{queryEscape .Name}}">{{.Name}}</a><span class="j13-widget__count">{{.Count}}</span></li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="j13-widget__empty">暂无标签</p>
+    {{end}}
+    {{else if eq .Kind "recent_comments"}}
+    <h2 class="j13-widget__title">最新评论</h2>
+    {{if .Comments}}
+    <ul class="j13-widget__list">
+      {{range .Comments}}
+      <li>
+        <a href="{{postURL .PostID}}">{{.Excerpt}}</a>
+        <span class="j13-widget__meta">{{.Author}} · {{.PostTitle}}</span>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="j13-widget__empty">暂无评论</p>
+    {{end}}
+    {{else if eq .Kind "recent_users"}}
+    <h2 class="j13-widget__title">新用户</h2>
+    {{if .Users}}
+    <ul class="j13-widget__list">
+      {{range .Users}}
+      <li><a href="/user/{{.ID}}">{{.Nickname}}</a></li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="j13-widget__empty">暂无用户</p>
+    {{end}}
+    {{else if eq .Kind "friend_links"}}
+    <h2 class="j13-widget__title">友链</h2>
+    {{if .FriendLinks}}
+    <ul class="j13-widget__list j13-widget__links">
+      {{range .FriendLinks}}
+      <li>
+        <a href="{{.URL}}" target="_blank" rel="noopener noreferrer">
+          {{if .Logo}}<img src="{{.Logo}}" alt="" class="j13-widget__logo"/>{{end}}
+          {{.Name}}
+        </a>
+      </li>
+      {{end}}
+    </ul>
+    <p class="j13-widget__more"><a href="/links">全部友链</a></p>
+    {{else}}
+    <p class="j13-widget__empty">暂无友链 · <a href="/links">去看看</a></p>
+    {{end}}
+    {{end}}
+  </section>
+  {{end}}
+</aside>
+{{end}}

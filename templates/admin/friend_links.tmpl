@@ -12,6 +12,7 @@
       <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
       <label class="j13-check"><input type="checkbox" name="nav_show" value="1"{{if .NavShow}} checked{{end}}/> 导航显示友链入口</label>
       <label class="j13-check"><input type="checkbox" name="footer_show" value="1"{{if .FooterShow}} checked{{end}}/> 页脚显示友链入口</label>
+      <label class="j13-check"><input type="checkbox" name="aside_show" value="1"{{if .AsideShow}} checked{{end}}/> 侧栏显示友链</label>
       <label class="j13-check"><input type="checkbox" name="reciprocal_check" value="1"{{if .ReciprocalCheck}} checked{{end}}/> 启用回链检测</label>
       <button type="submit">保存设置</button>
     </form>

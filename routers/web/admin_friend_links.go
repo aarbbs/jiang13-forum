@@ -36,15 +36,16 @@ type adminFriendLinkApplyRow struct {
 
 type adminFriendLinksData struct {
 	AdminChrome
-	BrandLinks       []adminFriendLinkBrandRow
-	Applies          []adminFriendLinkApplyRow
-	PendingCount     int64
-	NavShow          bool
-	FooterShow       bool
-	ReciprocalCheck  bool
-	BrandName        string
-	BrandURL         string
-	BrandLogo        string
+	BrandLinks      []adminFriendLinkBrandRow
+	Applies         []adminFriendLinkApplyRow
+	PendingCount    int64
+	NavShow         bool
+	FooterShow      bool
+	AsideShow       bool
+	ReciprocalCheck bool
+	BrandName       string
+	BrandURL        string
+	BrandLogo       string
 }
 
 // AdminFriendLinksGet 友链管理
@@ -60,6 +61,7 @@ func (d Deps) renderAdminFriendLinks(ctx *webctx.Context, errMsg string) {
 		AdminChrome:     chrome,
 		NavShow:         d.Settings.NavShowFriendLinks(),
 		FooterShow:      d.Settings.FooterShowFriendLinks(),
+		AsideShow:       d.Settings.AsideShowFriendLinks(),
 		ReciprocalCheck: d.Settings.FriendLinkReciprocalCheckEnabled(),
 	}
 	brand := d.Settings.SiteBranding()
@@ -105,6 +107,7 @@ func (d Deps) AdminFriendLinksSettingsPost(c *gin.Context) {
 	}
 	_ = d.Settings.SetNavShowFriendLinks(c.PostForm("nav_show") == "1" || c.PostForm("nav_show") == "on")
 	_ = d.Settings.SetFooterShowFriendLinks(c.PostForm("footer_show") == "1" || c.PostForm("footer_show") == "on")
+	_ = d.Settings.SetAsideFriendLinksEnabled(c.PostForm("aside_show") == "1" || c.PostForm("aside_show") == "on")
 	_ = d.Settings.SetFriendLinkReciprocalCheckEnabled(c.PostForm("reciprocal_check") == "1" || c.PostForm("reciprocal_check") == "on")
 	ctx.SetFlash("友链入口设置已保存")
 	ctx.Redirect("/admin/friend-links")

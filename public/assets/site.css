@@ -61,12 +61,16 @@ body.j13-body {
 .j13-nav a:hover { text-decoration: underline; }
 
 .j13-layout {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 1rem;
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 200px 1fr 240px;
   gap: 1.25rem;
+}
+@media (max-width: 900px) {
+  .j13-layout { grid-template-columns: 200px 1fr; }
+  .j13-aside--right { display: none; }
 }
 @media (max-width: 800px) {
   .j13-layout { grid-template-columns: 1fr; }
@@ -76,6 +80,9 @@ body.j13-body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+.j13-aside--right {
+  gap: 1rem;
 }
 .j13-aside__link {
   padding: 0.45rem 0.65rem;
@@ -89,6 +96,76 @@ body.j13-body {
   background: var(--j13-surface);
   color: var(--j13-accent);
 }
+
+.j13-widget__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--j13-muted);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+.j13-widget__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.j13-widget__list a {
+  color: var(--j13-text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+.j13-widget__list a:hover { color: var(--j13-accent); }
+.j13-widget__meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--j13-muted);
+  margin-top: 0.1rem;
+}
+.j13-widget__empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--j13-muted);
+}
+.j13-widget__tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+}
+.j13-widget__tags a {
+  font-size: 0.8rem;
+  color: var(--j13-accent);
+  text-decoration: none;
+}
+.j13-widget__tags a:hover { text-decoration: underline; }
+.j13-widget__count {
+  font-size: 0.7rem;
+  color: var(--j13-muted);
+  margin-left: 0.15rem;
+}
+.j13-widget__links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.j13-widget__logo {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+  border-radius: 2px;
+}
+.j13-widget__more {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+}
+.j13-widget__more a { color: var(--j13-accent); }
 
 .j13-main {
   background: var(--j13-surface);

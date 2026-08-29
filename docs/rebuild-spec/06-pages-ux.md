@@ -86,9 +86,10 @@
 
 ### 2.3 右栏 RightPanel
 
-- 登录用户：`AsideCheckInStrip`（签到 + 抽奖 + 积分入口）
-- 热门帖
-- 可配置 widgets：`tag_cloud` / `recent_comments` / `recent_users` / `friend_links`（顺序与开关来自 settings）
+- 登录用户：`AsideCheckInStrip`（签到 + 抽奖 + 积分入口）— **未迁**（入口仍在 `/profile`）
+- 热门帖 — **已迁** SSR（固定块）
+- 可配置 widgets：`tag_cloud` / `recent_comments` / `recent_users` / `friend_links`（顺序与开关来自 `aside_widgets`）— **已迁** SSR；Admin 完整排序编辑器未迁，友链侧栏开关在 `/admin/friend-links`
+- 桌面三列；≤900px 隐藏右栏
 
 ### 2.4 移动端
 
@@ -184,7 +185,7 @@
 | Dashboard | 看计数与待办；点进对应列表 |
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
 | Pages | 列表发布开关；进编辑器写正文；nav/footer 勾选 |
-| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer 开关 — SSR `/admin/friend-links`（aside / 复检按钮未迁） |
+| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（完整侧栏组件编辑 / 复检按钮未迁） |
 | Posts | 按状态筛；通过/拒绝；置顶/版顶/精华/锁编/锁评；进回收站恢复/清除 |
 | Comments | 审核；修订查看；回收站 |
 | Reports | 处理动作四选一 |

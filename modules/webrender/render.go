@@ -54,6 +54,7 @@ func funcMap() template.FuncMap {
 		"postURL": func(id uint) string {
 			return fmt.Sprintf("/post/%d", id)
 		},
+		"queryEscape": url.QueryEscape,
 	}
 }
 

@@ -34,27 +34,76 @@ type BoardView struct {
 	Name string
 }
 
+// RightAsideHotPost 右栏热门帖
+type RightAsideHotPost struct {
+	ID    uint
+	Title string
+}
+
+// RightAsideTag 右栏标签
+type RightAsideTag struct {
+	Name  string
+	Count int
+}
+
+// RightAsideComment 右栏最新评论
+type RightAsideComment struct {
+	PostID    uint
+	Author    string
+	Excerpt   string
+	PostTitle string
+}
+
+// RightAsideUser 右栏最新用户
+type RightAsideUser struct {
+	ID       uint
+	Nickname string
+}
+
+// RightAsideFriendLink 右栏友链
+type RightAsideFriendLink struct {
+	Name string
+	URL  string
+	Logo string
+}
+
+// RightAsideWidget 按 aside_widgets 顺序的一块（仅已开启）
+type RightAsideWidget struct {
+	Kind        string // tag_cloud | recent_comments | recent_users | friend_links
+	Tags        []RightAsideTag
+	Comments    []RightAsideComment
+	Users       []RightAsideUser
+	FriendLinks []RightAsideFriendLink
+}
+
+// RightAsideData 右栏：固定热门 + 可配置 widgets
+type RightAsideData struct {
+	HotPosts []RightAsideHotPost
+	Widgets  []RightAsideWidget
+}
+
 // PageChrome 布局公共字段
 type PageChrome struct {
-	Title       string
-	Description string
-	SiteName    string
-	Slogan      string
-	LogoMark    string
-	LoggedIn    bool
-	IsAdmin     bool
-	ViewerName  string
-	Boards      []BoardView
-	ActiveBoard uint
-	Path        string // 当前请求路径，供侧栏高亮
-	Inner       string // 保留字段；入口模板已固定组合，不再动态 template
-	CSRF        string
-	Flash       string
-	Error       string
+	Title                 string
+	Description           string
+	SiteName              string
+	Slogan                string
+	LogoMark              string
+	LoggedIn              bool
+	IsAdmin               bool
+	ViewerName            string
+	Boards                []BoardView
+	ActiveBoard           uint
+	Path                  string // 当前请求路径，供侧栏高亮
+	Inner                 string // 保留字段；入口模板已固定组合，不再动态 template
+	CSRF                  string
+	Flash                 string
+	Error                 string
 	UnreadCount           int64 // 登录用户未读私信/通知总数；未登录为 0
 	ViewerPoints          int   // 登录用户当前积分；未登录为 0
 	ShowFriendLinksNav    bool
 	ShowFriendLinksFooter bool
+	RightAside            RightAsideData
 }
 
 func (d Deps) ctx(c *gin.Context) *webctx.Context {
@@ -111,7 +160,71 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		ViewerPoints:          viewerPoints,
 		ShowFriendLinksNav:    d.Settings.NavShowFriendLinks(),
 		ShowFriendLinksFooter: d.Settings.FooterShowFriendLinks(),
+		RightAside:            d.loadRightAside(brand),
 	}
+}
+
+const (
+	rightAsideHotLimit     = 5
+	rightAsideTagLimit     = 24
+	rightAsideCommentLimit = 8
+	rightAsideUserLimit    = 8
+)
+
+func (d Deps) loadRightAside(brand services.SiteBranding) RightAsideData {
+	out := RightAsideData{
+		HotPosts: []RightAsideHotPost{},
+		Widgets:  []RightAsideWidget{},
+	}
+	if d.Post != nil {
+		if items, err := d.Post.HotPosts(rightAsideHotLimit); err == nil {
+			for _, it := range items {
+				out.HotPosts = append(out.HotPosts, RightAsideHotPost{ID: it.ID, Title: it.Title})
+			}
+		}
+	}
+	for _, w := range d.Settings.AsideWidgets() {
+		if !w.Enabled {
+			continue
+		}
+		block := RightAsideWidget{Kind: w.ID}
+		switch w.ID {
+		case services.AsideWidgetTagCloud:
+			if d.Post != nil {
+				if tags, err := d.Post.PopularTags(rightAsideTagLimit); err == nil {
+					for _, t := range tags {
+						block.Tags = append(block.Tags, RightAsideTag{Name: t.Name, Count: t.Count})
+					}
+				}
+			}
+		case services.AsideWidgetRecentComments:
+			if d.Comment != nil {
+				if list, err := d.Comment.ListRecentPublic(rightAsideCommentLimit); err == nil {
+					for _, c := range list {
+						block.Comments = append(block.Comments, RightAsideComment{
+							PostID: c.PostID, Author: c.Author, Excerpt: c.Excerpt, PostTitle: c.PostTitle,
+						})
+					}
+				}
+			}
+		case services.AsideWidgetRecentUsers:
+			if d.User != nil {
+				if list, err := d.User.ListRecentRegistered(rightAsideUserLimit); err == nil {
+					for _, u := range list {
+						block.Users = append(block.Users, RightAsideUser{ID: u.ID, Nickname: u.Nickname})
+					}
+				}
+			}
+		case services.AsideWidgetFriendLinks:
+			for _, l := range brand.FriendLinks {
+				block.FriendLinks = append(block.FriendLinks, RightAsideFriendLink{Name: l.Name, URL: l.URL, Logo: l.Logo})
+			}
+		default:
+			continue
+		}
+		out.Widgets = append(out.Widgets, block)
+	}
+	return out
 }
 
 func firstRuneOr(s, fallback string) string {

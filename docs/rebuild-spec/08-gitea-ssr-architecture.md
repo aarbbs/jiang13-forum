@@ -92,6 +92,8 @@ web_src/ → public/assets/
 
 Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_only`）；排序与分页 URL 保参；顶栏链到 `/#search`。
 
-友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、入口开关）。
+右栏：首页与帖详情三栏；固定热门帖 + `aside_widgets`（标签云 / 最新评论 / 最新用户 / 友链）；Admin 友链页可开关侧栏友链。
+
+友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、nav/footer/aside 入口开关）。
 
 Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`。
