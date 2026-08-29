@@ -116,7 +116,7 @@ flowchart LR
 
 ## 下一刀实现提纲：Admin 用户管理
 
-> 确认「继续」后按此实现；不恢复论坛管理 JSON `/api` 为 UI 主路径。
+> 确认「继续」后按此实现；细则副本：[plans/admin-users.md](plans/admin-users.md)。不恢复论坛管理 JSON `/api` 为 UI 主路径。
 
 ### 范围
 
