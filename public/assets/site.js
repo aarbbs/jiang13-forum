@@ -1,6 +1,73 @@
 // 姜十三论坛 SSR 渐进增强
 document.documentElement.dataset.j13Ssr = "1";
 
+(function themeToggle() {
+  var KEY = "j13-theme";
+  var LABELS = { system: "跟随系统", light: "浅色", dark: "暗色" };
+  var ORDER = ["system", "light", "dark"];
+
+  function normalizePref(raw) {
+    if (raw === "light" || raw === "dark" || raw === "system") return raw;
+    return "system";
+  }
+
+  function resolve(pref) {
+    if (pref === "dark") return "dark";
+    if (pref === "light") return "light";
+    try {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch (e) {
+      return "light";
+    }
+  }
+
+  function apply(pref) {
+    pref = normalizePref(pref);
+    var resolved = resolve(pref);
+    document.documentElement.setAttribute("data-theme", resolved);
+    document.documentElement.setAttribute("data-theme-pref", pref);
+    document.documentElement.style.colorScheme = resolved;
+    try {
+      localStorage.setItem(KEY, pref);
+    } catch (e) {}
+    var btn = document.getElementById("j13-theme-toggle");
+    if (btn) {
+      btn.textContent = LABELS[pref] || LABELS.system;
+      btn.setAttribute("aria-label", "主题：" + (LABELS[pref] || ""));
+      btn.title = "当前：" + (LABELS[pref] || "") + "（点击切换）";
+    }
+  }
+
+  function currentPref() {
+    try {
+      return normalizePref(localStorage.getItem(KEY) || document.documentElement.getAttribute("data-theme-pref") || "system");
+    } catch (e) {
+      return "system";
+    }
+  }
+
+  apply(currentPref());
+
+  var btn = document.getElementById("j13-theme-toggle");
+  if (btn) {
+    btn.addEventListener("click", function () {
+      var cur = currentPref();
+      var idx = ORDER.indexOf(cur);
+      var next = ORDER[(idx + 1) % ORDER.length];
+      apply(next);
+    });
+  }
+
+  try {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var onChange = function () {
+      if (currentPref() === "system") apply("system");
+    };
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  } catch (e) {}
+})();
+
 (function mdEditors() {
   function insertAtCursor(textarea, text) {
     const start = textarea.selectionStart || 0;

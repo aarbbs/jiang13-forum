@@ -10,6 +10,20 @@
   <meta property="og:title" content="{{.Title}}"/>
   {{if .Description}}<meta property="og:description" content="{{.Description}}"/>{{end}}
   {{if .OGImageURL}}<meta property="og:image" content="{{.OGImageURL}}"/>{{end}}
+  <script>
+  (function () {
+    try {
+      var key = "j13-theme";
+      var pref = localStorage.getItem(key) || "system";
+      if (pref !== "light" && pref !== "dark" && pref !== "system") pref = "system";
+      var dark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      var resolved = dark ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", resolved);
+      document.documentElement.setAttribute("data-theme-pref", pref);
+      document.documentElement.style.colorScheme = resolved;
+    } catch (e) {}
+  })();
+  </script>
   <link rel="stylesheet" href="/ssr-assets/site.css"/>
 </head>
 <body class="j13-body">

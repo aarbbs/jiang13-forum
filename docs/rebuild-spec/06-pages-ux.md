@@ -105,7 +105,10 @@
 
 ### 2.5 主题
 
-- 浅色 / 暗色；`localStorage` 记忆；可跟随系统
+- 浅色 / 暗色；默认 **跟随系统**；`localStorage` 键 `j13-theme`（`system` | `light` | `dark`）
+- `<html data-theme="light|dark" data-theme-pref="…">`；`<head>` 内联脚本防首屏闪烁
+- 顶栏按钮循环切换；系统偏好变化时在 `system` 模式下即时更新
+- 兼容旧 SPA 仅存 `light`/`dark` 的值
 
 ---
 
