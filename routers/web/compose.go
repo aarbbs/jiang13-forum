@@ -14,17 +14,22 @@ import (
 
 type composeData struct {
 	PageChrome
-	IsEdit      bool
-	PostID      uint
-	FormAction  string
-	BoardID     uint
-	Title       string
-	Tags        string
-	Content     string
-	Boards      []BoardView
-	TitleMax    int
-	TagsMax     int
-	ContentMax  int
+	IsEdit         bool
+	PostID         uint
+	FormAction     string
+	BoardID        uint
+	Title          string
+	Tags           string
+	Content        string
+	PostType       string
+	PollMulti      bool
+	PollMaxChoices int
+	PollEndsAt     string
+	PollOptions    string
+	Boards         []BoardView
+	TitleMax       int
+	TagsMax        int
+	ContentMax     int
 }
 
 // ComposeGet 发帖页
@@ -37,7 +42,9 @@ func (d Deps) ComposeGet(c *gin.Context) {
 	}
 	boardID, _ := strconv.ParseUint(c.Query("board"), 10, 64)
 	d.renderCompose(ctx, "", composeForm{
-		BoardID: uint(boardID),
+		BoardID:        uint(boardID),
+		PostType:       models.PostTypeNormal,
+		PollMaxChoices: 1,
 	}, false, 0)
 }
 
@@ -59,13 +66,34 @@ func (d Deps) ComposePost(c *gin.Context) {
 	}
 	form := composeFormFrom(c)
 	htmlBody := services.ComposeBodyToHTML(form.Content)
-	post, err := d.Post.Create(ctx.UserID(), form.BoardID, form.Title, htmlBody, form.Tags, models.PostTypeNormal, ctx.SkipsModeration())
+	postType := form.PostType
+	if postType != models.PostTypePoll {
+		postType = models.PostTypeNormal
+	}
+	post, err := d.Post.Create(ctx.UserID(), form.BoardID, form.Title, htmlBody, form.Tags, postType, ctx.SkipsModeration())
 	if err != nil {
 		d.renderCompose(ctx, err.Error(), form, false, 0)
 		return
 	}
+	if post.PostType == models.PostTypePoll {
+		pollJSON, err := services.BuildPollOptionsJSON(form.PollMulti, form.PollMaxChoices, form.PollEndsAt, form.PollOptions)
+		if err != nil {
+			_ = d.Post.Delete(ctx.UserID(), post.ID, true)
+			d.renderCompose(ctx, err.Error(), form, false, 0)
+			return
+		}
+		extras := services.ParsePostExtrasFromForm(pollJSON, "", "")
+		if err := services.FinalizeSpecialPostCreate(post, ctx.UserID(), extras); err != nil {
+			_ = d.Post.Delete(ctx.UserID(), post.ID, true)
+			d.renderCompose(ctx, err.Error(), form, false, 0)
+			return
+		}
+	}
 	if post.Status == models.ContentStatusPending {
 		ctx.SetFlash("帖子已提交，等待审核")
+		if d.Notify != nil {
+			d.Notify.AsyncNotifyPendingPost(post)
+		}
 	} else {
 		ctx.SetFlash("发帖成功")
 	}
@@ -82,10 +110,11 @@ func (d Deps) PostEditGet(c *gin.Context) {
 		return
 	}
 	d.renderCompose(ctx, "", composeForm{
-		BoardID: post.BoardID,
-		Title:   post.Title,
-		Tags:    post.Tags,
-		Content: services.HTMLToComposePlain(post.Content),
+		BoardID:  post.BoardID,
+		Title:    post.Title,
+		Tags:     post.Tags,
+		Content:  services.HTMLToComposePlain(post.Content),
+		PostType: post.PostType,
 	}, true, post.ID)
 }
 
@@ -107,8 +136,9 @@ func (d Deps) PostEditPost(c *gin.Context) {
 		return
 	}
 	form := composeFormFrom(c)
+	form.PostType = post.PostType // 编辑不可改类型
 	htmlBody := services.ComposeBodyToHTML(form.Content)
-	if err := d.Post.Update(ctx.UserID(), post.ID, ctx.IsAdmin(), ctx.SkipsModeration(), form.Title, htmlBody, form.Tags, models.PostTypeNormal, form.BoardID); err != nil {
+	if err := d.Post.Update(ctx.UserID(), post.ID, ctx.IsAdmin(), ctx.SkipsModeration(), form.Title, htmlBody, form.Tags, post.PostType, form.BoardID); err != nil {
 		d.renderCompose(ctx, err.Error(), form, true, post.ID)
 		return
 	}
@@ -149,19 +179,37 @@ func (d Deps) ComposeUpload(c *gin.Context) {
 }
 
 type composeForm struct {
-	BoardID uint
-	Title   string
-	Tags    string
-	Content string
+	BoardID        uint
+	Title          string
+	Tags           string
+	Content        string
+	PostType       string
+	PollMulti      bool
+	PollMaxChoices int
+	PollEndsAt     string
+	PollOptions    string
 }
 
 func composeFormFrom(c *gin.Context) composeForm {
 	bid, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
+	maxChoices, _ := strconv.Atoi(c.PostForm("poll_max_choices"))
+	if maxChoices < 1 {
+		maxChoices = 1
+	}
+	postType := strings.TrimSpace(c.PostForm("post_type"))
+	if postType != models.PostTypePoll {
+		postType = models.PostTypeNormal
+	}
 	return composeForm{
-		BoardID: uint(bid),
-		Title:   strings.TrimSpace(c.PostForm("title")),
-		Tags:    strings.TrimSpace(c.PostForm("tags")),
-		Content: c.PostForm("content"),
+		BoardID:        uint(bid),
+		Title:          strings.TrimSpace(c.PostForm("title")),
+		Tags:           strings.TrimSpace(c.PostForm("tags")),
+		Content:        c.PostForm("content"),
+		PostType:       postType,
+		PollMulti:      c.PostForm("poll_multi") == "1" || c.PostForm("poll_multi") == "on",
+		PollMaxChoices: maxChoices,
+		PollEndsAt:     strings.TrimSpace(c.PostForm("poll_ends_at")),
+		PollOptions:    c.PostForm("poll_options"),
 	}
 }
 
@@ -172,22 +220,33 @@ func (d Deps) renderCompose(ctx *webctx.Context, errMsg string, form composeForm
 		title = "编辑帖子"
 		action = fmt.Sprintf("/post/%d/edit", postID)
 	}
+	if form.PostType == "" {
+		form.PostType = models.PostTypeNormal
+	}
+	if form.PollMaxChoices < 1 {
+		form.PollMaxChoices = 1
+	}
 	chrome := d.chrome(ctx, title+" · "+d.Settings.SiteBranding().Name, "", "")
 	chrome.Error = errMsg
 	chrome.ActiveBoard = form.BoardID
 	ctx.HTML(http.StatusOK, "compose", composeData{
-		PageChrome: chrome,
-		IsEdit:     isEdit,
-		PostID:     postID,
-		FormAction: action,
-		BoardID:    form.BoardID,
-		Title:      form.Title,
-		Tags:       form.Tags,
-		Content:    form.Content,
-		Boards:     chrome.Boards,
-		TitleMax:   d.Settings.PostTitleMax(),
-		TagsMax:    d.Settings.PostTagsMax(),
-		ContentMax: d.Settings.PostContentMax(),
+		PageChrome:     chrome,
+		IsEdit:         isEdit,
+		PostID:         postID,
+		FormAction:     action,
+		BoardID:        form.BoardID,
+		Title:          form.Title,
+		Tags:           form.Tags,
+		Content:        form.Content,
+		PostType:       form.PostType,
+		PollMulti:      form.PollMulti,
+		PollMaxChoices: form.PollMaxChoices,
+		PollEndsAt:     form.PollEndsAt,
+		PollOptions:    form.PollOptions,
+		Boards:         chrome.Boards,
+		TitleMax:       d.Settings.PostTitleMax(),
+		TagsMax:        d.Settings.PostTagsMax(),
+		ContentMax:     d.Settings.PostContentMax(),
 	})
 }
 

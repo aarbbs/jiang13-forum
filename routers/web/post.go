@@ -46,6 +46,28 @@ type PostPageData struct {
 	Status           string
 	StatusLabel      string
 	ShowModerationBanner bool
+	Poll             *postPollView
+}
+
+type postPollOptionView struct {
+	ID        uint
+	Text      string
+	VoteCount int
+	Percent   int
+	Selected  bool
+}
+
+type postPollView struct {
+	Multi        bool
+	MaxChoices   int
+	Closed       bool
+	EndsLabel    string
+	TotalVotes   int
+	ShowResults  bool
+	HasVoted     bool
+	CanVote      bool
+	CanClose     bool
+	Options      []postPollOptionView
 }
 
 // CommentView 评论
@@ -151,6 +173,13 @@ func (d Deps) PostView(c *gin.Context) {
 		}
 	}
 
+	var pollView *postPollView
+	if post.PostType == models.PostTypePoll {
+		if pv, err := services.GetPollView(post.ID, ctx.UserID()); err == nil && pv != nil {
+			pollView = mapPollView(pv, ctx.IsSigned(), ctx.IsAdmin() || post.UserID == ctx.UserID())
+		}
+	}
+
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
@@ -170,7 +199,35 @@ func (d Deps) PostView(c *gin.Context) {
 		Status:           post.Status,
 		StatusLabel:      statusLabel,
 		ShowModerationBanner: showBanner,
+		Poll:             pollView,
 	})
+}
+
+func mapPollView(pv *services.PollView, loggedIn, canClose bool) *postPollView {
+	hasVoted := len(pv.MyOptionIDs) > 0
+	selected := make(map[uint]bool, len(pv.MyOptionIDs))
+	for _, id := range pv.MyOptionIDs {
+		selected[id] = true
+	}
+	showResults := pv.Closed || hasVoted
+	opts := make([]postPollOptionView, 0, len(pv.Options))
+	for _, o := range pv.Options {
+		opts = append(opts, postPollOptionView{
+			ID: o.ID, Text: o.Text, VoteCount: o.VoteCount, Percent: o.Percent, Selected: selected[o.ID],
+		})
+	}
+	ends := ""
+	if pv.EndsAt != nil {
+		ends = formatTime(*pv.EndsAt)
+	}
+	return &postPollView{
+		Multi: pv.Multi, MaxChoices: pv.MaxChoices, Closed: pv.Closed,
+		EndsLabel: ends, TotalVotes: pv.TotalVotes,
+		ShowResults: showResults, HasVoted: hasVoted,
+		CanVote: loggedIn && !pv.Closed && !hasVoted,
+		CanClose: canClose && !pv.Closed,
+		Options: opts,
+	}
 }
 
 func contentStatusLabel(status string) string {
@@ -346,6 +403,68 @@ func (d Deps) PostFavorite(c *gin.Context) {
 		return
 	}
 	_, _ = d.Post.ToggleFavorite(ctx.UserID(), id)
+	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+// PostPollVote 投票提交
+func (d Deps) PostPollVote(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	raw := c.PostFormArray("option_ids")
+	if len(raw) == 0 {
+		if one := strings.TrimSpace(c.PostForm("option_id")); one != "" {
+			raw = []string{one}
+		}
+	}
+	oids := make([]uint, 0, len(raw))
+	for _, s := range raw {
+		v, err := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
+		if err == nil && v > 0 {
+			oids = append(oids, uint(v))
+		}
+	}
+	if err := services.VotePoll(id, ctx.UserID(), oids); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	ctx.SetFlash("投票成功")
+	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+// PostPollClose 结束投票
+func (d Deps) PostPollClose(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	post, err := d.Post.FindByID(id)
+	if err != nil {
+		d.render404(ctx)
+		return
+	}
+	if err := services.ClosePoll(id, ctx.UserID(), ctx.IsAdmin(), post.UserID); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	ctx.SetFlash("投票已结束")
 	ctx.Redirect(fmt.Sprintf("/post/%d", id))
 }
 

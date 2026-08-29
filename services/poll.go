@@ -96,6 +96,34 @@ func ParsePollOptionsJSON(raw string) ([]PollOptionInput, bool, int, *time.Time,
 	return payload.Options, payload.Multi, payload.MaxChoices, endsAt, nil
 }
 
+// BuildPollOptionsJSON 由 SSR 表单字段组装 poll_options JSON
+func BuildPollOptionsJSON(multi bool, maxChoices int, endsAt, optionsText string) (string, error) {
+	var opts []PollOptionInput
+	for _, line := range strings.Split(optionsText, "\n") {
+		text := strings.TrimSpace(line)
+		if text == "" {
+			continue
+		}
+		opts = append(opts, PollOptionInput{Text: text})
+	}
+	if len(opts) < 2 || len(opts) > 10 {
+		return "", errors.New("投票选项需 2-10 个（每行一项）")
+	}
+	payload := struct {
+		Multi      bool              `json:"multi"`
+		MaxChoices int               `json:"max_choices"`
+		EndsAt     string            `json:"ends_at,omitempty"`
+		Options    []PollOptionInput `json:"options"`
+	}{
+		Multi: multi, MaxChoices: maxChoices, EndsAt: strings.TrimSpace(endsAt), Options: opts,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func parsePollEndsAt(raw string) (*time.Time, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -107,7 +135,9 @@ func parsePollEndsAt(raw string) (*time.Time, error) {
 		time.RFC3339Nano,
 		time.RFC3339,
 		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
 		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
 	} {
 		if t, err := time.Parse(layout, raw); err == nil {
 			parsed = t

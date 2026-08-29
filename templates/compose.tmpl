@@ -15,6 +15,30 @@
         {{end}}
       </select>
     </label>
+    {{if .IsEdit}}
+    <p class="j13-muted">类型：{{if eq .PostType "poll"}}投票{{else}}普通讨论{{end}}（不可更改）</p>
+    <input type="hidden" name="post_type" value="{{.PostType}}"/>
+    {{else}}
+    <label>类型
+      <select name="post_type" id="compose-post-type">
+        <option value="normal"{{if ne .PostType "poll"}} selected{{end}}>普通讨论</option>
+        <option value="poll"{{if eq .PostType "poll"}} selected{{end}}>投票</option>
+      </select>
+    </label>
+    <fieldset class="j13-poll-fields" id="compose-poll-fields"{{if ne .PostType "poll"}} hidden{{end}}>
+      <legend>投票设置</legend>
+      <label class="j13-check"><input type="checkbox" name="poll_multi" value="1"{{if .PollMulti}} checked{{end}}/> 允许多选</label>
+      <label>最多可选
+        <input name="poll_max_choices" type="number" min="1" max="10" value="{{.PollMaxChoices}}"/>
+      </label>
+      <label>截止时间（可选）
+        <input name="poll_ends_at" type="datetime-local" value="{{.PollEndsAt}}"/>
+      </label>
+      <label>选项（每行一项，2–10 个）
+        <textarea name="poll_options" rows="6" placeholder="选项 A&#10;选项 B&#10;选项 C">{{.PollOptions}}</textarea>
+      </label>
+    </fieldset>
+    {{end}}
     <label>标题
       <input name="title" required maxlength="{{.TitleMax}}" value="{{.Title}}"/>
     </label>
@@ -39,4 +63,16 @@
   </form>
 </main>
 {{template "base/footer" .}}
+{{if not .IsEdit}}
+<script>
+(function () {
+  var sel = document.getElementById('compose-post-type');
+  var box = document.getElementById('compose-poll-fields');
+  if (!sel || !box) return;
+  function sync() { box.hidden = sel.value !== 'poll'; }
+  sel.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{{end}}
 {{end}}

@@ -89,6 +89,58 @@
     </div>
     {{end}}
   </header>
+  {{if .Poll}}
+  <section class="j13-poll" aria-label="投票">
+    <h2 class="j13-poll__title">投票</h2>
+    <p class="j13-muted">
+      {{if .Poll.Multi}}多选（最多 {{.Poll.MaxChoices}} 项）{{else}}单选{{end}}
+      · 共 {{.Poll.TotalVotes}} 票
+      {{if .Poll.EndsLabel}} · 截止 {{.Poll.EndsLabel}}{{end}}
+      {{if .Poll.Closed}} · 已结束{{else if .Poll.HasVoted}} · 你已投票{{end}}
+    </p>
+    {{if .Poll.CanVote}}
+    <form method="post" action="/post/{{.PostID}}/poll/vote" class="j13-form j13-poll__form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <ul class="j13-poll__options">
+        {{range .Poll.Options}}
+        <li>
+          <label class="j13-check">
+            {{if $.Poll.Multi}}
+            <input type="checkbox" name="option_ids" value="{{.ID}}"/>
+            {{else}}
+            <input type="radio" name="option_id" value="{{.ID}}" required/>
+            {{end}}
+            {{.Text}}
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">提交投票</button>
+    </form>
+    {{else}}
+    <ul class="j13-poll__options">
+      {{range .Poll.Options}}
+      <li class="j13-poll__option{{if .Selected}} is-selected{{end}}">
+        <span class="j13-poll__opt-text">{{.Text}}</span>
+        {{if $.Poll.ShowResults}}
+        <span class="j13-poll__bar" style="--pct: {{.Percent}}%"></span>
+        <span class="j13-muted">{{.Percent}}%（{{.VoteCount}}）</span>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{if and (not $.LoggedIn) (not .Poll.Closed)}}
+    <p class="j13-muted"><a href="/login?redirect={{.PostPath}}">登录</a> 后可投票。</p>
+    {{end}}
+    {{end}}
+    {{if .Poll.CanClose}}
+    <form method="post" action="/post/{{.PostID}}/poll/close" class="j13-inline-form" onsubmit="return confirm('确认结束投票？');">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <button type="submit" class="j13-linkbtn">结束投票</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
   <div class="j13-post__content post-detail-content">{{safeHTML .BodyHTML}}</div>
 </article>
 
