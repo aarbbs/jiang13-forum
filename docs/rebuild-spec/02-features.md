@@ -189,7 +189,8 @@
 - [x] 敏感词：`forum_settings.filter_words` 读写 + 热更 — SSR `/admin/settings`
 - [x] 基础限流（post/comment/register/login/window）— SSR；完整 Limits 字数等未迁
 - [x] SMTP 配置与测试信 — SSR `/admin/settings` 邮件区
-- [x] 站点品牌文案：名称、标语、简介、keywords、Logo 字标、ICP — SSR（Logo/Favicon/OG 上传未迁）
+- [x] 站点品牌文案：名称、标语、简介、keywords、Logo 字标、ICP — SSR `/admin/settings`
+- [x] Logo / Favicon / 默认 OG 图上传与清除 — SSR `/admin/settings/brand/upload|clear`；`<head>` favicon + og:image
 - [x] SQLite 一键备份与下载 — SSR `/admin/settings`（仅 sqlite；写入 data 目录后下载）
 
 ---
@@ -199,7 +200,7 @@
 - [x] `GET /health` — `routers/setup.go`
 - [x] `robots.txt` / `sitemap.xml` — SSR 同源路径
 - [x] 静态上传文件可达 — `Static /uploads` → data/uploads
-- [x] 限流：发帖、注册、登录、举报、私信、友链 — SSR 写路径已挂 `RateLimiter`（评论动作键服务层有、web 发评尚未挂，可后补）
+- [x] 限流：发帖、评论、注册、登录、举报、私信、友链 — SSR 写路径已挂 `RateLimiter`
 
 ---
 

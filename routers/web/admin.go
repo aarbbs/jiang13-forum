@@ -520,6 +520,90 @@ func (d Deps) AdminSettingsBrandPost(c *gin.Context) {
 	ctx.Redirect("/admin/settings")
 }
 
+// AdminSettingsBrandUploadPost 上传 Logo / Favicon / OG 图
+func (d Deps) AdminSettingsBrandUploadPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	if d.Store == nil {
+		d.renderAdminSettings(ctx, "上传存储未就绪")
+		return
+	}
+	kind := strings.TrimSpace(c.PostForm("kind"))
+	if kind != "logo" && kind != "favicon" && kind != "og_image" {
+		d.renderAdminSettings(ctx, "请选择 Logo、Favicon 或 OG 图")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		d.renderAdminSettings(ctx, "请选择图片文件")
+		return
+	}
+	const maxBytes = 2 * 1024 * 1024
+	if file.Size > maxBytes {
+		d.renderAdminSettings(ctx, "图片不能超过 2MB")
+		return
+	}
+	url, err := services.SaveUploadedImage(d.Store, file, services.UploadCategorySite, kind)
+	if err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	prev := d.Settings.SiteBranding()
+	switch kind {
+	case "logo":
+		_ = d.Settings.SetSiteLogo(url)
+		d.Store.DeleteByURL(prev.Logo)
+		ctx.SetFlash("Logo 已上传")
+	case "favicon":
+		_ = d.Settings.SetSiteFavicon(url)
+		d.Store.DeleteByURL(prev.Favicon)
+		ctx.SetFlash("Favicon 已上传")
+	case "og_image":
+		_ = d.Settings.SetSiteOGImage(url)
+		d.Store.DeleteByURL(prev.OGImage)
+		ctx.SetFlash("默认 OG 图已上传")
+	}
+	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsBrandClearPost 清除品牌图片
+func (d Deps) AdminSettingsBrandClearPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	kind := strings.TrimSpace(c.PostForm("kind"))
+	brand := d.Settings.SiteBranding()
+	switch kind {
+	case "logo":
+		_ = d.Settings.SetSiteLogo("")
+		if d.Store != nil {
+			d.Store.DeleteByURL(brand.Logo)
+		}
+		ctx.SetFlash("已清除 Logo")
+	case "favicon":
+		_ = d.Settings.SetSiteFavicon("")
+		if d.Store != nil {
+			d.Store.DeleteByURL(brand.Favicon)
+		}
+		ctx.SetFlash("已清除 Favicon")
+	case "og_image":
+		_ = d.Settings.SetSiteOGImage("")
+		if d.Store != nil {
+			d.Store.DeleteByURL(brand.OGImage)
+		}
+		ctx.SetFlash("已清除 OG 图")
+	default:
+		d.renderAdminSettings(ctx, "无效的资源类型")
+		return
+	}
+	ctx.Redirect("/admin/settings")
+}
+
 // AdminSettingsLimitsPost 限流
 func (d Deps) AdminSettingsLimitsPost(c *gin.Context) {
 	ctx := d.ctx(c)

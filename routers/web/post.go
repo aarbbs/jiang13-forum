@@ -391,6 +391,11 @@ func (d Deps) PostComment(c *gin.Context) {
 		}
 	}
 	isPrivate := c.PostForm("is_private") == "1" || c.PostForm("is_private") == "on"
+	if d.Limiter != nil && !d.Limiter.Allow("comment", fmt.Sprintf("%d", ctx.UserID())) {
+		ctx.SetFlash("操作过于频繁，请稍后再试")
+		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
+		return
+	}
 	safe := "<p>" + html.EscapeString(content) + "</p>"
 	cm, err := d.Comment.Create(services.CommentCreateInput{
 		PostID: id, UserID: ctx.UserID(), Content: safe,

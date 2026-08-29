@@ -108,6 +108,9 @@ type PageChrome struct {
 	SiteName              string
 	Slogan                string
 	LogoMark              string
+	LogoURL               string
+	FaviconURL            string
+	OGImageURL            string
 	LoggedIn              bool
 	IsAdmin               bool
 	ViewerName            string
@@ -170,6 +173,9 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		SiteName:              brand.Name,
 		Slogan:                brand.Slogan,
 		LogoMark:              firstRuneOr(brand.LogoMark, "姜"),
+		LogoURL:               strings.TrimSpace(brand.Logo),
+		FaviconURL:            strings.TrimSpace(brand.Favicon),
+		OGImageURL:            strings.TrimSpace(brand.DefaultShareImage()),
 		LoggedIn:              ctx.IsSigned(),
 		IsAdmin:               ctx.IsAdmin(),
 		ViewerName:            name,

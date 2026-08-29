@@ -18,11 +18,19 @@ type Deps struct {
 }
 
 type pageData struct {
-	Title         string
-	Description   string
-	SiteName      string
-	Slogan        string
-	LogoMark      string
+	Title                 string
+	Description           string
+	SiteName              string
+	Slogan                string
+	LogoMark              string
+	LogoURL               string
+	FaviconURL            string
+	OGImageURL            string
+	ShowFriendLinksFooter bool
+	FooterPages           []struct {
+		Title string
+		Slug  string
+	}
 	CSRF          string
 	Error         string
 	Flash         string

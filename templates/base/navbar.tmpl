@@ -2,7 +2,11 @@
   <header class="j13-header">
     <div class="j13-header__inner">
       <a class="j13-brand" href="/">
+        {{if .LogoURL}}
+        <img class="j13-brand__logo" src="{{.LogoURL}}" alt="{{.SiteName}}"/>
+        {{else}}
         <span class="j13-brand__mark">{{.LogoMark}}</span>
+        {{end}}
         <span class="j13-brand__text">
           <strong>{{.SiteName}}</strong>
           {{if .Slogan}}<span class="j13-brand__slogan">{{.Slogan}}</span>{{end}}

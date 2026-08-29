@@ -75,6 +75,8 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/comments/:id/reject", deps.AdminCommentReject)
 		admin.GET("/settings", deps.AdminSettingsGet)
 		admin.POST("/settings/brand", deps.AdminSettingsBrandPost)
+		admin.POST("/settings/brand/upload", deps.AdminSettingsBrandUploadPost)
+		admin.POST("/settings/brand/clear", deps.AdminSettingsBrandClearPost)
 		admin.POST("/settings/limits", deps.AdminSettingsLimitsPost)
 		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
 		admin.POST("/settings/mail", deps.AdminSettingsMailPost)

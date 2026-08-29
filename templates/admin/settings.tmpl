@@ -19,6 +19,69 @@
     <button type="submit">保存品牌</button>
   </form>
 
+  <h3>品牌图片</h3>
+  <p class="j13-muted">Logo / Favicon / 默认 Open Graph 图；单文件不超过 2MB。</p>
+  <div class="j13-admin-brand-assets">
+    <div class="j13-admin-brand-asset">
+      <strong>Logo</strong>
+      {{if .Brand.Logo}}
+      <p><img class="j13-admin-brand-preview" src="{{.Brand.Logo}}" alt="Logo"/></p>
+      <p class="j13-muted"><code>{{.Brand.Logo}}</code></p>
+      <form method="post" action="/admin/settings/brand/clear" class="j13-inline-form" onsubmit="return confirm('清除 Logo？');">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="logo"/>
+        <button type="submit" class="j13-linkbtn">清除</button>
+      </form>
+      {{else}}
+      <p class="j13-muted">未设置（导航使用字标）</p>
+      {{end}}
+      <form method="post" action="/admin/settings/brand/upload" enctype="multipart/form-data" class="j13-form j13-admin-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="logo"/>
+        <label>上传 <input type="file" name="file" accept="image/*" required/></label>
+        <button type="submit">上传 Logo</button>
+      </form>
+    </div>
+    <div class="j13-admin-brand-asset">
+      <strong>Favicon</strong>
+      {{if .Brand.Favicon}}
+      <p><img class="j13-admin-brand-preview j13-admin-brand-preview--sm" src="{{.Brand.Favicon}}" alt="Favicon"/></p>
+      <form method="post" action="/admin/settings/brand/clear" class="j13-inline-form" onsubmit="return confirm('清除 Favicon？');">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="favicon"/>
+        <button type="submit" class="j13-linkbtn">清除</button>
+      </form>
+      {{else}}
+      <p class="j13-muted">未设置</p>
+      {{end}}
+      <form method="post" action="/admin/settings/brand/upload" enctype="multipart/form-data" class="j13-form j13-admin-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="favicon"/>
+        <label>上传 <input type="file" name="file" accept="image/*" required/></label>
+        <button type="submit">上传 Favicon</button>
+      </form>
+    </div>
+    <div class="j13-admin-brand-asset">
+      <strong>默认 OG 图</strong>
+      {{if .Brand.OGImage}}
+      <p><img class="j13-admin-brand-preview" src="{{.Brand.OGImage}}" alt="OG"/></p>
+      <form method="post" action="/admin/settings/brand/clear" class="j13-inline-form" onsubmit="return confirm('清除 OG 图？');">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="og_image"/>
+        <button type="submit" class="j13-linkbtn">清除</button>
+      </form>
+      {{else}}
+      <p class="j13-muted">未设置（回落 Logo / Favicon）</p>
+      {{end}}
+      <form method="post" action="/admin/settings/brand/upload" enctype="multipart/form-data" class="j13-form j13-admin-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="kind" value="og_image"/>
+        <label>上传 <input type="file" name="file" accept="image/*" required/></label>
+        <button type="submit">上传 OG 图</button>
+      </form>
+    </div>
+  </div>
+
   <h2>基础限流</h2>
   <p class="j13-muted">窗口内允许的操作次数（秒）。</p>
   <form method="post" action="/admin/settings/limits" class="j13-form j13-admin-form">

@@ -53,6 +53,12 @@ body.j13-body {
   place-items: center;
   font-weight: 700;
 }
+.j13-brand__logo {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: var(--j13-radius);
+}
 .j13-brand__text { display: flex; flex-direction: column; }
 .j13-brand__text strong { font-size: 1rem; }
 .j13-brand__slogan { font-size: 0.75rem; color: var(--j13-muted); }
@@ -1072,6 +1078,27 @@ points-only[data-locked="false"] {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+.j13-admin-brand-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+.j13-admin-brand-asset {
+  border: 1px solid var(--j13-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.j13-admin-brand-preview {
+  max-width: 8rem;
+  max-height: 4rem;
+  object-fit: contain;
+  display: block;
+}
+.j13-admin-brand-preview--sm {
+  max-width: 2rem;
+  max-height: 2rem;
 }
 .j13-admin-media-toolbar {
   display: flex;

@@ -12,59 +12,36 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | P2：Admin 设等级 + 用户页徽章；勾选 Exp / 防刷 / 自动徽章 |
-| **下一刀** | **P3 体验**（主题 / 伪静态 / 编辑器）或 **后置**（OIDC / 存储热切换 / Gitea）；需点名 |
-| **工作区** | 应干净；有未提交改动时先处理再开新刀 |
+| **上一刀** | P0：发评限流 + 品牌 Logo/Favicon/OG 上传与 head meta |
+| **下一刀** | **P3 / 后置**（需点名：伪静态、完整 Limits、OIDC、S3 热切换、编辑器、嵌套评论等） |
+| **工作区** | 应干净 |
 
 ---
 
 ## 一句话状态
 
-核心论坛 + Admin P1 + §H 成长/防刷（服务层 + Admin 设等级）**已齐**。余量：P3 体验打磨与后置产品化（OIDC / S3 热切换 / Gitea）。
-
-```mermaid
-flowchart LR
-  core[核心论坛已迁]
-  admin[Admin用户徽章媒体]
-  growth[等级徽章防刷]
-  polish[主题伪静态编辑器]
-  deferred[OIDC存储Gitea]
-  core --> admin --> growth --> polish
-  deferred -.-> polish
-```
+核心论坛、Admin P1、§H 成长/防刷、P0 品牌图与发评限流 **已齐**。余量主要是体验打磨与后置产品化。
 
 ---
 
-## 已完成里程碑
-
-### 公开站 / Admin / §H
+## 已完成（摘）
 
 | 域 | 状态 |
 |----|------|
-| 五种帖类型、评论、私信、友链、单页、§O | 已迁 |
-| Admin：users / badges / media / settings 基础 | 已迁 |
-| Exp→Lv、Admin 设等级、用户页徽章展示 | 已迁 |
-| 短龄同 IP 互刷拒绝分成 | 已落地（unlock 服务） |
-| 自动徽章 EvaluateAuto | 已落地（访问用户页触发） |
-
-### 近期提交（摘）
-
-media → **等级设定 + 徽章展示 / §H 勾选**
+| 五种帖 + Admin users/badges/media | 已迁 |
+| §H Exp/等级/徽章/防刷 | 已迁 |
+| 发评 `RateLimiter` comment | 已挂 |
+| 品牌 Logo/Favicon/OG 上传 + favicon/og meta | 已迁 |
 
 ---
 
 ## 未完成分层
 
-### P0 — 小清理（可夹带）
+### P0 余量
 
-- 发评路径挂 `RateLimiter` `comment` 动作
-- Logo/Favicon/OG 上传、头像裁剪
+- 头像裁剪等边角
 
-### P2 — 成长与防刷
-
-~~已完成主路径~~；无独立「自动徽章定时任务」Admin UI（可接受）。
-
-### P3 — 体验 / 编辑器 ← 当前候选
+### P3 — 体验 / 编辑器
 
 - 主题、侧栏折叠、虚拟滚动、`feed_list_style`、伪静态 Admin  
 - TipTap / Markdown 双模  
@@ -79,19 +56,9 @@ media → **等级设定 + 徽章展示 / §H 勾选**
 
 ---
 
-## 默认「继续」刀序
+## 默认「继续」
 
-| 序 | 刀 | 产出 |
-|----|----|------|
-| ✓ | 核心闭环 + Admin P1 | … |
-| ✓ | §H 等级/防刷/徽章展示 | … |
-| → | 需点名 P3 或后置 | … |
-
----
-
-## 已完成计划
-
-- [admin-users](plans/admin-users.md) · [admin-badges](plans/admin-badges.md) · [admin-media](plans/admin-media.md)
+需点名下一刀；未点名时优先小清理或明确产品偏好。
 
 ---
 
@@ -99,7 +66,6 @@ media → **等级设定 + 徽章展示 / §H 勾选**
 
 | 问题 | 看哪里 |
 |------|--------|
-| 某功能做没做？ | [02-features.md](02-features.md) 复选框 |
+| 某功能做没做？ | [02-features.md](02-features.md) |
 | 现在该干什么？ | 本文「当前指针」 |
 | 路由迁没迁？ | [06-pages-ux.md](06-pages-ux.md) §1 |
-| 目录约定？ | [08-gitea-ssr-architecture.md](08-gitea-ssr-architecture.md) |
