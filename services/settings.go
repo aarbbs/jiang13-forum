@@ -792,7 +792,12 @@ func (s *ForumSettingsService) SetAsideFriendLinksEnabled(enabled bool) error {
 	if !found {
 		widgets = append(widgets, AsideWidget{ID: AsideWidgetFriendLinks, Enabled: enabled})
 	}
-	widgets = NormalizeAsideWidgets(widgets)
+	return s.UpdateAsideWidgets(widgets)
+}
+
+// UpdateAsideWidgets 保存侧栏组件顺序与开关（同步 legacy bool 键）
+func (s *ForumSettingsService) UpdateAsideWidgets(in []AsideWidget) error {
+	widgets := NormalizeAsideWidgets(in)
 	bools := asideBoolsFromWidgets(widgets)
 	payload, err := json.Marshal(widgets)
 	if err != nil {
@@ -801,11 +806,21 @@ func (s *ForumSettingsService) SetAsideFriendLinksEnabled(enabled bool) error {
 	if err := s.setString(SettingAsideWidgets, string(payload)); err != nil {
 		return err
 	}
-	v := "0"
-	if bools.friendLinks {
-		v = "1"
+	boolUpdates := map[string]bool{
+		SettingAsideShowTagCloud:       bools.tagCloud,
+		SettingAsideShowRecentComments: bools.recentComments,
+		SettingAsideShowFriendLinks:    bools.friendLinks,
 	}
-	return s.setString(SettingAsideShowFriendLinks, v)
+	for key, on := range boolUpdates {
+		v := "0"
+		if on {
+			v = "1"
+		}
+		if err := s.setString(key, v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type asideWidgetBools struct {

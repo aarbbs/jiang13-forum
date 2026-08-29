@@ -91,7 +91,7 @@
 
 - 登录用户：`AsideCheckInStrip`（签到 + 抽奖 + 积分入口）— **已迁** SSR 右栏；流水/详情仍在 `/profile#wallet`
 - 热门帖 — **已迁** SSR（固定块）
-- 可配置 widgets：`tag_cloud` / `recent_comments` / `recent_users` / `friend_links`（顺序与开关来自 `aside_widgets`）— **已迁** SSR；Admin 完整排序编辑器未迁，友链侧栏开关在 `/admin/friend-links`
+- 可配置 widgets：`tag_cloud` / `recent_comments` / `recent_users` / `friend_links`（顺序与开关来自 `aside_widgets`）— **已迁** SSR；Admin `/admin/settings` 侧栏组件开关与排序；友链页 aside 勾选共用同一 JSON
 - 桌面三列；≤900px 隐藏右栏
 
 ### 2.4 移动端
@@ -188,7 +188,7 @@
 | Dashboard | 看计数与待办；点进对应列表 |
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
 | Pages | 列表发布开关；编辑正文（HTML textarea）；nav/footer 勾选 — SSR `/admin/pages` |
-| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（完整侧栏组件编辑 / 复检按钮未迁） |
+| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（aside 与 Settings 侧栏组件共用 `aside_widgets`；复检按钮未迁） |
 | Posts | 审核通过/拒绝 — SSR `/admin/moderation`；置顶/版顶/精华/锁编/锁评/软删 — 帖详情 Admin 条；回收站恢复/清除 — SSR `/admin/trash` |
 | Comments | 审核 — SSR `/admin/moderation`；修订查看未迁 |
 | Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |

@@ -92,7 +92,7 @@ web_src/ → public/assets/
 
 Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_only`）；排序与分页 URL 保参；顶栏链到 `/#search`。
 
-右栏：首页与帖详情三栏；登录用户签到/抽奖条（PRG 可回跳当前 Feed/帖页）；固定热门帖 + `aside_widgets`（标签云 / 最新评论 / 最新用户 / 友链）；Admin 友链页可开关侧栏友链。
+右栏：首页与帖详情三栏；登录用户签到/抽奖条（PRG 可回跳当前 Feed/帖页）；固定热门帖 + `aside_widgets`（标签云 / 最新评论 / 最新用户 / 友链）；Admin `/admin/settings` 可开关排序，友链页 aside 勾选与其共用同一配置。
 
 友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、nav/footer/aside 入口开关）。
 
@@ -102,4 +102,4 @@ Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_
 
 运营标记：帖详情 Admin 条（全局/版内置顶、精华、禁编、锁评、软删）；回收站 `/admin/trash`（恢复/彻底删除）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`、`/admin/reports`、`/admin/trash`。
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/侧栏组件/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`、`/admin/reports`、`/admin/trash`。

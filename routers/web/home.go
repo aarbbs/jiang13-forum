@@ -68,6 +68,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/settings/filter-words", deps.AdminSettingsFilterWordsPost)
 		admin.POST("/settings/mail", deps.AdminSettingsMailPost)
 		admin.POST("/settings/mail/test", deps.AdminSettingsMailTestPost)
+		admin.POST("/settings/aside-widgets", deps.AdminSettingsAsideWidgetsPost)
 		admin.GET("/friend-links", deps.AdminFriendLinksGet)
 		admin.POST("/friend-links/settings", deps.AdminFriendLinksSettingsPost)
 		admin.POST("/friend-links/brand", deps.AdminFriendLinksBrandAddPost)

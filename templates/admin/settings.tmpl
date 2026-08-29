@@ -31,6 +31,25 @@
     <button type="submit">保存限流</button>
   </form>
 
+  <h2>侧栏组件</h2>
+  <p class="j13-muted">控制首页与帖详情右栏可选块的显示与顺序（热门帖为固定块，不在此列）。友链页「侧栏显示」与此共用同一配置。</p>
+  <form method="post" action="/admin/settings/aside-widgets" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <ul class="j13-admin-aside-widgets">
+      {{range .AsideWidgets}}
+      <li>
+        <input type="hidden" name="order" value="{{.ID}}"/>
+        <label class="j13-check"><input type="checkbox" name="enabled" value="{{.ID}}"{{if .Enabled}} checked{{end}}/> {{.Label}}</label>
+        <span class="j13-admin-aside-move">
+          {{if .CanMoveUp}}<button type="submit" name="move" value="up:{{.ID}}" class="j13-btn-secondary">上移</button>{{end}}
+          {{if .CanMoveDown}}<button type="submit" name="move" value="down:{{.ID}}" class="j13-btn-secondary">下移</button>{{end}}
+        </span>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">保存侧栏</button>
+  </form>
+
   <h2>敏感词（有效 {{.FilterCount}} 个）</h2>
   <p class="j13-muted">每行一个词，# 开头为注释。保存后立即热更新。</p>
   <form method="post" action="/admin/settings/filter-words" class="j13-form j13-admin-form">

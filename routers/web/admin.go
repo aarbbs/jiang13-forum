@@ -404,19 +404,29 @@ func (d Deps) AdminCommentReject(c *gin.Context) {
 	ctx.Redirect("/admin/moderation")
 }
 
+type adminAsideWidgetRow struct {
+	ID         string
+	Label      string
+	Enabled    bool
+	Index      int
+	CanMoveUp  bool
+	CanMoveDown bool
+}
+
 type adminSettingsData struct {
 	AdminChrome
-	Brand       services.SiteBranding
-	RatePost    int
-	RateComment int
-	RateReg     int
-	RateLogin   int
-	RateWindow  int
-	FilterWords string
-	FilterCount int
-	Mail        services.MailConfig
-	MailReady   bool
-	TestTo      string
+	Brand        services.SiteBranding
+	RatePost     int
+	RateComment  int
+	RateReg      int
+	RateLogin    int
+	RateWindow   int
+	FilterWords  string
+	FilterCount  int
+	Mail         services.MailConfig
+	MailReady    bool
+	TestTo       string
+	AsideWidgets []adminAsideWidgetRow
 }
 
 // AdminSettingsGet 设置页
@@ -429,21 +439,46 @@ func (d Deps) renderAdminSettings(ctx *webctx.Context, errMsg string) {
 	words := d.Settings.FilterWordsContent()
 	lim := d.Settings.Limits()
 	mail := d.Settings.MailConfigPublic()
+	widgets := d.Settings.AsideWidgets()
+	asideRows := make([]adminAsideWidgetRow, 0, len(widgets))
+	last := len(widgets) - 1
+	for i, w := range widgets {
+		asideRows = append(asideRows, adminAsideWidgetRow{
+			ID: w.ID, Label: asideWidgetLabel(w.ID), Enabled: w.Enabled, Index: i,
+			CanMoveUp: i > 0, CanMoveDown: i < last,
+		})
+	}
 	data := adminSettingsData{
-		AdminChrome: d.adminChrome(ctx, "站点设置", "settings"),
-		Brand:       d.Settings.SiteBranding(),
-		RatePost:    lim.RateLimitPost,
-		RateComment: lim.RateLimitComment,
-		RateReg:     lim.RateLimitRegister,
-		RateLogin:   lim.RateLimitLogin,
-		RateWindow:  lim.RateLimitWindowSec,
-		FilterWords: words,
-		FilterCount: services.CountFilterWords(words),
-		Mail:        mail,
-		MailReady:   d.Settings.MailReady(),
+		AdminChrome:  d.adminChrome(ctx, "站点设置", "settings"),
+		Brand:        d.Settings.SiteBranding(),
+		RatePost:     lim.RateLimitPost,
+		RateComment:  lim.RateLimitComment,
+		RateReg:      lim.RateLimitRegister,
+		RateLogin:    lim.RateLimitLogin,
+		RateWindow:   lim.RateLimitWindowSec,
+		FilterWords:  words,
+		FilterCount:  services.CountFilterWords(words),
+		Mail:         mail,
+		MailReady:    d.Settings.MailReady(),
+		AsideWidgets: asideRows,
 	}
 	data.Error = errMsg
 	ctx.HTML(http.StatusOK, "admin/settings", data)
+}
+
+func asideWidgetLabel(id string) string {
+	switch id {
+	case services.AsideWidgetTagCloud:
+		return "标签云"
+	case services.AsideWidgetRecentComments:
+		return "最新评论"
+	case services.AsideWidgetRecentUsers:
+		return "最新用户"
+	case services.AsideWidgetFriendLinks:
+		return "友链"
+	default:
+		return id
+	}
 }
 
 // AdminSettingsBrandPost 品牌
@@ -566,4 +601,71 @@ func (d Deps) AdminSettingsMailTestPost(c *gin.Context) {
 	}
 	ctx.SetFlash("测试邮件已发送至 " + to)
 	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsAsideWidgetsPost 侧栏组件开关与排序
+func (d Deps) AdminSettingsAsideWidgetsPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	order := c.PostFormArray("order")
+	enabledSet := make(map[string]bool)
+	for _, id := range c.PostFormArray("enabled") {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			enabledSet[id] = true
+		}
+	}
+	widgets := make([]services.AsideWidget, 0, len(order))
+	for _, id := range order {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		widgets = append(widgets, services.AsideWidget{ID: id, Enabled: enabledSet[id]})
+	}
+	widgets = services.NormalizeAsideWidgets(widgets)
+	if move := strings.TrimSpace(c.PostForm("move")); move != "" {
+		widgets = moveAsideWidget(widgets, move)
+	}
+	if err := d.Settings.UpdateAsideWidgets(widgets); err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash("侧栏组件已保存")
+	ctx.Redirect("/admin/settings")
+}
+
+// moveAsideWidget 解析 move 值「up:id」或「down:id」并交换相邻项
+func moveAsideWidget(widgets []services.AsideWidget, move string) []services.AsideWidget {
+	parts := strings.SplitN(move, ":", 2)
+	if len(parts) != 2 {
+		return widgets
+	}
+	dir, id := parts[0], strings.TrimSpace(parts[1])
+	idx := -1
+	for i, w := range widgets {
+		if w.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return widgets
+	}
+	switch dir {
+	case "up":
+		if idx == 0 {
+			return widgets
+		}
+		widgets[idx-1], widgets[idx] = widgets[idx], widgets[idx-1]
+	case "down":
+		if idx >= len(widgets)-1 {
+			return widgets
+		}
+		widgets[idx], widgets[idx+1] = widgets[idx+1], widgets[idx]
+	}
+	return widgets
 }
