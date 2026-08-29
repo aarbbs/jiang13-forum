@@ -28,6 +28,7 @@ type Deps struct {
 	Mail       *services.MailService
 	SitePage   *services.SitePageService
 	Report     *services.ReportService
+	Captcha    *services.CaptchaService
 }
 
 // SitePageLink 导航/页脚站点单页链接

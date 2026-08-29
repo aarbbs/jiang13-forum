@@ -30,7 +30,7 @@
 ## B. 认证与个人中心
 
 - [x] 注册（用户名、密码、昵称、邮箱；可选邮箱验证码）— SSR `/register`
-- [ ] 图形验证码接口（注册流程）
+- [x] 图形验证码接口（注册流程）— SSR 注册页强制；`GET /api/captcha` + `POST /api/register` 校验
 - [x] 登录 / 登出（opaque session Cookie `jiang13_session`）— SSR；SameSite=Lax；登出/禁言/改密吊销
 - [x] 忘记密码：邮箱验证码 + 重置 — SSR `/forgot-password`（依赖 SMTP 就绪）
 - [x] 注册配置：邮件就绪时强制验证码；安装后开放注册（不依赖 SMTP）

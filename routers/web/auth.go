@@ -1,6 +1,7 @@
 package web
 
 import (
+	"html/template"
 	"net/http"
 	"strings"
 
@@ -22,6 +23,8 @@ type registerData struct {
 	Email            string
 	MailReady        bool
 	RequireEmailCode bool
+	CaptchaID        string
+	CaptchaSVG       template.HTML
 }
 
 type registerForm struct {
@@ -151,6 +154,12 @@ func (d Deps) RegisterPost(c *gin.Context) {
 		d.renderRegister(ctx, "操作过于频繁，请稍后再试", form)
 		return
 	}
+	captchaID := strings.TrimSpace(c.PostForm("captcha_id"))
+	captchaAns := strings.TrimSpace(c.PostForm("captcha"))
+	if d.Captcha == nil || !d.Captcha.Verify(captchaID, captchaAns) {
+		d.renderRegister(ctx, "验证码错误或已过期", form)
+		return
+	}
 	mailReady := d.Settings.MailReady()
 	if mailReady {
 		code := strings.TrimSpace(c.PostForm("email_code"))
@@ -197,14 +206,21 @@ func (d Deps) renderRegister(ctx *webctx.Context, errMsg string, form registerFo
 func (d Deps) renderRegisterWithChrome(ctx *webctx.Context, chrome PageChrome, errMsg string, form registerForm) {
 	chrome.Error = errMsg
 	mailReady := d.Settings.MailReady()
-	ctx.HTML(http.StatusOK, "auth/register", registerData{
+	data := registerData{
 		PageChrome:       chrome,
 		Username:         form.Username,
 		Nickname:         form.Nickname,
 		Email:            form.Email,
 		MailReady:        mailReady,
 		RequireEmailCode: mailReady,
-	})
+	}
+	if d.Captcha != nil {
+		if id, svg, err := d.Captcha.Generate(); err == nil {
+			data.CaptchaID = id
+			data.CaptchaSVG = template.HTML(svg)
+		}
+	}
+	ctx.HTML(http.StatusOK, "auth/register", data)
 }
 
 type forgotPasswordData struct {

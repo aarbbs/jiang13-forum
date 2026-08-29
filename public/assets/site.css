@@ -432,6 +432,24 @@ body.j13-body {
   margin-top: 0.25rem;
 }
 .j13-form__row input { flex: 1; margin-top: 0; }
+.j13-captcha {
+  align-items: center;
+}
+.j13-captcha__img {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  overflow: hidden;
+  line-height: 0;
+}
+.j13-captcha__img svg { display: block; }
+.j13-captcha a.j13-btn-secondary {
+  flex-shrink: 0;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
 .j13-btn-secondary {
   margin-top: 0 !important;
   padding: 0.45rem 0.75rem;

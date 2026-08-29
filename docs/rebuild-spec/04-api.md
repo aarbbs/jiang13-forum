@@ -102,7 +102,7 @@
 
 | 方法 | 路径 | Body | 响应 |
 |------|------|------|------|
-| POST | `/api/register` | Form: username, password, nickname, email, email_code? | 成功后通常种 cookie |
+| POST | `/api/register` | Form/JSON: username, password, nickname, email, captcha_id, captcha, email_code? | 成功后通常种 cookie |
 | POST | `/api/login` | Form: username, password | 种 cookie |
 | POST | `/api/register/email-code` | JSON `{ email }` | `{ message }` |
 | POST | `/api/password-reset/email-code` | JSON `{ email }` | `{ message }` |

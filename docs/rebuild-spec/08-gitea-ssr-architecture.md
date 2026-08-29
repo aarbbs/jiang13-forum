@@ -12,7 +12,7 @@
 |----|------|
 | 公开页渲染 | Go `html/template` **真 SSR** |
 | 浏览器写操作 | `routers/web` HTML 表单 POST + CSRF + PRG |
-| JSON `/api` | **仅机器客户端**（OIDC 等）；不服务已迁页面 UI |
+| JSON `/api` | **仅机器客户端**（OIDC、health、`/api/captcha`、`/api/register` 等）；不服务已迁页面 UI |
 | 渐进增强 | `web_src/` → `public/assets/` → `/ssr-assets/` |
 | 发布 | 单二进制 + `go:embed` |
 | 业务语义 | `01`–`07`；冲突时改代码并回写规格 |

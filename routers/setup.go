@@ -107,6 +107,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Mail:       mailSvc,
 		SitePage:   sitePageSvc,
 		Report:     reportSvc,
+		Captcha:    captchaSvc,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)
@@ -114,6 +115,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.GET("/health", h.APIHealth)
 	r.GET("/robots.txt", h.RobotsTxt)
 	r.GET("/sitemap.xml", h.SitemapXML)
+	// 机器注册辅助（与 SSR 注册共用 CaptchaService）
+	r.GET("/api/captcha", h.APICaptcha)
+	r.POST("/api/register", h.APIRegister)
 
 	// OIDC Provider（外部机器 / Gitea SSO）
 	r.GET("/.well-known/openid-configuration", h.OIDCDiscovery)

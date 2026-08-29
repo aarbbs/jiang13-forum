@@ -237,9 +237,15 @@ func (h *Handlers) APIRegister(c *gin.Context) {
 		Nickname  string `json:"nickname" form:"nickname"`
 		Email     string `json:"email" form:"email" binding:"required"`
 		EmailCode string `json:"email_code" form:"email_code"`
+		CaptchaID string `json:"captcha_id" form:"captcha_id"`
+		Captcha   string `json:"captcha" form:"captcha"`
 	}
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if h.Captcha == nil || !h.Captcha.Verify(req.CaptchaID, req.Captcha) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误或已过期"})
 		return
 	}
 
