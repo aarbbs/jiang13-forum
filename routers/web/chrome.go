@@ -24,6 +24,7 @@ type Deps struct {
 	EmailCode *services.EmailCodeService
 	Store      *services.UploadStore
 	Points     *services.PointsService
+	Badge      *services.BadgeService
 	FriendLink *services.FriendLinkApplyService
 	Mail       *services.MailService
 	SitePage   *services.SitePageService

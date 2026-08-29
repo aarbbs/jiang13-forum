@@ -1040,6 +1040,12 @@ points-only[data-locked="false"] {
   align-items: center;
   margin: 0;
 }
+.j13-admin-badge-award-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
 .j13-post__admin {
   display: flex;
   flex-wrap: wrap;

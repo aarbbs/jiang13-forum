@@ -53,6 +53,20 @@ func (s *BadgeService) UpsertDef(def *models.BadgeDef) error {
 	}).Error
 }
 
+// DeleteDef 删除徽章定义并清理已发放记录
+func (s *BadgeService) DeleteDef(id uint) error {
+	var def models.BadgeDef
+	if err := models.DB.First(&def, id).Error; err != nil {
+		return errors.New("徽章不存在")
+	}
+	return models.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("badge_id = ?", id).Delete(&models.UserBadge{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&def).Error
+	})
+}
+
 // AwardLimited 站长颁发限定徽章
 func (s *BadgeService) AwardLimited(userID, badgeID, adminID uint) error {
 	var def models.BadgeDef

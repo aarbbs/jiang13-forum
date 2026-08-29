@@ -103,6 +103,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Message: messageSvc, Filter: filter,
 		Limiter: limiter, EmailCode: emailCodeSvc, Store: uploadStore,
 		Points:     services.NewPointsService(),
+		Badge:      services.NewBadgeService(),
 		FriendLink: friendLinkApplySvc,
 		Mail:       mailSvc,
 		SitePage:   sitePageSvc,

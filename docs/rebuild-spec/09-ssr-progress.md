@@ -12,15 +12,15 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | Admin `/admin/users`（禁言 / 认证 / 调积分） |
-| **下一刀** | **Admin `/admin/badges`**（徽章定义 CRUD + 授予/撤销） |
+| **上一刀** | Admin `/admin/badges`（定义 CRUD + 限定颁发/收回） |
+| **下一刀** | **Admin `/admin/media`**（媒体列表 / 删除） |
 | **工作区** | 应干净；有未提交改动时先处理再开新刀 |
 
 ---
 
 ## 一句话状态
 
-论坛核心闭环（安装、认证、Feed、五种帖类型、评论、私信、友链、审核、回收站、基础设置、备份）**已迁完**。余量主要是 Admin 用户/徽章/媒体、成长体系、OIDC/存储产品化与体验打磨。
+论坛核心闭环（安装、认证、Feed、五种帖类型、评论、私信、友链、审核、回收站、基础设置、备份）**已迁完**。Admin 用户与徽章已齐；余量主要是媒体、成长体系、OIDC/存储产品化与体验打磨。
 
 ```mermaid
 flowchart LR
@@ -60,12 +60,13 @@ flowchart LR
 | settings：品牌、限流、敏感词、SMTP、侧栏、SQLite 备份 | 已迁 |
 | friend-links / pages | 已迁 |
 | **users**（禁言 / 认证 / 调积分） | **已迁** |
-| **badges / media** | **未迁** |
+| **badges**（定义 CRUD + 限定颁发/收回） | **已迁** |
+| **media** | **未迁** |
 | settings：OIDC / Gitea / 存储 / 伪静态 Tab | **未迁** |
 
 ### 近期提交（摘）
 
-`poll` → SQLite 备份 → 友链复检 → `question` → `bounty` → `lottery` → **Admin users**
+`lottery` → Admin users → **Admin badges**
 
 ---
 
@@ -79,12 +80,12 @@ flowchart LR
 ### P1 — 推荐刀序（服务层多半已齐）
 
 1. ~~Admin 用户~~ ✓  
-2. **Admin 徽章** ← 当前指针  
-3. Admin 媒体列表/删除  
+2. ~~Admin 徽章~~ ✓  
+3. **Admin 媒体** ← 当前指针  
 
 ### P2 — 成长与防刷
 
-- Exp → Lv1–10、自动徽章、短龄同 IP 互刷拒绝分成（`02` §H）
+- Exp → Lv1–10、自动徽章调度 UI、短龄同 IP 互刷拒绝分成（`02` §H）
 
 ### P3 — 体验 / 编辑器（可砍或长期）
 
@@ -108,28 +109,32 @@ flowchart LR
 | ✓ | 五种帖类型 + 备份/复检 + §O 勾选 | 核心闭环 |
 | ✓ | 本文 `09` | 可查阅进度 |
 | ✓ | Admin `/admin/users` | 禁言/认证/调积分 |
-| → | Admin `/admin/badges` | 徽章 CRUD + 授予 |
-| 4 | Admin `/admin/media` | 媒体列表删除 |
+| ✓ | Admin `/admin/badges` | 徽章 CRUD + 授予 |
+| → | Admin `/admin/media` | 媒体列表删除 |
 | 5 | 等级/自动徽章 **或** 防刷分成 | 按当时偏好 |
 | … | P3 / 后置 | 需明确点名再开 |
 
 ---
 
-## 下一刀实现提纲：Admin 徽章
+## 下一刀实现提纲：Admin 媒体
 
-> 确认「继续」后实现限定徽章定义与授予/撤销；复用 `services/badge.go`。
+> 确认「继续」后实现媒体库列表与删除；对齐既有上传/存储服务。
 
 ### 范围（草案）
 
-- `GET/POST /admin/badges`：徽章定义列表与创建/编辑/删除  
-- 授予/撤销：挂在用户页或徽章详情（`GrantBadge` / 撤销）  
-- 回写 `02` §H 限定徽章；指针 → media  
+- `GET /admin/media`：按时间分页列表（缩略图 / 路径 / 引用粗览）  
+- `POST /admin/media/:id/delete`：删库文件 + 记录  
+- 回写 `02` / `06`；指针 → 成长或按偏好  
 
 ### 不做
 
-自动徽章规则引擎（P2）、等级设定 UI。
+S3 热切换产品化、全站未引用扫描清理器。
 
 ---
+
+## 已完成：Admin 徽章
+
+见 [plans/admin-badges.md](plans/admin-badges.md)；路由 `/admin/badges` + award / revoke。
 
 ## 已完成：Admin 用户管理
 

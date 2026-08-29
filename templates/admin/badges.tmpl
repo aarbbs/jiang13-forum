@@ -1,0 +1,114 @@
+{{define "admin/badges"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>徽章管理</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <section>
+    <h2>{{if .Form.IsEdit}}编辑：{{.Form.Name}}{{else}}新建徽章{{end}}</h2>
+    <form method="post" action="{{if .Form.IsEdit}}/admin/badges/{{.Form.ID}}{{else}}/admin/badges{{end}}" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      {{if .Form.IsEdit}}
+      <p class="j13-muted">代码 <code>{{.Form.Code}}</code>（不可改）</p>
+      {{else}}
+      <label>代码 <input name="code" required pattern="[a-z0-9_]{2,64}" value="{{.Form.Code}}" placeholder="vip_founder"/></label>
+      {{end}}
+      <label>名称 <input name="name" required maxlength="64" value="{{.Form.Name}}"/></label>
+      <label>说明 <input name="description" maxlength="256" value="{{.Form.Description}}"/></label>
+      <label>图标 key <input name="icon" maxlength="64" value="{{.Form.Icon}}" placeholder="star"/></label>
+      <label>类型
+        <select name="kind">
+          <option value="limited"{{if eq .Form.Kind "limited"}} selected{{end}}>限定（管理员颁发）</option>
+          <option value="auto"{{if eq .Form.Kind "auto"}} selected{{end}}>自动（达标授予）</option>
+        </select>
+      </label>
+      <label>指标（自动）
+        <select name="metric">
+          <option value=""{{if eq .Form.Metric ""}} selected{{end}}>—</option>
+          <option value="tenure_days"{{if eq .Form.Metric "tenure_days"}} selected{{end}}>注册天数</option>
+          <option value="likes_received"{{if eq .Form.Metric "likes_received"}} selected{{end}}>帖子获赞</option>
+          <option value="creator_income"{{if eq .Form.Metric "creator_income"}} selected{{end}}>创作分成</option>
+        </select>
+      </label>
+      <label>阈值 <input name="threshold" type="number" min="0" value="{{.Form.Threshold}}"/></label>
+      <label>排序 <input name="sort_order" type="number" value="{{.Form.SortOrder}}"/></label>
+      <label class="j13-check"><input type="checkbox" name="enabled" value="1"{{if .Form.Enabled}} checked{{end}}/> 启用</label>
+      <button type="submit">{{if .Form.IsEdit}}保存{{else}}创建{{end}}</button>
+      {{if .Form.IsEdit}}<a href="/admin/badges" class="j13-linkbtn">取消编辑</a>{{end}}
+    </form>
+  </section>
+
+  <section>
+    <h2>颁发 / 收回限定徽章</h2>
+    {{if .LimitedBadges}}
+    <form method="post" action="/admin/badges/award" class="j13-form j13-admin-form j13-admin-badge-award">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>用户名或 ID <input name="user" required value="{{.AwardUser}}" placeholder="user2 或 2"/></label>
+      <label>徽章
+        <select name="badge_id" required>
+          <option value="">选择…</option>
+          {{range .LimitedBadges}}
+          <option value="{{.ID}}"{{if eq .ID $.AwardBadgeID}} selected{{end}}>{{.Name}} ({{.Code}})</option>
+          {{end}}
+        </select>
+      </label>
+      <div class="j13-admin-badge-award-btns">
+        <button type="submit">颁发</button>
+        <button type="submit" formaction="/admin/badges/revoke" class="j13-btn-secondary">收回</button>
+      </div>
+    </form>
+    {{else}}
+    <p class="j13-muted">暂无已启用的限定徽章，请先创建。</p>
+    {{end}}
+  </section>
+
+  <section>
+    <h2>徽章定义</h2>
+    {{if .Badges}}
+    <table class="j13-admin-table">
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>代码</th>
+          <th>类型</th>
+          <th>门槛</th>
+          <th>排序</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Badges}}
+        <tr>
+          <td>
+            {{.Name}}
+            {{if .Description}}<div class="j13-muted">{{.Description}}</div>{{end}}
+          </td>
+          <td><code>{{.Code}}</code></td>
+          <td>{{.KindLabel}}</td>
+          <td>
+            {{if .IsLimited}}—
+            {{else}}{{.Metric}} ≥ {{.Threshold}}{{end}}
+          </td>
+          <td>{{.SortOrder}}</td>
+          <td>{{if .Enabled}}启用{{else}}停用{{end}}</td>
+          <td>
+            <a href="/admin/badges/{{.ID}}/edit">编辑</a>
+            <form method="post" action="/admin/badges/{{.ID}}/delete" class="j13-inline-form" onsubmit="return confirm('确认删除该徽章？已发放记录将一并清除。');">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <button type="submit" class="j13-linkbtn">删除</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-empty">暂无徽章定义</p>
+    {{end}}
+  </section>
+</main>
+{{template "base/footer" .}}
+{{end}}
