@@ -890,9 +890,13 @@ points-only[data-locked="false"] {
 .j13-admin-filters a { color: var(--j13-muted); text-decoration: none; }
 .j13-admin-filters a.is-active,
 .j13-admin-filters a:hover { color: var(--j13-accent); font-weight: 600; }
-.j13-report-handle .j13-form__row {
+.j13-post__admin {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.35rem 0.65rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--j13-border);
+  font-size: 0.85rem;
 }
 

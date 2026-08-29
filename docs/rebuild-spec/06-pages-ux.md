@@ -52,6 +52,7 @@
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/pages` | 站点单页 CRUD / 发布 | 已迁 |
 | `/admin/reports` | 举报处理 | 已迁 |
+| `/admin/trash` | 帖回收站 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
 未迁（原 SPA）：users / badges / media / 完整 Limits 等。
@@ -188,8 +189,8 @@
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
 | Pages | 列表发布开关；编辑正文（HTML textarea）；nav/footer 勾选 — SSR `/admin/pages` |
 | Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（完整侧栏组件编辑 / 复检按钮未迁） |
-| Posts | 按状态筛；通过/拒绝；置顶/版顶/精华/锁编/锁评；进回收站恢复/清除 |
-| Comments | 审核；修订查看；回收站 |
+| Posts | 审核通过/拒绝 — SSR `/admin/moderation`；置顶/版顶/精华/锁编/锁评/软删 — 帖详情 Admin 条；回收站恢复/清除 — SSR `/admin/trash` |
+| Comments | 审核 — SSR `/admin/moderation`；修订查看未迁 |
 | Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |
 | Users | 搜索；禁言；认证；设等级；调积分；授徽章 |
 | Badges | 定义自动/限定徽章 |

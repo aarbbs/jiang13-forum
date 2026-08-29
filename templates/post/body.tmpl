@@ -5,6 +5,8 @@
     <div class="j13-post__meta">
       {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
       {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
+      {{if .EditLocked}}<span class="j13-tag">禁编</span>{{end}}
+      {{if .CommentsLocked}}<span class="j13-tag">已结贴</span>{{end}}
       {{if .PostTypeLabel}}<span class="j13-tag">{{.PostTypeLabel}}</span>{{end}}
       {{if .BoardName}}<a class="j13-tag" href="/board/{{.BoardID}}">{{.BoardName}}</a>{{end}}
       {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
@@ -44,6 +46,39 @@
         </form>
       </details>
       {{end}}
+    </div>
+    {{end}}
+    {{if .IsAdmin}}
+    <div class="j13-post__admin" role="group" aria-label="管理操作">
+      <form method="post" action="/post/{{.PostID}}/admin/pin" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="enable" value="{{if .GlobalPinned}}0{{else}}1{{end}}"/>
+        <button type="submit" class="j13-linkbtn">{{if .GlobalPinned}}取消全局置顶{{else}}全局置顶{{end}}</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/admin/board-pin" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="enable" value="{{if .BoardPinned}}0{{else}}1{{end}}"/>
+        <button type="submit" class="j13-linkbtn">{{if .BoardPinned}}取消版内置顶{{else}}版内置顶{{end}}</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/admin/feature" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="enable" value="{{if .Featured}}0{{else}}1{{end}}"/>
+        <button type="submit" class="j13-linkbtn">{{if .Featured}}取消精华{{else}}设为精华{{end}}</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/admin/edit-lock" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="enable" value="{{if .EditLocked}}0{{else}}1{{end}}"/>
+        <button type="submit" class="j13-linkbtn">{{if .EditLocked}}允许编辑{{else}}禁止编辑{{end}}</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/admin/comments-lock" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="enable" value="{{if .CommentsLocked}}0{{else}}1{{end}}"/>
+        <button type="submit" class="j13-linkbtn">{{if .CommentsLocked}}解锁评论{{else}}锁定评论{{end}}</button>
+      </form>
+      <form method="post" action="/post/{{.PostID}}/admin/delete" class="j13-inline-form" onsubmit="return confirm('确认移入回收站？');">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <button type="submit" class="j13-linkbtn">移入回收站</button>
+      </form>
     </div>
     {{end}}
   </header>

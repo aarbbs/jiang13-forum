@@ -29,6 +29,12 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.POST("/post/:id/unlock", authMW.RequireAuth(), deps.PostUnlock)
 	g.POST("/post/:id/report", authMW.RequireAuth(), deps.PostReportPost)
 	g.POST("/post/:id/comments/:cid/report", authMW.RequireAuth(), deps.CommentReportPost)
+	g.POST("/post/:id/admin/pin", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostPinPost)
+	g.POST("/post/:id/admin/board-pin", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostBoardPinPost)
+	g.POST("/post/:id/admin/feature", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostFeaturePost)
+	g.POST("/post/:id/admin/edit-lock", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostEditLockPost)
+	g.POST("/post/:id/admin/comments-lock", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostCommentsLockPost)
+	g.POST("/post/:id/admin/delete", authMW.RequireAuth(), authMW.RequireAdmin(), deps.AdminPostDeletePost)
 	g.GET("/login", deps.LoginGet)
 	g.POST("/login", deps.LoginPost)
 	g.POST("/logout", deps.LogoutPost)
@@ -76,6 +82,9 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/pages/:id/publish", deps.AdminPagePublishPost)
 		admin.GET("/reports", deps.AdminReportsGet)
 		admin.POST("/reports/:id/handle", deps.AdminReportHandlePost)
+		admin.GET("/trash", deps.AdminTrashGet)
+		admin.POST("/trash/:id/restore", deps.AdminTrashRestorePost)
+		admin.POST("/trash/:id/purge", deps.AdminTrashPurgePost)
 	}
 
 	g.GET("/user/:id", deps.UserPublic)

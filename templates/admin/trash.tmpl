@@ -1,0 +1,52 @@
+{{define "admin/trash"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>回收站</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <form method="get" action="/admin/trash" class="j13-form j13-admin-form j13-inline-form">
+    <label>关键词 <input name="keyword" value="{{.Keyword}}" placeholder="标题"/></label>
+    <button type="submit">搜索</button>
+  </form>
+
+  {{if .Items}}
+  <table class="j13-admin-table">
+    <thead>
+      <tr><th>标题</th><th>作者</th><th>板块</th><th>删除时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td>{{.Title}}</td>
+        <td>{{.AuthorName}}</td>
+        <td>{{if .BoardName}}{{.BoardName}}{{else}}—{{end}}</td>
+        <td>{{.DeletedLabel}}</td>
+        <td>
+          <form method="post" action="/admin/trash/{{.ID}}/restore" class="j13-inline-form">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+            <button type="submit" class="j13-linkbtn">恢复</button>
+          </form>
+          <form method="post" action="/admin/trash/{{.ID}}/purge" class="j13-inline-form" onsubmit="return confirm('确认彻底删除？不可恢复');">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+            <button type="submit" class="j13-linkbtn">彻底删除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{if or .HasPrev .HasMore}}
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="/admin/trash?page={{.PrevPage}}{{if $.Keyword}}&amp;keyword={{queryEscape $.Keyword}}{{end}}">上一页</a>{{end}}
+    <span>第 {{.Page}} 页</span>
+    {{if .HasMore}}<a href="/admin/trash?page={{.NextPage}}{{if $.Keyword}}&amp;keyword={{queryEscape $.Keyword}}{{end}}">下一页</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="j13-empty">回收站为空。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

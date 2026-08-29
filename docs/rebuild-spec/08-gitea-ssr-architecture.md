@@ -100,4 +100,6 @@ Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_
 
 举报：帖/评 SSR 表单；Admin `/admin/reports`（dismiss / resolve / reject_post / reject_comment）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`、`/admin/reports`。
+运营标记：帖详情 Admin 条（全局/版内置顶、精华、禁编、锁评、软删）；回收站 `/admin/trash`（恢复/彻底删除）。
+
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`、`/admin/reports`、`/admin/trash`。

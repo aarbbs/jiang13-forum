@@ -58,7 +58,7 @@
 - [ ] TipTap 富文本能力（见 [06-pages-ux.md](06-pages-ux.md) 编辑器节）— 本分支改用 Markdown textarea 渐进增强
 - [ ] Markdown 编辑模式（与富文本互转/双模）
 - [x] 编辑帖子（时限、锁帖约束）— SSR `/post/:id/edit`
-- [ ] 删除帖子 → 软删进回收站
+- [x] 删除帖子 → 软删进回收站 — SSR Admin（帖详情 + `/admin/trash`）
 - [ ] 修订历史列表与单条详情（可做 diff）
 - [x] 点赞切换；收藏切换；收藏列表 — SSR `/favorites`
 - [x] 浏览量 — 详情页计数
@@ -75,13 +75,13 @@
 
 ### D.2 运营标记（管理员）
 
-- [ ] 全局置顶 / 取消
-- [ ] 版内置顶 / 取消（仅板块列表抬升）
-- [ ] 精华 / 取消
-- [ ] 禁止编辑（edit lock）
-- [ ] 禁止评论 / 结贴（comments lock）
+- [x] 全局置顶 / 取消 — SSR 帖详情
+- [x] 版内置顶 / 取消（仅板块列表抬升）— SSR 帖详情
+- [x] 精华 / 取消 — SSR 帖详情
+- [x] 禁止编辑（edit lock）— SSR 帖详情
+- [x] 禁止评论 / 结贴（comments lock）— SSR 帖详情
 - [x] 审核通过 / 拒绝（拒绝可通知作者）— SSR `/admin/moderation`
-- [ ] 回收站：恢复 / 彻底删除
+- [x] 回收站：恢复 / 彻底删除 — SSR `/admin/trash`
 
 ---
 

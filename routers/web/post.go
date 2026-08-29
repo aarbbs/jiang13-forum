@@ -23,8 +23,11 @@ type PostPageData struct {
 	AuthorID       uint
 	BoardID        uint
 	BoardName      string
-	Pinned         bool
+	Pinned         bool // 展示用：全局或版内置顶
+	GlobalPinned   bool
+	BoardPinned    bool
 	Featured       bool
+	EditLocked     bool
 	PostTypeLabel  string
 	CreatedLabel   string
 	ViewCount      int
@@ -37,6 +40,7 @@ type PostPageData struct {
 	CommentsLocked bool
 	CanEdit        bool
 	CanReportPost  bool
+	IsAdmin        bool
 }
 
 // CommentView 评论
@@ -126,7 +130,8 @@ func (d Deps) PostView(c *gin.Context) {
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
 		PostTitle: post.Title, AuthorName: author, AuthorID: post.UserID,
 		BoardID: post.BoardID, BoardName: boardName,
-		Pinned: post.Pinned || post.BoardPinned, Featured: post.Featured,
+		Pinned: post.Pinned || post.BoardPinned, GlobalPinned: post.Pinned, BoardPinned: post.BoardPinned,
+		Featured: post.Featured, EditLocked: post.EditLocked,
 		PostTypeLabel: postTypeLabel(post.PostType), CreatedLabel: formatTime(post.CreatedAt),
 		ViewCount: post.ViewCount, LikeCount: post.LikeCount,
 		Liked: d.Post.IsLiked(ctx.UserID(), post.ID), Favorited: d.Post.IsFavorited(ctx.UserID(), post.ID),
@@ -134,6 +139,7 @@ func (d Deps) PostView(c *gin.Context) {
 		CommentsLocked: post.CommentsLocked,
 		CanEdit:        d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
 		CanReportPost:  ctx.IsSigned() && post.UserID != ctx.UserID(),
+		IsAdmin:        ctx.IsAdmin(),
 	})
 }
 
