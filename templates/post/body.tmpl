@@ -104,6 +104,23 @@
     </div>
     {{end}}
   </header>
+  {{if .Bounty}}
+  <section class="j13-bounty" aria-label="悬赏">
+    <h2 class="j13-bounty__title">悬赏</h2>
+    <p class="j13-muted">
+      {{if eq .Bounty.Status "refunded"}}已退回{{else}}{{.Bounty.Points}} 积分{{end}}
+      · {{.Bounty.StatusLabel}}
+    </p>
+    {{if .Bounty.CanRefund}}
+    <form method="post" action="/post/{{.PostID}}/bounty/refund" class="j13-inline-form" onsubmit="return confirm('确认取消悬赏并退回积分？');">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <button type="submit" class="j13-btn-secondary">取消悬赏并退回</button>
+    </form>
+    {{else if .Bounty.RefundBlockReason}}
+    <p class="j13-muted">{{.Bounty.RefundBlockReason}}</p>
+    {{end}}
+  </section>
+  {{end}}
   {{if .Poll}}
   <section class="j13-poll" aria-label="投票">
     <h2 class="j13-poll__title">投票</h2>
@@ -173,6 +190,7 @@
         <span>{{.CreatedLabel}}</span>
         {{if .StatusLabel}}<span class="j13-tag j13-tag--{{.Status}}">{{.StatusLabel}}</span>{{end}}
         {{if .IsPrivate}}<span class="j13-tag">私密</span>{{end}}
+        {{if .IsBountyAward}}<span class="j13-tag j13-tag--resolved">已采纳</span>{{end}}
         {{if .ReplyToFloor}}
         <span class="j13-comment__reply-to">回复 <a href="#floor-{{.ReplyToFloor}}">#{{.ReplyToFloor}}</a>{{if .ReplyToAuthor}} {{.ReplyToAuthor}}{{end}}</span>
         {{end}}
@@ -184,6 +202,13 @@
       {{end}}
       {{if $.LoggedIn}}
       <div class="j13-comment__actions">
+        {{if .CanAwardBounty}}
+        <form method="post" action="/post/{{$.PostID}}/bounty/award" class="j13-inline-form">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <input type="hidden" name="comment_id" value="{{.ID}}"/>
+          <button type="submit">采纳并发放悬赏</button>
+        </form>
+        {{end}}
         <form method="post" action="/post/{{$.PostID}}/comments/{{.ID}}/like" class="j13-inline-form">
           <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
           <button type="submit" class="j13-linkbtn">{{if .Liked}}取消赞{{else}}赞{{end}} ({{.LikeCount}})</button>

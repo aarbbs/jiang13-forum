@@ -497,6 +497,21 @@ body.j13-body {
   border-radius: var(--j13-radius);
 }
 .j13-poll-fields legend { padding: 0 0.35rem; font-weight: 600; }
+.j13-bounty-fields {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+}
+.j13-bounty-fields legend { padding: 0 0.35rem; font-weight: 600; }
+.j13-bounty {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  background: var(--j13-surface, #fff);
+}
+.j13-bounty__title { margin: 0 0 0.35rem; font-size: 1.1rem; }
 .j13-poll {
   margin: 1rem 0 1.25rem;
   padding: 1rem;

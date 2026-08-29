@@ -49,7 +49,17 @@ type PostPageData struct {
 	IsQuestion           bool
 	QuestionResolved     bool
 	CanToggleQuestion    bool
+	Bounty               *postBountyView
 	Poll                 *postPollView
+}
+
+type postBountyView struct {
+	Points            int
+	Status            string
+	StatusLabel       string
+	CanRefund         bool
+	RefundBlockReason string
+	AwardedCommentID  uint
 }
 
 type postPollOptionView struct {
@@ -93,6 +103,8 @@ type CommentView struct {
 	CanDelete      bool
 	Status         string
 	StatusLabel    string
+	CanAwardBounty bool
+	IsBountyAward  bool
 }
 
 // PostView GET /post/:id
@@ -116,6 +128,10 @@ func (d Deps) PostView(c *gin.Context) {
 	hasReplied := ctx.UserID() > 0 && d.Comment.HasUserReplied(uint(id), ctx.UserID())
 	body := services.ApplyPostContentGates(post.Content, post, ctx.UserID(), ctx.IsAdmin(), hasReplied)
 
+	canAwardBounty := post.PostType == models.PostTypeBounty &&
+		post.BountyStatus == models.BountyStatusOpen &&
+		(ctx.IsAdmin() || post.UserID == ctx.UserID())
+
 	comments, _ := d.Comment.ListByPost(uint(id), ctx.UserID(), ctx.IsAdmin(), post.UserID, nil)
 	cv := make([]CommentView, 0, len(comments))
 	for _, cm := range comments {
@@ -132,6 +148,9 @@ func (d Deps) PostView(c *gin.Context) {
 			CanEdit:   !cm.ContentHidden && d.Comment.CanUserEditComment(&cm, ctx.UserID(), ctx.IsAdmin()),
 			CanDelete: !cm.ContentHidden && d.Comment.CanUserDeleteComment(&cm, ctx.UserID(), ctx.IsAdmin()),
 			Status:    cm.Status,
+			CanAwardBounty: canAwardBounty && !cm.ContentHidden &&
+				cm.Status == models.ContentStatusPublished && cm.UserID != post.UserID && cm.UserID > 0,
+			IsBountyAward: post.BountyCommentID > 0 && cm.ID == post.BountyCommentID,
 		}
 		if cm.Status == models.ContentStatusPending || cm.Status == models.ContentStatusRejected {
 			if ctx.IsAdmin() || (cm.UserID > 0 && cm.UserID == ctx.UserID()) {
@@ -183,6 +202,23 @@ func (d Deps) PostView(c *gin.Context) {
 		}
 	}
 
+	var bountyView *postBountyView
+	if post.PostType == models.PostTypeBounty {
+		isOperator := ctx.IsAdmin() || post.UserID == ctx.UserID()
+		canRefund, blockReason := services.CanRefundBounty(post, ctx.IsAdmin())
+		bv := &postBountyView{
+			Points:           post.BountyPoints,
+			Status:           post.BountyStatus,
+			StatusLabel:      bountyStatusLabel(post.BountyStatus),
+			CanRefund:        isOperator && canRefund,
+			AwardedCommentID: post.BountyCommentID,
+		}
+		if isOperator && !canRefund {
+			bv.RefundBlockReason = blockReason
+		}
+		bountyView = bv
+	}
+
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
@@ -205,6 +241,7 @@ func (d Deps) PostView(c *gin.Context) {
 		IsQuestion:           post.PostType == models.PostTypeQuestion,
 		QuestionResolved:     post.QuestionResolved,
 		CanToggleQuestion:    post.PostType == models.PostTypeQuestion && (ctx.IsAdmin() || post.UserID == ctx.UserID()),
+		Bounty:               bountyView,
 		Poll:                 pollView,
 	})
 }
@@ -244,6 +281,19 @@ func contentStatusLabel(status string) string {
 		return "已拒绝"
 	default:
 		return ""
+	}
+}
+
+func bountyStatusLabel(status string) string {
+	switch status {
+	case models.BountyStatusOpen:
+		return "进行中"
+	case models.BountyStatusAwarded:
+		return "已采纳"
+	case models.BountyStatusRefunded:
+		return "已退回"
+	default:
+		return status
 	}
 }
 
@@ -498,6 +548,51 @@ func (d Deps) PostQuestionResolvePost(c *gin.Context) {
 	} else {
 		ctx.SetFlash("已标为未解决")
 	}
+	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+// PostBountyAwardPost 采纳评论并发放悬赏
+func (d Deps) PostBountyAwardPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	cid, _ := strconv.ParseUint(c.PostForm("comment_id"), 10, 64)
+	if err := services.AwardBounty(id, ctx.UserID(), ctx.IsAdmin(), uint(cid)); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
+		return
+	}
+	ctx.SetFlash("已采纳并发放悬赏")
+	ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
+}
+
+// PostBountyRefundPost 取消悬赏并退回积分
+func (d Deps) PostBountyRefundPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	if err := services.RefundBounty(id, ctx.UserID(), ctx.IsAdmin()); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	ctx.SetFlash("悬赏已退回")
 	ctx.Redirect(fmt.Sprintf("/post/%d", id))
 }
 

@@ -28,7 +28,7 @@
 | `/board/:id` | 板块 Feed | 已迁 |
 | `/boards` | 板块索引 | 已迁 |
 | `/post/:id` | 帖详情 + 评论（回复/赞/私密）/赞/藏 | 已迁 |
-| `/compose` | 发帖（normal / question / poll；textarea + 图片 + 门控插入） | 已迁 |
+| `/compose` | 发帖（normal / question / poll / bounty；textarea + 图片 + 门控插入） | 已迁 |
 | `/post/:id/edit` | 编辑帖 | 已迁 |
 | `/profile` | 个人中心（资料/密码/头像/积分钱包） | 已迁 |
 | `/user/:id` | 公开用户页 | 已迁 |
@@ -117,7 +117,7 @@
 | 讨论 | 无 |
 | 问答 | 无额外字段（解决状态在详情）— SSR compose 可选；详情切换已迁 |
 | 投票 | 选项列表、多选开关、最多可选、截止时间或无截止 |
-| 悬赏 | 积分输入（显示余额） |
+| 悬赏 | 积分输入（显示余额）— SSR compose；发帖托管 |
 | 抽奖 | 中奖人数 1–20 |
 
 ### 3.2 编辑器能力（应对齐）
@@ -146,7 +146,7 @@
 | 门控块 | 锁定壳 UI（长度/价格/引导）；`POST /post/:id/unlock` 返回 inner HTML 后替换 |
 | 问答状态 | 已解决/未解决徽章；作者或管理员 `POST /post/:id/question/resolve` 切换 — SSR |
 | 投票卡 | 选选项提交；显示百分比；作者可结束 — SSR `/post/:id/poll/vote|close` |
-| 悬赏条 | 显示积分与状态；采纳按钮在他人评论上；退款按钮按规则禁用并提示 |
+| 悬赏条 | 显示积分与状态；采纳按钮在他人评论上；退款按钮按规则禁用并提示 — SSR `/post/:id/bounty/award|refund` |
 | 抽奖卡 | 显示参与人数；开奖；中奖名单 |
 | 评论 | 楼层列表、`reply_to` 引用、私密开关、点赞、举报、编辑（时限）、删除、回复/@ 通知 — SSR；嵌套树 UI 未做 |
 | 修订 | 列表 + 单条快照 — SSR `/post/:id/revisions`（作者/管理员；无 diff） |
