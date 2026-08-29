@@ -28,7 +28,7 @@
 | `/board/:id` | 板块 Feed | 已迁 |
 | `/boards` | 板块索引 | 已迁 |
 | `/post/:id` | 帖详情 + 评论（回复/赞/私密）/赞/藏 | 已迁 |
-| `/compose` | 发帖（normal / question / poll / bounty / lottery；textarea + 图片 + 门控插入） | 已迁 |
+| `/compose` | 发帖（类型字段 + Markdown 工具栏/预览/图片/门控） | 已迁 |
 | `/post/:id/edit` | 编辑帖 | 已迁 |
 | `/profile` | 个人中心（资料/密码/头像/积分钱包） | 已迁 |
 | `/user/:id` | 公开用户页 | 已迁 |
@@ -123,22 +123,24 @@
 | 悬赏 | 积分输入（显示余额）— SSR compose；发帖托管 |
 | 抽奖 | 中奖人数 1–20 — SSR compose |
 
-### 3.2 编辑器能力（应对齐）
+### 3.2 编辑器能力（本分支：Markdown 渐进增强）
 
-源：[`ArticleEditor.tsx`](（仅 main）frontend/src/components/ArticleEditor.tsx) 与 `editor/` 扩展
+源对照：[`ArticleEditor.tsx`](（仅 main）frontend/src/components/ArticleEditor.tsx)（TipTap，**不迁**）
 
-- 标题 h2–h6（无 h1，避免与帖标题冲突）
-- 粗体/斜体/删除线等基础标记
-- 链接对话框
-- 代码块（语言、选项对话框）
-- 表格插入/编辑
-- 图片上传 + 图片组布局 + 浮动/清除浮动
-- 表情 / 贴纸选择器（多套：bilibili/douyin/tieba/weibo 等静态资源）
-- **登录可见** / **回复可见** / **积分可见**（价格 1–9999）节点
-- 富文本 ↔ Markdown 双模（门控块有 markdown 约定，见 [`utils/markdownContent.ts`](（仅 main）frontend/src/utils/markdownContent.ts)）
-- Tab 缩进
+| 能力 | SSR 状态 |
+|------|----------|
+| 标题 h2–h6（`#` 映射为 h2） | Markdown 工具栏 + `ComposeBodyToHTML` |
+| 粗体/斜体/删除线/行内代码 | 已迁 |
+| 链接 | prompt 插入 |
+| 围栏代码块 | 已迁（语言 class） |
+| 列表 / 引用 | 已迁 |
+| 图片上传 | `/compose/upload` |
+| 登录/回复/积分可见门控 | compose 工具栏 |
+| 预览 | `POST /compose/preview`（同消毒管线） |
+| Tab 缩进 / 未保存离开 | `beforeunload` |
+| 表格 / 图片组 / 表情贴纸 / TipTap 双模 | **未做**（后置） |
 
-未保存离开：`UnsavedChangesDialog`。
+共用片段：`templates/shared/md_editor.tmpl`（发帖、改帖、评论、改评）。
 
 ---
 

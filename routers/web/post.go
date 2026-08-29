@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"html"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -510,7 +509,7 @@ func (d Deps) PostComment(c *gin.Context) {
 		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
 		return
 	}
-	safe := "<p>" + html.EscapeString(content) + "</p>"
+	safe := services.ComposeBodyToHTML(content)
 	cm, err := d.Comment.Create(services.CommentCreateInput{
 		PostID: id, UserID: ctx.UserID(), Content: safe,
 		ReplyTo: replyTo, IsPrivate: isPrivate,
@@ -815,7 +814,7 @@ func (d Deps) CommentEditGet(c *gin.Context) {
 		PostID:     postID,
 		CommentID:  cm.ID,
 		Floor:      cm.Floor,
-		Content:    commentHTMLToPlain(cm.Content),
+		Content:    services.HTMLToComposePlain(cm.Content),
 	})
 }
 
@@ -841,7 +840,7 @@ func (d Deps) CommentEditPost(c *gin.Context) {
 		d.renderCommentEdit(ctx, "评论不能为空", postID, cm, plain)
 		return
 	}
-	safe := "<p>" + html.EscapeString(plain) + "</p>"
+	safe := services.ComposeBodyToHTML(plain)
 	_, enteredPending, err := d.Comment.Update(ctx.UserID(), cm.ID, ctx.IsAdmin(), ctx.SkipsModeration(), safe)
 	if err != nil {
 		d.renderCommentEdit(ctx, err.Error(), postID, cm, plain)
@@ -921,14 +920,6 @@ func (d Deps) renderCommentEdit(ctx *webctx.Context, errMsg string, postID uint,
 		Floor:      cm.Floor,
 		Content:    content,
 	})
-}
-
-// commentHTMLToPlain 发评存的是转义后的 <p>…</p>，编辑时还原为纯文本
-func commentHTMLToPlain(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "<p>")
-	s = strings.TrimSuffix(s, "</p>")
-	return html.UnescapeString(s)
 }
 
 type postRevisionRow struct {

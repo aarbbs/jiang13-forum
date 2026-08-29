@@ -20,6 +20,20 @@ var (
 func funcMap() template.FuncMap {
 	return template.FuncMap{
 		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
+		"dict": func(values ...any) (map[string]any, error) {
+			if len(values)%2 != 0 {
+				return nil, fmt.Errorf("dict 需要偶数个参数")
+			}
+			m := make(map[string]any, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				k, ok := values[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict 键必须是字符串")
+				}
+				m[k] = values[i+1]
+			}
+			return m, nil
+		},
 		"sortURL": func(boardID uint, sort string) string {
 			q := url.Values{}
 			if sort != "" && sort != "latest" {

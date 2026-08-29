@@ -55,8 +55,8 @@
 
 - [x] 发帖：选板块、标题、标签、正文 — SSR `/compose`（normal）
 - [x] 正文图片上传 — `/compose/upload` + Markdown 插入
-- [ ] TipTap 富文本能力（见 [06-pages-ux.md](06-pages-ux.md) 编辑器节）— 本分支改用 Markdown textarea 渐进增强
-- [ ] Markdown 编辑模式（与富文本互转/双模）
+- [ ] TipTap 富文本能力（见 [06-pages-ux.md](06-pages-ux.md) 编辑器节）— **本分支不做 TipTap**；改用 Markdown 工具栏渐进增强
+- [x] Markdown 编辑（工具栏 + `/compose/preview`；发帖/改帖/评论共用 `shared/md_editor`）— 非 TipTap 双模
 - [x] 编辑帖子（时限、锁帖约束）— SSR `/post/:id/edit`
 - [x] 删除帖子 → 软删进回收站 — SSR Admin（帖详情 + `/admin/trash`）
 - [x] 修订历史列表与单条详情（可做 diff）— SSR `/post/:id/revisions`（作者/管理员；无 diff）

@@ -1,0 +1,52 @@
+{{define "shared/md_editor"}}
+{{/* 期望：.Name .ID .Content .Rows .MaxLength .Placeholder .CSRF .ShowGates .ShowUpload .Unsaved .Required */}}
+<div class="j13-md-editor"
+     data-j13-md-editor
+     data-csrf="{{.CSRF}}"
+     data-upload="/compose/upload"
+     data-preview="/compose/preview"
+     data-gates="{{if .ShowGates}}1{{else}}0{{end}}"
+     data-upload-enabled="{{if .ShowUpload}}1{{else}}0{{end}}"
+     data-unsaved="{{if .Unsaved}}1{{else}}0{{end}}">
+  <div class="j13-md-editor__toolbar" role="toolbar" aria-label="Markdown 工具栏">
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="bold" title="粗体">B</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="italic" title="斜体"><em>I</em></button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="strike" title="删除线"><s>S</s></button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="code" title="行内代码">&lt;/&gt;</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="link" title="链接">链接</button>
+    <span class="j13-md-editor__sep" aria-hidden="true"></span>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="h2" title="标题 2">H2</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="h3" title="标题 3">H3</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="ul" title="无序列表">• 列表</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="ol" title="有序列表">1. 列表</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="quote" title="引用">引用</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="fence" title="代码块">代码块</button>
+    {{if .ShowUpload}}
+    <span class="j13-md-editor__sep" aria-hidden="true"></span>
+    <label class="j13-md-editor__btn j13-md-editor__filebtn">
+      图片
+      <input type="file" accept="image/*" data-md-upload hidden/>
+    </label>
+    {{end}}
+    {{if .ShowGates}}
+    <span class="j13-md-editor__sep" aria-hidden="true"></span>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="gate-login">登录可见</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="gate-reply">回复可见</button>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="gate-points">积分可见</button>
+    {{end}}
+    <span class="j13-md-editor__sep" aria-hidden="true"></span>
+    <button type="button" class="j13-md-editor__btn" data-md-cmd="preview" data-md-preview-toggle>预览</button>
+  </div>
+  <textarea
+    name="{{.Name}}"
+    id="{{.ID}}"
+    class="j13-md-editor__input"
+    rows="{{.Rows}}"
+    {{if .Required}}required{{end}}
+    {{if .MaxLength}}maxlength="{{.MaxLength}}"{{end}}
+    placeholder="{{.Placeholder}}"
+    data-md-input>{{.Content}}</textarea>
+  <div class="j13-md-editor__preview j13-post__body" data-md-preview hidden></div>
+  <p class="j13-muted j13-md-editor__status" data-md-status></p>
+</div>
+{{end}}

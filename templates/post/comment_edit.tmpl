@@ -8,7 +8,19 @@
   <form method="post" action="/post/{{.PostID}}/comments/{{.CommentID}}/edit" class="j13-form j13-comment-form">
     <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
     <label for="comment-edit-content">内容</label>
-    <textarea id="comment-edit-content" name="content" rows="6" required maxlength="8000">{{.Content}}</textarea>
+    {{template "shared/md_editor" (dict
+      "Name" "content"
+      "ID" "comment-edit-content"
+      "Content" .Content
+      "Rows" 8
+      "MaxLength" 8000
+      "Placeholder" "支持 Markdown"
+      "CSRF" .CSRF
+      "ShowGates" 0
+      "ShowUpload" 1
+      "Unsaved" 1
+      "Required" 1
+    )}}
     <div class="j13-form__row">
       <button type="submit">保存</button>
       <a class="j13-btn-secondary" href="/post/{{.PostID}}#floor-{{.Floor}}">取消</a>

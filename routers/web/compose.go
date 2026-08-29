@@ -187,6 +187,29 @@ func (d Deps) ComposeUpload(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"url": url})
 }
 
+// ComposePreview 正文预览（与发帖同一套 ComposeBodyToHTML + 消毒）
+func (d Deps) ComposePreview(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.IsSigned() {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
+		return
+	}
+	if !ctx.CheckCSRF() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效请求"})
+		return
+	}
+	content := c.PostForm("content")
+	if content == "" {
+		var body struct {
+			Content string `json:"content"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		content = body.Content
+	}
+	htmlBody := services.SanitizePostHTML(services.ComposeBodyToHTML(content))
+	c.JSON(http.StatusOK, gin.H{"html": htmlBody})
+}
+
 type composeForm struct {
 	BoardID        uint
 	Title          string

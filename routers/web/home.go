@@ -58,6 +58,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.GET("/compose", authMW.RequireAuth(), deps.ComposeGet)
 	g.POST("/compose", authMW.RequireAuth(), deps.ComposePost)
 	g.POST("/compose/upload", authMW.RequireAuth(), deps.ComposeUpload)
+	g.POST("/compose/preview", authMW.RequireAuth(), deps.ComposePreview)
 	g.GET("/admin/login", func(c *gin.Context) { c.Redirect(http.StatusFound, "/login?redirect=/admin/dashboard") })
 
 	admin := g.Group("/admin", authMW.RequireAuth(), authMW.RequireAdmin())

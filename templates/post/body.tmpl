@@ -218,7 +218,19 @@
     <input type="hidden" name="reply_to" id="comment-reply-to" value=""/>
     <p class="j13-muted j13-comment-reply-hint" id="comment-reply-hint" hidden></p>
     <label for="comment-content">发表评论</label>
-    <textarea id="comment-content" name="content" rows="4" required maxlength="8000"></textarea>
+    {{template "shared/md_editor" (dict
+      "Name" "content"
+      "ID" "comment-content"
+      "Content" ""
+      "Rows" 5
+      "MaxLength" 8000
+      "Placeholder" "支持 Markdown；可回复楼上"
+      "CSRF" .CSRF
+      "ShowGates" 0
+      "ShowUpload" 1
+      "Unsaved" 0
+      "Required" 1
+    )}}
     <label class="j13-check">
       <input type="checkbox" name="is_private" value="1"/>
       私密评论（仅相关可见）
