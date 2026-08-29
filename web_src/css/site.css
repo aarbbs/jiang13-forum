@@ -839,3 +839,60 @@ points-only[data-locked="false"] {
   line-height: 1.65;
 }
 
+.j13-report {
+  display: inline-block;
+  position: relative;
+}
+.j13-report > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.j13-report > summary::-webkit-details-marker { display: none; }
+.j13-report__form {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  margin-top: 0.35rem;
+  min-width: 14rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  background: var(--j13-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.j13-report__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--j13-muted);
+}
+.j13-report__form select,
+.j13-report__form input {
+  font: inherit;
+  color: var(--j13-text);
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  background: var(--j13-bg);
+}
+.j13-admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+.j13-admin-filters a { color: var(--j13-muted); text-decoration: none; }
+.j13-admin-filters a.is-active,
+.j13-admin-filters a:hover { color: var(--j13-accent); font-weight: 600; }
+.j13-report-handle .j13-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+

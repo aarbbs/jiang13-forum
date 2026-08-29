@@ -27,6 +27,8 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.POST("/post/:id/like", authMW.RequireAuth(), deps.PostLike)
 	g.POST("/post/:id/favorite", authMW.RequireAuth(), deps.PostFavorite)
 	g.POST("/post/:id/unlock", authMW.RequireAuth(), deps.PostUnlock)
+	g.POST("/post/:id/report", authMW.RequireAuth(), deps.PostReportPost)
+	g.POST("/post/:id/comments/:cid/report", authMW.RequireAuth(), deps.CommentReportPost)
 	g.GET("/login", deps.LoginGet)
 	g.POST("/login", deps.LoginPost)
 	g.POST("/logout", deps.LogoutPost)
@@ -72,6 +74,8 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/pages/:id", deps.AdminPageUpdate)
 		admin.POST("/pages/:id/delete", deps.AdminPageDelete)
 		admin.POST("/pages/:id/publish", deps.AdminPagePublishPost)
+		admin.GET("/reports", deps.AdminReportsGet)
+		admin.POST("/reports/:id/handle", deps.AdminReportHandlePost)
 	}
 
 	g.GET("/user/:id", deps.UserPublic)

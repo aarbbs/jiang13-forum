@@ -32,11 +32,12 @@ func (d Deps) adminChrome(ctx *webctx.Context, title, nav string) AdminChrome {
 
 type adminDashData struct {
 	AdminChrome
-	UserCount          int64
-	PostCount          int64
-	PendingPosts       int64
-	PendingComments    int64
-	BoardCount         int64
+	UserCount       int64
+	PostCount       int64
+	PendingPosts    int64
+	PendingComments int64
+	PendingReports  int64
+	BoardCount      int64
 }
 
 // AdminDashboard 概览
@@ -48,12 +49,17 @@ func (d Deps) AdminDashboard(c *gin.Context) {
 	_ = models.DB.Model(&models.Board{}).Count(&boards).Error
 	pendingPosts, _ := d.Post.PendingPostCount()
 	pendingComments, _ := d.Comment.PendingCommentCount()
+	var pendingReports int64
+	if d.Report != nil {
+		pendingReports, _ = d.Report.PendingCount()
+	}
 	ctx.HTML(http.StatusOK, "admin/dashboard", adminDashData{
 		AdminChrome:     d.adminChrome(ctx, "仪表盘", "dashboard"),
 		UserCount:       users,
 		PostCount:       posts,
 		PendingPosts:    pendingPosts,
 		PendingComments: pendingComments,
+		PendingReports:  pendingReports,
 		BoardCount:      boards,
 	})
 }

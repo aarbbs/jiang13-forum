@@ -62,7 +62,7 @@
 - [ ] 修订历史列表与单条详情（可做 diff）
 - [x] 点赞切换；收藏切换；收藏列表 — SSR `/favorites`
 - [x] 浏览量 — 详情页计数
-- [ ] 举报帖子
+- [x] 举报帖子 — SSR 表单 + `/admin/reports`
 - [ ] 内容审核状态展示（作者可见待审/被拒）
 
 ### D.1 帖子类型
@@ -104,7 +104,7 @@
 - [ ] 游客评论（公开接口可写，字段 guest_*）
 - [ ] 编辑评论（时限）；删除评论
 - [x] 评论点赞 — `POST /post/:id/comments/:cid/like`
-- [ ] 评论举报
+- [x] 评论举报 — SSR
 - [ ] @ 提及 → 通知
 - [ ] 回复提醒（站内信 + 可选邮件）
 - [ ] 审核中 / 被拒评论可见性规则
@@ -185,7 +185,7 @@
 
 ## N. 管理后台其它
 
-- [x] 仪表盘：用户/帖/板块计数 + 待审帖/评 — SSR `/admin/dashboard`（举报/友链待迁）
+- [x] 仪表盘：用户/帖/板块计数 + 待审帖/评 + 待处理举报 — SSR `/admin/dashboard`
 - [x] 敏感词：`forum_settings.filter_words` 读写 + 热更 — SSR `/admin/settings`
 - [x] 基础限流（post/comment/register/login/window）— SSR；完整 Limits 字数等未迁
 - [x] SMTP 配置与测试信 — SSR `/admin/settings` 邮件区

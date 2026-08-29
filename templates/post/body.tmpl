@@ -22,6 +22,28 @@
         <button type="submit">{{if .Favorited}}取消收藏{{else}}收藏{{end}}</button>
       </form>
       {{if .CanEdit}}<a class="j13-linkbtn" href="/post/{{.PostID}}/edit">编辑</a>{{end}}
+      {{if .CanReportPost}}
+      <details class="j13-report">
+        <summary class="j13-linkbtn">举报</summary>
+        <form method="post" action="/post/{{.PostID}}/report" class="j13-report__form">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+          <label>原因
+            <select name="reason" required>
+              <option value="">请选择</option>
+              <option value="spam">垃圾广告</option>
+              <option value="abuse">人身攻击 / 辱骂</option>
+              <option value="illegal">违法违规</option>
+              <option value="irrelevant">内容无关 / 灌水</option>
+              <option value="other">其他</option>
+            </select>
+          </label>
+          <label>补充说明（可选）
+            <input name="detail" maxlength="500" placeholder="可选"/>
+          </label>
+          <button type="submit" class="j13-btn j13-btn--sm">提交举报</button>
+        </form>
+      </details>
+      {{end}}
     </div>
     {{end}}
   </header>
@@ -58,6 +80,28 @@
         </form>
         {{if not $.CommentsLocked}}
         <button type="button" class="j13-linkbtn j13-comment__reply-btn" data-reply-to="{{.ID}}" data-reply-floor="{{.Floor}}" data-reply-author="{{.AuthorName}}">回复</button>
+        {{end}}
+        {{if .CanReport}}
+        <details class="j13-report">
+          <summary class="j13-linkbtn">举报</summary>
+          <form method="post" action="/post/{{$.PostID}}/comments/{{.ID}}/report" class="j13-report__form">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+            <label>原因
+              <select name="reason" required>
+                <option value="">请选择</option>
+                <option value="spam">垃圾广告</option>
+                <option value="abuse">人身攻击 / 辱骂</option>
+                <option value="illegal">违法违规</option>
+                <option value="irrelevant">内容无关 / 灌水</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+            <label>补充说明（可选）
+              <input name="detail" maxlength="500" placeholder="可选"/>
+            </label>
+            <button type="submit" class="j13-btn j13-btn--sm">提交举报</button>
+          </form>
+        </details>
         {{end}}
       </div>
       {{end}}

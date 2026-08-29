@@ -1,0 +1,55 @@
+{{define "admin/reports"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>举报处理{{if gt .PendingCount 0}}（待处理 {{.PendingCount}}）{{end}}</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <p class="j13-admin-filters">
+    <a href="/admin/reports?status=pending"{{if eq .StatusFilter "pending"}} class="is-active"{{end}}>待处理</a>
+    <a href="/admin/reports?status=resolved"{{if eq .StatusFilter "resolved"}} class="is-active"{{end}}>已处理</a>
+    <a href="/admin/reports?status=dismissed"{{if eq .StatusFilter "dismissed"}} class="is-active"{{end}}>已驳回</a>
+    <a href="/admin/reports?status=all"{{if eq .StatusFilter "all"}} class="is-active"{{end}}>全部</a>
+  </p>
+
+  {{if .Reports}}
+  <ul class="j13-admin-list">
+    {{range .Reports}}
+    <li class="j13-admin-card">
+      <p><strong>{{.TargetLabel}}</strong> · {{.ReasonLabel}} · {{.StatusLabel}}</p>
+      <p class="j13-muted">{{.CreatedAt}} · 举报人 {{if .ReporterName}}{{.ReporterName}}{{else}}—{{end}}
+        · <a href="/post/{{.PostID}}">查看帖子</a></p>
+      {{if .Detail}}<p>说明：{{.Detail}}</p>{{end}}
+      {{if .Pending}}
+      <form method="post" action="/admin/reports/{{.ID}}/handle" class="j13-form j13-admin-form j13-report-handle">
+        <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+        <label>处理备注（可选） <input name="handle_note" maxlength="500"/></label>
+        <label>拒绝原因（拒绝内容时必填） <input name="reject_reason" maxlength="1000"/></label>
+        <div class="j13-form__row">
+          <button type="submit" name="action" value="dismiss">驳回举报</button>
+          <button type="submit" name="action" value="resolve" class="j13-btn-secondary">标记已处理</button>
+          {{if .IsComment}}
+          <button type="submit" name="action" value="reject_comment">拒绝该评论</button>
+          {{else}}
+          <button type="submit" name="action" value="reject_post">拒绝该帖</button>
+          {{end}}
+        </div>
+      </form>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{if or .HasPrev .HasMore}}
+  <nav class="j13-pager">
+    {{if .HasPrev}}<a href="/admin/reports?status={{.StatusFilter}}&amp;page={{.PrevPage}}">上一页</a>{{end}}
+    <span>第 {{.Page}} 页</span>
+    {{if .HasMore}}<a href="/admin/reports?status={{.StatusFilter}}&amp;page={{.NextPage}}">下一页</a>{{end}}
+  </nav>
+  {{end}}
+  {{else}}
+  <p class="j13-empty">暂无举报。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

@@ -106,6 +106,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		FriendLink: friendLinkApplySvc,
 		Mail:       mailSvc,
 		SitePage:   sitePageSvc,
+		Report:     reportSvc,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)

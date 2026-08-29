@@ -27,6 +27,7 @@ type Deps struct {
 	FriendLink *services.FriendLinkApplyService
 	Mail       *services.MailService
 	SitePage   *services.SitePageService
+	Report     *services.ReportService
 }
 
 // SitePageLink 导航/页脚站点单页链接

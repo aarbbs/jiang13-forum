@@ -11,8 +11,12 @@
     <li><strong>{{.BoardCount}}</strong><span>板块</span></li>
     <li><strong>{{.PendingPosts}}</strong><span>待审帖</span></li>
     <li><strong>{{.PendingComments}}</strong><span>待审评</span></li>
+    <li><strong>{{.PendingReports}}</strong><span>待处理举报</span></li>
   </ul>
-  <p class="j13-muted">有待审内容时请前往 <a href="/admin/moderation">内容审核</a>。</p>
+  <p class="j13-muted">
+    有待审内容时请前往 <a href="/admin/moderation">内容审核</a>；
+    有举报时请前往 <a href="/admin/reports">举报处理</a>。
+  </p>
 </main>
 {{template "base/footer" .}}
 {{end}}

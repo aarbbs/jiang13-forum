@@ -36,6 +36,7 @@ type PostPageData struct {
 	Comments       []CommentView
 	CommentsLocked bool
 	CanEdit        bool
+	CanReportPost  bool
 }
 
 // CommentView 评论
@@ -53,6 +54,7 @@ type CommentView struct {
 	LikeCount      int
 	Liked          bool
 	IsPrivate      bool
+	CanReport      bool
 }
 
 // PostView GET /post/:id
@@ -88,6 +90,7 @@ func (d Deps) PostView(c *gin.Context) {
 			CreatedLabel: formatTime(cm.CreatedAt),
 			Content: cm.Content, ContentHidden: cm.ContentHidden,
 			LikeCount: cm.LikeCount, Liked: cm.Liked, IsPrivate: cm.IsPrivate,
+			CanReport: ctx.IsSigned() && (cm.UserID == 0 || cm.UserID != ctx.UserID()),
 		}
 		if cm.ReplyTarget != nil {
 			view.ReplyToID = cm.ReplyTarget.ID
@@ -130,6 +133,7 @@ func (d Deps) PostView(c *gin.Context) {
 		BodyHTML: body, CommentCount: len(cv), Comments: cv,
 		CommentsLocked: post.CommentsLocked,
 		CanEdit:        d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
+		CanReportPost:  ctx.IsSigned() && post.UserID != ctx.UserID(),
 	})
 }
 

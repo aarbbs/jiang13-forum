@@ -51,9 +51,10 @@
 | `/admin/settings` | 品牌 + 基础限流 + 敏感词 + SMTP | 已迁 |
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/pages` | 站点单页 CRUD / 发布 | 已迁 |
+| `/admin/reports` | 举报处理 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：reports / users / badges / media / 完整 Limits 等。
+未迁（原 SPA）：users / badges / media / 完整 Limits 等。
 
 ---
 
@@ -145,7 +146,7 @@
 | 投票卡 | 选选项提交；显示百分比；作者可结束 |
 | 悬赏条 | 显示积分与状态；采纳按钮在他人评论上；退款按钮按规则禁用并提示 |
 | 抽奖卡 | 显示参与人数；开奖；中奖名单 |
-| 评论 | 楼层列表、`reply_to` 引用、私密开关、点赞 — SSR；@ / 编辑 / 举报未迁 |
+| 评论 | 楼层列表、`reply_to` 引用、私密开关、点赞、举报 — SSR；@ / 编辑未迁 |
 | 修订 | 面板列出历史，可选对比 |
 | 图片 | Lightbox 查看 |
 
@@ -189,7 +190,7 @@
 | Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（完整侧栏组件编辑 / 复检按钮未迁） |
 | Posts | 按状态筛；通过/拒绝；置顶/版顶/精华/锁编/锁评；进回收站恢复/清除 |
 | Comments | 审核；修订查看；回收站 |
-| Reports | 处理动作四选一 |
+| Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |
 | Users | 搜索；禁言；认证；设等级；调积分；授徽章 |
 | Badges | 定义自动/限定徽章 |
 | Media | 分类浏览；批量删 |

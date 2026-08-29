@@ -98,4 +98,6 @@ Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_
 
 站点单页：公开 `/page/:slug`；nav/footer 按 `show_in_nav` / `show_in_footer` 注入；Admin `/admin/pages`（CRUD、发布、排序、展示开关）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`。
+举报：帖/评 SSR 表单；Admin `/admin/reports`（dismiss / resolve / reject_post / reject_comment）。
+
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`、`/admin/reports`。
