@@ -1,0 +1,72 @@
+{{define "admin/pages"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-admin">
+  <h1>站点单页</h1>
+  {{template "admin/nav" .}}
+  {{template "base/alert" .}}
+
+  <section>
+    <h2>{{if .Form.IsEdit}}编辑：{{.Form.Title}}{{else}}新建单页{{end}}</h2>
+    <form method="post" action="{{if .Form.IsEdit}}/admin/pages/{{.Form.ID}}{{else}}/admin/pages{{end}}" class="j13-form j13-admin-form">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <label>标题 <input name="title" required value="{{.Form.Title}}"/></label>
+      <label>Slug <input name="slug" required pattern="[a-z0-9-]{2,64}" value="{{.Form.Slug}}" placeholder="about"/></label>
+      <label>排序 <input name="sort_order" type="number" value="{{.Form.SortOrder}}"/></label>
+      <label class="j13-check"><input type="checkbox" name="published" value="1"{{if .Form.Published}} checked{{end}}/> 已发布</label>
+      <label class="j13-check"><input type="checkbox" name="show_in_nav" value="1"{{if .Form.ShowInNav}} checked{{end}}/> 导航显示</label>
+      <label class="j13-check"><input type="checkbox" name="show_in_footer" value="1"{{if .Form.ShowInFooter}} checked{{end}}/> 页脚显示</label>
+      <label>正文（HTML）
+        <textarea name="content" rows="12" required>{{.Form.Content}}</textarea>
+      </label>
+      <button type="submit">{{if .Form.IsEdit}}保存{{else}}创建{{end}}</button>
+      {{if .Form.IsEdit}}<a href="/admin/pages" class="j13-linkbtn">取消编辑</a>{{end}}
+    </form>
+  </section>
+
+  <section>
+    <h2>已有单页</h2>
+    {{if .Pages}}
+    <table class="j13-admin-table">
+      <thead>
+        <tr><th>标题</th><th>Slug</th><th>排序</th><th>状态</th><th>入口</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {{range .Pages}}
+        <tr>
+          <td>{{.Title}}</td>
+          <td><code>{{.Slug}}</code>{{if .Published}} · <a href="/page/{{.Slug}}" target="_blank" rel="noopener">预览</a>{{end}}</td>
+          <td>{{.SortOrder}}</td>
+          <td>{{if .Published}}已发布{{else}}草稿{{end}}</td>
+          <td>
+            {{if .ShowInNav}}导航 {{end}}{{if .ShowInFooter}}页脚{{end}}
+            {{if and (not .ShowInNav) (not .ShowInFooter)}}—{{end}}
+          </td>
+          <td>
+            <a href="/admin/pages/{{.ID}}/edit">编辑</a>
+            <form method="post" action="/admin/pages/{{.ID}}/publish" class="j13-inline-form">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              {{if .Published}}
+              <input type="hidden" name="published" value="0"/>
+              <button type="submit" class="j13-linkbtn">下架</button>
+              {{else}}
+              <input type="hidden" name="published" value="1"/>
+              <button type="submit" class="j13-linkbtn">发布</button>
+              {{end}}
+            </form>
+            <form method="post" action="/admin/pages/{{.ID}}/delete" class="j13-inline-form" onsubmit="return confirm('确认删除该单页？');">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <button type="submit" class="j13-linkbtn">删除</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="j13-empty">暂无单页</p>
+    {{end}}
+  </section>
+</main>
+{{template "base/footer" .}}
+{{end}}

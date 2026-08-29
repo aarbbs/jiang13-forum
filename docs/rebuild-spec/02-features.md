@@ -150,8 +150,8 @@
 
 ## J. 站点单页
 
-- [ ] 公开：`/page/:slug` 列表入口（nav/footer）
-- [ ] 管理员 CRUD；发布开关；排序；nav/footer 展示开关
+- [x] 公开：`/page/:slug` 列表入口（nav/footer）— SSR
+- [x] 管理员 CRUD；发布开关；排序；nav/footer 展示开关 — SSR `/admin/pages`
 
 ---
 

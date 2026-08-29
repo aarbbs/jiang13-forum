@@ -1,0 +1,12 @@
+{{define "page/view"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+{{if .Flash}}<div class="j13-flash" role="status">{{.Flash}}</div>{{end}}
+<main class="j13-main j13-page">
+  <article class="j13-page__article">
+    <h1>{{.PageTitle}}</h1>
+    <div class="j13-page__body post-detail-content">{{.BodyHTML}}</div>
+  </article>
+</main>
+{{template "base/footer" .}}
+{{end}}

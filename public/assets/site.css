@@ -826,3 +826,16 @@ points-only[data-locked="false"] {
   overflow: hidden;
 }
 
+.j13-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2.5rem;
+}
+.j13-page__article h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+}
+.j13-page__body {
+  line-height: 1.65;
+}
+

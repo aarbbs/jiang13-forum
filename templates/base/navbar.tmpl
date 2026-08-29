@@ -12,6 +12,7 @@
         <a href="/#search">搜索</a>
         <a href="/boards">板块</a>
         {{if .ShowFriendLinksNav}}<a href="/links">友链</a>{{end}}
+        {{range .NavPages}}<a href="/page/{{.Slug}}">{{.Title}}</a>{{end}}
         {{if .LoggedIn}}
           <a href="/compose">发帖</a>
           <a href="/messages">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>

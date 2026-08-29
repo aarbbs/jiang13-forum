@@ -26,6 +26,13 @@ type Deps struct {
 	Points     *services.PointsService
 	FriendLink *services.FriendLinkApplyService
 	Mail       *services.MailService
+	SitePage   *services.SitePageService
+}
+
+// SitePageLink 导航/页脚站点单页链接
+type SitePageLink struct {
+	Title string
+	Slug  string
 }
 
 // BoardView 侧栏
@@ -110,6 +117,8 @@ type PageChrome struct {
 	ViewerPoints          int   // 登录用户当前积分；未登录为 0
 	ShowFriendLinksNav    bool
 	ShowFriendLinksFooter bool
+	NavPages              []SitePageLink
+	FooterPages           []SitePageLink
 	RightAside            RightAsideData
 }
 
@@ -149,6 +158,7 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 	if ctx.C != nil && ctx.C.Request != nil && ctx.C.Request.URL != nil {
 		path = ctx.C.Request.URL.Path
 	}
+	navPages, footerPages := d.sitePageLinks()
 	return PageChrome{
 		Title:                 title,
 		Description:           desc,
@@ -167,8 +177,31 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		ViewerPoints:          viewerPoints,
 		ShowFriendLinksNav:    d.Settings.NavShowFriendLinks(),
 		ShowFriendLinksFooter: d.Settings.FooterShowFriendLinks(),
+		NavPages:              navPages,
+		FooterPages:           footerPages,
 		RightAside:            d.loadRightAside(ctx, brand),
 	}
+}
+
+func (d Deps) sitePageLinks() (nav, footer []SitePageLink) {
+	nav, footer = []SitePageLink{}, []SitePageLink{}
+	if d.SitePage == nil {
+		return
+	}
+	list, err := d.SitePage.ListPublished()
+	if err != nil {
+		return
+	}
+	for _, p := range list {
+		link := SitePageLink{Title: p.Title, Slug: p.Slug}
+		if p.ShowInNav {
+			nav = append(nav, link)
+		}
+		if p.ShowInFooter {
+			footer = append(footer, link)
+		}
+	}
+	return
 }
 
 const (

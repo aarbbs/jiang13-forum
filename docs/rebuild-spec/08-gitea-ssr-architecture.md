@@ -96,4 +96,6 @@ Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_
 
 友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、nav/footer/aside 入口开关）。
 
-Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`。
+站点单页：公开 `/page/:slug`；nav/footer 按 `show_in_nav` / `show_in_footer` 注入；Admin `/admin/pages`（CRUD、发布、排序、展示开关）。
+
+Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`、`/admin/pages`。

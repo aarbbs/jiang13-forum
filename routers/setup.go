@@ -76,6 +76,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		}
 	}()
 
+	sitePageSvc := services.NewSitePageService(filter)
+
 	h := &api.Handlers{
 		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
@@ -84,7 +86,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
 		Points: services.NewPointsService(), Badge: services.NewBadgeService(),
-		SitePage:        services.NewSitePageService(filter),
+		SitePage:        sitePageSvc,
 		FriendLinkApply: friendLinkApplySvc,
 	}
 	authMW := auth.NewAuthMiddleware(authSvc)
@@ -103,6 +105,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Points:     services.NewPointsService(),
 		FriendLink: friendLinkApplySvc,
 		Mail:       mailSvc,
+		SitePage:   sitePageSvc,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)

@@ -37,7 +37,7 @@
 | `/links` | 友链 | 已迁 |
 | `/messages` | 私信/通知会话列表 | 已迁 |
 | `/messages/with/:peerId` | 会话详情（peer=0 系统通知） | 已迁 |
-| `/page/:slug` | 站点单页 | 未注册 |
+| `/page/:slug` | 站点单页 | 已迁 |
 | `*` | 404 / pending | 已迁 |
 
 ### 1.3 后台（Admin SSR，表单 + CSRF，不挂管理 JSON `/api`）
@@ -50,9 +50,10 @@
 | `/admin/moderation` | 待审帖/评 通过/拒绝 | 已迁 |
 | `/admin/settings` | 品牌 + 基础限流 + 敏感词 + SMTP | 已迁 |
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
+| `/admin/pages` | 站点单页 CRUD / 发布 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：reports / users / badges / media / pages / 完整 Limits 等。
+未迁（原 SPA）：reports / users / badges / media / 完整 Limits 等。
 
 ---
 
@@ -184,7 +185,7 @@
 |----|----------|
 | Dashboard | 看计数与待办；点进对应列表 |
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
-| Pages | 列表发布开关；进编辑器写正文；nav/footer 勾选 |
+| Pages | 列表发布开关；编辑正文（HTML textarea）；nav/footer 勾选 — SSR `/admin/pages` |
 | Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（完整侧栏组件编辑 / 复检按钮未迁） |
 | Posts | 按状态筛；通过/拒绝；置顶/版顶/精华/锁编/锁评；进回收站恢复/清除 |
 | Comments | 审核；修订查看；回收站 |

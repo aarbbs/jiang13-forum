@@ -66,6 +66,12 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/friend-links/brand/delete", deps.AdminFriendLinksBrandDeletePost)
 		admin.POST("/friend-links/applies/:id/approve", deps.AdminFriendLinkApprovePost)
 		admin.POST("/friend-links/applies/:id/reject", deps.AdminFriendLinkRejectPost)
+		admin.GET("/pages", deps.AdminPagesGet)
+		admin.POST("/pages", deps.AdminPageCreate)
+		admin.GET("/pages/:id/edit", deps.AdminPageEditGet)
+		admin.POST("/pages/:id", deps.AdminPageUpdate)
+		admin.POST("/pages/:id/delete", deps.AdminPageDelete)
+		admin.POST("/pages/:id/publish", deps.AdminPagePublishPost)
 	}
 
 	g.GET("/user/:id", deps.UserPublic)
@@ -87,6 +93,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.POST("/links/logo", authMW.RequireAuth(), deps.LinksLogoUpload)
 	g.GET("/projects", deps.PendingPage)
 	g.GET("/boards", deps.BoardsGet)
+	g.GET("/page/:slug", deps.SitePageGet)
 }
 
 // HomePageData Feed

@@ -3,6 +3,7 @@
     <p>
       {{.SiteName}}
       {{if .ShowFriendLinksFooter}} · <a href="/links">友情链接</a>{{end}}
+      {{range .FooterPages}} · <a href="/page/{{.Slug}}">{{.Title}}</a>{{end}}
     </p>
   </footer>
   <script src="/ssr-assets/site.js" defer></script>
