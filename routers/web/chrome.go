@@ -44,9 +44,11 @@ type SitePageLink struct {
 
 // BoardView 侧栏
 type BoardView struct {
-	ID   uint
-	Name string
-	Href string
+	ID        uint
+	Name      string
+	Href      string
+	PostCount int
+	ColorSlot int // 0–7 板块色槽
 }
 
 // RightAsideHotPost 右栏热门帖
@@ -122,6 +124,8 @@ type PageChrome struct {
 	LoggedIn              bool
 	IsAdmin               bool
 	ViewerName            string
+	ViewerAvatar          string
+	ViewerMark            string
 	Boards                []BoardView
 	ActiveBoard           uint
 	Path                  string // 当前请求路径，供侧栏高亮
@@ -158,19 +162,30 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 			name = ctx.Doer.Username
 		}
 	}
-	boards, _ := d.Board.List()
+	boards, _ := d.Board.ListWithStats()
 	bv := make([]BoardView, 0, len(boards))
 	pl := d.permalink()
 	for _, b := range boards {
-		bv = append(bv, BoardView{ID: b.ID, Name: b.Name, Href: pl.BoardPath(b.ID)})
+		slot := b.ColorIndex
+		if slot < 0 {
+			slot = int(b.ID % 8)
+		}
+		bv = append(bv, BoardView{
+			ID: b.ID, Name: b.Name, Href: pl.BoardPath(b.ID),
+			PostCount: b.PostCount, ColorSlot: slot % 8,
+		})
 	}
 	var unread int64
 	if ctx.IsSigned() && d.Message != nil {
 		unread, _ = d.Message.UnreadCount(ctx.UserID())
 	}
 	viewerPoints := 0
+	viewerAvatar := ""
+	viewerMark := "我"
 	if ctx.IsSigned() && ctx.Doer != nil {
 		viewerPoints = ctx.Doer.Points
+		viewerAvatar = strings.TrimSpace(ctx.Doer.Avatar)
+		viewerMark = firstRuneOr(name, "我")
 	}
 	path := ""
 	if ctx.C != nil && ctx.C.Request != nil && ctx.C.Request.URL != nil {
@@ -195,6 +210,8 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		LoggedIn:              ctx.IsSigned(),
 		IsAdmin:               ctx.IsAdmin(),
 		ViewerName:            name,
+		ViewerAvatar:          viewerAvatar,
+		ViewerMark:            viewerMark,
 		Boards:                bv,
 		Path:                  path,
 		Inner:                 inner,

@@ -1,14 +1,13 @@
 {{define "home/feed"}}
 <section class="j13-feed">
-  <header class="j13-feed__header">
-    <h1 class="j13-feed__title">{{if .BoardName}}{{.BoardName}}{{else}}全部帖子{{end}}</h1>
-    <div class="j13-sort" role="navigation" aria-label="排序">
-      <a class="{{if eq .Sort "latest"}}is-active{{end}}" href="{{.SortHref "latest"}}">最新发帖</a>
-      <a class="{{if eq .Sort "reply"}}is-active{{end}}" href="{{.SortHref "reply"}}">最新回复</a>
-      <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{.SortHref "hot"}}">热门讨论</a>
+  <header class="feed-toolbar j13-feed__header">
+    <div class="feed-sort-bar j13-sort" role="tablist" aria-label="排序">
+      <a role="tab" class="feed-sort-tab{{if eq .Sort "latest"}} active is-active{{end}}" href="{{.SortHref "latest"}}">最新发帖</a>
+      <a role="tab" class="feed-sort-tab{{if eq .Sort "reply"}} active is-active{{end}}" href="{{.SortHref "reply"}}">最新回复</a>
+      <a role="tab" class="feed-sort-tab{{if eq .Sort "hot"}} active is-active{{end}}" href="{{.SortHref "hot"}}">热门讨论</a>
     </div>
   </header>
-  <details class="j13-search-advanced" id="search"{{if or .HasSearch .TitleOnly .SearchError}} open{{end}}>
+  <details class="j13-search-advanced post-search-panel" id="search"{{if or .HasSearch .TitleOnly .SearchError}} open{{end}}>
     <summary class="j13-search-advanced__summary">高级搜索</summary>
     <form class="j13-search j13-search--toolbar" method="get" action="{{.FormAction}}" role="search">
       {{if and .Sort (ne .Sort "latest")}}<input type="hidden" name="sort" value="{{.Sort}}"/>{{end}}
@@ -37,33 +36,51 @@
   {{if not .Posts}}
   <p class="j13-empty">{{if .SearchError}}请调整搜索条件后重试。{{else if .HasSearch}}未找到匹配帖子。{{else}}暂无帖子。{{end}}</p>
   {{else}}
-  <ul class="j13-post-list">
+  <ul class="j13-post-list post-list">
     {{range .Posts}}
-    <li class="j13-post-item">
-      <div class="j13-post-item__avatar">
+    <li class="post-row post-row--v2{{if eq $.FeedListStyle "title"}} post-row--title-only{{end}}{{if .ThumbURL}} post-row--has-thumb{{end}}">
+      <div class="post-avatar">
         {{if .AvatarURL}}
-        <img src="{{.AvatarURL}}" alt="" width="40" height="40"/>
+        <img src="{{.AvatarURL}}" alt=""/>
         {{else}}
-        <span class="j13-post-item__mark" aria-hidden="true">{{.AuthorMark}}</span>
+        <span>{{.AuthorMark}}</span>
         {{end}}
       </div>
-      <div class="j13-post-item__body">
-        <div class="j13-post-item__byline">
-          {{if .AuthorHref}}<a href="{{.AuthorHref}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
-          <span class="j13-post-item__time">{{.CreatedLabel}}</span>
+      <div class="post-main{{if .ThumbURL}} post-main--with-thumb{{end}}">
+        <div class="post-content">
+          <div class="post-title-row">
+            {{if .Pinned}}<span class="post-pin-badge">全局置顶</span>{{end}}
+            {{if .BoardPinned}}<span class="post-pin-badge post-pin-badge--board">板块置顶</span>{{end}}
+            {{if .Featured}}<span class="post-feature-badge">精华</span>{{end}}
+            <a class="post-title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
+          </div>
+          {{if and $.ShowExcerpt .Excerpt}}<p class="post-excerpt">{{.Excerpt}}</p>{{end}}
+          <div class="post-meta post-meta--inline">
+            <div class="post-meta-left">
+              {{if .ShowBoardBadge}}
+              <a class="post-list-board-badge board-badge--{{.BoardColorSlot}}" href="{{.BoardHref}}">{{.BoardName}}</a>
+              {{end}}
+              {{if .AuthorHref}}<a class="post-meta-author" href="{{.AuthorHref}}">{{.AuthorName}}</a>{{else}}<span class="post-meta-author">{{.AuthorName}}</span>{{end}}
+              <span class="post-meta-sep" aria-hidden>·</span>
+              <span class="post-meta-time">{{.CreatedLabel}}</span>
+              {{if .ShowLastReply}}
+              <span class="post-meta-last-reply">
+                <span aria-hidden>←</span>
+                {{if .LastReplyHref}}<a href="{{.LastReplyHref}}">{{.LastReplyName}}</a>{{else}}<span>{{.LastReplyName}}</span>{{end}}
+                <span>{{.LastReplyLabel}}</span>
+              </span>
+              {{end}}
+            </div>
+          </div>
         </div>
-        <a class="j13-post-item__title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
-        {{if .Excerpt}}<p class="j13-post-item__excerpt">{{.Excerpt}}</p>{{end}}
-        <div class="j13-post-item__meta">
-          {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
-          {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
-          {{if .BoardName}}<span class="j13-tag">{{.BoardName}}</span>{{end}}
+        <div class="post-aside">
+          {{if .ThumbURL}}
+          <a class="post-thumb" href="{{.Href}}" tabindex="-1" aria-hidden="true"><img src="{{.ThumbURL}}" alt=""/></a>
+          {{end}}
+          <div class="post-stats">
+            <span class="post-stat" title="回复"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg> {{.CommentCount}}</span>
+          </div>
         </div>
-      </div>
-      <div class="j13-post-item__stats" aria-label="互动">
-        <span title="回复"><strong>{{.CommentCount}}</strong> 回复</span>
-        <span title="赞"><strong>{{.LikeCount}}</strong> 赞</span>
-        <span title="阅读"><strong>{{.ViewCount}}</strong> 阅读</span>
       </div>
     </li>
     {{end}}

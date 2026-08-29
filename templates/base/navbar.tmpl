@@ -1,56 +1,66 @@
 {{define "base/navbar"}}
-  <header class="j13-header">
-    <div class="j13-header__inner">
-      <a class="j13-brand" href="/">
+  <header class="j13-header app-header">
+    <div class="j13-header__inner header-inner">
+      <a class="j13-brand header-brand" href="/">
         {{if .LogoURL}}
-        <img class="j13-brand__logo" src="{{.LogoURL}}" alt="{{.SiteName}}"/>
+        <img class="j13-brand__logo header-logo-mark" src="{{.LogoURL}}" alt="{{.SiteName}}"/>
         {{else}}
-        <span class="j13-brand__mark">{{.LogoMark}}</span>
+        <span class="j13-brand__mark header-logo-mark">{{.LogoMark}}</span>
         {{end}}
-        <span class="j13-brand__text">
-          <strong>{{.SiteName}}</strong>
-          {{if .Slogan}}<span class="j13-brand__slogan">{{.Slogan}}</span>{{end}}
-        </span>
+        <span class="header-logo-text">{{.SiteName}}</span>
       </a>
-      <form class="j13-header-search" method="get" action="/" role="search">
-        <label class="j13-header-search__label">
-          <span class="j13-visually-hidden">搜索帖子</span>
-          <input type="search" name="keyword" placeholder="搜索帖子…" autocomplete="off"/>
-        </label>
+      <form class="header-search-wrap" method="get" action="/" role="search" id="j13-header-search">
+        <div class="header-search-row">
+          <svg class="header-search-icon" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 015.95 12.1l4.22 4.23a1 1 0 01-1.42 1.41l-4.22-4.22A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"/></svg>
+          <input class="header-search-input" id="j13-header-search-input" type="search" name="keyword" value="" placeholder="搜索帖子…" autocomplete="off"/>
+          <button type="button" class="header-search-filter-btn" id="j13-search-filter-btn" aria-label="高级筛选" title="高级筛选">
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5h18v2.17L14 14v5l-4 2v-7L3 7.17V5z"/></svg>
+          </button>
+          <kbd class="header-search-kbd" aria-hidden="true">Ctrl K</kbd>
+        </div>
       </form>
-      <div class="j13-header__actions">
+      <div class="header-actions">
         {{if .LoggedIn}}
-          <a class="j13-btn j13-btn--compose" href="/compose">+ 发帖</a>
+          <a class="header-compose-btn" href="/compose"><span aria-hidden="true">+</span> 发帖</a>
         {{else}}
-          <a class="j13-btn j13-btn--compose" href="/login">登录</a>
-          <a class="j13-header__textlink" href="/register">注册</a>
+          <a class="header-compose-btn" href="/login">登录</a>
         {{end}}
-        <button type="button" class="j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">
-          <svg class="j13-theme-toggle__icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v1.06a7.5 7.5 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/>
-          </svg>
-          <span class="j13-theme-toggle__label">主题</span>
-        </button>
-        {{if .LoggedIn}}
-          <a class="j13-header__iconlink" href="/messages" title="私信">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>
-          <a class="j13-header__user" href="/profile" title="个人中心">{{.ViewerName}}</a>
-        {{end}}
-        <details class="j13-more">
-          <summary>更多</summary>
-          <div class="j13-more__menu" role="menu">
-            <a href="/boards" role="menuitem">板块</a>
-            {{if .ShowFriendLinksNav}}<a href="/links" role="menuitem">友链</a>{{end}}
-            {{range .NavPages}}<a href="/page/{{.Slug}}" role="menuitem">{{.Title}}</a>{{end}}
-            {{if .LoggedIn}}
-              <a href="/favorites" role="menuitem">收藏</a>
-              {{if .IsAdmin}}<a href="/admin/dashboard" role="menuitem">后台</a>{{end}}
-              <form method="post" action="/logout">
-                <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
-                <button type="submit" role="menuitem">退出</button>
-              </form>
-            {{end}}
-          </div>
-        </details>
+        <div class="header-action-group">
+          <button type="button" class="header-icon-btn j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">
+            <svg class="j13-theme-toggle__icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 14.3A8.5 8.5 0 019.7 3 7 7 0 1019 16.5c.7-.6 1.3-1.4 2-2.2z"/></svg>
+            <span class="j13-visually-hidden j13-theme-toggle__label">主题</span>
+          </button>
+          {{if .LoggedIn}}
+            <a class="header-icon-btn" href="/messages" title="私信" aria-label="私信">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 2v.51l8 5.33 8-5.33V6H4zm16 3.04l-7.45 4.97a1 1 0 01-1.1 0L4 9.04V18h16V9.04z"/></svg>
+              {{if gt .UnreadCount 0}}<span class="j13-badge">{{.UnreadCount}}</span>{{end}}
+            </a>
+            <details class="j13-more header-user-menu">
+              <summary class="header-user-btn" title="{{.ViewerName}}">
+                {{if .ViewerAvatar}}
+                <img class="header-user-avatar" src="{{.ViewerAvatar}}" alt=""/>
+                {{else}}
+                <span class="header-user-initial">{{.ViewerMark}}</span>
+                {{end}}
+              </summary>
+              <div class="j13-more__menu" role="menu">
+                <a href="/profile" role="menuitem">{{.ViewerName}} · {{.ViewerPoints}} 积分</a>
+                <a href="/favorites" role="menuitem">收藏</a>
+                <a href="/messages" role="menuitem">私信</a>
+                {{if .IsAdmin}}<a href="/admin/dashboard" role="menuitem">后台</a>{{end}}
+                {{if .ShowFriendLinksNav}}<a href="/links" role="menuitem">友链</a>{{end}}
+                {{range .NavPages}}<a href="/page/{{.Slug}}" role="menuitem">{{.Title}}</a>{{end}}
+                <a href="/boards" role="menuitem">板块</a>
+                <form method="post" action="/logout">
+                  <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+                  <button type="submit" role="menuitem">退出</button>
+                </form>
+              </div>
+            </details>
+          {{else}}
+            <a class="header-login-btn" href="/register">注册</a>
+          {{end}}
+        </div>
       </div>
     </div>
   </header>

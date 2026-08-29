@@ -60,6 +60,33 @@ document.documentElement.dataset.j13Ssr = "1";
   }
 })();
 
+(function headerSearchUX() {
+  var input = document.getElementById("j13-header-search-input");
+  var filterBtn = document.getElementById("j13-search-filter-btn");
+  var advanced = document.getElementById("search");
+  if (filterBtn && advanced) {
+    filterBtn.addEventListener("click", function () {
+      advanced.open = true;
+      filterBtn.classList.add("header-search-filter-btn--active");
+      var kw = advanced.querySelector('input[name="keyword"]');
+      if (kw) kw.focus();
+      advanced.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey) || (e.key !== "k" && e.key !== "K")) return;
+    var tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || (e.target && e.target.isContentEditable)) {
+      if (e.target === input) return;
+    }
+    e.preventDefault();
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+})();
+
 (function mdEditors() {
   function insertAtCursor(textarea, text) {
     const start = textarea.selectionStart || 0;

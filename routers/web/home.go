@@ -148,40 +148,52 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 // HomePageData Feed
 type HomePageData struct {
 	PageChrome
-	BoardName   string
-	Sort        string
-	Keyword     string
-	Tag         string
-	Author      string
-	TitleOnly   bool
-	HasSearch   bool
-	SearchError string
-	Posts       []PostListItem
-	Page        int
-	PrevPage    int
-	NextPage    int
-	HasPrev     bool
-	HasMore     bool
+	BoardName     string
+	Sort          string
+	Keyword       string
+	Tag           string
+	Author        string
+	TitleOnly     bool
+	HasSearch     bool
+	SearchError   string
+	FeedListStyle string // title|excerpt|thumbnail
+	ShowExcerpt   bool
+	Posts         []PostListItem
+	Page          int
+	PrevPage      int
+	NextPage      int
+	HasPrev       bool
+	HasMore       bool
 }
 
-// PostListItem 列表项
+// PostListItem 列表项（对齐 main SPA post-row--v2）
 type PostListItem struct {
-	ID           uint
-	Title        string
-	Href         string
-	AuthorID     uint
-	AuthorName   string
-	AuthorHref   string
-	AvatarURL    string
-	AuthorMark   string // 无头像时的单字占位
-	BoardName    string
-	Excerpt      string
-	Pinned       bool
-	Featured     bool
-	CommentCount int
-	LikeCount    int
-	ViewCount    int
-	CreatedLabel string
+	ID               uint
+	Title            string
+	Href             string
+	AuthorID         uint
+	AuthorName       string
+	AuthorHref       string
+	AvatarURL        string
+	AuthorMark       string
+	BoardID          uint
+	BoardName        string
+	BoardHref        string
+	BoardColorSlot   int
+	ShowBoardBadge   bool
+	Excerpt          string
+	ThumbURL         string
+	Pinned           bool
+	BoardPinned      bool
+	Featured         bool
+	CommentCount     int
+	LikeCount        int
+	ViewCount        int
+	CreatedLabel     string
+	LastReplyLabel   string
+	LastReplyName    string
+	LastReplyHref    string
+	ShowLastReply    bool
 }
 
 // FormAction 搜索表单提交路径（当前 Feed）
@@ -274,19 +286,24 @@ func (d Deps) Home(c *gin.Context) {
 		chrome.Title = boardName + " · " + chrome.SiteName
 	}
 
+	feedStyle := d.Settings.FeedListStyle()
+	showExcerpt := feedStyle == "excerpt" || feedStyle == "thumbnail"
+
 	data := HomePageData{
-		PageChrome: chrome,
-		BoardName:  boardName,
-		Sort:       sort,
-		Keyword:    keyword,
-		Tag:        tag,
-		Author:     author,
-		TitleOnly:  titleOnly,
-		HasSearch:  hasSearch,
-		Page:       page,
-		PrevPage:   page - 1,
-		NextPage:   page + 1,
-		HasPrev:    page > 1,
+		PageChrome:    chrome,
+		BoardName:     boardName,
+		Sort:          sort,
+		Keyword:       keyword,
+		Tag:           tag,
+		Author:        author,
+		TitleOnly:     titleOnly,
+		HasSearch:     hasSearch,
+		FeedListStyle: feedStyle,
+		ShowExcerpt:   showExcerpt,
+		Page:          page,
+		PrevPage:      page - 1,
+		NextPage:      page + 1,
+		HasPrev:       page > 1,
 	}
 
 	listKW := keyword
@@ -333,14 +350,29 @@ func (d Deps) Home(c *gin.Context) {
 			authorName = it.User.Username
 		}
 		bname := ""
+		boardHref := ""
+		boardSlot := 0
 		if it.Board.ID > 0 {
 			bname = it.Board.Name
+			boardHref = pl.BoardPath(it.Board.ID)
+			boardSlot = it.Board.ColorIndex
+			if boardSlot < 0 {
+				boardSlot = int(it.Board.ID % 8)
+			}
+			boardSlot = boardSlot % 8
 		}
-		excerptSrc := strings.TrimSpace(it.ContentPlain)
-		if excerptSrc == "" {
-			excerptSrc = services.ExcerptFromHTML(it.Content, 100)
-		} else {
-			excerptSrc = services.TruncateRunes(excerptSrc, 100)
+		excerptSrc := ""
+		thumbURL := ""
+		if showExcerpt {
+			excerptSrc = strings.TrimSpace(it.ContentPlain)
+			if excerptSrc == "" {
+				excerptSrc = services.ExcerptFromHTML(it.Content, 60)
+			} else {
+				excerptSrc = services.TruncateRunes(excerptSrc, 60)
+			}
+		}
+		if feedStyle == "thumbnail" {
+			thumbURL = services.FirstImageURL(it.Content)
 		}
 		avatar := strings.TrimSpace(it.User.Avatar)
 		authorID := it.UserID
@@ -348,14 +380,44 @@ func (d Deps) Home(c *gin.Context) {
 		if authorID > 0 {
 			authorHref = pl.UserPath(authorID)
 		}
+		createdLabel := formatRelativeTime(it.CreatedAt)
+		if sort == "reply" && it.LastReplyAt == nil {
+			createdLabel = "暂无回复"
+		}
+		lastReplyName := ""
+		lastReplyHref := ""
+		lastReplyLabel := ""
+		showLast := false
+		if it.LastReplyAt != nil {
+			showLast = true
+			lastReplyLabel = formatRelativeTime(*it.LastReplyAt)
+			if it.LastReplyUser != nil {
+				lastReplyName = strings.TrimSpace(it.LastReplyUser.Nickname)
+				if lastReplyName == "" {
+					lastReplyName = it.LastReplyUser.Username
+				}
+				if it.LastReplyUser.ID > 0 {
+					lastReplyHref = pl.UserPath(it.LastReplyUser.ID)
+				}
+			} else {
+				lastReplyName = strings.TrimSpace(it.LastReplyGuestNick)
+			}
+			if lastReplyName == "" {
+				showLast = false
+			}
+		}
 		posts = append(posts, PostListItem{
 			ID: it.ID, Title: it.Title, Href: pl.PostPath(it.ID),
 			AuthorID: authorID, AuthorName: authorName, AuthorHref: authorHref,
 			AvatarURL: avatar, AuthorMark: firstRuneOr(authorName, "姜"),
-			BoardName: bname, Excerpt: excerptSrc,
-			Pinned: it.Pinned, Featured: it.Featured,
+			BoardID: it.BoardID, BoardName: bname, BoardHref: boardHref,
+			BoardColorSlot: boardSlot, ShowBoardBadge: boardID == 0 && it.Board.ID > 0,
+			Excerpt: excerptSrc, ThumbURL: thumbURL,
+			Pinned: it.Pinned, BoardPinned: it.BoardPinned, Featured: it.Featured,
 			CommentCount: it.CommentCount, LikeCount: it.LikeCount, ViewCount: it.ViewCount,
-			CreatedLabel: formatRelativeTime(it.CreatedAt),
+			CreatedLabel: createdLabel,
+			LastReplyLabel: lastReplyLabel, LastReplyName: lastReplyName,
+			LastReplyHref: lastReplyHref, ShowLastReply: showLast,
 		})
 	}
 

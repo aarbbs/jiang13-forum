@@ -1,14 +1,22 @@
 {{define "shared/board_aside"}}
-<aside class="j13-aside j13-aside--left">
-  <p class="j13-aside__section">浏览</p>
-  <a class="j13-aside__link{{if and (eq .ActiveBoard 0) (ne .Path "/boards") (ne .Path "/favorites")}} is-active{{end}}" href="/">全部帖子</a>
-  {{if .LoggedIn}}
-  <a class="j13-aside__link{{if eq .Path "/favorites"}} is-active{{end}}" href="/favorites">我的收藏</a>
-  {{end}}
-  <a class="j13-aside__link{{if eq .Path "/boards"}} is-active{{end}}" href="/boards">全部板块</a>
-  <p class="j13-aside__section">板块</p>
-  {{range .Boards}}
-  <a class="j13-aside__link{{if eq $.ActiveBoard .ID}} is-active{{end}}" href="{{.Href}}">{{.Name}}</a>
-  {{end}}
+<aside class="j13-aside j13-aside--left sidebar" aria-label="导航">
+  <p class="sidebar-section">浏览</p>
+  <nav class="sidebar-nav">
+    <a class="sidebar-nav-item{{if and (eq .ActiveBoard 0) (ne .Path "/boards") (ne .Path "/favorites")}} active{{end}}" href="/">全部帖子</a>
+    {{if .LoggedIn}}
+    <a class="sidebar-nav-item{{if eq .Path "/favorites"}} active{{end}}" href="/favorites">我的收藏</a>
+    {{end}}
+    <a class="sidebar-nav-item{{if eq .Path "/boards"}} active{{end}}" href="/boards">全部板块</a>
+  </nav>
+  <p class="sidebar-section sidebar-section--boards">板块</p>
+  <nav class="sidebar-nav">
+    {{range .Boards}}
+    <a class="sidebar-nav-item sidebar-nav-item--board sidebar-nav-item--board-{{.ColorSlot}}{{if eq $.ActiveBoard .ID}} active{{end}}" href="{{.Href}}">
+      <span class="sidebar-board-icon sidebar-board-icon--{{.ColorSlot}}" aria-hidden="true">◆</span>
+      <span>{{.Name}}</span>
+      <span class="sidebar-nav-item__meta">{{.PostCount}}</span>
+    </a>
+    {{end}}
+  </nav>
 </aside>
 {{end}}
