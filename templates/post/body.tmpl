@@ -24,6 +24,7 @@
         <button type="submit">{{if .Favorited}}取消收藏{{else}}收藏{{end}}</button>
       </form>
       {{if .CanEdit}}<a class="j13-linkbtn" href="/post/{{.PostID}}/edit">编辑</a>{{end}}
+      {{if .CanViewRevisions}}<a class="j13-linkbtn" href="/post/{{.PostID}}/revisions">修订历史</a>{{end}}
       {{if .CanReportPost}}
       <details class="j13-report">
         <summary class="j13-linkbtn">举报</summary>

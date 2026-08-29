@@ -1,0 +1,19 @@
+{{define "post/revision_detail"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-main--solo">
+  <p class="j13-muted">
+    <a href="/post/{{.PostID}}/revisions">← 修订列表</a>
+    · <a href="/post/{{.PostID}}">当前帖子</a>
+  </p>
+  <h1>修订 #{{.RevID}}</h1>
+  <p class="j13-muted">{{.EditorName}} · {{.CreatedLabel}}</p>
+  {{template "base/alert" .}}
+  <article class="j13-post j13-rev-snapshot">
+    <h2 class="j13-post__title">{{.Title}}</h2>
+    {{if .Tags}}<p class="j13-muted">标签：{{.Tags}}</p>{{end}}
+    <div class="j13-post__body">{{safeHTML .BodyHTML}}</div>
+  </article>
+</main>
+{{template "base/footer" .}}
+{{end}}

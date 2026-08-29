@@ -22,6 +22,8 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.GET("/post/:id", deps.PostView)
 	g.GET("/post/:id/edit", authMW.RequireAuth(), deps.PostEditGet)
 	g.POST("/post/:id/edit", authMW.RequireAuth(), deps.PostEditPost)
+	g.GET("/post/:id/revisions", authMW.RequireAuth(), deps.PostRevisionsGet)
+	g.GET("/post/:id/revisions/:rid", authMW.RequireAuth(), deps.PostRevisionDetailGet)
 	g.POST("/post/:id/comments", authMW.RequireAuth(), deps.PostComment)
 	g.GET("/post/:id/comments/:cid/edit", authMW.RequireAuth(), deps.CommentEditGet)
 	g.POST("/post/:id/comments/:cid/edit", authMW.RequireAuth(), deps.CommentEditPost)

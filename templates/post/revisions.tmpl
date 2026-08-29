@@ -1,0 +1,24 @@
+{{define "post/revisions"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-main--solo">
+  <h1>修订历史</h1>
+  <p class="j13-muted"><a href="/post/{{.PostID}}">← {{.PostTitle}}</a></p>
+  {{template "base/alert" .}}
+  {{if .Revisions}}
+  <ul class="j13-rev-list">
+    {{range .Revisions}}
+    <li class="j13-rev-item">
+      <a href="/post/{{$.PostID}}/revisions/{{.ID}}">
+        <strong>{{.Title}}</strong>
+        <span class="j13-muted">{{.EditorName}} · {{.CreatedLabel}}</span>
+      </a>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="j13-empty">暂无修订记录。编辑帖子后会在此保存旧版本。</p>
+  {{end}}
+</main>
+{{template "base/footer" .}}
+{{end}}

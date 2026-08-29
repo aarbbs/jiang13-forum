@@ -40,6 +40,7 @@ type PostPageData struct {
 	Comments       []CommentView
 	CommentsLocked bool
 	CanEdit        bool
+	CanViewRevisions bool
 	CanReportPost  bool
 	IsAdmin        bool
 }
@@ -143,6 +144,7 @@ func (d Deps) PostView(c *gin.Context) {
 		BodyHTML: body, CommentCount: len(cv), Comments: cv,
 		CommentsLocked: post.CommentsLocked,
 		CanEdit:        d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
+		CanViewRevisions: canViewPostRevisions(post, ctx.UserID(), ctx.IsAdmin()),
 		CanReportPost:  ctx.IsSigned() && post.UserID != ctx.UserID(),
 		IsAdmin:        ctx.IsAdmin(),
 	})
@@ -454,6 +456,116 @@ func commentHTMLToPlain(s string) string {
 	s = strings.TrimPrefix(s, "<p>")
 	s = strings.TrimSuffix(s, "</p>")
 	return html.UnescapeString(s)
+}
+
+type postRevisionRow struct {
+	ID         uint
+	EditorName string
+	Title      string
+	CreatedLabel string
+}
+
+type postRevisionsData struct {
+	PageChrome
+	PostID    uint
+	PostTitle string
+	Revisions []postRevisionRow
+}
+
+type postRevisionDetailData struct {
+	PageChrome
+	PostID       uint
+	PostTitle    string
+	RevID        uint
+	EditorName   string
+	CreatedLabel string
+	Title        string
+	Tags         string
+	BodyHTML     string
+}
+
+// PostRevisionsGet 帖子修订历史列表（作者或管理员）
+func (d Deps) PostRevisionsGet(c *gin.Context) {
+	ctx := d.ctx(c)
+	post, ok := d.loadRevisionPost(ctx, c)
+	if !ok {
+		return
+	}
+	revs, err := d.Post.ListRevisions(post.ID)
+	if err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", post.ID))
+		return
+	}
+	rows := make([]postRevisionRow, 0, len(revs))
+	for _, r := range revs {
+		name := displayName(&r.Editor)
+		if name == "" {
+			name = fmt.Sprintf("用户 #%d", r.EditorID)
+		}
+		rows = append(rows, postRevisionRow{
+			ID: r.ID, EditorName: name, Title: r.Title, CreatedLabel: formatTime(r.CreatedAt),
+		})
+	}
+	chrome := d.chrome(ctx, "修订历史 · "+post.Title+" · "+d.Settings.SiteBranding().Name, "", "")
+	ctx.HTML(http.StatusOK, "post/revisions", postRevisionsData{
+		PageChrome: chrome, PostID: post.ID, PostTitle: post.Title, Revisions: rows,
+	})
+}
+
+// PostRevisionDetailGet 单条修订快照
+func (d Deps) PostRevisionDetailGet(c *gin.Context) {
+	ctx := d.ctx(c)
+	post, ok := d.loadRevisionPost(ctx, c)
+	if !ok {
+		return
+	}
+	rid, err := strconv.ParseUint(c.Param("rid"), 10, 64)
+	if err != nil || rid == 0 {
+		d.render404(ctx)
+		return
+	}
+	rev, err := d.Post.GetRevision(post.ID, uint(rid))
+	if err != nil {
+		d.render404(ctx)
+		return
+	}
+	name := displayName(&rev.Editor)
+	if name == "" {
+		name = fmt.Sprintf("用户 #%d", rev.EditorID)
+	}
+	chrome := d.chrome(ctx, "修订 #"+strconv.FormatUint(rid, 10)+" · "+post.Title+" · "+d.Settings.SiteBranding().Name, "", "")
+	ctx.HTML(http.StatusOK, "post/revision_detail", postRevisionDetailData{
+		PageChrome: chrome, PostID: post.ID, PostTitle: post.Title,
+		RevID: rev.ID, EditorName: name, CreatedLabel: formatTime(rev.CreatedAt),
+		Title: rev.Title, Tags: rev.Tags, BodyHTML: rev.Content,
+	})
+}
+
+func (d Deps) loadRevisionPost(ctx *webctx.Context, c *gin.Context) (*models.Post, bool) {
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return nil, false
+	}
+	post, err := d.Post.FindByID(id)
+	if err != nil || !services.CanViewPost(post, ctx.UserID(), ctx.IsAdmin()) {
+		d.render404(ctx)
+		return nil, false
+	}
+	if !canViewPostRevisions(post, ctx.UserID(), ctx.IsAdmin()) {
+		ctx.SetFlash("无权查看编辑历史")
+		ctx.Redirect(fmt.Sprintf("/post/%d", post.ID))
+		return nil, false
+	}
+	return post, true
+}
+
+func canViewPostRevisions(post *models.Post, userID uint, isAdmin bool) bool {
+	if post == nil || userID == 0 {
+		return false
+	}
+	return isAdmin || post.UserID == userID
 }
 
 func parsePostID(c *gin.Context, d Deps) (uint, error) {

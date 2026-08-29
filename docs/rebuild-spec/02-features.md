@@ -59,7 +59,7 @@
 - [ ] Markdown 编辑模式（与富文本互转/双模）
 - [x] 编辑帖子（时限、锁帖约束）— SSR `/post/:id/edit`
 - [x] 删除帖子 → 软删进回收站 — SSR Admin（帖详情 + `/admin/trash`）
-- [ ] 修订历史列表与单条详情（可做 diff）
+- [x] 修订历史列表与单条详情（可做 diff）— SSR `/post/:id/revisions`（作者/管理员；无 diff）
 - [x] 点赞切换；收藏切换；收藏列表 — SSR `/favorites`
 - [x] 浏览量 — 详情页计数
 - [x] 举报帖子 — SSR 表单 + `/admin/reports`
