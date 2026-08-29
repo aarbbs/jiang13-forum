@@ -82,6 +82,12 @@
               <button type="submit">拒绝</button>
             </form>
             {{end}}
+            {{if .CanRecheck}}
+            <form method="post" action="/admin/friend-links/applies/{{.ID}}/recheck" class="j13-inline-form">
+              <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+              <button type="submit" class="j13-btn-secondary">复检</button>
+            </form>
+            {{end}}
           </td>
         </tr>
         {{end}}

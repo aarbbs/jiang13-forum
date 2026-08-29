@@ -188,7 +188,7 @@
 | Dashboard | 看计数与待办；点进对应列表 |
 | Boards | 拖拽或数字排序；图标/色板选择；增删改 |
 | Pages | 列表发布开关；编辑正文（HTML textarea）；nav/footer 勾选 — SSR `/admin/pages` |
-| Links | 品牌友链增删；申请通过/拒绝；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（aside 与 Settings 侧栏组件共用 `aside_widgets`；复检按钮未迁） |
+| Links | 品牌友链增删；申请通过/拒绝/回链复检；回链检测开关；nav/footer/aside 开关 — SSR `/admin/friend-links`（aside 与 Settings 侧栏组件共用 `aside_widgets`） |
 | Posts | 审核通过/拒绝 — SSR `/admin/moderation`；置顶/版顶/精华/锁编/锁评/软删 — 帖详情 Admin 条；回收站恢复/清除 — SSR `/admin/trash` |
 | Comments | 审核 — SSR `/admin/moderation`；修订查看未迁 |
 | Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |

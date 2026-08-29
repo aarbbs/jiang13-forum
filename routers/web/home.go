@@ -84,6 +84,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/friend-links/brand/delete", deps.AdminFriendLinksBrandDeletePost)
 		admin.POST("/friend-links/applies/:id/approve", deps.AdminFriendLinkApprovePost)
 		admin.POST("/friend-links/applies/:id/reject", deps.AdminFriendLinkRejectPost)
+		admin.POST("/friend-links/applies/:id/recheck", deps.AdminFriendLinkRecheckPost)
 		admin.GET("/pages", deps.AdminPagesGet)
 		admin.POST("/pages", deps.AdminPageCreate)
 		admin.GET("/pages/:id/edit", deps.AdminPageEditGet)

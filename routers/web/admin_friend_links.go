@@ -32,6 +32,7 @@ type adminFriendLinkApplyRow struct {
 	RecipNote   string
 	CreatedAt   string
 	CanReview   bool
+	CanRecheck  bool
 }
 
 type adminFriendLinksData struct {
@@ -92,6 +93,7 @@ func (d Deps) renderAdminFriendLinks(ctx *webctx.Context, errMsg string) {
 				RecipNote:   a.ReciprocalCheckNote,
 				CreatedAt:   a.CreatedAt.Format("2006-01-02 15:04"),
 				CanReview:   a.Status == models.FriendLinkApplyStatusPending,
+				CanRecheck:  data.ReciprocalCheck && strings.TrimSpace(a.ReciprocalPageURL) != "",
 			})
 		}
 	}
@@ -208,5 +210,25 @@ func (d Deps) AdminFriendLinkRejectPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("已拒绝友链申请")
+	ctx.Redirect("/admin/friend-links")
+}
+
+// AdminFriendLinkRecheckPost 重新检测回链
+func (d Deps) AdminFriendLinkRecheckPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminFriendLinks(ctx, "无效请求，请重试")
+		return
+	}
+	if d.FriendLink == nil {
+		d.renderAdminFriendLinks(ctx, "友链服务未就绪")
+		return
+	}
+	id64, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if _, err := d.FriendLink.RecheckReciprocal(uint(id64), d.publicBaseURL(c)); err != nil {
+		d.renderAdminFriendLinks(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash("已开始重新检测回链")
 	ctx.Redirect("/admin/friend-links")
 }
