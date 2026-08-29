@@ -357,6 +357,13 @@ func (d Deps) AdminCommentApprove(c *gin.Context) {
 	if err := d.Comment.SetStatus(uint(id), models.ContentStatusPublished); err != nil {
 		ctx.SetFlash(err.Error())
 	} else {
+		if d.Notify != nil {
+			if comment, err := d.Comment.GetByID(uint(id)); err == nil {
+				comment.Status = models.ContentStatusPublished
+				d.Notify.AsyncNotifyCommentPublished(comment)
+				d.Notify.AsyncNotifyCommentMentions(comment)
+			}
+		}
 		ctx.SetFlash("评论已通过")
 	}
 	ctx.Redirect("/admin/moderation")

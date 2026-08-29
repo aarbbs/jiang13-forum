@@ -4,10 +4,19 @@
 <main class="j13-main j13-messages">
   <p><a href="/messages">← 返回会话列表</a></p>
   <h1>{{.PeerName}}</h1>
-  {{if .IsSystem}}<p class="j13-muted">系统通知（只读）</p>{{else}}<p class="j13-muted"><a href="/user/{{.PeerID}}">查看主页</a></p>{{end}}
+  {{if .IsSystem}}
+  <p class="j13-muted">系统通知（只读）</p>
+  {{if .KindLinks}}
+  <nav class="j13-msg-kinds" aria-label="通知类型">
+    {{range .KindLinks}}
+    <a href="{{.URL}}"{{if .Active}} class="is-active" aria-current="page"{{end}}>{{.Label}}</a>
+    {{end}}
+  </nav>
+  {{end}}
+  {{else}}<p class="j13-muted"><a href="/user/{{.PeerID}}">查看主页</a></p>{{end}}
   {{template "base/alert" .}}
 
-  {{if .HasOlder}}
+  {{if and .HasOlder (or (not .IsSystem) (eq .KindFilter "all") (eq .KindFilter ""))}}
   <p><a href="/messages/with/{{.PeerID}}?before={{.OlderBefore}}">加载更早消息</a></p>
   {{end}}
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"git.iioio.com/freefire/jiang13-forum/models"
 	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
@@ -52,6 +53,15 @@ type messagesThreadData struct {
 	OlderBefore uint
 	HasOlder    bool
 	Draft       string
+	KindFilter  string
+	KindLinks   []msgKindLink
+}
+
+type msgKindLink struct {
+	Kind  string
+	Label string
+	URL   string
+	Active bool
 }
 
 // MessagesList GET /messages
@@ -121,9 +131,22 @@ func (d Deps) renderMessagesThread(c *gin.Context, peerID uint, errMsg, beforeRa
 	uid := ctx.UserID()
 	before, _ := strconv.ParseUint(beforeRaw, 10, 64)
 	size := 40
-	list, total, err := d.Message.ListConversationMessages(services.ConversationMessagesQuery{
-		UserID: uid, PeerID: peerID, Page: 1, Size: size, Before: uint(before),
-	})
+	kindFilter := ""
+	if peerID == 0 {
+		kindFilter = normalizeNotifyKind(c.Query("kind"))
+	}
+
+	var list []models.PrivateMessage
+	var total int64
+	var err error
+	if peerID == 0 && kindFilter != "" && kindFilter != "all" {
+		list, total, err = d.Message.ListNotifications(uid, 1, size, kindFilter)
+		_ = before // kind 筛选暂不分页 before
+	} else {
+		list, total, err = d.Message.ListConversationMessages(services.ConversationMessagesQuery{
+			UserID: uid, PeerID: peerID, Page: 1, Size: size, Before: uint(before),
+		})
+	}
 	if err != nil {
 		ctx.SetFlash(err.Error())
 		ctx.Redirect("/messages")
@@ -156,21 +179,69 @@ func (d Deps) renderMessagesThread(c *gin.Context, peerID uint, errMsg, beforeRa
 		})
 	}
 	hasOlder := false
-	if oldest > 0 {
-		if before == 0 {
-			hasOlder = total > int64(len(list))
-		} else {
-			hasOlder = len(list) >= size
+	if peerID != 0 || kindFilter == "" || kindFilter == "all" {
+		if oldest > 0 {
+			if before == 0 {
+				hasOlder = total > int64(len(list))
+			} else {
+				hasOlder = len(list) >= size
+			}
 		}
+	} else {
+		hasOlder = false
 	}
 
 	chrome := d.chrome(ctx, peerName+" · 私信 · "+d.Settings.SiteBranding().Name, "", "")
 	chrome.Error = errMsg
-	ctx.HTML(http.StatusOK, "messages/thread", messagesThreadData{
+	data := messagesThreadData{
 		PageChrome: chrome, PeerID: peerID, PeerName: peerName,
 		IsSystem: peerID == 0, CanReply: canReply, Messages: bubbles,
 		OlderBefore: oldest, HasOlder: hasOlder, Draft: draft,
-	})
+	}
+	if peerID == 0 {
+		data.KindFilter = kindFilter
+		data.KindLinks = notifyKindLinks(kindFilter)
+	}
+	ctx.HTML(http.StatusOK, "messages/thread", data)
+}
+
+func normalizeNotifyKind(raw string) string {
+	k := strings.TrimSpace(strings.ToLower(raw))
+	switch k {
+	case "", "all":
+		return "all"
+	case models.MessageKindReply, models.MessageKindMention, models.MessageKindSystem,
+		models.MessageKindReject, models.MessageKindReportResult, models.MessageKindModeration:
+		return k
+	default:
+		return "all"
+	}
+}
+
+func notifyKindLinks(active string) []msgKindLink {
+	if active == "" {
+		active = "all"
+	}
+	items := []struct{ kind, label string }{
+		{"all", "全部"},
+		{models.MessageKindReply, "回复"},
+		{models.MessageKindMention, "提及"},
+		{models.MessageKindSystem, "系统"},
+		{models.MessageKindReject, "拒绝"},
+		{models.MessageKindReportResult, "举报结果"},
+		{models.MessageKindModeration, "审核"},
+	}
+	out := make([]msgKindLink, 0, len(items))
+	for _, it := range items {
+		url := "/messages/with/0"
+		if it.kind != "all" {
+			url += "?kind=" + it.kind
+		}
+		out = append(out, msgKindLink{
+			Kind: it.kind, Label: it.label, URL: url, Active: active == it.kind,
+		})
+	}
+	return out
 }
 
 // MessagesSend POST /messages/with/:peerId

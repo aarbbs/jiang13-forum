@@ -105,8 +105,8 @@
 - [x] 编辑评论（时限）；删除评论 — SSR 帖详情入口 + `/comments/:cid/edit|delete`；作者软删进回收站
 - [x] 评论点赞 — `POST /post/:id/comments/:cid/like`
 - [x] 评论举报 — SSR
-- [ ] @ 提及 → 通知
-- [ ] 回复提醒（站内信 + 可选邮件）
+- [x] @ 提及 → 通知 — SSR 发评/审通调用 `NotifyCommentMentions`
+- [x] 回复提醒（站内信 + 可选邮件）— SSR 发评/审通调用 `NotifyCommentPublished`
 - [ ] 审核中 / 被拒评论可见性规则
 - [x] 管理员：通过 / 拒绝待审评论 — SSR `/admin/moderation`（回收站/修订未迁）
 
@@ -119,7 +119,7 @@
 - [x] 发送私信 — 表单 PRG；用户主页「发私信」入口
 - [x] 未读数（可分私信 / 通知）— 列表分项 + 导航角标
 - [x] 标记会话已读 / 通知已读 / 全部已读 — 打开会话自动已读；全部标已读
-- [ ] 系统通知种类：`system` / `reject` / `report_result` / `reply` / `mention` / `moderation` 等（写入已有；筛选 UI 未迁）
+- [x] 系统通知种类：`system` / `reject` / `report_result` / `reply` / `mention` / `moderation` 等（写入已有；`/messages/with/0?kind=` 筛选）
 
 ---
 

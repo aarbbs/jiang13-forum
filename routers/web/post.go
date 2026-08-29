@@ -201,6 +201,16 @@ func (d Deps) PostComment(c *gin.Context) {
 		ctx.Redirect(fmt.Sprintf("/post/%d#comments", id))
 		return
 	}
+	if d.Notify != nil && cm != nil {
+		switch cm.Status {
+		case models.ContentStatusPublished:
+			d.Notify.AsyncNotifyCommentPublished(cm)
+			d.Notify.AsyncNotifyCommentMentions(cm)
+		case models.ContentStatusPending:
+			ctx.SetFlash("评论已提交，审核通过后公开显示")
+			d.Notify.AsyncNotifyPendingComment(cm)
+		}
+	}
 	anchor := "#comments"
 	if cm != nil && cm.Floor > 0 {
 		anchor = fmt.Sprintf("#floor-%d", cm.Floor)
