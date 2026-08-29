@@ -318,6 +318,8 @@ body.j13-body {
   border: 1px solid #fecaca;
 }
 .j13-tag--feat { background: #ede9fe; color: #5b21b6; }
+.j13-tag--resolved { background: #ecfdf5; color: #065f46; }
+.j13-tag--unresolved { background: #f8fafc; color: #475569; }
 
 .j13-empty { color: var(--j13-muted); }
 .j13-pager {

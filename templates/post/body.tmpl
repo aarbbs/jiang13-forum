@@ -14,6 +14,9 @@
       {{if .EditLocked}}<span class="j13-tag">禁编</span>{{end}}
       {{if .CommentsLocked}}<span class="j13-tag">已结贴</span>{{end}}
       {{if .PostTypeLabel}}<span class="j13-tag">{{.PostTypeLabel}}</span>{{end}}
+      {{if .IsQuestion}}
+        {{if .QuestionResolved}}<span class="j13-tag j13-tag--resolved">已解决</span>{{else}}<span class="j13-tag j13-tag--unresolved">未解决</span>{{end}}
+      {{end}}
       {{if .BoardName}}<a class="j13-tag" href="/board/{{.BoardID}}">{{.BoardName}}</a>{{end}}
       {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
       <span>{{.CreatedLabel}}</span>
@@ -21,6 +24,18 @@
     </div>
     {{if .LoggedIn}}
     <div class="j13-post__actions">
+      {{if .CanToggleQuestion}}
+      <form method="post" action="/post/{{.PostID}}/question/resolve" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        {{if .QuestionResolved}}
+        <input type="hidden" name="resolved" value="0"/>
+        <button type="submit" class="j13-btn-secondary">标为未解决</button>
+        {{else}}
+        <input type="hidden" name="resolved" value="1"/>
+        <button type="submit">标为已解决</button>
+        {{end}}
+      </form>
+      {{end}}
       <form method="post" action="/post/{{.PostID}}/like" class="j13-inline-form">
         <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
         <button type="submit">{{if .Liked}}取消赞{{else}}赞{{end}} ({{.LikeCount}})</button>

@@ -16,15 +16,17 @@
       </select>
     </label>
     {{if .IsEdit}}
-    <p class="j13-muted">类型：{{if eq .PostType "poll"}}投票{{else}}普通讨论{{end}}（不可更改）</p>
+    <p class="j13-muted">类型：{{if eq .PostType "poll"}}投票{{else if eq .PostType "question"}}问答{{else}}普通讨论{{end}}（不可更改）</p>
     <input type="hidden" name="post_type" value="{{.PostType}}"/>
     {{else}}
     <label>类型
       <select name="post_type" id="compose-post-type">
-        <option value="normal"{{if ne .PostType "poll"}} selected{{end}}>普通讨论</option>
+        <option value="normal"{{if or (eq .PostType "normal") (eq .PostType "")}} selected{{end}}>普通讨论</option>
+        <option value="question"{{if eq .PostType "question"}} selected{{end}}>问答</option>
         <option value="poll"{{if eq .PostType "poll"}} selected{{end}}>投票</option>
       </select>
     </label>
+    <p class="j13-muted" id="compose-question-hint"{{if ne .PostType "question"}} hidden{{end}}>问答帖无额外字段；解决状态可在帖详情由作者或管理员切换。</p>
     <fieldset class="j13-poll-fields" id="compose-poll-fields"{{if ne .PostType "poll"}} hidden{{end}}>
       <legend>投票设置</legend>
       <label class="j13-check"><input type="checkbox" name="poll_multi" value="1"{{if .PollMulti}} checked{{end}}/> 允许多选</label>
@@ -68,8 +70,12 @@
 (function () {
   var sel = document.getElementById('compose-post-type');
   var box = document.getElementById('compose-poll-fields');
-  if (!sel || !box) return;
-  function sync() { box.hidden = sel.value !== 'poll'; }
+  var qHint = document.getElementById('compose-question-hint');
+  if (!sel) return;
+  function sync() {
+    if (box) box.hidden = sel.value !== 'poll';
+    if (qHint) qHint.hidden = sel.value !== 'question';
+  }
   sel.addEventListener('change', sync);
   sync();
 })();

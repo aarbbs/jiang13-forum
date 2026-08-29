@@ -67,7 +67,7 @@ func (d Deps) ComposePost(c *gin.Context) {
 	form := composeFormFrom(c)
 	htmlBody := services.ComposeBodyToHTML(form.Content)
 	postType := form.PostType
-	if postType != models.PostTypePoll {
+	if postType != models.PostTypePoll && postType != models.PostTypeQuestion {
 		postType = models.PostTypeNormal
 	}
 	post, err := d.Post.Create(ctx.UserID(), form.BoardID, form.Title, htmlBody, form.Tags, postType, ctx.SkipsModeration())
@@ -197,7 +197,7 @@ func composeFormFrom(c *gin.Context) composeForm {
 		maxChoices = 1
 	}
 	postType := strings.TrimSpace(c.PostForm("post_type"))
-	if postType != models.PostTypePoll {
+	if postType != models.PostTypePoll && postType != models.PostTypeQuestion {
 		postType = models.PostTypeNormal
 	}
 	return composeForm{

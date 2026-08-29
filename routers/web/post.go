@@ -46,7 +46,10 @@ type PostPageData struct {
 	Status           string
 	StatusLabel      string
 	ShowModerationBanner bool
-	Poll             *postPollView
+	IsQuestion           bool
+	QuestionResolved     bool
+	CanToggleQuestion    bool
+	Poll                 *postPollView
 }
 
 type postPollOptionView struct {
@@ -199,7 +202,10 @@ func (d Deps) PostView(c *gin.Context) {
 		Status:           post.Status,
 		StatusLabel:      statusLabel,
 		ShowModerationBanner: showBanner,
-		Poll:             pollView,
+		IsQuestion:           post.PostType == models.PostTypeQuestion,
+		QuestionResolved:     post.QuestionResolved,
+		CanToggleQuestion:    post.PostType == models.PostTypeQuestion && (ctx.IsAdmin() || post.UserID == ctx.UserID()),
+		Poll:                 pollView,
 	})
 }
 
@@ -465,6 +471,33 @@ func (d Deps) PostPollClose(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("投票已结束")
+	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+// PostQuestionResolvePost 标记问答帖已解决 / 未解决
+func (d Deps) PostQuestionResolvePost(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	resolved := c.PostForm("resolved") == "1" || c.PostForm("resolved") == "on"
+	if err := d.Post.SetQuestionResolved(ctx.UserID(), id, ctx.IsAdmin(), resolved); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	if resolved {
+		ctx.SetFlash("已标为已解决")
+	} else {
+		ctx.SetFlash("已标为未解决")
+	}
 	ctx.Redirect(fmt.Sprintf("/post/%d", id))
 }
 
