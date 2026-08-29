@@ -99,7 +99,7 @@
 
 ## F. 评论
 
-- [x] 按帖拉取评论列表（楼层、引用目标）— SSR 帖详情；扁平列表 + `reply_to` 展示（嵌套树 UI 未做）
+- [x] 按帖拉取评论列表（楼层、引用目标）— SSR 帖详情；`ThreadParentID` 嵌套树 + 全局 `#floor` 缩进
 - [x] 发表评论（登录）；支持 `reply_to`、私密评论 — `POST /post/:id/comments`
 - [ ] 游客评论（公开接口可写，字段 guest_*）
 - [x] 编辑评论（时限）；删除评论 — SSR 帖详情入口 + `/comments/:cid/edit|delete`；作者软删进回收站

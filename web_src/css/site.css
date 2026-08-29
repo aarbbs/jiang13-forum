@@ -412,9 +412,27 @@ body.j13-body {
 }
 .j13-comments { margin-top: 2rem; }
 .j13-comment-list { list-style: none; margin: 0; padding: 0; }
+.j13-comment-list--nested {
+  margin: 0.5rem 0 0;
+  padding: 0 0 0 0.85rem;
+  border-left: 2px solid var(--j13-border);
+}
 .j13-comment {
   padding: 0.85rem 0;
   border-bottom: 1px solid var(--j13-border);
+}
+.j13-comment-list--nested > .j13-comment {
+  border-bottom-color: transparent;
+  padding-left: 0.65rem;
+}
+.j13-comment--depth-0 { }
+.j13-comment--depth-1,
+.j13-comment--depth-2,
+.j13-comment--depth-3,
+.j13-comment--depth-4,
+.j13-comment--depth-5,
+.j13-comment--depth-6 {
+  background: transparent;
 }
 .j13-comment__meta {
   display: flex;
@@ -425,16 +443,26 @@ body.j13-body {
   margin-bottom: 0.35rem;
   align-items: center;
 }
+.j13-comment__floor { font-weight: 600; color: var(--j13-fg, inherit); }
 .j13-comment__reply-to a { color: var(--j13-accent); text-decoration: none; }
 .j13-comment__actions {
   display: flex;
   gap: 0.75rem;
   align-items: center;
   margin-top: 0.4rem;
+  flex-wrap: wrap;
 }
 .j13-comment-reply-hint { margin: 0 0 0.5rem; }
 .j13-comment-form textarea { width: 100%; }
 .j13-comment-form .j13-form__row { margin-top: 0.5rem; }
+@media (max-width: 600px) {
+  .j13-comment-list--nested {
+    padding-left: 0.55rem;
+  }
+  .j13-comment-list--nested > .j13-comment {
+    padding-left: 0.4rem;
+  }
+}
 .j13-muted { color: var(--j13-muted); }
 .j13-install fieldset {
   border: 1px solid var(--j13-border);

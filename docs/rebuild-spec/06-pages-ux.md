@@ -151,7 +151,7 @@
 | 投票卡 | 选选项提交；显示百分比；作者可结束 — SSR `/post/:id/poll/vote|close` |
 | 悬赏条 | 显示积分与状态；采纳按钮在他人评论上；退款按钮按规则禁用并提示 — SSR `/post/:id/bounty/award|refund` |
 | 抽奖卡 | 显示参与人数；开奖；中奖名单 — SSR `/post/:id/lottery/draw` |
-| 评论 | 楼层列表、`reply_to` 引用、私密开关、点赞、举报、编辑（时限）、删除、回复/@ 通知 — SSR；嵌套树 UI 未做 |
+| 评论 | 楼层列表、`reply_to` 引用、嵌套树（`ThreadParentID` + 缩进，全局 `#floor`）、私密/赞/举报/编辑/删除、回复/@ 通知 — SSR |
 | 修订 | 列表 + 单条快照 — SSR `/post/:id/revisions`（作者/管理员；无 diff） |
 | 图片 | Lightbox 查看 |
 

@@ -17,37 +17,37 @@ import (
 // PostPageData 帖详情
 type PostPageData struct {
 	PageChrome
-	PostID         uint
-	PostHref       string
-	PostPath       string
-	PostTitle      string
-	AuthorName     string
-	AuthorID       uint
-	AuthorHref     string
-	BoardID        uint
-	BoardHref      string
-	BoardName      string
-	Pinned         bool // 展示用：全局或版内置顶
-	GlobalPinned   bool
-	BoardPinned    bool
-	Featured       bool
-	EditLocked     bool
-	PostTypeLabel  string
-	CreatedLabel   string
-	ViewCount      int
-	LikeCount      int
-	Liked          bool
-	Favorited      bool
-	BodyHTML       string
-	CommentCount   int
-	Comments       []CommentView
-	CommentsLocked bool
-	CanEdit          bool
-	CanViewRevisions bool
-	CanReportPost    bool
-	IsAdmin          bool
-	Status           string
-	StatusLabel      string
+	PostID               uint
+	PostHref             string
+	PostPath             string
+	PostTitle            string
+	AuthorName           string
+	AuthorID             uint
+	AuthorHref           string
+	BoardID              uint
+	BoardHref            string
+	BoardName            string
+	Pinned               bool // 展示用：全局或版内置顶
+	GlobalPinned         bool
+	BoardPinned          bool
+	Featured             bool
+	EditLocked           bool
+	PostTypeLabel        string
+	CreatedLabel         string
+	ViewCount            int
+	LikeCount            int
+	Liked                bool
+	Favorited            bool
+	BodyHTML             string
+	CommentCount         int
+	Comments             []commentItemData
+	CommentsLocked       bool
+	CanEdit              bool
+	CanViewRevisions     bool
+	CanReportPost        bool
+	IsAdmin              bool
+	Status               string
+	StatusLabel          string
 	ShowModerationBanner bool
 	IsQuestion           bool
 	QuestionResolved     bool
@@ -67,8 +67,8 @@ type postBountyView struct {
 }
 
 type postLotteryWinnerView struct {
-	UserID   uint
-	Name     string
+	UserID    uint
+	Name      string
 	FloorHint string
 }
 
@@ -90,16 +90,16 @@ type postPollOptionView struct {
 }
 
 type postPollView struct {
-	Multi        bool
-	MaxChoices   int
-	Closed       bool
-	EndsLabel    string
-	TotalVotes   int
-	ShowResults  bool
-	HasVoted     bool
-	CanVote      bool
-	CanClose     bool
-	Options      []postPollOptionView
+	Multi       bool
+	MaxChoices  int
+	Closed      bool
+	EndsLabel   string
+	TotalVotes  int
+	ShowResults bool
+	HasVoted    bool
+	CanVote     bool
+	CanClose    bool
+	Options     []postPollOptionView
 }
 
 // CommentView 评论
@@ -114,6 +114,9 @@ type CommentView struct {
 	ReplyToID      uint
 	ReplyToFloor   int
 	ReplyToAuthor  string
+	ThreadParentID uint
+	Depth          int
+	Children       []CommentView
 	LikeCount      int
 	Liked          bool
 	IsPrivate      bool
@@ -124,6 +127,102 @@ type CommentView struct {
 	StatusLabel    string
 	CanAwardBounty bool
 	IsBountyAward  bool
+}
+
+const commentNestMaxDepth = 6
+
+// commentItemData 嵌套评论渲染上下文（{{template}} 会重置 $，需自带页面字段）
+type commentItemData struct {
+	CommentView
+	PostID          uint
+	CSRF            string
+	LoggedIn        bool
+	CommentsLocked  bool
+	PermalinkSuffix string
+}
+
+// Wrap 子评论继承同一帖上下文
+func (d commentItemData) Wrap(c CommentView) commentItemData {
+	return commentItemData{
+		CommentView:     c,
+		PostID:          d.PostID,
+		CSRF:            d.CSRF,
+		LoggedIn:        d.LoggedIn,
+		CommentsLocked:  d.CommentsLocked,
+		PermalinkSuffix: d.PermalinkSuffix,
+	}
+}
+
+func (d Deps) commentItemsForPage(ctx *webctx.Context, postID uint, locked bool, tree []CommentView) []commentItemData {
+	out := make([]commentItemData, 0, len(tree))
+	base := commentItemData{
+		PostID:          postID,
+		CSRF:            ctx.EnsureCSRF(),
+		LoggedIn:        ctx.IsSigned(),
+		CommentsLocked:  locked,
+		PermalinkSuffix: d.permalink().Suffix(),
+	}
+	for _, c := range tree {
+		item := base
+		item.CommentView = c
+		out = append(out, item)
+	}
+	return out
+}
+
+// buildCommentTree 按 ThreadParentID 组装嵌套树（同层保持楼层顺序）
+func buildCommentTree(flat []CommentView) []CommentView {
+	if len(flat) == 0 {
+		return nil
+	}
+	nodes := make([]CommentView, len(flat))
+	copy(nodes, flat)
+	byID := make(map[uint]int, len(nodes))
+	for i := range nodes {
+		byID[nodes[i].ID] = i
+		nodes[i].Children = nil
+	}
+	childIdx := make(map[uint][]int, len(nodes))
+	roots := make([]int, 0, len(nodes))
+	for i := range nodes {
+		pid := nodes[i].ThreadParentID
+		if pid == 0 {
+			roots = append(roots, i)
+			continue
+		}
+		if _, ok := byID[pid]; !ok {
+			roots = append(roots, i)
+			continue
+		}
+		childIdx[pid] = append(childIdx[pid], i)
+	}
+	var attach func(i, depth int) CommentView
+	attach = func(i, depth int) CommentView {
+		n := nodes[i]
+		if depth > commentNestMaxDepth {
+			depth = commentNestMaxDepth
+		}
+		n.Depth = depth
+		kids := childIdx[n.ID]
+		if len(kids) == 0 {
+			n.Children = nil
+			return n
+		}
+		n.Children = make([]CommentView, 0, len(kids))
+		nextDepth := depth + 1
+		if nextDepth > commentNestMaxDepth {
+			nextDepth = commentNestMaxDepth
+		}
+		for _, ci := range kids {
+			n.Children = append(n.Children, attach(ci, nextDepth))
+		}
+		return n
+	}
+	out := make([]CommentView, 0, len(roots))
+	for _, i := range roots {
+		out = append(out, attach(i, 0))
+	}
+	return out
 }
 
 // PostView GET /post/:id
@@ -156,6 +255,7 @@ func (d Deps) PostView(c *gin.Context) {
 		(ctx.IsAdmin() || post.UserID == ctx.UserID())
 
 	comments, _ := d.Comment.ListByPost(uint(id), ctx.UserID(), ctx.IsAdmin(), post.UserID, nil)
+	commentTotal := len(comments)
 	cv := make([]CommentView, 0, len(comments))
 	for _, cm := range comments {
 		an := strings.TrimSpace(cm.User.Nickname)
@@ -165,7 +265,7 @@ func (d Deps) PostView(c *gin.Context) {
 		view := CommentView{
 			ID: cm.ID, Floor: cm.Floor, AuthorName: an, AuthorID: cm.UserID,
 			CreatedLabel: formatTime(cm.CreatedAt),
-			Content: cm.Content, ContentHidden: cm.ContentHidden,
+			Content:      cm.Content, ContentHidden: cm.ContentHidden,
 			LikeCount: cm.LikeCount, Liked: cm.Liked, IsPrivate: cm.IsPrivate,
 			CanReport: ctx.IsSigned() && (cm.UserID == 0 || cm.UserID != ctx.UserID()),
 			CanEdit:   !cm.ContentHidden && d.Comment.CanUserEditComment(&cm, ctx.UserID(), ctx.IsAdmin()),
@@ -174,6 +274,9 @@ func (d Deps) PostView(c *gin.Context) {
 			CanAwardBounty: canAwardBounty && !cm.ContentHidden &&
 				cm.Status == models.ContentStatusPublished && cm.UserID != post.UserID && cm.UserID > 0,
 			IsBountyAward: post.BountyCommentID > 0 && cm.ID == post.BountyCommentID,
+		}
+		if cm.ThreadParentID != nil {
+			view.ThreadParentID = *cm.ThreadParentID
 		}
 		if cm.Status == models.ContentStatusPending || cm.Status == models.ContentStatusRejected {
 			if ctx.IsAdmin() || (cm.UserID > 0 && cm.UserID == ctx.UserID()) {
@@ -196,6 +299,7 @@ func (d Deps) PostView(c *gin.Context) {
 		}
 		cv = append(cv, view)
 	}
+	cv = buildCommentTree(cv)
 
 	author := strings.TrimSpace(post.User.Nickname)
 	if author == "" {
@@ -267,24 +371,25 @@ func (d Deps) PostView(c *gin.Context) {
 
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
-		PostHref: d.postHref(post.ID),
-		PostPath: url.QueryEscape(d.postHref(post.ID)),
+		PostHref:  d.postHref(post.ID),
+		PostPath:  url.QueryEscape(d.postHref(post.ID)),
 		PostTitle: post.Title, AuthorName: author, AuthorID: post.UserID,
 		AuthorHref: d.userHref(post.UserID),
-		BoardID: post.BoardID, BoardHref: d.boardHref(post.BoardID), BoardName: boardName,
+		BoardID:    post.BoardID, BoardHref: d.boardHref(post.BoardID), BoardName: boardName,
 		Pinned: post.Pinned || post.BoardPinned, GlobalPinned: post.Pinned, BoardPinned: post.BoardPinned,
 		Featured: post.Featured, EditLocked: post.EditLocked,
 		PostTypeLabel: postTypeLabel(post.PostType), CreatedLabel: formatTime(post.CreatedAt),
 		ViewCount: post.ViewCount, LikeCount: post.LikeCount,
 		Liked: d.Post.IsLiked(ctx.UserID(), post.ID), Favorited: d.Post.IsFavorited(ctx.UserID(), post.ID),
-		BodyHTML: body, CommentCount: len(cv), Comments: cv,
-		CommentsLocked: post.CommentsLocked,
-		CanEdit:          d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
-		CanViewRevisions: canViewPostRevisions(post, ctx.UserID(), ctx.IsAdmin()),
-		CanReportPost:    ctx.IsSigned() && post.UserID != ctx.UserID(),
-		IsAdmin:          ctx.IsAdmin(),
-		Status:           post.Status,
-		StatusLabel:      statusLabel,
+		BodyHTML: body, CommentCount: commentTotal,
+		Comments:             d.commentItemsForPage(ctx, post.ID, post.CommentsLocked, cv),
+		CommentsLocked:       post.CommentsLocked,
+		CanEdit:              d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
+		CanViewRevisions:     canViewPostRevisions(post, ctx.UserID(), ctx.IsAdmin()),
+		CanReportPost:        ctx.IsSigned() && post.UserID != ctx.UserID(),
+		IsAdmin:              ctx.IsAdmin(),
+		Status:               post.Status,
+		StatusLabel:          statusLabel,
 		ShowModerationBanner: showBanner,
 		IsQuestion:           post.PostType == models.PostTypeQuestion,
 		QuestionResolved:     post.QuestionResolved,
@@ -316,9 +421,9 @@ func mapPollView(pv *services.PollView, loggedIn, canClose bool) *postPollView {
 		Multi: pv.Multi, MaxChoices: pv.MaxChoices, Closed: pv.Closed,
 		EndsLabel: ends, TotalVotes: pv.TotalVotes,
 		ShowResults: showResults, HasVoted: hasVoted,
-		CanVote: loggedIn && !pv.Closed && !hasVoted,
+		CanVote:  loggedIn && !pv.Closed && !hasVoted,
 		CanClose: canClose && !pv.Closed,
-		Options: opts,
+		Options:  opts,
 	}
 }
 
@@ -685,10 +790,10 @@ func (d Deps) PostLotteryDrawPost(c *gin.Context) {
 
 type commentEditData struct {
 	PageChrome
-	PostID   uint
+	PostID    uint
 	CommentID uint
-	Floor    int
-	Content  string
+	Floor     int
+	Content   string
 }
 
 // CommentEditGet 编辑评论页
@@ -827,9 +932,9 @@ func commentHTMLToPlain(s string) string {
 }
 
 type postRevisionRow struct {
-	ID         uint
-	EditorName string
-	Title      string
+	ID           uint
+	EditorName   string
+	Title        string
 	CreatedLabel string
 }
 
