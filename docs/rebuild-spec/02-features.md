@@ -71,7 +71,7 @@
 - [x] `question` 问答：可标记已解决 / 未解决 — SSR compose + 详情徽章与切换
 - [x] `poll` 投票：2–10 选项；单选/多选；可选截止时间；投票；作者可结束 — SSR compose + 详情卡
 - [x] `bounty` 悬赏：发帖托管积分；采纳评论发奖；可退款（规则见 05）— SSR compose + 详情条 + award/refund
-- [ ] `lottery` 抽奖帖：设定中奖人数；从评论参与者开奖
+- [x] `lottery` 抽奖帖：设定中奖人数；从评论参与者开奖 — SSR compose + 详情卡 + draw
 
 ### D.2 运营标记（管理员）
 
@@ -196,10 +196,10 @@
 
 ## O. 基础设施
 
-- [ ] `GET /health`
-- [ ] `robots.txt` / `sitemap.xml`
-- [ ] 静态上传文件可达
-- [ ] 限流：发帖、评论、注册、登录、举报、私信、友链等
+- [x] `GET /health` — `routers/setup.go`
+- [x] `robots.txt` / `sitemap.xml` — SSR 同源路径
+- [x] 静态上传文件可达 — `Static /uploads` → data/uploads
+- [x] 限流：发帖、注册、登录、举报、私信、友链 — SSR 写路径已挂 `RateLimiter`（评论动作键服务层有、web 发评尚未挂，可后补）
 
 ---
 

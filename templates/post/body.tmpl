@@ -121,6 +121,27 @@
     {{end}}
   </section>
   {{end}}
+  {{if .Lottery}}
+  <section class="j13-lottery" aria-label="抽奖">
+    <h2 class="j13-lottery__title">抽奖</h2>
+    <p class="j13-muted">
+      中奖 {{.Lottery.WinnerCount}} 人 · 参与 {{.Lottery.ParticipantCount}} 人 · {{.Lottery.StatusLabel}}
+    </p>
+    {{if .Lottery.CanDraw}}
+    <form method="post" action="/post/{{.PostID}}/lottery/draw" class="j13-inline-form" onsubmit="return confirm('确认开奖？人数不足会失败。');">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+      <button type="submit">开奖</button>
+    </form>
+    {{end}}
+    {{if .Lottery.Winners}}
+    <ul class="j13-lottery__winners">
+      {{range .Lottery.Winners}}
+      <li>{{if .UserID}}<a href="/user/{{.UserID}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</li>
+      {{end}}
+    </ul>
+    {{end}}
+  </section>
+  {{end}}
   {{if .Poll}}
   <section class="j13-poll" aria-label="投票">
     <h2 class="j13-poll__title">投票</h2>

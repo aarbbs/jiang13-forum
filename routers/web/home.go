@@ -36,6 +36,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 	g.POST("/post/:id/question/resolve", authMW.RequireAuth(), deps.PostQuestionResolvePost)
 	g.POST("/post/:id/bounty/award", authMW.RequireAuth(), deps.PostBountyAwardPost)
 	g.POST("/post/:id/bounty/refund", authMW.RequireAuth(), deps.PostBountyRefundPost)
+	g.POST("/post/:id/lottery/draw", authMW.RequireAuth(), deps.PostLotteryDrawPost)
 	g.POST("/post/:id/unlock", authMW.RequireAuth(), deps.PostUnlock)
 	g.POST("/post/:id/report", authMW.RequireAuth(), deps.PostReportPost)
 	g.POST("/post/:id/comments/:cid/report", authMW.RequireAuth(), deps.CommentReportPost)

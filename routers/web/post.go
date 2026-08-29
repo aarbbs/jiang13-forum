@@ -50,6 +50,7 @@ type PostPageData struct {
 	QuestionResolved     bool
 	CanToggleQuestion    bool
 	Bounty               *postBountyView
+	Lottery              *postLotteryView
 	Poll                 *postPollView
 }
 
@@ -60,6 +61,21 @@ type postBountyView struct {
 	CanRefund         bool
 	RefundBlockReason string
 	AwardedCommentID  uint
+}
+
+type postLotteryWinnerView struct {
+	UserID   uint
+	Name     string
+	FloorHint string
+}
+
+type postLotteryView struct {
+	WinnerCount      int
+	Status           string
+	StatusLabel      string
+	ParticipantCount int
+	CanDraw          bool
+	Winners          []postLotteryWinnerView
 }
 
 type postPollOptionView struct {
@@ -219,6 +235,29 @@ func (d Deps) PostView(c *gin.Context) {
 		bountyView = bv
 	}
 
+	var lotteryView *postLotteryView
+	if post.PostType == models.PostTypeLottery {
+		if lv, err := services.GetPostLotteryView(post); err == nil && lv != nil {
+			isOperator := ctx.IsAdmin() || post.UserID == ctx.UserID()
+			winners := make([]postLotteryWinnerView, 0, len(lv.Winners))
+			for _, w := range lv.Winners {
+				name := strings.TrimSpace(w.Nickname)
+				if name == "" {
+					name = w.Username
+				}
+				winners = append(winners, postLotteryWinnerView{UserID: w.UserID, Name: name})
+			}
+			lotteryView = &postLotteryView{
+				WinnerCount:      lv.WinnerCount,
+				Status:           lv.Status,
+				StatusLabel:      lotteryStatusLabel(lv.Status),
+				ParticipantCount: lv.ParticipantCount,
+				CanDraw:          isOperator && lv.Status != models.PostLotteryStatusDrawn,
+				Winners:          winners,
+			}
+		}
+	}
+
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
@@ -242,6 +281,7 @@ func (d Deps) PostView(c *gin.Context) {
 		QuestionResolved:     post.QuestionResolved,
 		CanToggleQuestion:    post.PostType == models.PostTypeQuestion && (ctx.IsAdmin() || post.UserID == ctx.UserID()),
 		Bounty:               bountyView,
+		Lottery:              lotteryView,
 		Poll:                 pollView,
 	})
 }
@@ -281,6 +321,17 @@ func contentStatusLabel(status string) string {
 		return "已拒绝"
 	default:
 		return ""
+	}
+}
+
+func lotteryStatusLabel(status string) string {
+	switch status {
+	case models.PostLotteryStatusDrawn:
+		return "已开奖"
+	case models.PostLotteryStatusOpen:
+		return "待开奖"
+	default:
+		return status
 	}
 }
 
@@ -593,6 +644,28 @@ func (d Deps) PostBountyRefundPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash("悬赏已退回")
+	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+// PostLotteryDrawPost 抽奖帖开奖
+func (d Deps) PostLotteryDrawPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	id, err := parsePostID(c, d)
+	if err != nil || id == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	if _, err := services.DrawPostLottery(id, ctx.UserID(), ctx.IsAdmin()); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d", id))
+		return
+	}
+	ctx.SetFlash("开奖完成")
 	ctx.Redirect(fmt.Sprintf("/post/%d", id))
 }
 

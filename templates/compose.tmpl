@@ -16,7 +16,7 @@
       </select>
     </label>
     {{if .IsEdit}}
-    <p class="j13-muted">类型：{{if eq .PostType "poll"}}投票{{else if eq .PostType "question"}}问答{{else if eq .PostType "bounty"}}悬赏{{else}}普通讨论{{end}}（不可更改）</p>
+    <p class="j13-muted">类型：{{if eq .PostType "poll"}}投票{{else if eq .PostType "question"}}问答{{else if eq .PostType "bounty"}}悬赏{{else if eq .PostType "lottery"}}抽奖{{else}}普通讨论{{end}}（不可更改）</p>
     <input type="hidden" name="post_type" value="{{.PostType}}"/>
     {{else}}
     <label>类型
@@ -25,6 +25,7 @@
         <option value="question"{{if eq .PostType "question"}} selected{{end}}>问答</option>
         <option value="poll"{{if eq .PostType "poll"}} selected{{end}}>投票</option>
         <option value="bounty"{{if eq .PostType "bounty"}} selected{{end}}>悬赏</option>
+        <option value="lottery"{{if eq .PostType "lottery"}} selected{{end}}>抽奖</option>
       </select>
     </label>
     <p class="j13-muted" id="compose-question-hint"{{if ne .PostType "question"}} hidden{{end}}>问答帖无额外字段；解决状态可在帖详情由作者或管理员切换。</p>
@@ -46,6 +47,13 @@
       <p class="j13-muted">当前积分：{{.ViewerPoints}}。发帖时立即托管，采纳或退款前不可收回（有他人回复后作者不可自行退款）。</p>
       <label>悬赏积分
         <input name="bounty_points" type="number" min="1" value="{{.BountyPoints}}"/>
+      </label>
+    </fieldset>
+    <fieldset class="j13-lottery-fields" id="compose-lottery-fields"{{if ne .PostType "lottery"}} hidden{{end}}>
+      <legend>抽奖设置</legend>
+      <p class="j13-muted">参与者：已发布评论且非楼主（按用户去重）。人数足够后可由作者或管理员开奖。</p>
+      <label>中奖人数
+        <input name="lottery_winner_count" type="number" min="1" max="20" value="{{.LotteryWinners}}"/>
       </label>
     </fieldset>
     {{end}}
@@ -79,11 +87,13 @@
   var sel = document.getElementById('compose-post-type');
   var box = document.getElementById('compose-poll-fields');
   var bounty = document.getElementById('compose-bounty-fields');
+  var lottery = document.getElementById('compose-lottery-fields');
   var qHint = document.getElementById('compose-question-hint');
   if (!sel) return;
   function sync() {
     if (box) box.hidden = sel.value !== 'poll';
     if (bounty) bounty.hidden = sel.value !== 'bounty';
+    if (lottery) lottery.hidden = sel.value !== 'lottery';
     if (qHint) qHint.hidden = sel.value !== 'question';
   }
   sel.addEventListener('change', sync);

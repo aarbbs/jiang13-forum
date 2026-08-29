@@ -27,6 +27,7 @@ type composeData struct {
 	PollEndsAt     string
 	PollOptions    string
 	BountyPoints   int
+	LotteryWinners int
 	Boards         []BoardView
 	TitleMax       int
 	TagsMax        int
@@ -46,6 +47,8 @@ func (d Deps) ComposeGet(c *gin.Context) {
 		BoardID:        uint(boardID),
 		PostType:       models.PostTypeNormal,
 		PollMaxChoices: 1,
+		BountyPoints:   1,
+		LotteryWinners: 1,
 	}, false, 0)
 }
 
@@ -73,9 +76,10 @@ func (d Deps) ComposePost(c *gin.Context) {
 		d.renderCompose(ctx, err.Error(), form, false, 0)
 		return
 	}
-	if post.PostType == models.PostTypePoll || post.PostType == models.PostTypeBounty {
+	if post.PostType == models.PostTypePoll || post.PostType == models.PostTypeBounty || post.PostType == models.PostTypeLottery {
 		var extras services.PostCreateExtras
-		if post.PostType == models.PostTypePoll {
+		switch post.PostType {
+		case models.PostTypePoll:
 			pollJSON, err := services.BuildPollOptionsJSON(form.PollMulti, form.PollMaxChoices, form.PollEndsAt, form.PollOptions)
 			if err != nil {
 				_ = d.Post.Delete(ctx.UserID(), post.ID, true)
@@ -83,8 +87,10 @@ func (d Deps) ComposePost(c *gin.Context) {
 				return
 			}
 			extras = services.ParsePostExtrasFromForm(pollJSON, "", "")
-		} else {
+		case models.PostTypeBounty:
 			extras = services.ParsePostExtrasFromForm("", strconv.Itoa(form.BountyPoints), "")
+		case models.PostTypeLottery:
+			extras = services.ParsePostExtrasFromForm("", "", strconv.Itoa(form.LotteryWinners))
 		}
 		if err := services.FinalizeSpecialPostCreate(post, ctx.UserID(), extras); err != nil {
 			_ = d.Post.Delete(ctx.UserID(), post.ID, true)
@@ -192,11 +198,12 @@ type composeForm struct {
 	PollEndsAt     string
 	PollOptions    string
 	BountyPoints   int
+	LotteryWinners int
 }
 
 func normalizeComposePostType(t string) string {
 	switch t {
-	case models.PostTypePoll, models.PostTypeQuestion, models.PostTypeBounty:
+	case models.PostTypePoll, models.PostTypeQuestion, models.PostTypeBounty, models.PostTypeLottery:
 		return t
 	default:
 		return models.PostTypeNormal
@@ -210,6 +217,10 @@ func composeFormFrom(c *gin.Context) composeForm {
 		maxChoices = 1
 	}
 	bountyPoints, _ := strconv.Atoi(c.PostForm("bounty_points"))
+	lotteryWinners, _ := strconv.Atoi(c.PostForm("lottery_winner_count"))
+	if lotteryWinners < 1 {
+		lotteryWinners = 1
+	}
 	return composeForm{
 		BoardID:        uint(bid),
 		Title:          strings.TrimSpace(c.PostForm("title")),
@@ -221,6 +232,7 @@ func composeFormFrom(c *gin.Context) composeForm {
 		PollEndsAt:     strings.TrimSpace(c.PostForm("poll_ends_at")),
 		PollOptions:    c.PostForm("poll_options"),
 		BountyPoints:   bountyPoints,
+		LotteryWinners: lotteryWinners,
 	}
 }
 
@@ -240,6 +252,9 @@ func (d Deps) renderCompose(ctx *webctx.Context, errMsg string, form composeForm
 	if form.BountyPoints < 1 {
 		form.BountyPoints = 1
 	}
+	if form.LotteryWinners < 1 {
+		form.LotteryWinners = 1
+	}
 	chrome := d.chrome(ctx, title+" · "+d.Settings.SiteBranding().Name, "", "")
 	chrome.Error = errMsg
 	chrome.ActiveBoard = form.BoardID
@@ -258,6 +273,7 @@ func (d Deps) renderCompose(ctx *webctx.Context, errMsg string, form composeForm
 		PollEndsAt:     form.PollEndsAt,
 		PollOptions:    form.PollOptions,
 		BountyPoints:   form.BountyPoints,
+		LotteryWinners: form.LotteryWinners,
 		Boards:         chrome.Boards,
 		TitleMax:       d.Settings.PostTitleMax(),
 		TagsMax:        d.Settings.PostTagsMax(),
