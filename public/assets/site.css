@@ -112,6 +112,53 @@ body.j13-body {
 .j13-sort a.is-active,
 .j13-sort a:hover { color: var(--j13-accent); font-weight: 600; }
 
+.j13-search {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  background: var(--j13-bg);
+  scroll-margin-top: 4rem;
+}
+.j13-search__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.75rem;
+  align-items: flex-end;
+}
+.j13-search__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 8rem;
+  flex: 1 1 8rem;
+}
+.j13-search__label {
+  font-size: 0.75rem;
+  color: var(--j13-muted);
+}
+.j13-search__field input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--j13-border);
+  border-radius: var(--j13-radius);
+  background: var(--j13-bg);
+  color: inherit;
+  font: inherit;
+}
+.j13-search__check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  padding-bottom: 0.35rem;
+  white-space: nowrap;
+}
+.j13-search__err {
+  margin: 0.5rem 0 0;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+
 .j13-post-list { list-style: none; margin: 0; padding: 0; }
 .j13-post-item {
   padding: 0.85rem 0;

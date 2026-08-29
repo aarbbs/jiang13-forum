@@ -1,7 +1,10 @@
 ﻿package web
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -89,14 +92,20 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 // HomePageData Feed
 type HomePageData struct {
 	PageChrome
-	BoardName string
-	Sort      string
-	Posts     []PostListItem
-	Page      int
-	PrevPage  int
-	NextPage  int
-	HasPrev   bool
-	HasMore   bool
+	BoardName   string
+	Sort        string
+	Keyword     string
+	Tag         string
+	Author      string
+	TitleOnly   bool
+	HasSearch   bool
+	SearchError string
+	Posts       []PostListItem
+	Page        int
+	PrevPage    int
+	NextPage    int
+	HasPrev     bool
+	HasMore     bool
 }
 
 // PostListItem 列表项
@@ -111,6 +120,54 @@ type PostListItem struct {
 	CreatedLabel string
 }
 
+// FormAction 搜索表单提交路径（当前 Feed）
+func (d HomePageData) FormAction() string {
+	if d.ActiveBoard > 0 {
+		return fmt.Sprintf("/board/%d", d.ActiveBoard)
+	}
+	return "/"
+}
+
+// SortHref 排序链接，保留搜索参数
+func (d HomePageData) SortHref(sort string) string {
+	return buildFeedURL(d.ActiveBoard, sort, 0, d.Keyword, d.Tag, d.Author, d.TitleOnly)
+}
+
+// PageHref 分页链接，保留搜索与排序
+func (d HomePageData) PageHref(page int) string {
+	return buildFeedURL(d.ActiveBoard, d.Sort, page, d.Keyword, d.Tag, d.Author, d.TitleOnly)
+}
+
+func buildFeedURL(boardID uint, sort string, page int, keyword, tag, author string, titleOnly bool) string {
+	q := url.Values{}
+	if sort != "" && sort != "latest" {
+		q.Set("sort", sort)
+	}
+	if page > 1 {
+		q.Set("page", strconv.Itoa(page))
+	}
+	if kw := strings.TrimSpace(keyword); kw != "" {
+		q.Set("keyword", kw)
+	}
+	if t := strings.TrimSpace(tag); t != "" {
+		q.Set("tag", t)
+	}
+	if a := strings.TrimSpace(author); a != "" {
+		q.Set("author", a)
+	}
+	if titleOnly {
+		q.Set("title_only", "1")
+	}
+	path := "/"
+	if boardID > 0 {
+		path = fmt.Sprintf("/board/%d", boardID)
+	}
+	if enc := q.Encode(); enc != "" {
+		return path + "?" + enc
+	}
+	return path
+}
+
 // Home 首页 / 板块
 func (d Deps) Home(c *gin.Context) {
 	ctx := d.ctx(c)
@@ -120,6 +177,11 @@ func (d Deps) Home(c *gin.Context) {
 		page = 1
 	}
 	size := d.Settings.PageSizeDefault()
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	tag := strings.TrimSpace(c.Query("tag"))
+	author := strings.TrimSpace(c.Query("author"))
+	titleOnly := c.Query("title_only") == "1" || strings.EqualFold(c.Query("title_only"), "true")
+	hasSearch := keyword != "" || tag != "" || author != ""
 
 	var boardID uint
 	var boardName string
@@ -142,47 +204,77 @@ func (d Deps) Home(c *gin.Context) {
 		chrome.Title = boardName + " · " + chrome.SiteName
 	}
 
+	data := HomePageData{
+		PageChrome: chrome,
+		BoardName:  boardName,
+		Sort:       sort,
+		Keyword:    keyword,
+		Tag:        tag,
+		Author:     author,
+		TitleOnly:  titleOnly,
+		HasSearch:  hasSearch,
+		Page:       page,
+		PrevPage:   page - 1,
+		NextPage:   page + 1,
+		HasPrev:    page > 1,
+	}
+
+	listKW := keyword
+	if keyword != "" {
+		kw, err := d.Settings.NormalizeSearchKeyword(keyword)
+		if err != nil {
+			data.SearchError = err.Error()
+			data.Posts = []PostListItem{}
+			ctx.HTML(http.StatusOK, "home", data)
+			return
+		}
+		listKW = kw
+		data.Keyword = kw
+	}
+
 	items, total, err := d.Post.ListItems(services.PostListQuery{
 		BoardID:       boardID,
 		Page:          page,
 		Size:          size,
 		Sort:          sort,
+		Keyword:       listKW,
+		Tag:           tag,
+		Author:        author,
+		TitleOnly:     titleOnly,
 		ViewerID:      ctx.UserID(),
 		ViewerIsAdmin: ctx.IsAdmin(),
 	})
 	if err != nil {
+		if errors.Is(err, services.ErrSearchKeywordTooShort) || errors.Is(err, services.ErrSearchKeywordTooLong) {
+			data.SearchError = err.Error()
+			data.Posts = []PostListItem{}
+			ctx.HTML(http.StatusOK, "home", data)
+			return
+		}
 		c.String(http.StatusInternalServerError, "加载帖子失败")
 		return
 	}
 
 	posts := make([]PostListItem, 0, len(items))
 	for _, it := range items {
-		author := strings.TrimSpace(it.User.Nickname)
-		if author == "" {
-			author = it.User.Username
+		authorName := strings.TrimSpace(it.User.Nickname)
+		if authorName == "" {
+			authorName = it.User.Username
 		}
 		bname := ""
 		if it.Board.ID > 0 {
 			bname = it.Board.Name
 		}
 		posts = append(posts, PostListItem{
-			ID: it.ID, Title: it.Title, AuthorName: author, BoardName: bname,
+			ID: it.ID, Title: it.Title, AuthorName: authorName, BoardName: bname,
 			Pinned: it.Pinned, Featured: it.Featured, CommentCount: it.CommentCount,
 			CreatedLabel: it.CreatedAt.Local().Format("2006-01-02 15:04"),
 		})
 	}
 
-	ctx.HTML(http.StatusOK, "home", HomePageData{
-		PageChrome: chrome,
-		BoardName:  boardName,
-		Sort:       sort,
-		Posts:      posts,
-		Page:       page,
-		PrevPage:   page - 1,
-		NextPage:   page + 1,
-		HasPrev:    page > 1,
-		HasMore:    int64(page*size) < total,
-	})
+	data.Posts = posts
+	data.HasMore = int64(page*size) < total
+	ctx.HTML(http.StatusOK, "home", data)
 }
 
 func normalizeSort(s string) string {

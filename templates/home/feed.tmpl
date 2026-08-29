@@ -3,13 +3,36 @@
   <header class="j13-feed__header">
     <h1 class="j13-feed__title">{{if .BoardName}}{{.BoardName}}{{else}}全部帖子{{end}}</h1>
     <div class="j13-sort" role="navigation" aria-label="排序">
-      <a class="{{if eq .Sort "latest"}}is-active{{end}}" href="{{sortURL .ActiveBoard "latest"}}">最新发帖</a>
-      <a class="{{if eq .Sort "reply"}}is-active{{end}}" href="{{sortURL .ActiveBoard "reply"}}">最新回复</a>
-      <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{sortURL .ActiveBoard "hot"}}">热门讨论</a>
+      <a class="{{if eq .Sort "latest"}}is-active{{end}}" href="{{.SortHref "latest"}}">最新发帖</a>
+      <a class="{{if eq .Sort "reply"}}is-active{{end}}" href="{{.SortHref "reply"}}">最新回复</a>
+      <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{.SortHref "hot"}}">热门讨论</a>
     </div>
   </header>
+  <form id="search" class="j13-search" method="get" action="{{.FormAction}}" role="search">
+    {{if and .Sort (ne .Sort "latest")}}<input type="hidden" name="sort" value="{{.Sort}}"/>{{end}}
+    <div class="j13-search__row">
+      <label class="j13-search__field">
+        <span class="j13-search__label">关键词</span>
+        <input type="search" name="keyword" value="{{.Keyword}}" placeholder="标题或正文" autocomplete="off"/>
+      </label>
+      <label class="j13-search__field">
+        <span class="j13-search__label">标签</span>
+        <input type="text" name="tag" value="{{.Tag}}" placeholder="整枚标签" autocomplete="off"/>
+      </label>
+      <label class="j13-search__field">
+        <span class="j13-search__label">作者</span>
+        <input type="text" name="author" value="{{.Author}}" placeholder="用户名或昵称" autocomplete="off"/>
+      </label>
+      <label class="j13-search__check">
+        <input type="checkbox" name="title_only" value="1"{{if .TitleOnly}} checked{{end}}/>
+        仅标题
+      </label>
+      <button type="submit" class="j13-btn">搜索</button>
+    </div>
+    {{if .SearchError}}<p class="j13-search__err" role="alert">{{.SearchError}}</p>{{end}}
+  </form>
   {{if not .Posts}}
-  <p class="j13-empty">暂无帖子。</p>
+  <p class="j13-empty">{{if .SearchError}}请调整搜索条件后重试。{{else if .HasSearch}}未找到匹配帖子。{{else}}暂无帖子。{{end}}</p>
   {{else}}
   <ul class="j13-post-list">
     {{range .Posts}}
@@ -29,9 +52,9 @@
   {{end}}
   {{if or .HasPrev .HasMore}}
   <nav class="j13-pager">
-    {{if .HasPrev}}<a href="{{pageURL .ActiveBoard .Sort .PrevPage}}">上一页</a>{{end}}
+    {{if .HasPrev}}<a href="{{.PageHref .PrevPage}}">上一页</a>{{end}}
     <span>第 {{.Page}} 页</span>
-    {{if .HasMore}}<a href="{{pageURL .ActiveBoard .Sort .NextPage}}">下一页</a>{{end}}
+    {{if .HasMore}}<a href="{{.PageHref .NextPage}}">下一页</a>{{end}}
   </nav>
   {{end}}
 </section>

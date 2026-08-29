@@ -90,6 +90,8 @@ web_src/ → public/assets/
 
 公开浏览：`/boards` 板块索引（链到 `/board/:id`）。
 
+Feed 搜索：`/` / `/board/:id` 面板（`keyword` / `tag` / `author` / `title_only`）；排序与分页 URL 保参；顶栏链到 `/#search`。
+
 友链：`/links`（列表、登录申请/取消、Logo 上传）；Admin `/admin/friend-links`（品牌增删、审核、入口开关）。
 
 Admin：`/admin/dashboard`、`/admin/boards`、`/admin/moderation`、`/admin/settings`（品牌/限流/敏感词/SMTP）、`/admin/friend-links`。
