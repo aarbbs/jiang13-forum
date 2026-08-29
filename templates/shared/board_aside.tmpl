@@ -1,7 +1,12 @@
 {{define "shared/board_aside"}}
 <aside class="j13-aside j13-aside--left">
+  <p class="j13-aside__section">浏览</p>
+  <a class="j13-aside__link{{if and (eq .ActiveBoard 0) (ne .Path "/boards") (ne .Path "/favorites")}} is-active{{end}}" href="/">全部帖子</a>
+  {{if .LoggedIn}}
+  <a class="j13-aside__link{{if eq .Path "/favorites"}} is-active{{end}}" href="/favorites">我的收藏</a>
+  {{end}}
   <a class="j13-aside__link{{if eq .Path "/boards"}} is-active{{end}}" href="/boards">全部板块</a>
-  <a class="j13-aside__link{{if and (eq .ActiveBoard 0) (ne .Path "/boards")}} is-active{{end}}" href="/">全部帖子</a>
+  <p class="j13-aside__section">板块</p>
   {{range .Boards}}
   <a class="j13-aside__link{{if eq $.ActiveBoard .ID}} is-active{{end}}" href="{{.Href}}">{{.Name}}</a>
   {{end}}

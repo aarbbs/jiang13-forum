@@ -27,9 +27,15 @@ document.documentElement.dataset.j13Ssr = "1";
     } catch (e) {}
     var btn = document.getElementById("j13-theme-toggle");
     if (btn) {
-      btn.textContent = LABELS[pref] || LABELS.system;
-      btn.setAttribute("aria-label", "主题：" + (LABELS[pref] || ""));
-      btn.title = "当前：" + (LABELS[pref] || "") + "（点击切换）";
+      var label = btn.querySelector(".j13-theme-toggle__label");
+      var text = LABELS[pref] || LABELS.system;
+      if (label) {
+        label.textContent = text;
+      } else {
+        btn.textContent = text;
+      }
+      btn.setAttribute("aria-label", "主题：" + text);
+      btn.title = "当前：" + text + "（点击切换）";
     }
   }
 

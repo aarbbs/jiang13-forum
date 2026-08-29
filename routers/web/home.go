@@ -169,11 +169,18 @@ type PostListItem struct {
 	ID           uint
 	Title        string
 	Href         string
+	AuthorID     uint
 	AuthorName   string
+	AuthorHref   string
+	AvatarURL    string
+	AuthorMark   string // 无头像时的单字占位
 	BoardName    string
+	Excerpt      string
 	Pinned       bool
 	Featured     bool
 	CommentCount int
+	LikeCount    int
+	ViewCount    int
 	CreatedLabel string
 }
 
@@ -329,10 +336,26 @@ func (d Deps) Home(c *gin.Context) {
 		if it.Board.ID > 0 {
 			bname = it.Board.Name
 		}
+		excerptSrc := strings.TrimSpace(it.ContentPlain)
+		if excerptSrc == "" {
+			excerptSrc = services.ExcerptFromHTML(it.Content, 100)
+		} else {
+			excerptSrc = services.TruncateRunes(excerptSrc, 100)
+		}
+		avatar := strings.TrimSpace(it.User.Avatar)
+		authorID := it.UserID
+		authorHref := ""
+		if authorID > 0 {
+			authorHref = pl.UserPath(authorID)
+		}
 		posts = append(posts, PostListItem{
-			ID: it.ID, Title: it.Title, Href: pl.PostPath(it.ID), AuthorName: authorName, BoardName: bname,
-			Pinned: it.Pinned, Featured: it.Featured, CommentCount: it.CommentCount,
-			CreatedLabel: it.CreatedAt.Local().Format("2006-01-02 15:04"),
+			ID: it.ID, Title: it.Title, Href: pl.PostPath(it.ID),
+			AuthorID: authorID, AuthorName: authorName, AuthorHref: authorHref,
+			AvatarURL: avatar, AuthorMark: firstRuneOr(authorName, "姜"),
+			BoardName: bname, Excerpt: excerptSrc,
+			Pinned: it.Pinned, Featured: it.Featured,
+			CommentCount: it.CommentCount, LikeCount: it.LikeCount, ViewCount: it.ViewCount,
+			CreatedLabel: formatRelativeTime(it.CreatedAt),
 		})
 	}
 
@@ -352,4 +375,30 @@ func normalizeSort(s string) string {
 
 func formatTime(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04")
+}
+
+// formatRelativeTime 列表用相对时间
+func formatRelativeTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	now := time.Now()
+	d := now.Sub(t)
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return "刚刚"
+	case d < time.Hour:
+		return fmt.Sprintf("%d 分钟前", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d 小时前", int(d.Hours()))
+	case d < 48*time.Hour:
+		return "昨天"
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf("%d 天前", int(d.Hours()/24))
+	default:
+		return t.Local().Format("2006-01-02")
+	}
 }

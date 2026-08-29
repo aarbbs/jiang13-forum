@@ -20,15 +20,20 @@
       </form>
       <div class="j13-header__actions">
         {{if .LoggedIn}}
-          <a class="j13-btn j13-btn--compose" href="/compose">发帖</a>
+          <a class="j13-btn j13-btn--compose" href="/compose">+ 发帖</a>
         {{else}}
           <a class="j13-btn j13-btn--compose" href="/login">登录</a>
           <a class="j13-header__textlink" href="/register">注册</a>
         {{end}}
-        <button type="button" class="j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">主题</button>
+        <button type="button" class="j13-theme-toggle" id="j13-theme-toggle" aria-label="切换主题" title="切换主题">
+          <svg class="j13-theme-toggle__icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v1.06a7.5 7.5 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/>
+          </svg>
+          <span class="j13-theme-toggle__label">主题</span>
+        </button>
         {{if .LoggedIn}}
           <a class="j13-header__iconlink" href="/messages" title="私信">私信{{if gt .UnreadCount 0}} <span class="j13-badge">{{.UnreadCount}}</span>{{end}}</a>
-          <a class="j13-header__user" href="/profile" title="个人中心">{{.ViewerName}} · {{.ViewerPoints}}</a>
+          <a class="j13-header__user" href="/profile" title="个人中心">{{.ViewerName}}</a>
         {{end}}
         <details class="j13-more">
           <summary>更多</summary>

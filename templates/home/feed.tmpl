@@ -8,43 +8,62 @@
       <a class="{{if eq .Sort "hot"}}is-active{{end}}" href="{{.SortHref "hot"}}">热门讨论</a>
     </div>
   </header>
-  <form id="search" class="j13-search j13-search--toolbar" method="get" action="{{.FormAction}}" role="search">
-    {{if and .Sort (ne .Sort "latest")}}<input type="hidden" name="sort" value="{{.Sort}}"/>{{end}}
-    <div class="j13-search__row">
-      <label class="j13-search__field">
-        <span class="j13-search__label">关键词</span>
-        <input type="search" name="keyword" value="{{.Keyword}}" placeholder="标题或正文" autocomplete="off"/>
-      </label>
-      <label class="j13-search__field">
-        <span class="j13-search__label">标签</span>
-        <input type="text" name="tag" value="{{.Tag}}" placeholder="整枚标签" autocomplete="off"/>
-      </label>
-      <label class="j13-search__field">
-        <span class="j13-search__label">作者</span>
-        <input type="text" name="author" value="{{.Author}}" placeholder="用户名或昵称" autocomplete="off"/>
-      </label>
-      <label class="j13-search__check">
-        <input type="checkbox" name="title_only" value="1"{{if .TitleOnly}} checked{{end}}/>
-        仅标题
-      </label>
-      <button type="submit" class="j13-btn">搜索</button>
-    </div>
-    {{if .SearchError}}<p class="j13-search__err" role="alert">{{.SearchError}}</p>{{end}}
-  </form>
+  <details class="j13-search-advanced" id="search"{{if or .HasSearch .TitleOnly .SearchError}} open{{end}}>
+    <summary class="j13-search-advanced__summary">高级搜索</summary>
+    <form class="j13-search j13-search--toolbar" method="get" action="{{.FormAction}}" role="search">
+      {{if and .Sort (ne .Sort "latest")}}<input type="hidden" name="sort" value="{{.Sort}}"/>{{end}}
+      <div class="j13-search__row">
+        <label class="j13-search__field">
+          <span class="j13-search__label">关键词</span>
+          <input type="search" name="keyword" value="{{.Keyword}}" placeholder="标题或正文" autocomplete="off"/>
+        </label>
+        <label class="j13-search__field">
+          <span class="j13-search__label">标签</span>
+          <input type="text" name="tag" value="{{.Tag}}" placeholder="整枚标签" autocomplete="off"/>
+        </label>
+        <label class="j13-search__field">
+          <span class="j13-search__label">作者</span>
+          <input type="text" name="author" value="{{.Author}}" placeholder="用户名或昵称" autocomplete="off"/>
+        </label>
+        <label class="j13-search__check">
+          <input type="checkbox" name="title_only" value="1"{{if .TitleOnly}} checked{{end}}/>
+          仅标题
+        </label>
+        <button type="submit" class="j13-btn">搜索</button>
+      </div>
+      {{if .SearchError}}<p class="j13-search__err" role="alert">{{.SearchError}}</p>{{end}}
+    </form>
+  </details>
   {{if not .Posts}}
   <p class="j13-empty">{{if .SearchError}}请调整搜索条件后重试。{{else if .HasSearch}}未找到匹配帖子。{{else}}暂无帖子。{{end}}</p>
   {{else}}
   <ul class="j13-post-list">
     {{range .Posts}}
     <li class="j13-post-item">
-      <a class="j13-post-item__title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
-      <div class="j13-post-item__meta">
-        {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
-        {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
-        {{if .BoardName}}<span class="j13-tag">{{.BoardName}}</span>{{end}}
-        <span>{{.AuthorName}}</span>
-        <span>{{.CreatedLabel}}</span>
-        <span class="j13-post-item__replies">{{.CommentCount}} 回复</span>
+      <div class="j13-post-item__avatar">
+        {{if .AvatarURL}}
+        <img src="{{.AvatarURL}}" alt="" width="40" height="40"/>
+        {{else}}
+        <span class="j13-post-item__mark" aria-hidden="true">{{.AuthorMark}}</span>
+        {{end}}
+      </div>
+      <div class="j13-post-item__body">
+        <div class="j13-post-item__byline">
+          {{if .AuthorHref}}<a href="{{.AuthorHref}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
+          <span class="j13-post-item__time">{{.CreatedLabel}}</span>
+        </div>
+        <a class="j13-post-item__title" href="{{.Href}}"{{if $.OpenPostsInNewTab}} target="_blank" rel="noopener"{{end}}>{{.Title}}</a>
+        {{if .Excerpt}}<p class="j13-post-item__excerpt">{{.Excerpt}}</p>{{end}}
+        <div class="j13-post-item__meta">
+          {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
+          {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
+          {{if .BoardName}}<span class="j13-tag">{{.BoardName}}</span>{{end}}
+        </div>
+      </div>
+      <div class="j13-post-item__stats" aria-label="互动">
+        <span title="回复"><strong>{{.CommentCount}}</strong> 回复</span>
+        <span title="赞"><strong>{{.LikeCount}}</strong> 赞</span>
+        <span title="阅读"><strong>{{.ViewCount}}</strong> 阅读</span>
       </div>
     </li>
     {{end}}
