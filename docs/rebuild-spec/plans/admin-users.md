@@ -1,6 +1,6 @@
 # Admin 用户管理（SSR）— 实现计划
 
-> 状态：待执行（指针见 [09-ssr-progress.md](../docs/rebuild-spec/09-ssr-progress.md)）  
+> 状态：已完成（SSR `/admin/users`）  
 > 分支：`rebuild/gitea-ssr`
 
 ## 范围

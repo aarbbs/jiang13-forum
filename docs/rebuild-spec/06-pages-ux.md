@@ -52,10 +52,11 @@
 | `/admin/friend-links` | 品牌友链、申请审核、入口开关 | 已迁 |
 | `/admin/pages` | 站点单页 CRUD / 发布 | 已迁 |
 | `/admin/reports` | 举报处理 | 已迁 |
+| `/admin/users` | 用户列表、禁言、认证、调积分 | 已迁 |
 | `/admin/trash` | 帖回收站 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：**users（下一刀，见 [09](09-ssr-progress.md)）** / badges / media / 完整 Limits 等。
+未迁（原 SPA）：badges / media / 完整 Limits 等。
 
 ---
 

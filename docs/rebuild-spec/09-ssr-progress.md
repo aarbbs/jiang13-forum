@@ -12,8 +12,8 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | SSR 抽奖帖 `lottery`（已推送 `e06c548`） |
-| **下一刀** | **Admin `/admin/users`**（禁言 / 验证 / 调积分）— 见下文「下一刀实现提纲」 |
+| **上一刀** | Admin `/admin/users`（禁言 / 认证 / 调积分） |
+| **下一刀** | **Admin `/admin/badges`**（徽章定义 CRUD + 授予/撤销） |
 | **工作区** | 应干净；有未提交改动时先处理再开新刀 |
 
 ---
@@ -59,12 +59,13 @@ flowchart LR
 | dashboard / boards / moderation / reports / trash | 已迁 |
 | settings：品牌、限流、敏感词、SMTP、侧栏、SQLite 备份 | 已迁 |
 | friend-links / pages | 已迁 |
-| **users / badges / media** | **未迁** |
+| **users**（禁言 / 认证 / 调积分） | **已迁** |
+| **badges / media** | **未迁** |
 | settings：OIDC / Gitea / 存储 / 伪静态 Tab | **未迁** |
 
 ### 近期提交（摘）
 
-`poll` → SQLite 备份 → 友链复检 → `question` → `bounty` → `lottery`（`e06c548`）
+`poll` → SQLite 备份 → 友链复检 → `question` → `bounty` → `lottery` → **Admin users**
 
 ---
 
@@ -77,8 +78,8 @@ flowchart LR
 
 ### P1 — 推荐刀序（服务层多半已齐）
 
-1. **Admin 用户** ← 当前指针  
-2. Admin 徽章定义 + 授予/撤销  
+1. ~~Admin 用户~~ ✓  
+2. **Admin 徽章** ← 当前指针  
 3. Admin 媒体列表/删除  
 
 ### P2 — 成长与防刷
@@ -89,7 +90,7 @@ flowchart LR
 
 - 主题、侧栏折叠、虚拟滚动、`feed_list_style`、伪静态 Admin  
 - TipTap / Markdown 双模（现行为 textarea + 门控）  
-- 游客评论、评论嵌套树（建议：全局 `#floor` + 缩进，编号语义先写入 `06`）  
+- 游客评论、评论嵌套树（建议：全局 `#floor` + 缩进）  
 - 修订 diff、完整 Limits 字数  
 
 ### 后置（不阻塞验收）
@@ -106,36 +107,33 @@ flowchart LR
 |----|----|------|
 | ✓ | 五种帖类型 + 备份/复检 + §O 勾选 | 核心闭环 |
 | ✓ | 本文 `09` | 可查阅进度 |
-| → | Admin `/admin/users` | 禁言/验证/调积分 |
-| 3 | Admin `/admin/badges` | 徽章 CRUD + 授予 |
+| ✓ | Admin `/admin/users` | 禁言/认证/调积分 |
+| → | Admin `/admin/badges` | 徽章 CRUD + 授予 |
 | 4 | Admin `/admin/media` | 媒体列表删除 |
 | 5 | 等级/自动徽章 **或** 防刷分成 | 按当时偏好 |
 | … | P3 / 后置 | 需明确点名再开 |
 
 ---
 
-## 下一刀实现提纲：Admin 用户管理
+## 下一刀实现提纲：Admin 徽章
 
-> 确认「继续」后按此实现；细则副本：[plans/admin-users.md](plans/admin-users.md)。不恢复论坛管理 JSON `/api` 为 UI 主路径。
+> 确认「继续」后实现限定徽章定义与授予/撤销；复用 `services/badge.go`。
 
-### 范围
+### 范围（草案）
 
-- 路由：`GET /admin/users`；`POST /admin/users/:id/ban`、`/verify`、`/points`
-- 复用：`UserService.ListUsers` / `BanUser`；`SetVerified`；`PointsService.AdminAdjust`
-- 模板：`templates/admin/users.tmpl` + `admin/nav` 入口
-- 列表：分页、关键词；展示角色、积分、禁言、verified
-- 操作：禁言/解禁、切换认证、调积分（delta + 备注）；CSRF + PRG
-- 规格：勾选 `02` §H「管理员调整积分、设定等级」中与积分/认证相关部分（等级 UI 可后置）；`06` 标明 `/admin/users` 已迁
+- `GET/POST /admin/badges`：徽章定义列表与创建/编辑/删除  
+- 授予/撤销：挂在用户页或徽章详情（`GrantBadge` / 撤销）  
+- 回写 `02` §H 限定徽章；指针 → media  
 
-### 不做（本刀）
+### 不做
 
-- 设定 Exp/等级 UI（可只读展示 level）  
-- 徽章授予（下一刀 badges）  
-- 恢复 `/api/admin/users` 给浏览器  
+自动徽章规则引擎（P2）、等级设定 UI。
 
-### 验证
+---
 
-- `build.bat`；冒烟：列表 → 禁言 → 调积分 → 认证开关  
+## 已完成：Admin 用户管理
+
+见 [plans/admin-users.md](plans/admin-users.md)；路由 `/admin/users` + ban / verify / points。
 
 ---
 

@@ -1026,6 +1026,20 @@ points-only[data-locked="false"] {
 .j13-admin-filters a { color: var(--j13-muted); text-decoration: none; }
 .j13-admin-filters a.is-active,
 .j13-admin-filters a:hover { color: var(--j13-accent); font-weight: 600; }
+.j13-admin-user-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 28rem;
+}
+.j13-admin-points {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  margin: 0;
+}
 .j13-post__admin {
   display: flex;
   flex-wrap: wrap;
