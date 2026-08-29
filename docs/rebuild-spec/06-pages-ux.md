@@ -55,7 +55,7 @@
 | `/admin/trash` | 帖回收站 | 已迁 |
 | `/admin/login` | 重定向前台登录 | 已迁 |
 
-未迁（原 SPA）：users / badges / media / 完整 Limits 等。
+未迁（原 SPA）：**users（下一刀，见 [09](09-ssr-progress.md)）** / badges / media / 完整 Limits 等。
 
 ---
 
