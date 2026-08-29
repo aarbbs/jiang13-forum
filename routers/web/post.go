@@ -39,10 +39,13 @@ type PostPageData struct {
 	CommentCount   int
 	Comments       []CommentView
 	CommentsLocked bool
-	CanEdit        bool
+	CanEdit          bool
 	CanViewRevisions bool
-	CanReportPost  bool
-	IsAdmin        bool
+	CanReportPost    bool
+	IsAdmin          bool
+	Status           string
+	StatusLabel      string
+	ShowModerationBanner bool
 }
 
 // CommentView 评论
@@ -63,6 +66,8 @@ type CommentView struct {
 	CanReport      bool
 	CanEdit        bool
 	CanDelete      bool
+	Status         string
+	StatusLabel    string
 }
 
 // PostView GET /post/:id
@@ -101,6 +106,12 @@ func (d Deps) PostView(c *gin.Context) {
 			CanReport: ctx.IsSigned() && (cm.UserID == 0 || cm.UserID != ctx.UserID()),
 			CanEdit:   !cm.ContentHidden && d.Comment.CanUserEditComment(&cm, ctx.UserID(), ctx.IsAdmin()),
 			CanDelete: !cm.ContentHidden && d.Comment.CanUserDeleteComment(&cm, ctx.UserID(), ctx.IsAdmin()),
+			Status:    cm.Status,
+		}
+		if cm.Status == models.ContentStatusPending || cm.Status == models.ContentStatusRejected {
+			if ctx.IsAdmin() || (cm.UserID > 0 && cm.UserID == ctx.UserID()) {
+				view.StatusLabel = contentStatusLabel(cm.Status)
+			}
 		}
 		if cm.ReplyTarget != nil {
 			view.ReplyToID = cm.ReplyTarget.ID
@@ -131,6 +142,15 @@ func (d Deps) PostView(c *gin.Context) {
 	chrome := d.chrome(ctx, post.Title+" · "+d.Settings.SiteBranding().Name, "", "post/body")
 	chrome.ActiveBoard = post.BoardID
 
+	statusLabel := ""
+	showBanner := false
+	if post.Status == models.ContentStatusPending || post.Status == models.ContentStatusRejected {
+		if ctx.IsAdmin() || post.UserID == ctx.UserID() {
+			statusLabel = contentStatusLabel(post.Status)
+			showBanner = true
+		}
+	}
+
 	ctx.HTML(http.StatusOK, "post", PostPageData{
 		PageChrome: chrome, PostID: post.ID,
 		PostPath: url.QueryEscape(fmt.Sprintf("/post/%d", post.ID)),
@@ -143,11 +163,25 @@ func (d Deps) PostView(c *gin.Context) {
 		Liked: d.Post.IsLiked(ctx.UserID(), post.ID), Favorited: d.Post.IsFavorited(ctx.UserID(), post.ID),
 		BodyHTML: body, CommentCount: len(cv), Comments: cv,
 		CommentsLocked: post.CommentsLocked,
-		CanEdit:        d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
+		CanEdit:          d.Post.CanUserEdit(post, ctx.UserID(), ctx.IsAdmin()),
 		CanViewRevisions: canViewPostRevisions(post, ctx.UserID(), ctx.IsAdmin()),
-		CanReportPost:  ctx.IsSigned() && post.UserID != ctx.UserID(),
-		IsAdmin:        ctx.IsAdmin(),
+		CanReportPost:    ctx.IsSigned() && post.UserID != ctx.UserID(),
+		IsAdmin:          ctx.IsAdmin(),
+		Status:           post.Status,
+		StatusLabel:      statusLabel,
+		ShowModerationBanner: showBanner,
 	})
+}
+
+func contentStatusLabel(status string) string {
+	switch status {
+	case models.ContentStatusPending:
+		return "审核中"
+	case models.ContentStatusRejected:
+		return "已拒绝"
+	default:
+		return ""
+	}
 }
 
 func postTypeLabel(t string) string {

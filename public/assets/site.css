@@ -298,6 +298,25 @@ body.j13-body {
   font-size: 0.75rem;
 }
 .j13-tag--pin { background: #fef3c7; color: #92400e; }
+.j13-tag--pending { background: #fff7ed; color: #9a3412; }
+.j13-tag--rejected { background: #fef2f2; color: #991b1b; }
+.j13-mod-banner {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--j13-radius);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.j13-mod-banner--pending {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+.j13-mod-banner--rejected {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
 .j13-tag--feat { background: #ede9fe; color: #5b21b6; }
 
 .j13-empty { color: var(--j13-muted); }

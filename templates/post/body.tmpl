@@ -2,7 +2,13 @@
 <article class="j13-post" data-post-id="{{.PostID}}" data-csrf="{{.CSRF}}" data-logged-in="{{if .LoggedIn}}1{{else}}0{{end}}">
   <header class="j13-post__header">
     <h1 class="j13-post__title">{{.PostTitle}}</h1>
+    {{if .ShowModerationBanner}}
+    <p class="j13-mod-banner j13-mod-banner--{{.Status}}" role="status">
+      {{if eq .Status "pending"}}本帖正在审核中，仅你与管理员可见。{{else if eq .Status "rejected"}}本帖未通过审核，仅你与管理员可见。{{else}}{{.StatusLabel}}{{end}}
+    </p>
+    {{end}}
     <div class="j13-post__meta">
+      {{if .StatusLabel}}<span class="j13-tag j13-tag--{{.Status}}">{{.StatusLabel}}</span>{{end}}
       {{if .Pinned}}<span class="j13-tag j13-tag--pin">置顶</span>{{end}}
       {{if .Featured}}<span class="j13-tag j13-tag--feat">精华</span>{{end}}
       {{if .EditLocked}}<span class="j13-tag">禁编</span>{{end}}
@@ -98,6 +104,7 @@
         <span class="j13-comment__floor">#{{.Floor}}</span>
         {{if .AuthorID}}<a href="/user/{{.AuthorID}}">{{.AuthorName}}</a>{{else}}<span>{{.AuthorName}}</span>{{end}}
         <span>{{.CreatedLabel}}</span>
+        {{if .StatusLabel}}<span class="j13-tag j13-tag--{{.Status}}">{{.StatusLabel}}</span>{{end}}
         {{if .IsPrivate}}<span class="j13-tag">私密</span>{{end}}
         {{if .ReplyToFloor}}
         <span class="j13-comment__reply-to">回复 <a href="#floor-{{.ReplyToFloor}}">#{{.ReplyToFloor}}</a>{{if .ReplyToAuthor}} {{.ReplyToAuthor}}{{end}}</span>
