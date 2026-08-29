@@ -101,6 +101,7 @@ func Register(r *gin.Engine, deps Deps, authMW *auth.AuthMiddleware) {
 		admin.POST("/users/:id/ban", deps.AdminUserBanPost)
 		admin.POST("/users/:id/verify", deps.AdminUserVerifyPost)
 		admin.POST("/users/:id/points", deps.AdminUserPointsPost)
+		admin.POST("/users/:id/level", deps.AdminUserLevelPost)
 		admin.GET("/badges", deps.AdminBadgesGet)
 		admin.POST("/badges", deps.AdminBadgeCreate)
 		admin.POST("/badges/award", deps.AdminBadgeAwardPost)

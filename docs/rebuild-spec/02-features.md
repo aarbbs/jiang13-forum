@@ -129,11 +129,11 @@
 - [x] 每日签到：基础 5，连签每日 +1，封顶 15 — `POST /profile/checkin`
 - [x] 每日抽奖：奖池加权（0/2/5/10/20），成本 0 — `POST /profile/lottery`
 - [x] 积分解锁分成：读者付全额，作者约 70% — 门控 unlock 服务
-- [ ] 短龄同 IP 互刷拒绝分成
-- [ ] Exp → 等级 Lv1–10
-- [ ] 自动徽章（注册天数 / 获赞 / 创作分成）— 种子定义 + `EvaluateAuto` 已有；Admin 可改定义，独立调度 UI 未做
+- [x] 短龄同 IP 互刷拒绝分成 — `UnlockPointsBlock` / `suspiciousUnlockPair`（双方注册未满 7 天且 LastLoginIP 相同）
+- [x] Exp → 等级 Lv1–10 — 门槛推导 + 发帖/评论/获赞加 Exp；Admin 设等级 SSR `/admin/users`
+- [x] 自动徽章（注册天数 / 获赞 / 创作分成）— 种子 + `EvaluateAuto`（用户页/资料页访问时评估）；无独立定时调度 UI
 - [x] 限定徽章：管理员定义与授予/撤销 — SSR `/admin/badges`
-- [x] 管理员调整积分、设定认证（免审）— SSR `/admin/users`（等级设定 UI 未做，仅只读展示 Lv）
+- [x] 管理员调整积分、设定认证（免审）、设定等级 — SSR `/admin/users`
 
 ---
 

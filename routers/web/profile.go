@@ -33,6 +33,7 @@ type profileData struct {
 	Level         int
 	Exp           int
 	Points        int
+	Badges        []userPublicBadge
 	PostCount     int64
 	CommentCount  int64
 	FavoriteCount int64
@@ -111,6 +112,14 @@ func (d Deps) renderProfile(ctx *webctx.Context, errMsg string) {
 		PublicURL:     fmt.Sprintf("/user/%d", user.ID),
 		AvatarMaxMB:   d.Settings.AvatarMaxMB(),
 		SignatureMax:  d.Settings.SignatureMax(),
+	}
+	if d.Badge != nil {
+		_ = d.Badge.EvaluateAuto(uid)
+		if rows, err := d.Badge.ListUserBadges(uid); err == nil {
+			for _, v := range services.BadgeViews(rows, 0) {
+				data.Badges = append(data.Badges, userPublicBadge{Name: v.Name, Description: v.Description})
+			}
+		}
 	}
 	if d.Points != nil {
 		data.CheckIn, _ = d.Points.GetCheckInStatus(uid)

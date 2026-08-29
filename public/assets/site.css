@@ -1040,6 +1040,33 @@ points-only[data-locked="false"] {
   align-items: center;
   margin: 0;
 }
+.j13-admin-level {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  margin: 0;
+}
+.j13-admin-level select {
+  min-width: 4.5rem;
+}
+.j13-user-badges {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.j13-user-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--j13-border);
+  border-radius: 4px;
+  color: var(--j13-muted);
+}
+.j13-user-badge[title] { cursor: help; }
 .j13-admin-badge-award-btns {
   display: flex;
   flex-wrap: wrap;

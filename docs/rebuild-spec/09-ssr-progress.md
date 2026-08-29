@@ -12,15 +12,15 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | Admin `/admin/media`（列表 / 删除 / 同步索引） |
-| **下一刀** | **等级/自动徽章 UI** 或 **防刷分成**（`02` §H P2；开刀前确认偏好） |
+| **上一刀** | P2：Admin 设等级 + 用户页徽章；勾选 Exp / 防刷 / 自动徽章 |
+| **下一刀** | **P3 体验**（主题 / 伪静态 / 编辑器）或 **后置**（OIDC / 存储热切换 / Gitea）；需点名 |
 | **工作区** | 应干净；有未提交改动时先处理再开新刀 |
 
 ---
 
 ## 一句话状态
 
-论坛核心闭环 + Admin 用户/徽章/媒体 **已迁完**。余量主要是成长体系与防刷、OIDC/存储产品化与体验打磨。
+核心论坛 + Admin P1 + §H 成长/防刷（服务层 + Admin 设等级）**已齐**。余量：P3 体验打磨与后置产品化（OIDC / S3 热切换 / Gitea）。
 
 ```mermaid
 flowchart LR
@@ -28,43 +28,28 @@ flowchart LR
   admin[Admin用户徽章媒体]
   growth[等级徽章防刷]
   polish[主题伪静态编辑器]
-  deferred[Gitea码桶后置]
-  core --> admin --> growth
-  admin --> polish
-  deferred -.-> admin
+  deferred[OIDC存储Gitea]
+  core --> admin --> growth --> polish
+  deferred -.-> polish
 ```
 
 ---
 
 ## 已完成里程碑
 
-### 公开站
+### 公开站 / Admin / §H
 
 | 域 | 状态 |
 |----|------|
-| `/install`、登录/注册/忘记密码、opaque session | 已迁 |
-| Feed / 板块 / 搜索 / 三栏 / 右栏 widgets | 已迁 |
-| 帖详情：赞藏举报、门控、审核横幅、修订历史 | 已迁 |
-| 帖类型：`normal` / `question` / `poll` / `bounty` / `lottery` | 已迁 |
-| 评论：发评/回复/赞/私密/编辑删除/@/回复通知 | 已迁（扁平楼层；嵌套树未做） |
-| 私信/系统通知、收藏、个人中心、用户页 | 已迁 |
-| 友链前台 + Admin（含复检） | 已迁 |
-| 站点单页 | 已迁 |
-| `/health`、`robots.txt`、`sitemap.xml`、`/uploads` | 已落地（`02` §O 已勾） |
-
-### Admin
-
-| 路径 | 状态 |
-|------|------|
-| dashboard / boards / moderation / reports / trash | 已迁 |
-| settings：品牌、限流、敏感词、SMTP、侧栏、SQLite 备份 | 已迁 |
-| friend-links / pages | 已迁 |
-| **users / badges / media** | **已迁** |
-| settings：OIDC / Gitea / 存储 / 伪静态 Tab | **未迁** |
+| 五种帖类型、评论、私信、友链、单页、§O | 已迁 |
+| Admin：users / badges / media / settings 基础 | 已迁 |
+| Exp→Lv、Admin 设等级、用户页徽章展示 | 已迁 |
+| 短龄同 IP 互刷拒绝分成 | 已落地（unlock 服务） |
+| 自动徽章 EvaluateAuto | 已落地（访问用户页触发） |
 
 ### 近期提交（摘）
 
-Admin users → badges → **media**
+media → **等级设定 + 徽章展示 / §H 勾选**
 
 ---
 
@@ -72,31 +57,25 @@ Admin users → badges → **media**
 
 ### P0 — 小清理（可夹带）
 
-- 发评路径挂 `RateLimiter` `comment` 动作（服务层已有键，web 未挂）
-- Logo/Favicon/OG 上传、头像裁剪等声明为未做的边角
+- 发评路径挂 `RateLimiter` `comment` 动作
+- Logo/Favicon/OG 上传、头像裁剪
 
-### P1 — Admin 核心
+### P2 — 成长与防刷
 
-1. ~~Admin 用户~~ ✓  
-2. ~~Admin 徽章~~ ✓  
-3. ~~Admin 媒体~~ ✓  
+~~已完成主路径~~；无独立「自动徽章定时任务」Admin UI（可接受）。
 
-### P2 — 成长与防刷 ← 当前指针候选
-
-- Exp → Lv1–10 设定 UI、自动徽章调度说明、短龄同 IP 互刷拒绝分成（`02` §H）
-
-### P3 — 体验 / 编辑器（可砍或长期）
+### P3 — 体验 / 编辑器 ← 当前候选
 
 - 主题、侧栏折叠、虚拟滚动、`feed_list_style`、伪静态 Admin  
-- TipTap / Markdown 双模（现行为 textarea + 门控）  
-- 游客评论、评论嵌套树（建议：全局 `#floor` + 缩进）  
+- TipTap / Markdown 双模  
+- 游客评论、评论嵌套树  
 - 修订 diff、完整 Limits 字数  
 
-### 后置（不阻塞验收）
+### 后置
 
 - K：Gitea `/projects`  
 - L：OIDC 产品化 Admin CRUD  
-- M：S3 热切换、WebP thumb 全链路产品化  
+- M：S3 热切换、WebP 全链路产品化  
 
 ---
 
@@ -104,39 +83,15 @@ Admin users → badges → **media**
 
 | 序 | 刀 | 产出 |
 |----|----|------|
-| ✓ | 五种帖类型 + 备份/复检 + §O | 核心闭环 |
-| ✓ | Admin users / badges / media | Admin P1 |
-| → | 等级设定 **或** 防刷分成 | 需偏好 |
-| … | P3 / 后置 | 需明确点名再开 |
+| ✓ | 核心闭环 + Admin P1 | … |
+| ✓ | §H 等级/防刷/徽章展示 | … |
+| → | 需点名 P3 或后置 | … |
 
 ---
 
-## 下一刀实现提纲：P2 候选
+## 已完成计划
 
-> 「继续」前请点名：**等级/Exp UI**、**防刷分成**，或其它（OIDC/伪静态等）。
-
-### A. 等级
-
-- Admin 设用户 Exp/Lv（`SetUserLevel` 已有）  
-- 公开页等级展示对齐  
-
-### B. 防刷分成
-
-- 短龄同 IP 互刷拒绝创作分成（`02` §H）  
-
----
-
-## 已完成：Admin 媒体
-
-见 [plans/admin-media.md](plans/admin-media.md)。
-
-## 已完成：Admin 徽章
-
-见 [plans/admin-badges.md](plans/admin-badges.md)。
-
-## 已完成：Admin 用户管理
-
-见 [plans/admin-users.md](plans/admin-users.md)。
+- [admin-users](plans/admin-users.md) · [admin-badges](plans/admin-badges.md) · [admin-media](plans/admin-media.md)
 
 ---
 

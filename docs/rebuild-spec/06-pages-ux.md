@@ -172,7 +172,7 @@
 - 公开页：签名、等级/积分只读、统计、最近帖 — SSR `/user/:id`（无邮箱）
 - 收藏列表 — SSR `/favorites`
 - 积分钱包面板（余额、近 N 条流水、签到/抽奖表单 PRG）— SSR `/profile`；导航展示当前积分
-- 徽章展示：**未迁**
+- 徽章展示：用户主页 / 个人中心 — SSR（访问时 `EvaluateAuto`）
 
 ---
 
@@ -196,7 +196,7 @@
 | Posts | 审核通过/拒绝 — SSR `/admin/moderation`；置顶/版顶/精华/锁编/锁评/软删 — 帖详情 Admin 条；回收站恢复/清除 — SSR `/admin/trash` |
 | Comments | 审核 — SSR `/admin/moderation`；修订查看未迁 |
 | Reports | 处理动作：dismiss / resolve / reject_post / reject_comment — SSR `/admin/reports` |
-| Users | 搜索；禁言；认证；调积分 — SSR `/admin/users`（设等级 / 授徽章挂在徽章页） |
+| Users | 搜索；禁言；认证；调积分；设等级 — SSR `/admin/users`（授徽章在 `/admin/badges`） |
 | Badges | 定义自动/限定徽章；颁发/收回限定 — SSR `/admin/badges` |
 | Media | 分类浏览；单删/批量删；同步索引 — SSR `/admin/media` |
 | Media | 分类浏览；批量删 |

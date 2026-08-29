@@ -30,15 +30,16 @@ type adminUserRow struct {
 
 type adminUsersData struct {
 	AdminChrome
-	Users   []adminUserRow
-	Keyword string
-	Filter  string
-	Page    int
-	HasPrev bool
-	HasMore bool
-	PrevPage int
-	NextPage int
+	Users       []adminUserRow
+	Keyword     string
+	Filter      string
+	Page        int
+	HasPrev     bool
+	HasMore     bool
+	PrevPage    int
+	NextPage    int
 	QuerySuffix string
+	LevelOptions []int
 }
 
 // AdminUsersGet 用户列表
@@ -71,6 +72,7 @@ func (d Deps) renderAdminUsers(ctx *webctx.Context, errMsg string) {
 		PrevPage:    page - 1,
 		NextPage:    page + 1,
 		HasPrev:     page > 1,
+		LevelOptions: adminLevelOptions(),
 	}
 	q := url.Values{}
 	if keyword != "" {
@@ -118,6 +120,15 @@ func adminUserRoleLabel(role models.Role) string {
 	default:
 		return "用户"
 	}
+}
+
+func adminLevelOptions() []int {
+	n := models.MaxLevel()
+	out := make([]int, n)
+	for i := 0; i < n; i++ {
+		out[i] = i + 1
+	}
+	return out
 }
 
 // AdminUserBanPost 禁言 / 解禁
@@ -190,5 +201,26 @@ func (d Deps) AdminUserPointsPost(c *gin.Context) {
 		return
 	}
 	ctx.SetFlash(fmt.Sprintf("积分已调整，当前余额 %d", bal))
+	ctx.Redirect("/admin/users")
+}
+
+// AdminUserLevelPost 设定等级（同步 Exp 到门槛）
+func (d Deps) AdminUserLevelPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminUsers(ctx, "无效请求，请重试")
+		return
+	}
+	id64, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	level, err := strconv.Atoi(strings.TrimSpace(c.PostForm("level")))
+	if err != nil {
+		d.renderAdminUsers(ctx, "请选择有效等级")
+		return
+	}
+	if err := services.SetUserLevel(uint(id64), level); err != nil {
+		d.renderAdminUsers(ctx, err.Error())
+		return
+	}
+	ctx.SetFlash(fmt.Sprintf("已设为 Lv%d（经验门槛 %d）", level, models.ExpForLevel(level)))
 	ctx.Redirect("/admin/users")
 }

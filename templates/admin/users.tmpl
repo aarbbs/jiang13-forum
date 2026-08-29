@@ -86,6 +86,16 @@
             <input name="note" maxlength="120" placeholder="备注（可选）" style="width:8rem"/>
             <button type="submit" class="j13-btn-secondary">调积分</button>
           </form>
+          <form method="post" action="/admin/users/{{.ID}}/level" class="j13-form j13-admin-level">
+            <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+            {{$cur := .Level}}
+            <select name="level" aria-label="设定等级">
+              {{range $.LevelOptions}}
+              <option value="{{.}}"{{if eq . $cur}} selected{{end}}>Lv{{.}}</option>
+              {{end}}
+            </select>
+            <button type="submit" class="j13-btn-secondary">设等级</button>
+          </form>
         </td>
       </tr>
       {{end}}

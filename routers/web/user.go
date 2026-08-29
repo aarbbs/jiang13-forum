@@ -10,6 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type userPublicBadge struct {
+	Name        string
+	Description string
+}
+
 type userPublicData struct {
 	PageChrome
 	UserID        uint
@@ -20,6 +25,7 @@ type userPublicData struct {
 	Level         int
 	Exp           int
 	Points        int
+	Badges        []userPublicBadge
 	PostCount     int64
 	CommentCount  int64
 	FavoriteCount int64
@@ -75,6 +81,15 @@ func (d Deps) UserPublic(c *gin.Context) {
 	nick := displayName(user)
 	chrome := d.chrome(ctx, nick+" · "+d.Settings.SiteBranding().Name, strings.TrimSpace(user.Signature), "")
 	hasMore := int64(page*size) < total
+	badges := []userPublicBadge{}
+	if d.Badge != nil {
+		_ = d.Badge.EvaluateAuto(user.ID)
+		if rows, err := d.Badge.ListUserBadges(user.ID); err == nil {
+			for _, v := range services.BadgeViews(rows, 0) {
+				badges = append(badges, userPublicBadge{Name: v.Name, Description: v.Description})
+			}
+		}
+	}
 	ctx.HTML(http.StatusOK, "user/view", userPublicData{
 		PageChrome: chrome,
 		UserID:     user.ID,
@@ -85,6 +100,7 @@ func (d Deps) UserPublic(c *gin.Context) {
 		Level:      models.LevelFromExp(user.Exp),
 		Exp:        user.Exp,
 		Points:     user.Points,
+		Badges:     badges,
 		PostCount:  st.PostCount, CommentCount: st.CommentCount,
 		FavoriteCount: st.FavoriteCount, LikeReceived: st.LikeReceived,
 		IsSelf: ctx.UserID() == user.ID,

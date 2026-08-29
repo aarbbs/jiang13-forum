@@ -75,6 +75,13 @@
     <p>用户名 <strong>{{.Username}}</strong></p>
     <p class="j13-muted">邮箱 {{.Email}}</p>
     <p class="j13-muted">等级 Lv.{{.Level}} · 经验 {{.Exp}}</p>
+    {{if .Badges}}
+    <ul class="j13-user-badges">
+      {{range .Badges}}
+      <li class="j13-user-badge"{{if .Description}} title="{{.Description}}"{{end}}>{{.Name}}</li>
+      {{end}}
+    </ul>
+    {{end}}
     {{if .Avatar}}
     <p><img class="j13-avatar" src="{{.Avatar}}" alt="头像"/></p>
     {{end}}
