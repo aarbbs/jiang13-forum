@@ -30,6 +30,7 @@ type Deps struct {
 	Report     *services.ReportService
 	Captcha    *services.CaptchaService
 	Notify     *services.NotifyService
+	Backup     *services.BackupService
 }
 
 // SitePageLink 导航/页脚站点单页链接

@@ -109,6 +109,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Report:     reportSvc,
 		Captcha:    captchaSvc,
 		Notify:     notifySvc,
+		Backup:     backupSvc,
 	}, authMW)
 
 	r.GET("/media/thumb/*filepath", h.ServeImageThumb)

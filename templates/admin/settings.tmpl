@@ -83,6 +83,17 @@
     <label>测试收件邮箱 <input name="test_to" type="email" required placeholder="you@example.com"/></label>
     <button type="submit" class="j13-btn-secondary">发送测试信</button>
   </form>
+
+  <h2>SQLite 备份</h2>
+  <p class="j13-muted">将当前数据库文件复制到 data 目录并下载。备份含用户哈希、私信等全库数据，请妥善保管。仅支持 SQLite；其它引擎请使用库方工具。</p>
+  {{if .CanBackup}}
+  <form method="post" action="/admin/settings/backup" class="j13-form j13-admin-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <button type="submit">立即备份并下载</button>
+  </form>
+  {{else}}
+  <p class="j13-muted">当前不是 SQLite，一键文件备份不可用。</p>
+  {{end}}
 </main>
 {{template "base/footer" .}}
 {{end}}

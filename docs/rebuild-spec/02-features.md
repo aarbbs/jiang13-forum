@@ -190,7 +190,7 @@
 - [x] 基础限流（post/comment/register/login/window）— SSR；完整 Limits 字数等未迁
 - [x] SMTP 配置与测试信 — SSR `/admin/settings` 邮件区
 - [x] 站点品牌文案：名称、标语、简介、keywords、Logo 字标、ICP — SSR（Logo/Favicon/OG 上传未迁）
-- [ ] SQLite 一键备份与下载
+- [x] SQLite 一键备份与下载 — SSR `/admin/settings`（仅 sqlite；写入 data 目录后下载）
 
 ---
 

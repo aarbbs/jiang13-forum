@@ -195,7 +195,7 @@
 | Users | 搜索；禁言；认证；设等级；调积分；授徽章 |
 | Badges | 定义自动/限定徽章 |
 | Media | 分类浏览；批量删 |
-| Settings | Tab：论坛限制、侧栏组件、伪静态、邮件、OIDC+客户端、Gitea、存储、品牌、敏感词、备份 |
+| Settings | Tab：论坛限制、侧栏组件、伪静态、邮件、OIDC+客户端、Gitea、存储、品牌、敏感词、备份 — SSR `/admin/settings` 已迁品牌/限流/侧栏/敏感词/邮件/SQLite 备份（OIDC/Gitea/存储/伪静态未迁） |
 
 ---
 

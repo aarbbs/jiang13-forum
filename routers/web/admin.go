@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -434,6 +435,7 @@ type adminSettingsData struct {
 	MailReady    bool
 	TestTo       string
 	AsideWidgets []adminAsideWidgetRow
+	CanBackup    bool
 }
 
 // AdminSettingsGet 设置页
@@ -468,6 +470,7 @@ func (d Deps) renderAdminSettings(ctx *webctx.Context, errMsg string) {
 		Mail:         mail,
 		MailReady:    d.Settings.MailReady(),
 		AsideWidgets: asideRows,
+		CanBackup:    models.DialectorName() == "sqlite",
 	}
 	data.Error = errMsg
 	ctx.HTML(http.StatusOK, "admin/settings", data)
@@ -643,6 +646,37 @@ func (d Deps) AdminSettingsAsideWidgetsPost(c *gin.Context) {
 	}
 	ctx.SetFlash("侧栏组件已保存")
 	ctx.Redirect("/admin/settings")
+}
+
+// AdminSettingsBackupPost 一键导出 SQLite 备份并跳转下载
+func (d Deps) AdminSettingsBackupPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	if !ctx.CheckCSRF() {
+		d.renderAdminSettings(ctx, "无效请求，请重试")
+		return
+	}
+	if d.Backup == nil {
+		d.renderAdminSettings(ctx, "备份服务未就绪")
+		return
+	}
+	path, err := d.Backup.ExportSQLite()
+	if err != nil {
+		d.renderAdminSettings(ctx, err.Error())
+		return
+	}
+	name := filepath.Base(path)
+	ctx.Redirect("/admin/settings/backup/download/" + name)
+}
+
+// AdminSettingsBackupDownload 下载 data 目录下的备份文件
+func (d Deps) AdminSettingsBackupDownload(c *gin.Context) {
+	name := c.Param("name")
+	if !strings.HasPrefix(name, "jiang13_backup_") || !strings.HasSuffix(name, ".db") {
+		c.String(http.StatusBadRequest, "无效的备份文件名")
+		return
+	}
+	path := filepath.Join(d.DataDir, name)
+	c.FileAttachment(path, name)
 }
 
 // moveAsideWidget 解析 move 值「up:id」或「down:id」并交换相邻项
