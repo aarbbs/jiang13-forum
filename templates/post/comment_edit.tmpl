@@ -1,0 +1,19 @@
+{{define "post/comment_edit"}}
+{{template "base/head" .}}
+{{template "base/navbar" .}}
+<main class="j13-main j13-main--solo">
+  <h1>编辑评论</h1>
+  <p class="j13-muted">#{{.Floor}} · <a href="/post/{{.PostID}}#floor-{{.Floor}}">返回帖子</a></p>
+  {{template "base/alert" .}}
+  <form method="post" action="/post/{{.PostID}}/comments/{{.CommentID}}/edit" class="j13-form j13-comment-form">
+    <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+    <label for="comment-edit-content">内容</label>
+    <textarea id="comment-edit-content" name="content" rows="6" required maxlength="8000">{{.Content}}</textarea>
+    <div class="j13-form__row">
+      <button type="submit">保存</button>
+      <a class="j13-btn-secondary" href="/post/{{.PostID}}#floor-{{.Floor}}">取消</a>
+    </div>
+  </form>
+</main>
+{{template "base/footer" .}}
+{{end}}

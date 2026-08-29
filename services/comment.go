@@ -369,10 +369,50 @@ func (s *CommentService) ListPending(page, size int) ([]models.Comment, int64, e
 }
 
 func (s *CommentService) Delete(userID, commentID uint, isAdmin bool) error {
-	if !isAdmin {
+	var comment models.Comment
+	if err := models.DB.First(&comment, commentID).Error; err != nil {
+		return ErrCommentNotFound
+	}
+	if !isAdmin && (comment.UserID == 0 || comment.UserID != userID) {
 		return ErrPermissionDenied
 	}
 	return s.AdminDelete(commentID)
+}
+
+// CanUserEditComment 作者在编辑时限内，或管理员
+func (s *CommentService) CanUserEditComment(comment *models.Comment, userID uint, isAdmin bool) bool {
+	window := 3
+	if s != nil && s.settings != nil {
+		window = s.settings.CommentEditWindowMinutes()
+	}
+	return canEditComment(comment, userID, isAdmin, window)
+}
+
+// CanUserDeleteComment 作者或管理员可软删
+func (s *CommentService) CanUserDeleteComment(comment *models.Comment, userID uint, isAdmin bool) bool {
+	if comment == nil || userID == 0 {
+		return false
+	}
+	if isAdmin {
+		return true
+	}
+	return comment.UserID > 0 && comment.UserID == userID
+}
+
+func canEditComment(comment *models.Comment, userID uint, isAdmin bool, windowMin int) bool {
+	if comment == nil || userID == 0 {
+		return false
+	}
+	if isAdmin {
+		return true
+	}
+	if comment.UserID == 0 || comment.UserID != userID {
+		return false
+	}
+	if windowMin > 0 && time.Since(comment.CreatedAt) > time.Duration(windowMin)*time.Minute {
+		return false
+	}
+	return true
 }
 
 func (s *CommentService) Update(userID, commentID uint, isAdmin, skipModeration bool, content string) (string, bool, error) {

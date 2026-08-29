@@ -116,6 +116,15 @@
         {{if not $.CommentsLocked}}
         <button type="button" class="j13-linkbtn j13-comment__reply-btn" data-reply-to="{{.ID}}" data-reply-floor="{{.Floor}}" data-reply-author="{{.AuthorName}}">回复</button>
         {{end}}
+        {{if .CanEdit}}
+        <a class="j13-linkbtn" href="/post/{{$.PostID}}/comments/{{.ID}}/edit">编辑</a>
+        {{end}}
+        {{if .CanDelete}}
+        <form method="post" action="/post/{{$.PostID}}/comments/{{.ID}}/delete" class="j13-inline-form" onsubmit="return confirm('确定删除该评论？回复也会一并移入回收站。');">
+          <input type="hidden" name="_csrf" value="{{$.CSRF}}"/>
+          <button type="submit" class="j13-linkbtn">删除</button>
+        </form>
+        {{end}}
         {{if .CanReport}}
         <details class="j13-report">
           <summary class="j13-linkbtn">举报</summary>

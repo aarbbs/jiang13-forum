@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"git.iioio.com/freefire/jiang13-forum/models"
+	"git.iioio.com/freefire/jiang13-forum/modules/webctx"
 	"git.iioio.com/freefire/jiang13-forum/services"
 	"github.com/gin-gonic/gin"
 )
@@ -59,6 +60,8 @@ type CommentView struct {
 	Liked          bool
 	IsPrivate      bool
 	CanReport      bool
+	CanEdit        bool
+	CanDelete      bool
 }
 
 // PostView GET /post/:id
@@ -95,6 +98,8 @@ func (d Deps) PostView(c *gin.Context) {
 			Content: cm.Content, ContentHidden: cm.ContentHidden,
 			LikeCount: cm.LikeCount, Liked: cm.Liked, IsPrivate: cm.IsPrivate,
 			CanReport: ctx.IsSigned() && (cm.UserID == 0 || cm.UserID != ctx.UserID()),
+			CanEdit:   !cm.ContentHidden && d.Comment.CanUserEditComment(&cm, ctx.UserID(), ctx.IsAdmin()),
+			CanDelete: !cm.ContentHidden && d.Comment.CanUserDeleteComment(&cm, ctx.UserID(), ctx.IsAdmin()),
 		}
 		if cm.ReplyTarget != nil {
 			view.ReplyToID = cm.ReplyTarget.ID
@@ -296,6 +301,149 @@ func (d Deps) PostFavorite(c *gin.Context) {
 	}
 	_, _ = d.Post.ToggleFavorite(ctx.UserID(), id)
 	ctx.Redirect(fmt.Sprintf("/post/%d", id))
+}
+
+type commentEditData struct {
+	PageChrome
+	PostID   uint
+	CommentID uint
+	Floor    int
+	Content  string
+}
+
+// CommentEditGet 编辑评论页
+func (d Deps) CommentEditGet(c *gin.Context) {
+	ctx := d.ctx(c)
+	postID, cm, errMsg := d.loadEditableComment(ctx, c)
+	if errMsg != "" {
+		ctx.SetFlash(errMsg)
+		if postID > 0 {
+			ctx.Redirect(fmt.Sprintf("/post/%d#comments", postID))
+			return
+		}
+		ctx.Redirect("/")
+		return
+	}
+	chrome := d.chrome(ctx, "编辑评论 · "+d.Settings.SiteBranding().Name, "", "")
+	ctx.HTML(http.StatusOK, "post/comment_edit", commentEditData{
+		PageChrome: chrome,
+		PostID:     postID,
+		CommentID:  cm.ID,
+		Floor:      cm.Floor,
+		Content:    commentHTMLToPlain(cm.Content),
+	})
+}
+
+// CommentEditPost 保存评论编辑
+func (d Deps) CommentEditPost(c *gin.Context) {
+	ctx := d.ctx(c)
+	postID, cm, errMsg := d.loadEditableComment(ctx, c)
+	if errMsg != "" {
+		ctx.SetFlash(errMsg)
+		if postID > 0 {
+			ctx.Redirect(fmt.Sprintf("/post/%d#comments", postID))
+			return
+		}
+		ctx.Redirect("/")
+		return
+	}
+	if !ctx.CheckCSRF() {
+		d.renderCommentEdit(ctx, "无效请求，请重试", postID, cm, c.PostForm("content"))
+		return
+	}
+	plain := strings.TrimSpace(c.PostForm("content"))
+	if plain == "" {
+		d.renderCommentEdit(ctx, "评论不能为空", postID, cm, plain)
+		return
+	}
+	safe := "<p>" + html.EscapeString(plain) + "</p>"
+	_, enteredPending, err := d.Comment.Update(ctx.UserID(), cm.ID, ctx.IsAdmin(), ctx.SkipsModeration(), safe)
+	if err != nil {
+		d.renderCommentEdit(ctx, err.Error(), postID, cm, plain)
+		return
+	}
+	if enteredPending {
+		ctx.SetFlash("评论已更新，审核通过后公开显示")
+	} else {
+		ctx.SetFlash("评论已更新")
+	}
+	ctx.Redirect(fmt.Sprintf("/post/%d#floor-%d", postID, cm.Floor))
+}
+
+// CommentDeletePost 软删评论
+func (d Deps) CommentDeletePost(c *gin.Context) {
+	ctx := d.ctx(c)
+	postID, err := parsePostID(c, d)
+	if err != nil || postID == 0 {
+		d.render404(ctx)
+		return
+	}
+	cid, err := strconv.ParseUint(c.Param("cid"), 10, 64)
+	if err != nil || cid == 0 {
+		d.render404(ctx)
+		return
+	}
+	if !ctx.CheckCSRF() {
+		ctx.SetFlash("无效请求，请重试")
+		ctx.Redirect(fmt.Sprintf("/post/%d#comments", postID))
+		return
+	}
+	cm, err := d.Comment.GetByID(uint(cid))
+	if err != nil || cm.PostID != postID {
+		d.render404(ctx)
+		return
+	}
+	if !d.Comment.CanUserDeleteComment(cm, ctx.UserID(), ctx.IsAdmin()) {
+		ctx.SetFlash(services.ErrPermissionDenied.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d#comments", postID))
+		return
+	}
+	if err := d.Comment.Delete(ctx.UserID(), cm.ID, ctx.IsAdmin()); err != nil {
+		ctx.SetFlash(err.Error())
+		ctx.Redirect(fmt.Sprintf("/post/%d#floor-%d", postID, cm.Floor))
+		return
+	}
+	ctx.SetFlash("评论已删除")
+	ctx.Redirect(fmt.Sprintf("/post/%d#comments", postID))
+}
+
+func (d Deps) loadEditableComment(ctx *webctx.Context, c *gin.Context) (postID uint, cm *models.Comment, errMsg string) {
+	pid, err := parsePostID(c, d)
+	if err != nil || pid == 0 {
+		return 0, nil, "帖子不存在"
+	}
+	cid, err := strconv.ParseUint(c.Param("cid"), 10, 64)
+	if err != nil || cid == 0 {
+		return pid, nil, "评论不存在"
+	}
+	cm, err = d.Comment.GetByID(uint(cid))
+	if err != nil || cm.PostID != pid {
+		return pid, nil, "评论不存在"
+	}
+	if !d.Comment.CanUserEditComment(cm, ctx.UserID(), ctx.IsAdmin()) {
+		return pid, cm, "无权编辑该评论或已超过可编辑时限"
+	}
+	return pid, cm, ""
+}
+
+func (d Deps) renderCommentEdit(ctx *webctx.Context, errMsg string, postID uint, cm *models.Comment, content string) {
+	chrome := d.chrome(ctx, "编辑评论 · "+d.Settings.SiteBranding().Name, "", "")
+	chrome.Error = errMsg
+	ctx.HTML(http.StatusOK, "post/comment_edit", commentEditData{
+		PageChrome: chrome,
+		PostID:     postID,
+		CommentID:  cm.ID,
+		Floor:      cm.Floor,
+		Content:    content,
+	})
+}
+
+// commentHTMLToPlain 发评存的是转义后的 <p>…</p>，编辑时还原为纯文本
+func commentHTMLToPlain(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "<p>")
+	s = strings.TrimSuffix(s, "</p>")
+	return html.UnescapeString(s)
 }
 
 func parsePostID(c *gin.Context, d Deps) (uint, error) {
