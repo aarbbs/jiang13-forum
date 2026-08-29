@@ -4,7 +4,7 @@
 > **前置**：[02-features.md](02-features.md)  
 > **源码**：[`frontend/src/App.tsx`](（仅 main）frontend/src/App.tsx)、[`frontend/src/pages/`](（仅 main）frontend/src/pages/)、[`frontend/src/components/`](（仅 main）frontend/src/components/)、[`frontend/src/layouts/`](（仅 main）frontend/src/layouts/)
 
-视觉可重设；**信息架构与关键操作流应对齐**。新站建议 SSR 直出同等信息，而不是先空壳再 fetch。
+视觉可重设（见 [10-design-system.md](10-design-system.md)）；**信息架构与关键操作流应对齐**。新站建议 SSR 直出同等信息，而不是先空壳再 fetch。
 
 ---
 

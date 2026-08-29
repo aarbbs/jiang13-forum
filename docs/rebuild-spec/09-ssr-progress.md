@@ -10,15 +10,15 @@
 
 | 项 | 值 |
 |----|-----|
-| **上一刀** | 主题去防闪 + 删未挂载 JSON API / crawler + 文档对齐 |
-| **下一刀** | 需点名（OIDC Admin / S3 / Gitea / 表格表情…） |
+| **上一刀** | 公开页设计系统重绘（token + 顶栏/三栏/Feed/帖详情壳层） |
+| **下一刀** | 需点名（移动侧栏抽屉 / OIDC Admin / S3 / Gitea / 表格表情…） |
 | **工作区** | 应干净 |
 
 ---
 
 ## 一句话状态
 
-核心论坛、Admin、Limits/伪静态、嵌套评论、Markdown 编辑器、主题已齐；本分支 `routers/api` 仅保留机器入口。余量多为后置与体验打磨。
+核心论坛、Admin、Limits/伪静态、嵌套评论、Markdown 编辑器、主题、公开页设计系统已齐；本分支 `routers/api` 仅保留机器入口。余量多为后置与体验打磨。
 
 ---
 
@@ -32,6 +32,7 @@
 | Markdown 工具栏 + preview | 已迁 |
 | 浅色 / 暗色 / 跟随系统 | 已迁（CSS 媒体查询，无 head 防闪脚本） |
 | 未挂载论坛 JSON API | 已删（对照 `main`） |
+| 公开页设计系统 | 已迁（[10-design-system.md](10-design-system.md) + 壳层 CSS） |
 
 ---
 

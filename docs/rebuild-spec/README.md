@@ -2,7 +2,7 @@
 
 > **读者**：准备用新栈（建议真 SSR）重写站点的 AI / 开发者  
 > **事实来源**：本仓库现有代码；规格描述「产品必须保留什么」，不是「必须继续用 Go + React SPA」  
-> **交叉引用**：[01-product](01-product.md) · [02-features](02-features.md) · [03-data-model](03-data-model.md) · [04-api](04-api.md) · [05-business-rules](05-business-rules.md) · [06-pages-ux](06-pages-ux.md) · [07-config-ops](07-config-ops.md) · [08-gitea-ssr-architecture](08-gitea-ssr-architecture.md) · [09-ssr-progress](09-ssr-progress.md)
+> **交叉引用**：[01-product](01-product.md) · [02-features](02-features.md) · [03-data-model](03-data-model.md) · [04-api](04-api.md) · [05-business-rules](05-business-rules.md) · [06-pages-ux](06-pages-ux.md) · [07-config-ops](07-config-ops.md) · [08-gitea-ssr-architecture](08-gitea-ssr-architecture.md) · [09-ssr-progress](09-ssr-progress.md) · [10-design-system](10-design-system.md)
 
 > **实现栈（重构分支）**：Gitea 式 Go 模板 SSR；开发分支 `rebuild/gitea-ssr`；`main` 保留 React SPA 对照。详见 [08](08-gitea-ssr-architecture.md)。
 
@@ -22,6 +22,7 @@
 | 8 | [07-config-ops.md](07-config-ops.md) | 配置、数据目录、部署、SEO 字段 |
 | 9 | [08-gitea-ssr-architecture.md](08-gitea-ssr-architecture.md) | Gitea 式 SSR 分支与目录约定 |
 | 10 | [09-ssr-progress.md](09-ssr-progress.md) | **进度与刀序**（「现在做到哪 / 下一刀」） |
+| 11 | [10-design-system.md](10-design-system.md) | 公开页视觉 token / 组件（壳层重绘） |
 
 单次 context 不够时：先投喂 `README` + `01` + `02`；跟进度看 `09`；实现某模块时再追加对应 `03`–`06` 章节。
 
