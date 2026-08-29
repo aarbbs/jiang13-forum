@@ -76,10 +76,17 @@ type RightAsideWidget struct {
 	FriendLinks []RightAsideFriendLink
 }
 
-// RightAsideData 右栏：固定热门 + 可配置 widgets
+// RightAsideData 右栏：签到条 + 固定热门 + 可配置 widgets
 type RightAsideData struct {
-	HotPosts []RightAsideHotPost
-	Widgets  []RightAsideWidget
+	ShowCheckIn    bool
+	CheckedIn      bool
+	CheckInStreak  int
+	CheckInPoints  int // 已签实得或预计可得
+	LotteryDrawn   bool
+	LotteryPoints  int
+	LotteryCost    int
+	HotPosts       []RightAsideHotPost
+	Widgets        []RightAsideWidget
 }
 
 // PageChrome 布局公共字段
@@ -160,7 +167,7 @@ func (d Deps) chrome(ctx *webctx.Context, title, desc, inner string) PageChrome 
 		ViewerPoints:          viewerPoints,
 		ShowFriendLinksNav:    d.Settings.NavShowFriendLinks(),
 		ShowFriendLinksFooter: d.Settings.FooterShowFriendLinks(),
-		RightAside:            d.loadRightAside(brand),
+		RightAside:            d.loadRightAside(ctx, brand),
 	}
 }
 
@@ -171,10 +178,23 @@ const (
 	rightAsideUserLimit    = 8
 )
 
-func (d Deps) loadRightAside(brand services.SiteBranding) RightAsideData {
+func (d Deps) loadRightAside(ctx *webctx.Context, brand services.SiteBranding) RightAsideData {
 	out := RightAsideData{
 		HotPosts: []RightAsideHotPost{},
 		Widgets:  []RightAsideWidget{},
+	}
+	if ctx.IsSigned() && d.Points != nil {
+		out.ShowCheckIn = true
+		if st, err := d.Points.GetCheckInStatus(ctx.UserID()); err == nil {
+			out.CheckedIn = st.CheckedIn
+			out.CheckInStreak = st.Streak
+			out.CheckInPoints = st.TodayPoints
+		}
+		if st, err := d.Points.GetLotteryStatus(ctx.UserID()); err == nil {
+			out.LotteryDrawn = st.Drawn
+			out.LotteryPoints = st.Points
+			out.LotteryCost = st.Cost
+		}
 	}
 	if d.Post != nil {
 		if items, err := d.Post.HotPosts(rightAsideHotLimit); err == nil {

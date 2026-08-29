@@ -86,7 +86,7 @@
 
 ### 2.3 右栏 RightPanel
 
-- 登录用户：`AsideCheckInStrip`（签到 + 抽奖 + 积分入口）— **未迁**（入口仍在 `/profile`）
+- 登录用户：`AsideCheckInStrip`（签到 + 抽奖 + 积分入口）— **已迁** SSR 右栏；流水/详情仍在 `/profile#wallet`
 - 热门帖 — **已迁** SSR（固定块）
 - 可配置 widgets：`tag_cloud` / `recent_comments` / `recent_users` / `friend_links`（顺序与开关来自 `aside_widgets`）— **已迁** SSR；Admin 完整排序编辑器未迁，友链侧栏开关在 `/admin/friend-links`
 - 桌面三列；≤900px 隐藏右栏

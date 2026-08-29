@@ -226,11 +226,22 @@ func (d Deps) ProfileAvatarPost(c *gin.Context) {
 // ProfileCheckInPost 每日签到（PRG）
 func (d Deps) ProfileCheckInPost(c *gin.Context) {
 	ctx := d.ctx(c)
+	redir := safePointsRedirect(c.PostForm("redirect"))
 	if !ctx.CheckCSRF() {
+		if redir != "/profile" {
+			ctx.SetFlash("无效请求，请重试")
+			ctx.Redirect(redir)
+			return
+		}
 		d.renderProfile(ctx, "无效请求，请重试")
 		return
 	}
 	if d.Points == nil {
+		if redir != "/profile" {
+			ctx.SetFlash("积分服务未就绪")
+			ctx.Redirect(redir)
+			return
+		}
 		d.renderProfile(ctx, "积分服务未就绪")
 		return
 	}
@@ -238,24 +249,40 @@ func (d Deps) ProfileCheckInPost(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrAlreadyCheckedIn) {
 			ctx.SetFlash("今日已签到")
-			ctx.Redirect("/profile")
+			ctx.Redirect(redir)
+			return
+		}
+		if redir != "/profile" {
+			ctx.SetFlash(err.Error())
+			ctx.Redirect(redir)
 			return
 		}
 		d.renderProfile(ctx, err.Error())
 		return
 	}
 	ctx.SetFlash(fmt.Sprintf("签到成功：连续 %d 天，获得 %d 积分", st.Streak, st.TodayPoints))
-	ctx.Redirect("/profile")
+	ctx.Redirect(redir)
 }
 
 // ProfileLotteryPost 每日抽奖（PRG）
 func (d Deps) ProfileLotteryPost(c *gin.Context) {
 	ctx := d.ctx(c)
+	redir := safePointsRedirect(c.PostForm("redirect"))
 	if !ctx.CheckCSRF() {
+		if redir != "/profile" {
+			ctx.SetFlash("无效请求，请重试")
+			ctx.Redirect(redir)
+			return
+		}
 		d.renderProfile(ctx, "无效请求，请重试")
 		return
 	}
 	if d.Points == nil {
+		if redir != "/profile" {
+			ctx.SetFlash("积分服务未就绪")
+			ctx.Redirect(redir)
+			return
+		}
 		d.renderProfile(ctx, "积分服务未就绪")
 		return
 	}
@@ -263,7 +290,12 @@ func (d Deps) ProfileLotteryPost(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrAlreadyLottery) {
 			ctx.SetFlash("今日已抽奖")
-			ctx.Redirect("/profile")
+			ctx.Redirect(redir)
+			return
+		}
+		if redir != "/profile" {
+			ctx.SetFlash(err.Error())
+			ctx.Redirect(redir)
 			return
 		}
 		d.renderProfile(ctx, err.Error())
@@ -274,5 +306,23 @@ func (d Deps) ProfileLotteryPost(c *gin.Context) {
 	} else {
 		ctx.SetFlash("抽奖结果：未中奖，明天再来")
 	}
-	ctx.Redirect("/profile")
+	ctx.Redirect(redir)
+}
+
+// safePointsRedirect 签到/抽奖 PRG 回跳：仅允许 /、/board/…、/post/…；空或非法则 /profile
+func safePointsRedirect(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.Contains(raw, "://") || strings.HasPrefix(raw, "//") || strings.Contains(raw, "..") {
+		return "/profile"
+	}
+	if raw == "/" {
+		return raw
+	}
+	if strings.HasPrefix(raw, "/board/") || strings.HasPrefix(raw, "/post/") {
+		if strings.ContainsAny(raw, "?#") {
+			return "/profile"
+		}
+		return raw
+	}
+	return "/profile"
 }

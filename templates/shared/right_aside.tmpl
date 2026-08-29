@@ -1,5 +1,33 @@
 {{define "shared/right_aside"}}
 <aside class="j13-aside j13-aside--right" aria-label="侧栏">
+  {{if and .LoggedIn .RightAside.ShowCheckIn}}
+  <section class="j13-checkin" aria-label="签到与抽奖">
+    <p class="j13-checkin__points">
+      <a href="/profile#wallet">{{.ViewerPoints}} 积分</a>
+    </p>
+    <div class="j13-checkin__actions">
+      {{if .RightAside.CheckedIn}}
+      <span class="j13-checkin__done">已签 · {{.RightAside.CheckInStreak}} 天</span>
+      {{else}}
+      <form method="post" action="/profile/checkin" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="redirect" value="{{.Path}}"/>
+        <button type="submit" class="j13-btn j13-btn--sm">签到 +{{.RightAside.CheckInPoints}}</button>
+      </form>
+      {{end}}
+      {{if .RightAside.LotteryDrawn}}
+      <span class="j13-checkin__done">已抽 · {{.RightAside.LotteryPoints}}</span>
+      {{else}}
+      <form method="post" action="/profile/lottery" class="j13-inline-form">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}"/>
+        <input type="hidden" name="redirect" value="{{.Path}}"/>
+        <button type="submit" class="j13-btn j13-btn--sm j13-btn-secondary">抽奖</button>
+      </form>
+      {{end}}
+    </div>
+    <p class="j13-checkin__more"><a href="/profile#wallet">钱包详情</a></p>
+  </section>
+  {{end}}
   <section class="j13-widget">
     <h2 class="j13-widget__title">热门讨论</h2>
     {{if .RightAside.HotPosts}}
