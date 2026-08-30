@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -32,6 +31,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -144,6 +145,11 @@ function CommentItem({
     && !!onApprove;
   const showEdited = !hidden && !!c.updated_at && isTimeDiffSignificant(c.created_at, c.updated_at);
   const canReport = !hidden && !isEditing && !isCommentAuthor(c, currentUser);
+  const showHistory = isAdmin && showEdited;
+  const showManageMenu = !hidden && !isEditing && (
+    canApprove || canEdit || showHistory || canDelete || canReport
+  );
+  const showManageGroup = canApprove || canEdit || showHistory || canDelete;
   const [editText, setEditText] = useState(c.content);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -152,6 +158,7 @@ function CommentItem({
   const [liked, setLiked] = useState(!!c.liked);
   const [likeCount, setLikeCount] = useState(c.like_count ?? 0);
   const [revOpen, setRevOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>('spam');
   const [reportDetail, setReportDetail] = useState('');
@@ -333,24 +340,6 @@ function CommentItem({
           {c.reply_target && (
             <span className="waline-reply-at">@{commentNick(c.reply_target)}</span>
           )}
-          {!hidden && !isEditing && canApprove && (
-            <button
-              type="button"
-              className="waline-comment-reply-btn waline-comment-approve-btn"
-              disabled={approving}
-              onClick={async () => {
-                setApproving(true);
-                try {
-                  await onApprove?.(c);
-                } finally {
-                  setApproving(false);
-                }
-              }}
-            >
-              <Check size={14} />
-              {approving ? '通过中…' : '通过'}
-            </button>
-          )}
           {!hidden && !isEditing && !!renderReplyBox && (
             isReplying ? (
               <button type="button" className="waline-comment-reply-btn cancel" onClick={onCancelReply}>
@@ -366,12 +355,6 @@ function CommentItem({
               </Tooltip>
             )
           )}
-          {!hidden && !isEditing && canEdit && (
-            <button type="button" className="waline-comment-reply-btn" onClick={() => onStartEdit(c)}>
-              <Pencil size={14} />
-              编辑
-            </button>
-          )}
           {bountyAward?.open && bountyAward.canAward && c.user_id !== bountyAward.postAuthorId
             && c.status === 'published' && !hidden && (
             <button
@@ -383,46 +366,7 @@ function CommentItem({
               采纳
             </button>
           )}
-          {!hidden && !isEditing && isAdmin && showEdited && (
-            <button type="button" className="waline-comment-reply-btn" onClick={() => setRevOpen(true)}>
-              <History size={14} />
-              编辑记录
-            </button>
-          )}
-          {!hidden && !isEditing && canDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button type="button" className="waline-comment-reply-btn cancel" disabled={deleting}>
-                  <Trash2 size={14} />
-                  删除
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>确定删除该评论？</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    将同时移入回收站其下所有回复，可在后台恢复或永久删除。
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={async () => {
-                      setDeleting(true);
-                      try {
-                        await onDelete(c);
-                      } finally {
-                        setDeleting(false);
-                      }
-                    }}
-                  >
-                    删除
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          {canReport && (
+          {showManageMenu && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -433,18 +377,97 @@ function CommentItem({
                   <MoreHorizontal size={14} />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="report-more-menu">
-                <DropdownMenuItem
-                  className="report-more-menu__item"
-                  onSelect={openReport}
-                >
-                  <Flag size={14} />
-                  举报
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end" className="comment-manage-menu">
+                {showManageGroup && (
+                  <>
+                    <DropdownMenuLabel>管理</DropdownMenuLabel>
+                    {canApprove && (
+                      <DropdownMenuItem
+                        disabled={approving}
+                        onSelect={() => {
+                          void (async () => {
+                            setApproving(true);
+                            try {
+                              await onApprove?.(c);
+                            } finally {
+                              setApproving(false);
+                            }
+                          })();
+                        }}
+                      >
+                        <Check size={14} aria-hidden />
+                        {approving ? '通过中…' : '通过审核'}
+                      </DropdownMenuItem>
+                    )}
+                    {canEdit && (
+                      <DropdownMenuItem onSelect={() => onStartEdit(c)}>
+                        <Pencil size={14} aria-hidden />
+                        编辑
+                      </DropdownMenuItem>
+                    )}
+                    {showHistory && (
+                      <DropdownMenuItem onSelect={() => setRevOpen(true)}>
+                        <History size={14} aria-hidden />
+                        编辑记录
+                      </DropdownMenuItem>
+                    )}
+                    {canDelete && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={deleting}
+                        onSelect={() => setDeleteOpen(true)}
+                      >
+                        <Trash2 size={14} aria-hidden />
+                        删除
+                      </DropdownMenuItem>
+                    )}
+                    {canReport && <DropdownMenuSeparator />}
+                  </>
+                )}
+                {canReport && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={openReport}
+                  >
+                    <Flag size={14} aria-hidden />
+                    举报
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
         </div>
+
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确定删除该评论？</AlertDialogTitle>
+              <AlertDialogDescription>
+                将同时移入回收站其下所有回复，可在后台恢复或永久删除。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void (async () => {
+                    setDeleting(true);
+                    try {
+                      await onDelete(c);
+                      setDeleteOpen(false);
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
+                }}
+              >
+                删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {isAdmin && (
           <CommentRevisionDialog open={revOpen} onOpenChange={setRevOpen} comment={c} />

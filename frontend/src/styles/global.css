@@ -5017,6 +5017,13 @@ a.post-title:visited {
   background: color-mix(in srgb, hsl(var(--destructive)) 10%, transparent);
 }
 
+/* 评论管理菜单（编辑 / 审核 / 删除 / 举报） */
+.comment-manage-menu {
+  min-width: 9.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
 .report-more-menu__item svg {
   width: 14px;
   height: 14px;
