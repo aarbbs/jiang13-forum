@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem } from './types';
 
 const BASE = '';
 
@@ -63,6 +63,19 @@ export const api = {
   // 管理后台 API
   adminDashboard: () => request<AdminDashboard>('/api/admin/dashboard'),
   adminSettings: () => request<AdminSettings>('/api/admin/settings'),
+  adminUpdateCommunitySettings: (body: CommunityConfig) =>
+    request<{ message: string; community: CommunityConfig; heartbeat_error?: string }>('/api/admin/settings/community', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminCommunityInstances: () =>
+    request<{ hub_enabled: boolean; instances: CommunityInstance[] }>('/api/admin/community/instances'),
+  adminFeatureCommunityInstance: (instanceId: string, body: { featured: boolean; featured_note?: string }) =>
+    request<{ message: string; instance: CommunityInstance }>(
+      `/api/admin/community/instances/${encodeURIComponent(instanceId)}/feature`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  communityShowcase: () =>
+    request<{ items: CommunityShowcaseItem[] }>('/api/community/showcase'),
   adminPosts: (params: { page?: number; keyword?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));

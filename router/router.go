@@ -36,6 +36,12 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	filter.LoadFromFile(cfg.FilterWordsPath())
 
 	settingsSvc := service.NewForumSettingsService()
+	settingsSvc.SetCommunityHubEnabled(cfg.CommunityHub)
+	communitySvc := service.NewCommunityService(settingsSvc)
+	communitySvc.StartBackground()
+	if cfg.CommunityHub {
+		fmt.Fprintf(os.Stderr, "[community] 社区枢纽已开启（运维配置），可接收自愿上报\n")
+	}
 	// SPA 入口 HTML 注入标题与品牌 JSON，避免刷新时先闪默认文案
 	embed_static.SetSPADocumentTitle(func() string {
 		return settingsSvc.SiteBranding().DocumentTitle()
@@ -87,7 +93,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	h := &handler.Handlers{
 		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
-		Backup: backupSvc,
+		Backup: backupSvc, Community: communitySvc,
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
@@ -124,6 +130,8 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/me", h.APIMe)
 		pubAPI.GET("/boards", h.APIBoards)
 		pubAPI.GET("/stats", h.APIStats)
+		pubAPI.POST("/community/heartbeat", middleware.RateLimitMiddleware(limiter, "community_heartbeat"), h.APICommunityHeartbeat)
+		pubAPI.GET("/community/showcase", h.APICommunityShowcase)
 		pubAPI.GET("/forum-limits", h.APIForumLimits)
 		pubAPI.GET("/site-branding", h.APISiteBranding)
 		pubAPI.GET("/pages", h.APIPages)
@@ -205,6 +213,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/dashboard", h.APIAdminDashboard)
 		adminAPI.GET("/settings", h.APIAdminSettings)
 		adminAPI.PUT("/settings/forum", h.APIAdminUpdateForumSettings)
+		adminAPI.PUT("/settings/community", h.APIAdminUpdateCommunitySettings)
+		adminAPI.GET("/community/instances", h.APIAdminCommunityInstances)
+		adminAPI.PUT("/community/instances/:id/feature", h.APIAdminFeatureCommunityInstance)
 		adminAPI.PUT("/settings/mail", h.APIAdminUpdateMailSettings)
 		adminAPI.POST("/settings/mail/test", h.APIAdminTestMail)
 		adminAPI.PUT("/settings/oidc", h.APIAdminUpdateOIDCSettings)

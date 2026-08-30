@@ -43,6 +43,7 @@ func InitDB(dbPath string) error {
 		&PointLedger{}, &CheckIn{}, &LotteryDraw{}, &PostContentUnlock{},
 		&BadgeDef{}, &UserBadge{},
 		&SitePage{}, &Poll{}, &PollOption{}, &PollVote{}, &PostLotteryWinner{},
+		&CommunityInstance{},
 	); err != nil {
 		return fmt.Errorf("自动迁移失败: %w", err)
 	}

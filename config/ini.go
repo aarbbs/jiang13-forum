@@ -18,9 +18,10 @@ const (
 
 // fileSettings 从 app.ini 读出的原始值（尚未解析为绝对路径）
 type fileSettings struct {
-	Port      int
-	DataRel   string
-	JWTSecret string
+	Port         int
+	DataRel      string
+	JWTSecret    string
+	CommunityHub bool // 维护者选项：是否作为社区枢纽收报
 }
 
 func defaultFileSettings() fileSettings {
@@ -60,6 +61,12 @@ func loadAppINI(path string) (fileSettings, error) {
 
 	if sec, err := cfg.GetSection("security"); err == nil {
 		out.JWTSecret = strings.TrimSpace(sec.Key("JWT_SECRET").String())
+	}
+
+	if sec, err := cfg.GetSection("community"); err == nil {
+		if k := sec.Key("HUB"); k.String() != "" {
+			out.CommunityHub = k.MustBool(false)
+		}
 	}
 
 	return out, nil

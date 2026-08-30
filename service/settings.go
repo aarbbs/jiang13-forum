@@ -93,6 +93,15 @@ const (
 	SettingSiteFriendLinks           = "site_friend_links"
 	SettingFriendLinkReciprocalCheck = "friend_link_reciprocal_check"
 
+	SettingCommunityReportEnabled = "community_report_enabled"
+	SettingCommunityHubEnabled    = "community_hub_enabled" // 遗留键，不再作为开关来源
+	SettingCommunityInstanceID    = "community_instance_id"
+	SettingCommunityHubURL        = "community_hub_url"
+	SettingCommunitySiteURL       = "community_site_url" // 上报用的本站公开地址（可回退 OIDC ROOT_URL）
+
+	// DefaultCommunityHubURL 官方演示站（社区枢纽默认地址）
+	DefaultCommunityHubURL = "https://bbs.iioio.com"
+
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
 )
@@ -282,6 +291,14 @@ var friendLinkSettingDefaults = map[string]string{
 	SettingFooterShowFriendLinks:     "1",
 }
 
+var communitySettingDefaults = map[string]string{
+	SettingCommunityReportEnabled: "0",
+	SettingCommunityHubEnabled:    "0",
+	SettingCommunityInstanceID:    "",
+	SettingCommunityHubURL:        DefaultCommunityHubURL,
+	SettingCommunitySiteURL:       "",
+}
+
 var siteBrandingDefaults = map[string]string{
 	SettingSiteName:        "姜十三论坛",
 	SettingSiteSlogan:      "拾三一隅，自在交流",
@@ -375,6 +392,15 @@ type GiteaSyncConfig struct {
 	RepoCount       int64  `json:"repo_count"`
 }
 
+// CommunityConfig 社区上报配置（HubEnabled 只读，来自运维配置）
+type CommunityConfig struct {
+	ReportEnabled bool   `json:"report_enabled"`
+	HubEnabled    bool   `json:"hub_enabled"` // 只读：app.ini / 环境变量
+	HubURL        string `json:"hub_url"`
+	SiteURL       string `json:"site_url"` // 上报用的本站公开地址
+	InstanceID    string `json:"instance_id"`
+}
+
 // OIDCConfig OIDC Provider 全局配置（应用凭证见 oauth_clients）
 type OIDCConfig struct {
 	Enabled      bool   `json:"enabled"`
@@ -391,13 +417,21 @@ type OIDCConfig struct {
 
 // ForumSettingsService 论坛全局设置
 type ForumSettingsService struct {
-	mu sync.RWMutex
+	mu                  sync.RWMutex
+	communityHubEnabled bool // 运维配置注入，非后台可改
 }
 
 func NewForumSettingsService() *ForumSettingsService {
 	s := &ForumSettingsService{}
 	s.ensureDefaults()
 	return s
+}
+
+// SetCommunityHubEnabled 由启动配置注入是否作为社区枢纽
+func (s *ForumSettingsService) SetCommunityHubEnabled(enabled bool) {
+	s.mu.Lock()
+	s.communityHubEnabled = enabled
+	s.mu.Unlock()
 }
 
 func (s *ForumSettingsService) ensureDefaults() {
@@ -458,6 +492,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 		}
 	}
 	for key, val := range friendLinkSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
+	for key, val := range communitySettingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
@@ -1088,6 +1129,74 @@ func (s *ForumSettingsService) UpdateGiteaSyncConfig(in GiteaSyncConfig) error {
 		}
 	}
 	return nil
+}
+
+// CommunityConfig 读取社区上报配置
+func (s *ForumSettingsService) CommunityConfig() CommunityConfig {
+	s.mu.RLock()
+	hubEnabled := s.communityHubEnabled
+	s.mu.RUnlock()
+	return CommunityConfig{
+		ReportEnabled: s.getString(SettingCommunityReportEnabled, "0") == "1",
+		HubEnabled:    hubEnabled,
+		HubURL:        DefaultCommunityHubURL,
+		SiteURL:       s.CommunitySiteURL(""),
+		InstanceID:    strings.TrimSpace(s.getString(SettingCommunityInstanceID, "")),
+	}
+}
+
+// CommunitySiteURL 上报用的本站公开地址：已持久化 > OIDC ROOT_URL > 请求 Origin
+func (s *ForumSettingsService) CommunitySiteURL(requestOrigin string) string {
+	if u := normalizeRootURL(s.getString(SettingCommunitySiteURL, "")); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return s.SitePublicBaseURL(requestOrigin)
+}
+
+// EnsureCommunitySiteURL 在开启上报时确保有可用的本站公开地址；origin 可来自当前管理请求
+func (s *ForumSettingsService) EnsureCommunitySiteURL(requestOrigin string) (string, error) {
+	if u := s.CommunitySiteURL(requestOrigin); u != "" {
+		// 若仅靠 Origin 推断，持久化以便后台 ticker 使用
+		if normalizeRootURL(s.getString(SettingCommunitySiteURL, "")) == "" &&
+			normalizeRootURL(s.getString(SettingOIDCRootURL, "")) == "" {
+			if err := s.setString(SettingCommunitySiteURL, u); err != nil {
+				return "", err
+			}
+		}
+		return u, nil
+	}
+	return "", errors.New("无法确定本站公开地址：请先在 OIDC 设置中填写 ROOT_URL，或通过浏览器管理端开启上报")
+}
+
+// EnsureCommunityInstanceID 确保本机有稳定的匿名实例 ID
+func (s *ForumSettingsService) EnsureCommunityInstanceID() (string, error) {
+	id := strings.TrimSpace(s.getString(SettingCommunityInstanceID, ""))
+	if id != "" {
+		return id, nil
+	}
+	id = newCommunityInstanceID()
+	if err := s.setString(SettingCommunityInstanceID, id); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// UpdateCommunityConfig 仅更新上报开关；忽略客户端传入的 hub_url / site_url
+func (s *ForumSettingsService) UpdateCommunityConfig(in CommunityConfig) (wasReportEnabled bool, err error) {
+	wasReportEnabled = s.getString(SettingCommunityReportEnabled, "0") == "1"
+	report := "0"
+	if in.ReportEnabled {
+		report = "1"
+	}
+	if err := s.setString(SettingCommunityReportEnabled, report); err != nil {
+		return wasReportEnabled, err
+	}
+	if in.ReportEnabled {
+		if _, err := s.EnsureCommunityInstanceID(); err != nil {
+			return wasReportEnabled, err
+		}
+	}
+	return wasReportEnabled, nil
 }
 
 // StorageConfig 读取上传存储配置（含密钥明文，供内部使用）

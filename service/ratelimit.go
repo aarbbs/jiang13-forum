@@ -54,11 +54,17 @@ func (r *RateLimiter) limitFor(action string) int {
 	if action == "friend_link" {
 		return 5
 	}
+	if action == "community_heartbeat" {
+		return 30
+	}
 	return r.settings.RateLimitFor(action)
 }
 
 func (r *RateLimiter) windowFor(action string) time.Duration {
 	if action == "friend_link" {
+		return time.Hour
+	}
+	if action == "community_heartbeat" {
 		return time.Hour
 	}
 	return time.Duration(r.settings.RateLimitWindowSec()) * time.Second

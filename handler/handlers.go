@@ -8,37 +8,38 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/config"
 	"git.iioio.com/freefire/jiang13-forum/middleware"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/service"
+	"github.com/gin-gonic/gin"
 )
 
 // Handlers 聚合所有 HTTP 处理器
 type Handlers struct {
-	Cfg       *config.Config
-	Store     *service.UploadStore
-	Auth      *service.AuthService
-	User      *service.UserService
-	Board     *service.BoardService
-	Post      *service.PostService
-	Comment   *service.CommentService
-	Message   *service.MessageService
-	Notify    *service.NotifyService
-	Report    *service.ReportService
-	Backup    *service.BackupService
-	Filter    *service.SensitiveFilter
-	Limiter   *service.RateLimiter
-	Settings  *service.ForumSettingsService
-	Captcha   *service.CaptchaService
-	Mail      *service.MailService
-	EmailCode *service.EmailCodeService
-	OIDC      *service.OIDCService
-	Gitea     *service.GiteaService
-	Points    *service.PointsService
-	Badge     *service.BadgeService
-	SitePage  *service.SitePageService
+	Cfg             *config.Config
+	Store           *service.UploadStore
+	Auth            *service.AuthService
+	User            *service.UserService
+	Board           *service.BoardService
+	Post            *service.PostService
+	Comment         *service.CommentService
+	Message         *service.MessageService
+	Notify          *service.NotifyService
+	Report          *service.ReportService
+	Backup          *service.BackupService
+	Community       *service.CommunityService
+	Filter          *service.SensitiveFilter
+	Limiter         *service.RateLimiter
+	Settings        *service.ForumSettingsService
+	Captcha         *service.CaptchaService
+	Mail            *service.MailService
+	EmailCode       *service.EmailCodeService
+	OIDC            *service.OIDCService
+	Gitea           *service.GiteaService
+	Points          *service.PointsService
+	Badge           *service.BadgeService
+	SitePage        *service.SitePageService
 	FriendLinkApply *service.FriendLinkApplyService
 }
 

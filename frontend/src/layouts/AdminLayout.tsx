@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award, Link2, BookOpen,
+  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award, Link2, BookOpen, Globe2,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../hooks/useAuth';
@@ -23,6 +23,8 @@ type NavItem = {
   label: string;
   icon: typeof LayoutDashboard;
   badgeKey?: BadgeKey;
+  /** 仅社区枢纽开启时显示 */
+  hubOnly?: boolean;
 };
 
 type NavGroup = {
@@ -54,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/users', label: '用户管理', icon: Users },
       { to: '/admin/badges', label: '徽章管理', icon: Award },
       { to: '/admin/links', label: '友情链接', icon: Link2, badgeKey: 'links' },
+      { to: '/admin/community', label: '公网实例', icon: Globe2, hubOnly: true },
     ],
   },
   {
@@ -86,6 +89,7 @@ export default function AdminLayout() {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [navOpen, setNavOpen] = useState(false);
   const [pending, setPending] = useState<PendingCounts>({ posts: 0, comments: 0, reports: 0, links: 0 });
+  const [communityHub, setCommunityHub] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
   const drawerRef = useRef<HTMLElement>(null);
@@ -106,6 +110,13 @@ export default function AdminLayout() {
       }))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (loading || !user || user.role !== 'admin') return;
+    api.adminSettings()
+      .then(s => setCommunityHub(!!s.community?.hub_enabled))
+      .catch(() => setCommunityHub(false));
+  }, [loading, user]);
 
   useEffect(() => {
     if (loading || !user || user.role !== 'admin') return;
@@ -156,7 +167,7 @@ export default function AdminLayout() {
     NAV_GROUPS.map(group => (
       <div key={group.label} className="admin-nav-group">
         <div className="admin-nav-group-label">{group.label}</div>
-        {group.items.map(({ to, label, icon: Icon, badgeKey }) => {
+        {group.items.filter(item => !item.hubOnly || communityHub).map(({ to, label, icon: Icon, badgeKey }) => {
           const badge = badgeKey ? formatNavBadge(pending[badgeKey]) : null;
           return (
             <NavLink

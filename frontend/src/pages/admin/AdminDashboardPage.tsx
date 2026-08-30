@@ -7,6 +7,7 @@ import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { AdminDashboard } from '../../api/types';
 import { cn } from '@/lib/utils';
+import CommunitySupportStrip from '../../components/admin/CommunitySupportStrip';
 
 export default function AdminDashboardPage() {
   const nav = useNavigate();
@@ -126,6 +127,8 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </section>
+
+      <CommunitySupportStrip />
 
       <div className="admin-card">
         <div className="admin-card-head">

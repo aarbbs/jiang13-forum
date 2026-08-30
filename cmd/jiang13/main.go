@@ -8,12 +8,14 @@ import (
 	"github.com/kardianos/service"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
+	appsvc "git.iioio.com/freefire/jiang13-forum/service"
 )
 
 // version 由构建脚本通过 -ldflags "-X main.version=..." 注入
 var version = "dev"
 
 func main() {
+	appsvc.SetAppVersion(version)
 	cfg, err := config.Parse()
 	if err != nil {
 		log.Fatalf("配置解析失败: %v", err)

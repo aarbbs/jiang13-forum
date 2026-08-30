@@ -32,6 +32,7 @@ const FavoritesPage = lazyWithRetry(() => import('./pages/FavoritesPage'));
 const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'));
 const ProjectsPage = lazyWithRetry(() => import('./pages/ProjectsPage'));
 const LinksPage = lazyWithRetry(() => import('./pages/LinksPage'));
+const ShowcasePage = lazyWithRetry(() => import('./pages/ShowcasePage'));
 const AdminDashboardPage = lazyWithRetry(() => import('./pages/admin/AdminDashboardPage'));
 const AdminPostsPage = lazyWithRetry(() => import('./pages/admin/AdminPostsPage'));
 const AdminCommentsPage = lazyWithRetry(() => import('./pages/admin/AdminCommentsPage'));
@@ -44,6 +45,7 @@ const AdminSitePageEditPage = lazyWithRetry(() => import('./pages/admin/AdminSit
 const AdminLinksPage = lazyWithRetry(() => import('./pages/admin/AdminLinksPage'));
 const SitePageView = lazyWithRetry(() => import('./pages/SitePageView'));
 const AdminSettingsPage = lazyWithRetry(() => import('./pages/admin/AdminSettingsPage'));
+const AdminCommunityPage = lazyWithRetry(() => import('./pages/admin/AdminCommunityPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 
 const router = createBrowserRouter(
@@ -61,6 +63,7 @@ const router = createBrowserRouter(
         <Route path="pages/:id/edit" element={<Suspense fallback={<PageLoader />}><AdminSitePageEditPage /></Suspense>} />
         <Route path="pages" element={<Suspense fallback={<PageLoader />}><AdminPagesPage /></Suspense>} />
         <Route path="links" element={<Suspense fallback={<PageLoader />}><AdminLinksPage /></Suspense>} />
+        <Route path="community" element={<Suspense fallback={<PageLoader />}><AdminCommunityPage /></Suspense>} />
         <Route path="posts" element={<Suspense fallback={<PageLoader />}><AdminPostsPage /></Suspense>} />
         <Route path="comments" element={<Suspense fallback={<PageLoader />}><AdminCommentsPage /></Suspense>} />
         <Route path="reports" element={<Suspense fallback={<PageLoader />}><AdminReportsPage /></Suspense>} />
@@ -82,6 +85,7 @@ const router = createBrowserRouter(
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/links" element={<LinksPage />} />
+        <Route path="/showcase" element={<Suspense fallback={<PageLoader />}><ShowcasePage /></Suspense>} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/page/:slug" element={<Suspense fallback={<PageLoader />}><SitePageView /></Suspense>} />
         <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>} />

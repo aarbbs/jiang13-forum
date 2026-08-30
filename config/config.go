@@ -32,6 +32,8 @@ type Config struct {
 	ServiceAction string
 	// 开发模式：后端代理前端请求到 Vite 开发服务器（非内嵌静态资源）
 	DevMode bool
+	// CommunityHub 维护者选项：开启后本站接收其它实例自愿上报（默认关闭）
+	CommunityHub bool
 }
 
 // Parse 解析命令行、环境变量与 app.ini，并初始化数据目录
@@ -108,6 +110,11 @@ func Parse() (*Config, error) {
 		jwtSecret = strings.TrimSpace(*jwtFlag)
 	}
 
+	communityHub := fileCfg.CommunityHub
+	if v := envBoolOrNil(envCommunityHub); v != nil {
+		communityHub = *v
+	}
+
 	cfg := &Config{
 		WorkPath:      workPath,
 		ConfigFile:    configFile,
@@ -117,6 +124,7 @@ func Parse() (*Config, error) {
 		LogFile:       filepath.Join(absData, "jiang13.log"),
 		ServiceAction: action,
 		DevMode:       *devFlag,
+		CommunityHub:  communityHub,
 	}
 
 	needDirs := action == "" || action == "install"

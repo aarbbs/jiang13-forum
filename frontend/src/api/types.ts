@@ -376,8 +376,43 @@ export interface AdminSettings {
   gitea?: GiteaSyncConfig;
   storage?: StorageConfig;
   branding?: SiteBranding;
+  community?: CommunityConfig;
   filter_words: string;
   filter_word_count: number;
+}
+
+/** 社区上报配置（hub_url / site_url 只读） */
+export interface CommunityConfig {
+  report_enabled: boolean;
+  /** 只读：是否作为社区枢纽 */
+  hub_enabled: boolean;
+  /** 只读：固定为官方演示站 */
+  hub_url: string;
+  /** 只读：服务端自动推断的本站地址 */
+  site_url: string;
+  instance_id: string;
+}
+
+export interface CommunityInstance {
+  instance_id: string;
+  site_url: string;
+  site_name: string;
+  version: string;
+  users: number;
+  posts: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  online: boolean;
+  featured: boolean;
+  featured_note: string;
+}
+
+/** 公开展柜条目 */
+export interface CommunityShowcaseItem {
+  site_url: string;
+  site_name: string;
+  version: string;
+  featured_note?: string;
 }
 
 export interface StorageConfig {

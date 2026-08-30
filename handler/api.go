@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/middleware"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/service"
+	"github.com/gin-gonic/gin"
 )
 
 // APIMe 当前登录用户
@@ -160,12 +160,12 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
-		"comments": commentCount,
-		"pending_posts":    pendingPosts,
-		"pending_comments": pendingComments,
-		"pending_reports":  pendingReports,
+		"comments":             commentCount,
+		"pending_posts":        pendingPosts,
+		"pending_comments":     pendingComments,
+		"pending_reports":      pendingReports,
 		"pending_friend_links": pendingFriendLinks,
-		"recent_posts":     recentPosts,
+		"recent_posts":         recentPosts,
 	})
 }
 
@@ -574,6 +574,7 @@ func (h *Handlers) APIAdminSettings(c *gin.Context) {
 		"gitea":             h.Settings.GiteaSyncConfigPublic(),
 		"storage":           h.Settings.StorageConfigPublic(),
 		"branding":          h.Settings.SiteBranding(),
+		"community":         h.Settings.CommunityConfig(),
 		"filter_words":      filterContent,
 		"filter_word_count": service.CountFilterWords(filterContent),
 	})
@@ -994,10 +995,10 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		h.Badge.AttachBadgeSummaries(users, 2)
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"posts": items,
-		"total": total,
-		"page":  page,
-		"size":  size,
+		"posts":    items,
+		"total":    total,
+		"page":     page,
+		"size":     size,
 		"has_more": int64(page*size) < total,
 	})
 }

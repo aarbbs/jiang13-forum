@@ -196,6 +196,7 @@ docker run -d --name jiang13 \
 | `JIANG13_JWT_SECRET` | JWT 密钥（留空则自动生成并写入 `/data/.jwt_secret`） |
 | `JIANG13_CONFIG` | 配置文件路径 |
 | `JIANG13_WORK_PATH` | 工作目录 |
+| `JIANG13_COMMUNITY_HUB` | 维护者选项：设为 `1` 时本站作为社区枢纽收报（默认关闭，见 `app.ini.example`） |
 
 **健康检查：** `GET /health` 返回 `{"status":"ok"}`，供 Docker / 负载均衡探活。
 
@@ -292,7 +293,7 @@ JWT_SECRET =
 | `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
 | `--service` | （空） | `install` / `uninstall` / `start` / `stop` / `restart` / `status` |
 
-**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`
+**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`、`JIANG13_COMMUNITY_HUB`（维护者选项，见上表）
 
 ### 5. 注册为系统服务（可选）
 
