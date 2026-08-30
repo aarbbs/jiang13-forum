@@ -5,7 +5,7 @@ APP_NAME    := jiang13
 MAIN_PKG    := ./cmd/jiang13
 BUILD_DIR   := dist
 DEV_DATA_DIR := dist/data
-VERSION     := 1.1.0
+VERSION     := 1.1.1
 LDFLAGS     := -s -w -X main.version=$(VERSION)
 REGISTRY_IMAGE := hangzhang714128/jiang13-forum
 
