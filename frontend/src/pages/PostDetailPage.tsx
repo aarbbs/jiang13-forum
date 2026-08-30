@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Pencil, Pin, History, Lock, LockOpen, MessageSquare, MessageSquareOff, Trash2, Sparkles, Flag, Ban, CircleCheck, CircleHelp, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Lock, MessageSquare, MessageSquareOff, Flag, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
@@ -44,6 +43,7 @@ import PostBountyBanner from '../components/PostBountyBanner';
 import { findCommentFloor } from '../utils/bounty';
 import PostLotteryCard from '../components/PostLotteryCard';
 import PostRevisionPanel from '../components/PostRevisionPanel';
+import PostManageMenu from '../components/PostManageMenu';
 import ArticleOutline from '../components/ArticleOutline';
 import { useAuth } from '../hooks/useAuth';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
@@ -102,6 +102,8 @@ export default function PostDetailPage() {
   const [editWindowHours, setEditWindowHours] = useState(0);
   const [showRevisions, setShowRevisions] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [headings, setHeadings] = useState<PostHeading[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>('spam');
@@ -186,6 +188,7 @@ export default function PostDetailPage() {
     }
     setReplyTo(null);
     setEditingCommentId(null);
+    setComposerOpen(false);
     setHeadings([]);
     const seq = ++loadSeq.current;
     setLoading(true);
@@ -244,14 +247,53 @@ export default function PostDetailPage() {
     }
   }, [postId]);
 
-  const scrollToCommentBox = useCallback(() => {
-    const target = commentBoxRef.current || commentSectionRef.current;
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    window.setTimeout(() => {
-      const ta = commentBoxRef.current?.querySelector('textarea');
-      ta?.focus({ preventScroll: true });
-    }, 320);
+  const focusCommentEditor = useCallback(() => {
+    const root = commentBoxRef.current;
+    if (!root) return;
+    const editable = root.querySelector<HTMLElement>('.ProseMirror, [contenteditable="true"]');
+    editable?.focus({ preventScroll: true });
   }, []);
+
+  const scrollToCommentBox = useCallback(() => {
+    setComposerOpen(true);
+    // 等折叠条展开后再滚入视口并聚焦 TipTap
+    window.setTimeout(() => {
+      const target = commentBoxRef.current || commentSectionRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(focusCommentEditor, 80);
+    }, 50);
+  }, [focusCommentEditor]);
+
+  // 手机端展开输入框后聚焦编辑器
+  useEffect(() => {
+    if (!composerOpen || !isMobile) return;
+    const timer = window.setTimeout(focusCommentEditor, 60);
+    return () => window.clearTimeout(timer);
+  }, [composerOpen, isMobile, focusCommentEditor]);
+
+  // 手机端：焦点离开评论输入区（含工具栏）后收起为「说点什么…」
+  useEffect(() => {
+    if (!isMobile || !composerOpen) return;
+    const root = commentBoxRef.current;
+    if (!root) return;
+
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && root.contains(next)) return;
+
+      // 等焦点真正落定（工具栏 / Dialog / 系统弹窗）后再判断是否收起
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (active && root.contains(active)) return;
+        // 代码块 Dialog 等浮层打开时不收起
+        if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+        setComposerOpen(false);
+      }, 50);
+    };
+
+    root.addEventListener('focusout', onFocusOut);
+    return () => root.removeEventListener('focusout', onFocusOut);
+  }, [isMobile, composerOpen]);
 
   const jumpToFloor = useCallback((floor: number) => {
     const el = document.getElementById(`floor-${floor}`);
@@ -468,6 +510,7 @@ export default function PostDetailPage() {
       });
       setReplyTo(null);
       setSubmitCount(c => c + 1);
+      if (isMobile) setComposerOpen(false);
       notify.success(r.message || (r.status === 'pending' ? '评论已提交审核' : '评论成功'));
       await Promise.all([reloadComments(), reloadPostContent()]);
       setTimeout(() => jumpToFloor(r.floor), 100);
@@ -738,12 +781,38 @@ export default function PostDetailPage() {
     <article className="page-wrap post-detail-page" ref={pageRef}>
       <div className="post-detail-header">
         <div className="post-detail-nav">
-          <Button variant="ghost" size="sm" onClick={() => nav(-1)}>
-            <ArrowLeft />
-            返回
-          </Button>
-          {post.board && (
-            <BoardBadge board={post.board} className="post-detail-board-tag" />
+          <div className="post-detail-nav-left">
+            <Button variant="ghost" size="sm" onClick={() => nav(-1)}>
+              <ArrowLeft />
+              返回
+            </Button>
+            {post.board && (
+              <BoardBadge board={post.board} className="post-detail-board-tag" />
+            )}
+          </div>
+          {(isOwnerOrAdmin || canEdit || isAdmin) && (
+            <PostManageMenu
+              post={post}
+              isAdmin={isAdmin}
+              isOwnerOrAdmin={isOwnerOrAdmin}
+              canEdit={canEdit}
+              isEdited={isEdited}
+              isMobile={isMobile}
+              editRemaining={editRemaining}
+              editBlockReason={editBlockReason}
+              deleting={deletingPost}
+              onEdit={() => nav(`/post/${postId}/edit`)}
+              onShowRevisions={() => setShowRevisions(true)}
+              onToggleResolved={handleToggleResolved}
+              onApprove={handleApprove}
+              onReject={() => setRejectOpen(true)}
+              onFeature={handleFeature}
+              onPin={handlePin}
+              onBoardPin={handleBoardPin}
+              onLock={handleLock}
+              onCommentsLock={handleCommentsLock}
+              onDelete={() => setDeleteOpen(true)}
+            />
           )}
         </div>
 
@@ -943,100 +1012,31 @@ export default function PostDetailPage() {
               </DropdownMenu>
             ) : null}
           </div>
-
-          {(isOwnerOrAdmin || canEdit || isAdmin) && (
-            <div className="post-detail-actions-manage">
-              {isOwnerOrAdmin && post.post_type === 'question' && (
-                <Button
-                  variant={post.question_resolved ? 'outline' : 'default'}
-                  size="sm"
-                  onClick={handleToggleResolved}
-                >
-                  {post.question_resolved ? <CircleHelp /> : <CircleCheck />}
-                  {post.question_resolved ? '标为未解决' : '标为已解决'}
-                </Button>
-              )}
-              {canEdit && (
-                <Button variant="outline" size="sm" onClick={() => nav(`/post/${postId}/edit`)}>
-                  <Pencil />
-                  编辑
-                </Button>
-              )}
-              {isOwnerOrAdmin && isEdited && (
-                <Button variant="outline" size="sm" onClick={() => setShowRevisions(true)}>
-                  <History />
-                  编辑历史
-                </Button>
-              )}
-              {isAdmin && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={deletingPost}>
-                      <Trash2 />
-                      删除
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        帖子与评论将移入回收站，可在后台恢复或永久删除。普通用户不可自行删除内容。
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>取消</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeletePost}>删除</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              {editRemaining && (
-                <span className="post-detail-edit-hint">{editRemaining}</span>
-              )}
-              {isOwnerOrAdmin && !canEdit && editBlockReason && (
-                <span className="post-detail-edit-hint" title={editBlockReason}>
-                  {editBlockReason}
-                </span>
-              )}
-              {isAdmin && (
-                <>
-                  {(post.status === 'pending' || post.status === 'rejected') && (
-                    <Button variant="default" size="sm" onClick={handleApprove}>
-                      通过审核
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={handleFeature}>
-                    <Sparkles />
-                    {post.featured ? '取消精华' : '设为精华'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handlePin}>
-                    <Pin />
-                    {post.pinned ? '取消全局置顶' : '全局置顶'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleBoardPin}>
-                    <Pin />
-                    {post.board_pinned ? '取消板块置顶' : '板块置顶'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleLock}>
-                    <Lock />
-                    {post.edit_locked ? '解锁编辑' : '锁定编辑'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleCommentsLock}>
-                    {post.comments_locked ? <LockOpen /> : <MessageSquareOff />}
-                    {post.comments_locked ? '开放讨论' : '锁定讨论'}
-                  </Button>
-                  {post.status !== 'rejected' && (
-                    <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)}>
-                      <Ban />
-                      拒绝并通知
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定删除该帖子？</AlertDialogTitle>
+            <AlertDialogDescription>
+              帖子与评论将移入回收站，可在后台恢复或永久删除。普通用户不可自行删除内容。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingPost}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deletingPost}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeletePost();
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent>
@@ -1122,7 +1122,45 @@ export default function PostDetailPage() {
           </div>
         ) : !replyTo && (
           <div className="comment-box-wrap" ref={commentBoxRef}>
-            <CommentBox {...commentBoxProps} />
+            {isMobile && !composerOpen && (
+              <button
+                type="button"
+                className="comment-composer-collapsed"
+                onClick={() => {
+                  if (!user) {
+                    requireLogin('评论');
+                    return;
+                  }
+                  setComposerOpen(true);
+                  window.requestAnimationFrame(() => {
+                    window.setTimeout(focusCommentEditor, 50);
+                  });
+                }}
+              >
+                {user ? (
+                  <>
+                    <span className="comment-composer-collapsed-avatar" aria-hidden>
+                      {user.avatar
+                        ? <img src={user.avatar} alt="" loading="lazy" decoding="async" />
+                        : (user.nickname?.[0] || '?')}
+                    </span>
+                    <span className="comment-composer-collapsed-placeholder">说点什么…</span>
+                  </>
+                ) : (
+                  <span className="comment-composer-collapsed-placeholder">登录后即可评论</span>
+                )}
+              </button>
+            )}
+            <div
+              className={
+                isMobile && !composerOpen
+                  ? 'comment-box-expanded-slot is-collapsed'
+                  : 'comment-box-expanded-slot'
+              }
+              aria-hidden={isMobile && !composerOpen}
+            >
+              <CommentBox {...commentBoxProps} />
+            </div>
           </div>
         )}
 
