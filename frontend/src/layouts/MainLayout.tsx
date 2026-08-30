@@ -34,6 +34,7 @@ import { getBoardThemeIndex } from '../utils/boardTheme';
 import { loginPath } from '../utils/authRedirect';
 import { openForumPost } from '../utils/openPost';
 import { useSiteBranding } from '../hooks/useSiteBranding';
+import { useMonitorPageview } from '../hooks/useMonitorPageview';
 import SiteBrandMark from '../components/SiteBrandMark';
 import SiteFooter from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
@@ -43,6 +44,7 @@ export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const { branding } = useSiteBranding();
+  useMonitorPageview();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const hideAside = useMediaQuery('(max-width: 1100px)');
   const nav = useNavigate();

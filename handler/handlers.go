@@ -29,6 +29,7 @@ type Handlers struct {
 	Report          *service.ReportService
 	Backup          *service.BackupService
 	Community       *service.CommunityService
+	Monitor         *service.MonitorService
 	Filter          *service.SensitiveFilter
 	Limiter         *service.RateLimiter
 	Settings        *service.ForumSettingsService

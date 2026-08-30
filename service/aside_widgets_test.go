@@ -9,16 +9,16 @@ func TestNormalizeAsideWidgetsPreservesOrder(t *testing.T) {
 		{ID: AsideWidgetRecentComments, Enabled: false},
 	}
 	out := NormalizeAsideWidgets(in)
-	if len(out) != 4 {
-		t.Fatalf("want 4 widgets, got %d", len(out))
+	if len(out) != 5 {
+		t.Fatalf("want 5 widgets, got %d", len(out))
 	}
-	want := []string{AsideWidgetFriendLinks, AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetRecentUsers}
+	want := []string{AsideWidgetFriendLinks, AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetRecentUsers, AsideWidgetShowcase}
 	for i, id := range want {
 		if out[i].ID != id {
 			t.Fatalf("index %d: want %s, got %s", i, id, out[i].ID)
 		}
 	}
-	if !out[0].Enabled || !out[1].Enabled || out[2].Enabled || out[3].Enabled {
+	if !out[0].Enabled || !out[1].Enabled || out[2].Enabled || out[3].Enabled || out[4].Enabled {
 		t.Fatalf("enabled flags mismatch: %+v", out)
 	}
 }

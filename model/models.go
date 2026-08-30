@@ -481,3 +481,20 @@ type CommunityInstance struct {
 	FirstSeenAt  time.Time `json:"first_seen_at"`
 	LastSeenAt   time.Time `gorm:"index" json:"last_seen_at"`
 }
+
+// PageView 前台路由浏览量（第一方 SPA 信标；存独立 monitor.db；请求日志走 jsonl）
+type PageView struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `gorm:"index;not null" json:"created_at"`
+	Path      string    `gorm:"size:512;index" json:"path"`
+	Referrer  string    `gorm:"size:512" json:"referrer"`
+	IP        string    `gorm:"size:64;index" json:"ip"` // 完整客户端 IP
+	UA        string    `gorm:"size:512" json:"ua"`
+	Country   string    `gorm:"size:8;index" json:"country"`
+	Region    string    `gorm:"size:64" json:"region"`
+	RegionISO string    `gorm:"size:16;index" json:"region_iso"`
+	City      string    `gorm:"size:64;index" json:"city"`
+	ASN       uint      `gorm:"index" json:"asn"`
+	ASOrg     string    `gorm:"size:128" json:"as_org"`
+	IsBot     bool      `gorm:"default:false;index" json:"is_bot"`
+}

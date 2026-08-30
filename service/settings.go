@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -42,9 +43,12 @@ const (
 	SettingAsideShowTagCloud        = "aside_show_tag_cloud"
 	SettingAsideShowRecentComments  = "aside_show_recent_comments"
 	SettingAsideShowFriendLinks     = "aside_show_friend_links"
+	SettingAsideShowShowcase        = "aside_show_showcase"
 	SettingAsideWidgets             = "aside_widgets"
 	SettingNavShowFriendLinks       = "nav_show_friend_links"
 	SettingFooterShowFriendLinks    = "footer_show_friend_links"
+	SettingNavShowShowcase          = "nav_show_showcase"
+	SettingFooterShowShowcase       = "footer_show_showcase"
 	SettingFeedListStyle            = "feed_list_style"
 
 	// 伪静态键名见 permalink.go：SettingPermalinkEnabled / SettingPermalinkExt
@@ -99,8 +103,17 @@ const (
 	SettingCommunityHubURL        = "community_hub_url"
 	SettingCommunitySiteURL       = "community_site_url" // 上报用的本站公开地址（可回退 OIDC ROOT_URL）
 
+	SettingMonitorEnabled           = "monitor_enabled"
+	SettingMonitorRetention         = "monitor_retention_days"
+	SettingMonitorAccessLogRetention = "monitor_access_log_retention_days"
+	SettingMonitorExclude           = "monitor_exclude_json"
+	SettingMonitorTrustProxy        = "monitor_trust_proxy"
+
 	// DefaultCommunityHubURL 官方演示站（社区枢纽默认地址）
 	DefaultCommunityHubURL = "https://bbs.iioio.com"
+
+	// DefaultMonitorExcludeJSON 默认排除路径/后缀（JSON 数组）
+	DefaultMonitorExcludeJSON = `["/admin","/api/admin/","/api/me","/api/site-branding","/health","/uploads/","/media/","/static/","/spa/","/api/admin/monitor","/api/monitor/pageview","/favicon.ico",".js",".css",".map",".woff",".woff2",".ttf",".png",".jpg",".jpeg",".gif",".webp",".avif",".svg",".ico"]`
 
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
@@ -138,9 +151,12 @@ type ForumLimits struct {
 	AsideShowTagCloud       bool          `json:"aside_show_tag_cloud"`
 	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
 	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
+	AsideShowShowcase       bool          `json:"aside_show_showcase"`
 	AsideWidgets            []AsideWidget `json:"aside_widgets"`
 	NavShowFriendLinks      bool          `json:"nav_show_friend_links"`
 	FooterShowFriendLinks   bool          `json:"footer_show_friend_links"`
+	NavShowShowcase         bool          `json:"nav_show_showcase"`
+	FooterShowShowcase      bool          `json:"footer_show_showcase"`
 
 	FeedListStyle string `json:"feed_list_style"`
 
@@ -159,6 +175,7 @@ const (
 	AsideWidgetRecentComments = "recent_comments"
 	AsideWidgetRecentUsers    = "recent_users"
 	AsideWidgetFriendLinks    = "friend_links"
+	AsideWidgetShowcase       = "showcase"
 )
 
 var asideWidgetDefaultOrder = []string{
@@ -166,6 +183,7 @@ var asideWidgetDefaultOrder = []string{
 	AsideWidgetRecentComments,
 	AsideWidgetRecentUsers,
 	AsideWidgetFriendLinks,
+	AsideWidgetShowcase,
 }
 
 // ForumLimitsPublic 前台可见的限制（不含限流等内部配置）
@@ -189,14 +207,20 @@ type ForumLimitsPublic struct {
 	AsideShowTagCloud       bool          `json:"aside_show_tag_cloud"`
 	AsideShowRecentComments bool          `json:"aside_show_recent_comments"`
 	AsideShowFriendLinks    bool          `json:"aside_show_friend_links"`
+	AsideShowShowcase       bool          `json:"aside_show_showcase"`
 	AsideWidgets            []AsideWidget `json:"aside_widgets"`
 	NavShowFriendLinks      bool          `json:"nav_show_friend_links"`
 	FooterShowFriendLinks   bool          `json:"footer_show_friend_links"`
+	NavShowShowcase         bool          `json:"nav_show_showcase"`
+	FooterShowShowcase      bool          `json:"footer_show_showcase"`
 
 	FeedListStyle string `json:"feed_list_style"`
 
 	PermalinkEnabled bool   `json:"permalink_enabled"`
 	PermalinkExt     string `json:"permalink_ext"`
+
+	// MonitorPageview 是否接受前台路由 pageview 信标（与 monitor_enabled 同步）
+	MonitorPageview bool `json:"monitor_pageview"`
 }
 
 type settingDef struct {
@@ -243,7 +267,8 @@ var asideSettingDefaults = map[string]string{
 	SettingAsideShowTagCloud:       "0",
 	SettingAsideShowRecentComments: "0",
 	SettingAsideShowFriendLinks:    "1",
-	SettingAsideWidgets:            `[{"id":"tag_cloud","enabled":false},{"id":"recent_comments","enabled":false},{"id":"friend_links","enabled":true}]`,
+	SettingAsideShowShowcase:       "0",
+	SettingAsideWidgets:            `[{"id":"tag_cloud","enabled":false},{"id":"recent_comments","enabled":false},{"id":"friend_links","enabled":true},{"id":"showcase","enabled":false}]`,
 }
 
 var mailSettingDefaults = map[string]string{
@@ -289,6 +314,8 @@ var friendLinkSettingDefaults = map[string]string{
 	SettingFriendLinkReciprocalCheck: "0", // 默认关闭回链检测
 	SettingNavShowFriendLinks:        "1",
 	SettingFooterShowFriendLinks:     "1",
+	SettingNavShowShowcase:           "0",
+	SettingFooterShowShowcase:        "0",
 }
 
 var communitySettingDefaults = map[string]string{
@@ -297,6 +324,14 @@ var communitySettingDefaults = map[string]string{
 	SettingCommunityInstanceID:    "",
 	SettingCommunityHubURL:        DefaultCommunityHubURL,
 	SettingCommunitySiteURL:       "",
+}
+
+var monitorSettingDefaults = map[string]string{
+	SettingMonitorEnabled:            "0",
+	SettingMonitorRetention:          "30",
+	SettingMonitorAccessLogRetention: "7",
+	SettingMonitorExclude:            DefaultMonitorExcludeJSON,
+	SettingMonitorTrustProxy:         "1",
 }
 
 var siteBrandingDefaults = map[string]string{
@@ -392,13 +427,33 @@ type GiteaSyncConfig struct {
 	RepoCount       int64  `json:"repo_count"`
 }
 
-// CommunityConfig 社区上报配置（HubEnabled 只读，来自运维配置）
+// CommunityConfig 社区上报配置（HubEnabled 只读：运维开关或官网域名）
 type CommunityConfig struct {
 	ReportEnabled bool   `json:"report_enabled"`
-	HubEnabled    bool   `json:"hub_enabled"` // 只读：app.ini / 环境变量
+	HubEnabled    bool   `json:"hub_enabled"` // 只读：app.ini / 环境变量 / 官网 Host
 	HubURL        string `json:"hub_url"`
 	SiteURL       string `json:"site_url"` // 上报用的本站公开地址
 	InstanceID    string `json:"instance_id"`
+}
+
+// MonitorConfig 网站监控采集设置
+type MonitorConfig struct {
+	Enabled                  bool     `json:"enabled"`
+	RetentionDays            int      `json:"retention_days"`              // page_views 保留
+	AccessLogRetentionDays   int      `json:"access_log_retention_days"`   // JSONL 请求日志保留
+	ExcludeRules             []string `json:"exclude_rules"`
+	DefaultExcludeRules      []string `json:"default_exclude_rules"` // 只读：恢复推荐规则
+	TrustProxy               bool     `json:"trust_proxy"`
+	AccessLogDir             string   `json:"access_log_dir"`
+	IP2LocationV4Path        string   `json:"ip2location_v4_path"`
+	IP2LocationV6Path        string   `json:"ip2location_v6_path"`
+	IP2LocationV4Available   bool     `json:"ip2location_v4_available"`
+	IP2LocationV6Available   bool     `json:"ip2location_v6_available"`
+	GeoIPAvailable           bool     `json:"geoip_available"`
+	GeoIPCountryPath         string   `json:"geoip_country_path"`
+	GeoIPASNPath             string   `json:"geoip_asn_path"`
+	GeoIPCountryAvailable    bool     `json:"geoip_country_available"`
+	GeoIPASNAvailable        bool     `json:"geoip_asn_available"`
 }
 
 // OIDCConfig OIDC Provider 全局配置（应用凭证见 oauth_clients）
@@ -505,6 +560,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
 		}
 	}
+	for key, val := range monitorSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
 }
 
 func (s *ForumSettingsService) getString(key, fallback string) string {
@@ -586,9 +648,12 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		AsideShowTagCloud:       bools.tagCloud,
 		AsideShowRecentComments: bools.recentComments,
 		AsideShowFriendLinks:    bools.friendLinks,
+		AsideShowShowcase:       bools.showcase,
 		AsideWidgets:            widgets,
 		NavShowFriendLinks:      s.NavShowFriendLinks(),
 		FooterShowFriendLinks:   s.FooterShowFriendLinks(),
+		NavShowShowcase:         s.NavShowShowcase(),
+		FooterShowShowcase:      s.FooterShowShowcase(),
 
 		FeedListStyle: s.FeedListStyle(),
 
@@ -619,14 +684,19 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		AsideShowTagCloud:       limits.AsideShowTagCloud,
 		AsideShowRecentComments: limits.AsideShowRecentComments,
 		AsideShowFriendLinks:    limits.AsideShowFriendLinks,
+		AsideShowShowcase:       limits.AsideShowShowcase,
 		AsideWidgets:            limits.AsideWidgets,
 		NavShowFriendLinks:      limits.NavShowFriendLinks,
 		FooterShowFriendLinks:   limits.FooterShowFriendLinks,
+		NavShowShowcase:         limits.NavShowShowcase,
+		FooterShowShowcase:      limits.FooterShowShowcase,
 
 		FeedListStyle: limits.FeedListStyle,
 
 		PermalinkEnabled: limits.PermalinkEnabled,
 		PermalinkExt:     limits.PermalinkExt,
+
+		MonitorPageview: s.MonitorEnabled(),
 	}
 }
 
@@ -669,8 +739,11 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		SettingAsideShowTagCloud:        bools.tagCloud,
 		SettingAsideShowRecentComments:  bools.recentComments,
 		SettingAsideShowFriendLinks:     bools.friendLinks,
+		SettingAsideShowShowcase:        bools.showcase,
 		SettingNavShowFriendLinks:       in.NavShowFriendLinks,
 		SettingFooterShowFriendLinks:    in.FooterShowFriendLinks,
+		SettingNavShowShowcase:          in.NavShowShowcase,
+		SettingFooterShowShowcase:       in.FooterShowShowcase,
 		SettingPermalinkEnabled:         in.PermalinkEnabled,
 	}
 	for key, on := range boolUpdates {
@@ -770,6 +843,26 @@ func (s *ForumSettingsService) FooterShowFriendLinks() bool {
 	return s.getString(SettingFooterShowFriendLinks, "1") == "1"
 }
 
+// NavShowShowcase 左侧栏「站点」是否展示开源展柜入口；缺省关闭
+func (s *ForumSettingsService) NavShowShowcase() bool {
+	return s.getString(SettingNavShowShowcase, "0") == "1"
+}
+
+// FooterShowShowcase 页脚是否展示开源展柜入口；缺省关闭
+func (s *ForumSettingsService) FooterShowShowcase() bool {
+	return s.getString(SettingFooterShowShowcase, "0") == "1"
+}
+
+// AsideShowShowcase 右侧栏是否展示开源展柜组件
+func (s *ForumSettingsService) AsideShowShowcase() bool {
+	for _, w := range s.AsideWidgets() {
+		if w.ID == AsideWidgetShowcase {
+			return w.Enabled
+		}
+	}
+	return s.getString(SettingAsideShowShowcase, "0") == "1"
+}
+
 func (s *ForumSettingsService) SetFriendLinkReciprocalCheckEnabled(enabled bool) error {
 	v := "0"
 	if enabled {
@@ -794,19 +887,44 @@ func (s *ForumSettingsService) SetFooterShowFriendLinks(enabled bool) error {
 	return s.setString(SettingFooterShowFriendLinks, v)
 }
 
+func (s *ForumSettingsService) SetNavShowShowcase(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return s.setString(SettingNavShowShowcase, v)
+}
+
+func (s *ForumSettingsService) SetFooterShowShowcase(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return s.setString(SettingFooterShowShowcase, v)
+}
+
 // SetAsideFriendLinksEnabled 更新右侧栏友链组件开关（与 aside_widgets 同步）
 func (s *ForumSettingsService) SetAsideFriendLinksEnabled(enabled bool) error {
+	return s.setAsideWidgetEnabled(AsideWidgetFriendLinks, SettingAsideShowFriendLinks, enabled)
+}
+
+// SetAsideShowcaseEnabled 更新右侧栏开源展柜组件开关（与 aside_widgets 同步）
+func (s *ForumSettingsService) SetAsideShowcaseEnabled(enabled bool) error {
+	return s.setAsideWidgetEnabled(AsideWidgetShowcase, SettingAsideShowShowcase, enabled)
+}
+
+func (s *ForumSettingsService) setAsideWidgetEnabled(widgetID, boolSettingKey string, enabled bool) error {
 	widgets := s.AsideWidgets()
 	found := false
 	for i := range widgets {
-		if widgets[i].ID == AsideWidgetFriendLinks {
+		if widgets[i].ID == widgetID {
 			widgets[i].Enabled = enabled
 			found = true
 			break
 		}
 	}
 	if !found {
-		widgets = append(widgets, AsideWidget{ID: AsideWidgetFriendLinks, Enabled: enabled})
+		widgets = append(widgets, AsideWidget{ID: widgetID, Enabled: enabled})
 	}
 	widgets = NormalizeAsideWidgets(widgets)
 	bools := asideBoolsFromWidgets(widgets)
@@ -818,16 +936,28 @@ func (s *ForumSettingsService) SetAsideFriendLinksEnabled(enabled bool) error {
 		return err
 	}
 	v := "0"
-	if bools.friendLinks {
-		v = "1"
+	switch widgetID {
+	case AsideWidgetFriendLinks:
+		if bools.friendLinks {
+			v = "1"
+		}
+	case AsideWidgetShowcase:
+		if bools.showcase {
+			v = "1"
+		}
+	default:
+		if enabled {
+			v = "1"
+		}
 	}
-	return s.setString(SettingAsideShowFriendLinks, v)
+	return s.setString(boolSettingKey, v)
 }
 
 type asideWidgetBools struct {
 	tagCloud       bool
 	recentComments bool
 	friendLinks    bool
+	showcase       bool
 }
 
 func asideWidgetsFromBools(tagCloud, recentComments, friendLinks bool) []AsideWidget {
@@ -835,6 +965,7 @@ func asideWidgetsFromBools(tagCloud, recentComments, friendLinks bool) []AsideWi
 		{ID: AsideWidgetTagCloud, Enabled: tagCloud},
 		{ID: AsideWidgetRecentComments, Enabled: recentComments},
 		{ID: AsideWidgetFriendLinks, Enabled: friendLinks},
+		{ID: AsideWidgetShowcase, Enabled: false},
 	}
 }
 
@@ -848,6 +979,8 @@ func asideBoolsFromWidgets(widgets []AsideWidget) asideWidgetBools {
 			out.recentComments = w.Enabled
 		case AsideWidgetFriendLinks:
 			out.friendLinks = w.Enabled
+		case AsideWidgetShowcase:
+			out.showcase = w.Enabled
 		}
 	}
 	return out
@@ -855,7 +988,7 @@ func asideBoolsFromWidgets(widgets []AsideWidget) asideWidgetBools {
 
 func isValidAsideWidgetID(id string) bool {
 	switch id {
-	case AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetRecentUsers, AsideWidgetFriendLinks:
+	case AsideWidgetTagCloud, AsideWidgetRecentComments, AsideWidgetRecentUsers, AsideWidgetFriendLinks, AsideWidgetShowcase:
 		return true
 	default:
 		return false
@@ -1131,18 +1264,73 @@ func (s *ForumSettingsService) UpdateGiteaSyncConfig(in GiteaSyncConfig) error {
 	return nil
 }
 
-// CommunityConfig 读取社区上报配置
+// CommunityConfig 读取社区上报配置（无请求上下文；官网需靠已存 ROOT_URL / site_url）
 func (s *ForumSettingsService) CommunityConfig() CommunityConfig {
-	s.mu.RLock()
-	hubEnabled := s.communityHubEnabled
-	s.mu.RUnlock()
+	return s.CommunityConfigForRequest("")
+}
+
+// CommunityConfigForRequest 读取社区配置；requestHint 可为 Origin / 公开 URL，用于识别官网 Host
+func (s *ForumSettingsService) CommunityConfigForRequest(requestHint string) CommunityConfig {
 	return CommunityConfig{
 		ReportEnabled: s.getString(SettingCommunityReportEnabled, "0") == "1",
-		HubEnabled:    hubEnabled,
+		HubEnabled:    s.CommunityHubEnabled(requestHint),
 		HubURL:        DefaultCommunityHubURL,
-		SiteURL:       s.CommunitySiteURL(""),
+		SiteURL:       s.CommunitySiteURL(requestHint),
 		InstanceID:    strings.TrimSpace(s.getString(SettingCommunityInstanceID, "")),
 	}
+}
+
+// CommunityHubEnabled 是否作为社区枢纽：运维开关，或本站即为官方演示站域名
+func (s *ForumSettingsService) CommunityHubEnabled(requestHint string) bool {
+	s.mu.RLock()
+	ops := s.communityHubEnabled
+	s.mu.RUnlock()
+	if ops {
+		return true
+	}
+	official := officialCommunityHubHost()
+	if official == "" {
+		return false
+	}
+	for _, cand := range []string{
+		s.getString(SettingOIDCRootURL, ""),
+		s.getString(SettingCommunitySiteURL, ""),
+		requestHint,
+	} {
+		if hostFromURLOrHost(cand) == official {
+			return true
+		}
+	}
+	return false
+}
+
+// officialCommunityHubHost 官方枢纽规范化主机名（如 bbs.iioio.com）
+func officialCommunityHubHost() string {
+	return hostFromURLOrHost(DefaultCommunityHubURL)
+}
+
+// hostFromURLOrHost 从 URL 或裸 Host 提取规范化主机名（小写、去 www、去端口）
+func hostFromURLOrHost(raw string) string {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return ""
+	}
+	if strings.Contains(raw, "://") {
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" {
+			return ""
+		}
+		raw = u.Host
+	} else if i := strings.IndexAny(raw, "/?"); i >= 0 {
+		raw = raw[:i]
+	}
+	if raw == "" {
+		return ""
+	}
+	if h, _, err := net.SplitHostPort(raw); err == nil {
+		raw = h
+	}
+	return strings.TrimPrefix(raw, "www.")
 }
 
 // CommunitySiteURL 上报用的本站公开地址：已持久化 > OIDC ROOT_URL > 请求 Origin
@@ -1197,6 +1385,104 @@ func (s *ForumSettingsService) UpdateCommunityConfig(in CommunityConfig) (wasRep
 		}
 	}
 	return wasReportEnabled, nil
+}
+
+// DefaultMonitorExcludeRules 导出推荐排除规则（供设置页「恢复默认」）
+func DefaultMonitorExcludeRules() []string {
+	return parseMonitorExcludeJSON(DefaultMonitorExcludeJSON)
+}
+
+func normalizeMonitorRetentionDays(v int) int {
+	if v < 1 {
+		return 1
+	}
+	if v > 365 {
+		return 365
+	}
+	return v
+}
+
+// MonitorConfig 读取网站监控设置
+func (s *ForumSettingsService) MonitorConfig() MonitorConfig {
+	retention, _ := strconv.Atoi(s.getString(SettingMonitorRetention, "30"))
+	accessRetention, _ := strconv.Atoi(s.getString(SettingMonitorAccessLogRetention, "7"))
+	return MonitorConfig{
+		Enabled:                s.getString(SettingMonitorEnabled, "0") == "1",
+		RetentionDays:          normalizeMonitorRetentionDays(retention),
+		AccessLogRetentionDays: normalizeMonitorRetentionDays(accessRetention),
+		ExcludeRules:           parseMonitorExcludeJSON(s.getString(SettingMonitorExclude, DefaultMonitorExcludeJSON)),
+		DefaultExcludeRules:    DefaultMonitorExcludeRules(),
+		TrustProxy:             s.getString(SettingMonitorTrustProxy, "1") == "1",
+	}
+}
+
+// MonitorEnabled 采集是否开启
+func (s *ForumSettingsService) MonitorEnabled() bool {
+	return s.getString(SettingMonitorEnabled, "0") == "1"
+}
+
+// UpdateMonitorConfig 更新网站监控设置
+func (s *ForumSettingsService) UpdateMonitorConfig(in MonitorConfig) error {
+	enabled := "0"
+	if in.Enabled {
+		enabled = "1"
+	}
+	retention := normalizeMonitorRetentionDays(in.RetentionDays)
+	accessRetention := normalizeMonitorRetentionDays(in.AccessLogRetentionDays)
+	trust := "0"
+	if in.TrustProxy {
+		trust = "1"
+	}
+	rules := in.ExcludeRules
+	if rules == nil {
+		rules = parseMonitorExcludeJSON(DefaultMonitorExcludeJSON)
+	}
+	raw, err := json.Marshal(normalizeMonitorExclude(rules))
+	if err != nil {
+		return err
+	}
+	updates := map[string]string{
+		SettingMonitorEnabled:            enabled,
+		SettingMonitorRetention:          strconv.Itoa(retention),
+		SettingMonitorAccessLogRetention: strconv.Itoa(accessRetention),
+		SettingMonitorExclude:            string(raw),
+		SettingMonitorTrustProxy:         trust,
+	}
+	for key, val := range updates {
+		if err := s.setString(key, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseMonitorExcludeJSON(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		raw = DefaultMonitorExcludeJSON
+	}
+	var rules []string
+	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
+		_ = json.Unmarshal([]byte(DefaultMonitorExcludeJSON), &rules)
+	}
+	return normalizeMonitorExclude(rules)
+}
+
+func normalizeMonitorExclude(rules []string) []string {
+	seen := make(map[string]struct{}, len(rules))
+	out := make([]string, 0, len(rules))
+	for _, r := range rules {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		if _, ok := seen[r]; ok {
+			continue
+		}
+		seen[r] = struct{}{}
+		out = append(out, r)
+	}
+	return out
 }
 
 // StorageConfig 读取上传存储配置（含密钥明文，供内部使用）

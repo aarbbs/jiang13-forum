@@ -12,7 +12,7 @@ const EMPTY_COMMUNITY: CommunityConfig = {
   instance_id: '',
 };
 
-/** 仪表盘页脚：自愿社区上报开关（默认关，即时保存） */
+/** 仪表盘页脚：自愿社区上报开关（默认关，即时保存；枢纽站不显示） */
 export default function CommunitySupportStrip() {
   const [community, setCommunity] = useState<CommunityConfig>(EMPTY_COMMUNITY);
   const [saving, setSaving] = useState(false);
@@ -57,6 +57,11 @@ export default function CommunitySupportStrip() {
       setSaving(false);
     }
   };
+
+  // 官网 / 枢纽站本身就是收报方，无需「支持开源」上报条
+  if (!ready || community.hub_enabled) {
+    return null;
+  }
 
   return (
     <div className="admin-community-support-strip" role="group" aria-label="支持姜十三开源">

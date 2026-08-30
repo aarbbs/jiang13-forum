@@ -13,25 +13,36 @@ import (
 
 var DB *gorm.DB
 
-// InitDB 初始化 SQLite 并自动迁移
-func InitDB(dbPath string) error {
+// MonitorDB 网站监控独立库（page_views），与主库 jiang13.db 分离以免撑大备份
+var MonitorDB *gorm.DB
+
+func openSQLite(dbPath string) (*gorm.DB, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("创建数据库目录失败: %w", err)
+		return nil, fmt.Errorf("创建数据库目录失败: %w", err)
 	}
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		return fmt.Errorf("连接 SQLite 失败: %w", err)
+		return nil, fmt.Errorf("连接 SQLite 失败: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sqlDB.SetMaxOpenConns(1)
+	return db, nil
+}
+
+// InitDB 初始化主库 SQLite 并自动迁移（不含 page_views）
+func InitDB(dbPath string) error {
+	db, err := openSQLite(dbPath)
+	if err != nil {
+		return err
+	}
 
 	if err := db.AutoMigrate(
 		&User{}, &Board{}, &Post{}, &Comment{},
@@ -57,6 +68,20 @@ func InitDB(dbPath string) error {
 	seedDefaultBadges(db)
 	backfillUserExp(db)
 	log.Println("[model] SQLite 数据库初始化完成:", dbPath)
+	return nil
+}
+
+// InitMonitorDB 打开独立监控库（page_views 只写此处）
+func InitMonitorDB(monitorDBPath string) error {
+	db, err := openSQLite(monitorDBPath)
+	if err != nil {
+		return fmt.Errorf("监控库初始化失败: %w", err)
+	}
+	if err := db.AutoMigrate(&PageView{}); err != nil {
+		return fmt.Errorf("监控库迁移失败: %w", err)
+	}
+	MonitorDB = db
+	log.Println("[model] 监控库初始化完成:", monitorDBPath)
 	return nil
 }
 

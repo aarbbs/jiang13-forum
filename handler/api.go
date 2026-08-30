@@ -158,6 +158,12 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 	if recentPosts == nil {
 		recentPosts = []model.Post{}
 	}
+	traffic := service.DashboardTraffic{}
+	if h.Monitor != nil {
+		traffic = h.Monitor.DashboardTraffic()
+	} else {
+		traffic.Enabled = h.Settings.MonitorEnabled()
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"users": userCount, "posts": postCount, "boards": boardCount,
 		"comments":             commentCount,
@@ -166,6 +172,7 @@ func (h *Handlers) APIAdminDashboard(c *gin.Context) {
 		"pending_reports":      pendingReports,
 		"pending_friend_links": pendingFriendLinks,
 		"recent_posts":         recentPosts,
+		"traffic":              traffic,
 	})
 }
 
@@ -574,7 +581,7 @@ func (h *Handlers) APIAdminSettings(c *gin.Context) {
 		"gitea":             h.Settings.GiteaSyncConfigPublic(),
 		"storage":           h.Settings.StorageConfigPublic(),
 		"branding":          h.Settings.SiteBranding(),
-		"community":         h.Settings.CommunityConfig(),
+		"community":         h.Settings.CommunityConfigForRequest(communityRequestOrigin(c)),
 		"filter_words":      filterContent,
 		"filter_word_count": service.CountFilterWords(filterContent),
 	})

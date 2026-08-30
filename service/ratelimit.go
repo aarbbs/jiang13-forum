@@ -57,6 +57,9 @@ func (r *RateLimiter) limitFor(action string) int {
 	if action == "community_heartbeat" {
 		return 30
 	}
+	if action == "monitor_pageview" {
+		return 120 // SPA 路由切换较频繁
+	}
 	return r.settings.RateLimitFor(action)
 }
 
@@ -66,6 +69,9 @@ func (r *RateLimiter) windowFor(action string) time.Duration {
 	}
 	if action == "community_heartbeat" {
 		return time.Hour
+	}
+	if action == "monitor_pageview" {
+		return time.Minute
 	}
 	return time.Duration(r.settings.RateLimitWindowSec()) * time.Second
 }

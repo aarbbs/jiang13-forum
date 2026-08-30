@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem, MonitorConfig, MonitorOverview, MonitorGeoResult, MonitorStatItem, MonitorRealtime, MonitorLogItem } from './types';
 
 const BASE = '';
 
@@ -25,6 +25,27 @@ export const api = {
   me: () => request<{ user: User | null }>('/api/me'),
   stats: () => request<ForumStats>('/api/stats'),
   forumLimits: () => request<ForumLimitsPublic>('/api/forum-limits'),
+  /** 前台路由 pageview；失败静默（204 无 body） */
+  monitorPageview: (body: { path: string; referrer?: string }) => {
+    const payload = JSON.stringify(body);
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([payload], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/monitor/pageview', blob)) {
+          return Promise.resolve();
+        }
+      }
+    } catch {
+      /* 回退 fetch */
+    }
+    return fetch('/api/monitor/pageview', {
+      method: 'POST',
+      credentials: 'omit',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+    }).then(() => undefined).catch(() => undefined);
+  },
   siteBranding: () => request<SiteBranding>('/api/site-branding'),
   pages: () => request<{ pages: SitePageSummary[] }>('/api/pages'),
   page: (slug: string) => request<{ page: SitePage }>(`/api/pages/${encodeURIComponent(slug)}`),
@@ -67,6 +88,32 @@ export const api = {
     request<{ message: string; community: CommunityConfig; heartbeat_error?: string }>('/api/admin/settings/community', {
       method: 'PUT', body: JSON.stringify(body),
     }),
+  adminMonitorSettings: () => request<MonitorConfig>('/api/admin/settings/monitor'),
+  adminUpdateMonitorSettings: (body: MonitorConfig) =>
+    request<{ message: string; monitor: MonitorConfig }>('/api/admin/settings/monitor', {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  adminMonitorOverview: () => request<MonitorOverview>('/api/admin/monitor/overview'),
+  adminMonitorGeo: (range = '30d') =>
+    request<MonitorGeoResult>(`/api/admin/monitor/geo?range=${encodeURIComponent(range)}`),
+  adminMonitorStats: (dim: string, range = '30d') =>
+    request<{ dim: string; range: string; items: MonitorStatItem[] }>(
+      `/api/admin/monitor/stats?dim=${encodeURIComponent(dim)}&range=${encodeURIComponent(range)}`,
+    ),
+  adminMonitorLogs: (params: { page?: number; size?: number; method?: string; path?: string; status?: string; ip?: string }) => {
+    const q = new URLSearchParams();
+    if (params.page) q.set('page', String(params.page));
+    if (params.size) q.set('size', String(params.size));
+    if (params.method) q.set('method', params.method);
+    if (params.path) q.set('path', params.path);
+    if (params.status) q.set('status', params.status);
+    if (params.ip) q.set('ip', params.ip);
+    const qs = q.toString();
+    return request<{ items: MonitorLogItem[]; total: number; page: number; size: number }>(
+      `/api/admin/monitor/logs${qs ? `?${qs}` : ''}`,
+    );
+  },
+  adminMonitorRealtime: () => request<MonitorRealtime>('/api/admin/monitor/realtime'),
   adminCommunityInstances: () =>
     request<{ hub_enabled: boolean; instances: CommunityInstance[] }>('/api/admin/community/instances'),
   adminFeatureCommunityInstance: (instanceId: string, body: { featured: boolean; featured_note?: string }) =>
@@ -74,6 +121,20 @@ export const api = {
       `/api/admin/community/instances/${encodeURIComponent(instanceId)}/feature`,
       { method: 'PUT', body: JSON.stringify(body) },
     ),
+  adminUpdateShowcaseEntry: (body: {
+    nav_show_showcase?: boolean;
+    footer_show_showcase?: boolean;
+    aside_show_showcase?: boolean;
+  }) =>
+    request<{
+      message: string;
+      nav_show_showcase: boolean;
+      footer_show_showcase: boolean;
+      aside_show_showcase: boolean;
+    }>('/api/admin/community/showcase-entry', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   communityShowcase: () =>
     request<{ items: CommunityShowcaseItem[] }>('/api/community/showcase'),
   adminPosts: (params: { page?: number; keyword?: string; status?: string }) => {

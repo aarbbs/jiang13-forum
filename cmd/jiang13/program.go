@@ -78,6 +78,9 @@ func (p *program) setup() error {
 	if err := model.InitDB(cfg.DBPath()); err != nil {
 		return fmt.Errorf("数据库初始化失败: %w", err)
 	}
+	if err := model.InitMonitorDB(cfg.MonitorDBPath()); err != nil {
+		return fmt.Errorf("监控库初始化失败: %w", err)
+	}
 
 	engine, err := router.Setup(cfg)
 	if err != nil {

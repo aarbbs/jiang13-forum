@@ -32,7 +32,8 @@ type Config struct {
 	ServiceAction string
 	// 开发模式：后端代理前端请求到 Vite 开发服务器（非内嵌静态资源）
 	DevMode bool
-	// CommunityHub 维护者选项：开启后本站接收其它实例自愿上报（默认关闭）
+	// CommunityHub 维护者选项：开启后本站接收其它实例自愿上报（默认关闭）。
+	// 官方站 bbs.iioio.com 会按域名自动识别为枢纽，无需开启；本项仅给非官网枢纽镜像。
 	CommunityHub bool
 }
 
@@ -192,6 +193,7 @@ func ensureDataDirs(dataDir string) error {
 		filepath.Join(dataDir, "uploads", "avatars"),
 		filepath.Join(dataDir, "uploads", "posts"),
 		filepath.Join(dataDir, "uploads", "site"),
+		filepath.Join(dataDir, "logs", "access"),
 	} {
 		if err := os.MkdirAll(sub, 0755); err != nil {
 			return fmt.Errorf("创建上传目录失败: %w", err)
@@ -226,9 +228,14 @@ func validServiceAction(action string) bool {
 	}
 }
 
-// DBPath 返回 SQLite 数据库文件路径
+// DBPath 返回主库 SQLite 路径
 func (c *Config) DBPath() string {
 	return filepath.Join(c.DataDir, "jiang13.db")
+}
+
+// MonitorDBPath 返回监控独立库路径（page_views）
+func (c *Config) MonitorDBPath() string {
+	return filepath.Join(c.DataDir, "monitor.db")
 }
 
 // AvatarUploadDir 返回头像上传目录

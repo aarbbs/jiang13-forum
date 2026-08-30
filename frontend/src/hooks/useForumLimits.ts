@@ -20,12 +20,16 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   aside_show_tag_cloud: false,
   aside_show_recent_comments: false,
   aside_show_friend_links: true,
+  aside_show_showcase: false,
   aside_widgets: DEFAULT_ASIDE_WIDGETS,
   nav_show_friend_links: true,
   footer_show_friend_links: true,
+  nav_show_showcase: false,
+  footer_show_showcase: false,
   feed_list_style: 'title',
   permalink_enabled: false,
   permalink_ext: 'html',
+  monitor_pageview: false,
 };
 
 let cached: ForumLimitsPublic | null = null;

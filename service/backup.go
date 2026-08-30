@@ -17,7 +17,7 @@ func NewBackupService(dbPath, dataDir string) *BackupService {
 	return &BackupService{dbPath: dbPath, dataDir: dataDir}
 }
 
-// ExportSQLite 导出 SQLite 备份文件到 data 目录
+// ExportSQLite 导出主库 SQLite 备份到 data 目录（不含 monitor.db）
 func (s *BackupService) ExportSQLite() (string, error) {
 	src, err := os.Open(s.dbPath)
 	if err != nil {

@@ -18,6 +18,10 @@ const WIDGET_META: Record<AsideWidgetId, { label: string; hint: string }> = {
     label: '友情链接',
     hint: '关闭后不在右侧栏展示，友链仍可在「友情链接」页面查看与申请',
   },
+  showcase: {
+    label: '开源展柜',
+    hint: '展示精选公网部署；关闭后仍可直接访问 /showcase',
+  },
 };
 
 type Props = {

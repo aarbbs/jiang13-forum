@@ -22,7 +22,7 @@ func (h *Handlers) APICommunityHeartbeat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	if err := h.Community.ReceiveHeartbeat(req, c.ClientIP()); err != nil {
+	if err := h.Community.ReceiveHeartbeat(req, c.ClientIP(), requestOrigin(c)); err != nil {
 		if errors.Is(err, service.ErrCommunityHubDisabled) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "本站未开启社区枢纽"})
 			return
@@ -43,7 +43,7 @@ func (h *Handlers) APICommunityShowcase(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"items": []any{}})
 		return
 	}
-	list, err := h.Community.ListShowcase()
+	list, err := h.Community.ListShowcase(requestOrigin(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "加载失败"})
 		return
@@ -57,7 +57,7 @@ func (h *Handlers) APIAdminCommunityInstances(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"instances": []any{}, "hub_enabled": false})
 		return
 	}
-	cfg := h.Settings.CommunityConfig()
+	cfg := h.Settings.CommunityConfigForRequest(communityRequestOrigin(c))
 	list, err := h.Community.ListInstances()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "加载失败"})
@@ -108,21 +108,62 @@ func (h *Handlers) APIAdminUpdateCommunitySettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cfg := h.Settings.CommunityConfig()
+	origin := communityRequestOrigin(c)
+	cfg := h.Settings.CommunityConfigForRequest(origin)
 	out := gin.H{
 		"message":   "社区设置已保存",
 		"community": cfg,
 	}
-	if cfg.ReportEnabled && h.Community != nil {
-		origin := communityRequestOrigin(c)
+	if cfg.ReportEnabled && !cfg.HubEnabled && h.Community != nil {
 		if err := h.Community.SendHeartbeatOnce(origin); err != nil {
 			out["message"] = "社区设置已保存，但心跳未成功"
 			out["heartbeat_error"] = err.Error()
 			// 刷新 site_url（可能已由 Origin 持久化）
-			out["community"] = h.Settings.CommunityConfig()
+			out["community"] = h.Settings.CommunityConfigForRequest(origin)
 		}
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// APIAdminUpdateShowcaseEntry 更新开源展柜入口展示位置（左栏 / 右栏 / 页脚）
+func (h *Handlers) APIAdminUpdateShowcaseEntry(c *gin.Context) {
+	var req struct {
+		NavShowShowcase    *bool `json:"nav_show_showcase"`
+		FooterShowShowcase *bool `json:"footer_show_showcase"`
+		AsideShowShowcase  *bool `json:"aside_show_showcase"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if req.NavShowShowcase == nil && req.FooterShowShowcase == nil && req.AsideShowShowcase == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if req.NavShowShowcase != nil {
+		if err := h.Settings.SetNavShowShowcase(*req.NavShowShowcase); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.FooterShowShowcase != nil {
+		if err := h.Settings.SetFooterShowShowcase(*req.FooterShowShowcase); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.AsideShowShowcase != nil {
+		if err := h.Settings.SetAsideShowcaseEnabled(*req.AsideShowShowcase); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":              "展柜入口已保存",
+		"nav_show_showcase":    h.Settings.NavShowShowcase(),
+		"footer_show_showcase": h.Settings.FooterShowShowcase(),
+		"aside_show_showcase":  h.Settings.AsideShowShowcase(),
+	})
 }
 
 // communityRequestOrigin 优先用浏览器 Origin（Vite 代理时 Host 可能是后端端口）

@@ -40,6 +40,7 @@ const AdminReportsPage = lazyWithRetry(() => import('./pages/admin/AdminReportsP
 const AdminUsersPage = lazyWithRetry(() => import('./pages/admin/AdminUsersPage'));
 const AdminBadgesPage = lazyWithRetry(() => import('./pages/admin/AdminBadgesPage'));
 const AdminMediaPage = lazyWithRetry(() => import('./pages/admin/AdminMediaPage'));
+const AdminMonitorPage = lazyWithRetry(() => import('./pages/admin/AdminMonitorPage'));
 const AdminPagesPage = lazyWithRetry(() => import('./pages/admin/AdminPagesPage'));
 const AdminSitePageEditPage = lazyWithRetry(() => import('./pages/admin/AdminSitePageEditPage'));
 const AdminLinksPage = lazyWithRetry(() => import('./pages/admin/AdminLinksPage'));
@@ -70,6 +71,7 @@ const router = createBrowserRouter(
         <Route path="users" element={<Suspense fallback={<PageLoader />}><AdminUsersPage /></Suspense>} />
         <Route path="badges" element={<Suspense fallback={<PageLoader />}><AdminBadgesPage /></Suspense>} />
         <Route path="media" element={<Suspense fallback={<PageLoader />}><AdminMediaPage /></Suspense>} />
+        <Route path="monitor" element={<Suspense fallback={<PageLoader />}><AdminMonitorPage /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettingsPage /></Suspense>} />
         <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage title="后台页面不存在" /></Suspense>} />
       </Route>

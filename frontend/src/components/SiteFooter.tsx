@@ -9,7 +9,7 @@ function FooterSep() {
   return <span className="site-footer__sep" aria-hidden>·</span>;
 }
 
-/** 站点页脚：版权、Sitemap、备案号 */
+/** 站点页脚：版权、友链/展柜入口、单页、备案号 */
 export default function SiteFooter() {
   const { branding } = useSiteBranding();
   const { footerPages } = useSitePages();
@@ -17,6 +17,10 @@ export default function SiteFooter() {
   const year = new Date().getFullYear();
   const icp = branding.icp_beian?.trim() || '';
   const icpURL = branding.icp_beian_url?.trim() || 'https://beian.miit.gov.cn/';
+  const showFriendLinks = limits.footer_show_friend_links !== false;
+  const showShowcase = !!limits.footer_show_showcase;
+  const hasNavBeforePages = showFriendLinks || showShowcase;
+  const hasNavBeforeIcp = hasNavBeforePages || footerPages.length > 0;
 
   return (
     <footer className="site-footer">
@@ -34,20 +38,26 @@ export default function SiteFooter() {
         </div>
 
         <nav className="site-footer__nav" aria-label="站点链接">
-          {limits.footer_show_friend_links !== false && (
+          {showFriendLinks && (
             <span className="site-footer__friend">
               <Link to="/links">友情链接</Link>
             </span>
           )}
+          {showShowcase && (
+            <span className="site-footer__friend">
+              {showFriendLinks && <FooterSep />}
+              <Link to="/showcase">开源展柜</Link>
+            </span>
+          )}
           {footerPages.map((p, i) => (
             <span key={p.slug} className="site-footer__friend">
-              {(limits.footer_show_friend_links !== false || i > 0) && <FooterSep />}
+              {(hasNavBeforePages || i > 0) && <FooterSep />}
               <Link to={pagePath(p.slug, limits)}>{p.title}</Link>
             </span>
           ))}
           {icp && (
             <>
-              {(limits.footer_show_friend_links !== false || footerPages.length > 0) && <FooterSep />}
+              {hasNavBeforeIcp && <FooterSep />}
               <a
                 href={icpURL}
                 target="_blank"

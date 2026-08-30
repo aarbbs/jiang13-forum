@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award, Link2, BookOpen, Globe2,
+  LayoutDashboard, FolderKanban, FileText, MessageSquare, Flag, Users, Images, Settings, ArrowLeft, Moon, Sun, Menu, X, Award, Link2, BookOpen, Globe2, Activity,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../hooks/useAuth';
@@ -38,6 +38,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: '概览',
     items: [
       { to: '/admin/dashboard', label: '仪表盘', icon: LayoutDashboard },
+      { to: '/admin/monitor', label: '网站监控', icon: Activity },
+      { to: '/admin/community', label: '公网实例', icon: Globe2, hubOnly: true },
     ],
   },
   {
@@ -56,7 +58,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/users', label: '用户管理', icon: Users },
       { to: '/admin/badges', label: '徽章管理', icon: Award },
       { to: '/admin/links', label: '友情链接', icon: Link2, badgeKey: 'links' },
-      { to: '/admin/community', label: '公网实例', icon: Globe2, hubOnly: true },
     ],
   },
   {

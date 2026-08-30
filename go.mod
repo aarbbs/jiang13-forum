@@ -8,9 +8,11 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
+	github.com/ip2location/ip2location-go/v9 v9.8.0
 	github.com/kardianos/service v1.2.2
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/minio/minio-go/v7 v7.0.98
+	github.com/oschwald/maxminddb-golang v1.13.1
 	golang.org/x/crypto v0.46.0
 	golang.org/x/image v0.44.0
 	gopkg.in/ini.v1 v1.67.3
@@ -59,6 +61,7 @@ require (
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	lukechampine.com/uint128 v1.2.0 // indirect
 	modernc.org/libc v1.22.5 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect

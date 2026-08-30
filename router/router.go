@@ -21,6 +21,16 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 
+	filter := service.NewSensitiveFilter()
+	_ = service.WriteDefaultFilterWords(cfg.FilterWordsPath())
+	filter.LoadFromFile(cfg.FilterWordsPath())
+
+	settingsSvc := service.NewForumSettingsService()
+	settingsSvc.SetCommunityHubEnabled(cfg.CommunityHub)
+	monitorSvc := service.NewMonitorService(settingsSvc, cfg.DataDir, cfg.JWTSecret)
+	monitorSvc.StartBackground()
+	r.Use(middleware.AccessLogMiddleware(monitorSvc))
+
 	// dev 模式：跳过内嵌静态资源，前端由 Vite 开发服务器(:5173)提供
 	// 用户应访问 5173 端口，Vite 通过 proxy 将 /api 等请求转发到本服务(:3000)
 	if !cfg.DevMode {
@@ -31,12 +41,6 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		fmt.Fprintf(os.Stderr, "[dev] 后端仅提供 API，前端请访问 http://localhost:5173\n")
 	}
 
-	filter := service.NewSensitiveFilter()
-	_ = service.WriteDefaultFilterWords(cfg.FilterWordsPath())
-	filter.LoadFromFile(cfg.FilterWordsPath())
-
-	settingsSvc := service.NewForumSettingsService()
-	settingsSvc.SetCommunityHubEnabled(cfg.CommunityHub)
 	communitySvc := service.NewCommunityService(settingsSvc)
 	communitySvc.StartBackground()
 	if cfg.CommunityHub {
@@ -93,7 +97,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	h := &handler.Handlers{
 		Cfg: cfg, Store: uploadStore, Auth: authSvc, User: userSvc, Board: boardSvc,
 		Post: postSvc, Comment: commentSvc, Message: messageSvc, Notify: notifySvc, Report: reportSvc,
-		Backup: backupSvc, Community: communitySvc,
+		Backup: backupSvc, Community: communitySvc, Monitor: monitorSvc,
 		Filter: filter, Limiter: limiter, Settings: settingsSvc,
 		Captcha: captchaSvc, Mail: mailSvc, EmailCode: emailCodeSvc,
 		OIDC: oidcSvc, Gitea: giteaSvc,
@@ -132,6 +136,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		pubAPI.GET("/stats", h.APIStats)
 		pubAPI.POST("/community/heartbeat", middleware.RateLimitMiddleware(limiter, "community_heartbeat"), h.APICommunityHeartbeat)
 		pubAPI.GET("/community/showcase", h.APICommunityShowcase)
+		pubAPI.POST("/monitor/pageview", middleware.RateLimitMiddleware(limiter, "monitor_pageview"), h.APIMonitorPageview)
 		pubAPI.GET("/forum-limits", h.APIForumLimits)
 		pubAPI.GET("/site-branding", h.APISiteBranding)
 		pubAPI.GET("/pages", h.APIPages)
@@ -214,8 +219,16 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.GET("/settings", h.APIAdminSettings)
 		adminAPI.PUT("/settings/forum", h.APIAdminUpdateForumSettings)
 		adminAPI.PUT("/settings/community", h.APIAdminUpdateCommunitySettings)
+		adminAPI.GET("/settings/monitor", h.APIAdminGetMonitorSettings)
+		adminAPI.PUT("/settings/monitor", h.APIAdminUpdateMonitorSettings)
+		adminAPI.GET("/monitor/overview", h.APIAdminMonitorOverview)
+		adminAPI.GET("/monitor/geo", h.APIAdminMonitorGeo)
+		adminAPI.GET("/monitor/stats", h.APIAdminMonitorStats)
+		adminAPI.GET("/monitor/logs", h.APIAdminMonitorLogs)
+		adminAPI.GET("/monitor/realtime", h.APIAdminMonitorRealtime)
 		adminAPI.GET("/community/instances", h.APIAdminCommunityInstances)
 		adminAPI.PUT("/community/instances/:id/feature", h.APIAdminFeatureCommunityInstance)
+		adminAPI.PUT("/community/showcase-entry", h.APIAdminUpdateShowcaseEntry)
 		adminAPI.PUT("/settings/mail", h.APIAdminUpdateMailSettings)
 		adminAPI.POST("/settings/mail/test", h.APIAdminTestMail)
 		adminAPI.PUT("/settings/oidc", h.APIAdminUpdateOIDCSettings)
@@ -293,7 +306,10 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 			adminAuth := admin.Group("/", authMW.RequireAuth(), authMW.RequireAdmin())
 			{
 				adminAuth.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/admin/dashboard") })
-				for _, page := range []string{"dashboard", "boards", "pages", "links", "posts", "comments", "reports", "users", "badges", "media", "settings"} {
+				for _, page := range []string{
+					"dashboard", "boards", "pages", "links", "community", "posts",
+					"comments", "reports", "users", "badges", "media", "monitor", "settings",
+				} {
 					adminAuth.GET("/"+page, embed_static.ServeSPANoIndex)
 				}
 			}

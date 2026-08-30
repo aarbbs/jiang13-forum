@@ -298,9 +298,12 @@ export default function AdminSettingsPage() {
           aside_show_tag_cloud: false,
           aside_show_recent_comments: false,
           aside_show_friend_links: true,
+          aside_show_showcase: false,
           aside_widgets: loadedAsideWidgets,
           nav_show_friend_links: true,
           footer_show_friend_links: true,
+          nav_show_showcase: false,
+          footer_show_showcase: false,
           feed_list_style: 'title',
           permalink_enabled: false,
           permalink_ext: 'html',
@@ -1676,7 +1679,7 @@ export default function AdminSettingsPage() {
           <div className="admin-card admin-settings-card">
             <div className="admin-card-head">数据备份</div>
             <div className="admin-card-body admin-settings-backup-body">
-              <p>导出当前 SQLite 数据库副本，便于迁移或灾难恢复。</p>
+              <p>导出当前主库 SQLite 副本，便于迁移或灾难恢复。不含 <code>monitor.db</code> 浏览量。</p>
               <p className="admin-settings-backup-name">
                 文件名：<code>jiang13_backup_YYYYMMDD_HHMMSS.db</code>
               </p>

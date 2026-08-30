@@ -1,5 +1,5 @@
 import {
-  Home, Star, LayoutDashboard, FolderGit2, FolderKanban, ArrowLeft, FileText, Link2,
+  Home, Star, LayoutDashboard, FolderGit2, FolderKanban, ArrowLeft, FileText, Link2, Globe2,
 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import type { Board } from '../api/types';
@@ -30,6 +30,7 @@ function resolveMenuKey(pathname: string, activeBoard: number, keyword = ''): st
   if (pathname.startsWith('/favorites')) return 'favorites';
   if (pathname.startsWith('/projects')) return 'projects';
   if (pathname.startsWith('/links')) return 'links';
+  if (pathname.startsWith('/showcase')) return 'showcase';
   if (pathname.startsWith('/page/')) return 'pages';
   if (pathname.startsWith('/admin')) return 'admin';
   return activeBoard === 0 ? 'all' : String(activeBoard);
@@ -67,7 +68,8 @@ export default function Sidebar({
   const { navPages } = useSitePages();
   const { limits } = useForumLimits();
   const showFriendLinksNav = limits.nav_show_friend_links !== false;
-  const showSiteSection = navPages.length > 0 || showFriendLinksNav;
+  const showShowcaseNav = !!limits.nav_show_showcase;
+  const showSiteSection = navPages.length > 0 || showFriendLinksNav || showShowcaseNav;
 
   const keyword = params.get('keyword') || '';
   const menuKey = resolveMenuKey(loc.pathname, activeBoard, keyword);
@@ -197,6 +199,7 @@ export default function Sidebar({
           <div className="sidebar-section sidebar-section--spaced">站点</div>
           <nav className="sidebar-nav">
             {showFriendLinksNav && navItem('links', '友情链接', <Link2 aria-hidden />, () => nav('/links'))}
+            {showShowcaseNav && navItem('showcase', '开源展柜', <Globe2 aria-hidden />, () => nav('/showcase'))}
             {navPages.map(p => (
               navItem(`page-${p.slug}`, p.title, <FileText aria-hidden />, () => nav(pagePath(p.slug, limits)))
             ))}

@@ -196,7 +196,7 @@ docker run -d --name jiang13 \
 | `JIANG13_JWT_SECRET` | JWT 密钥（留空则自动生成并写入 `/data/.jwt_secret`） |
 | `JIANG13_CONFIG` | 配置文件路径 |
 | `JIANG13_WORK_PATH` | 工作目录 |
-| `JIANG13_COMMUNITY_HUB` | 维护者选项：设为 `1` 时本站作为社区枢纽收报（默认关闭，见 `app.ini.example`） |
+| `JIANG13_COMMUNITY_HUB` | 维护者选项：设为 `1` 时本站作为社区枢纽收报。官方站 `bbs.iioio.com` 会按域名自动成为枢纽，无需此变量；仅非官网的枢纽镜像 / 预发需要显式开启（见 `app.ini.example`） |
 
 **健康检查：** `GET /health` 返回 `{"status":"ok"}`，供 Docker / 负载均衡探活。
 
@@ -293,7 +293,7 @@ JWT_SECRET =
 | `--jwt-secret` | 自动生成 | JWT 签名密钥（留空则持久化到 `data/.jwt_secret`） |
 | `--service` | （空） | `install` / `uninstall` / `start` / `stop` / `restart` / `status` |
 
-**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`、`JIANG13_COMMUNITY_HUB`（维护者选项，见上表）
+**环境变量（容器 / 编排，优先级低于命令行）：** `JIANG13_HTTP_PORT`、`JIANG13_DATA`、`JIANG13_JWT_SECRET`、`JIANG13_CONFIG`、`JIANG13_WORK_PATH`、`JIANG13_COMMUNITY_HUB`（非官网枢纽镜像用；`bbs.iioio.com` 按域名自动为枢纽，见上表）
 
 ### 5. 注册为系统服务（可选）
 
@@ -406,13 +406,15 @@ jiang13-forum/
 
 ```
 data/
-├── jiang13.db              # SQLite 主数据库
+├── jiang13.db              # SQLite 主数据库（不含浏览量）
+├── monitor.db              # 网站监控 page_views
 ├── jiang13.log             # 运行日志
 ├── filter_words.txt        # 敏感词配置
 ├── .jwt_secret             # JWT 密钥（自动生成）
+├── logs/access/            # 网站监控请求日志（按日 jsonl）
 ├── uploads/avatars/        # 用户头像
 ├── uploads/posts/          # 帖子正文图片
-└── jiang13_backup_*.db     # 后台导出的备份
+└── jiang13_backup_*.db     # 后台导出的主库备份
 ```
 
 ---

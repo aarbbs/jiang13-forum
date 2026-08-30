@@ -162,6 +162,10 @@ func (c *CommunityService) trySendHeartbeat() {
 
 // SendHeartbeatOnce 立即发送一次心跳；requestOrigin 可在管理端保存时传入以补全本站地址
 func (c *CommunityService) SendHeartbeatOnce(requestOrigin string) error {
+	// 枢纽站（含官网）不出站上报，避免自己心跳给自己
+	if c.settings.CommunityHubEnabled(requestOrigin) {
+		return nil
+	}
 	cfg := c.settings.CommunityConfig()
 	if !cfg.ReportEnabled {
 		return nil
@@ -228,9 +232,9 @@ func (c *CommunityService) buildPayload(requestOrigin string) (*CommunityHeartbe
 	}, nil
 }
 
-// ReceiveHeartbeat 枢纽接收心跳并 upsert
-func (c *CommunityService) ReceiveHeartbeat(in CommunityHeartbeatPayload, remoteIP string) error {
-	if !c.settings.CommunityConfig().HubEnabled {
+// ReceiveHeartbeat 枢纽接收心跳并 upsert；requestHint 用于按请求 Host 识别官网
+func (c *CommunityService) ReceiveHeartbeat(in CommunityHeartbeatPayload, remoteIP, requestHint string) error {
+	if !c.settings.CommunityHubEnabled(requestHint) {
 		return ErrCommunityHubDisabled
 	}
 	in.InstanceID = strings.TrimSpace(in.InstanceID)
@@ -343,9 +347,9 @@ func (c *CommunityService) SetInstanceFeatured(instanceID string, in CommunityFe
 	}, nil
 }
 
-// ListShowcase 公开展柜：仅精选；枢纽关闭时返回空
-func (c *CommunityService) ListShowcase() ([]CommunityShowcaseItem, error) {
-	if !c.settings.CommunityConfig().HubEnabled {
+// ListShowcase 公开展柜：仅精选；枢纽关闭时返回空；requestHint 用于按 Host 识别官网
+func (c *CommunityService) ListShowcase(requestHint string) ([]CommunityShowcaseItem, error) {
+	if !c.settings.CommunityHubEnabled(requestHint) {
 		return []CommunityShowcaseItem{}, nil
 	}
 	var rows []model.CommunityInstance

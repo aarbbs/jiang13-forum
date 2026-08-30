@@ -1,19 +1,29 @@
 import type { AsideWidget, AsideWidgetId, ForumLimits, ForumLimitsPublic } from '../api/types';
 import { DEFAULT_ASIDE_WIDGETS } from '../api/types';
 
-const ASIDE_WIDGET_IDS: AsideWidgetId[] = ['tag_cloud', 'recent_comments', 'recent_users', 'friend_links'];
+const ASIDE_WIDGET_IDS: AsideWidgetId[] = [
+  'tag_cloud',
+  'recent_comments',
+  'recent_users',
+  'friend_links',
+  'showcase',
+];
 
 /** 从 limits 解析右侧栏组件列表（兼容仅有布尔开关的旧数据） */
 export function resolveAsideWidgets(
-  limits: Pick<ForumLimitsPublic, 'aside_widgets' | 'aside_show_tag_cloud' | 'aside_show_recent_comments' | 'aside_show_friend_links'>,
+  limits: Partial<Pick<
+    ForumLimitsPublic,
+    'aside_widgets' | 'aside_show_tag_cloud' | 'aside_show_recent_comments' | 'aside_show_friend_links' | 'aside_show_showcase'
+  >>,
 ): AsideWidget[] {
   if (limits.aside_widgets?.length) {
     return normalizeAsideWidgets(limits.aside_widgets);
   }
   return [
-    { id: 'tag_cloud', enabled: limits.aside_show_tag_cloud },
-    { id: 'recent_comments', enabled: limits.aside_show_recent_comments },
-    { id: 'friend_links', enabled: limits.aside_show_friend_links },
+    { id: 'tag_cloud', enabled: !!limits.aside_show_tag_cloud },
+    { id: 'recent_comments', enabled: !!limits.aside_show_recent_comments },
+    { id: 'friend_links', enabled: limits.aside_show_friend_links !== false },
+    { id: 'showcase', enabled: !!limits.aside_show_showcase },
   ];
 }
 
@@ -33,12 +43,16 @@ export function normalizeAsideWidgets(widgets: AsideWidget[]): AsideWidget[] {
 }
 
 /** 将 aside_widgets 同步回 ForumLimits 布尔字段 */
-export function syncAsideBoolsFromWidgets(widgets: AsideWidget[]): Pick<ForumLimits, 'aside_show_tag_cloud' | 'aside_show_recent_comments' | 'aside_show_friend_links'> {
+export function syncAsideBoolsFromWidgets(widgets: AsideWidget[]): Pick<
+  ForumLimits,
+  'aside_show_tag_cloud' | 'aside_show_recent_comments' | 'aside_show_friend_links' | 'aside_show_showcase'
+> {
   const normalized = normalizeAsideWidgets(widgets);
   return {
     aside_show_tag_cloud: normalized.find(w => w.id === 'tag_cloud')?.enabled ?? false,
     aside_show_recent_comments: normalized.find(w => w.id === 'recent_comments')?.enabled ?? false,
     aside_show_friend_links: normalized.find(w => w.id === 'friend_links')?.enabled ?? true,
+    aside_show_showcase: normalized.find(w => w.id === 'showcase')?.enabled ?? false,
   };
 }
 
@@ -64,6 +78,7 @@ export function isAsideWidgetEnabled(widgets: AsideWidget[], id: AsideWidgetId):
     aside_show_tag_cloud: false,
     aside_show_recent_comments: false,
     aside_show_friend_links: false,
+    aside_show_showcase: false,
   }).find(w => w.id === id)?.enabled ?? false;
 }
 

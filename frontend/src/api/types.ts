@@ -179,6 +179,14 @@ export interface Comment {
   reply_target?: Comment;
 }
 
+export interface AdminDashboardTraffic {
+  enabled: boolean;
+  today_pv: number;
+  today_uv: number;
+  yesterday_pv: number;
+  total_pv: number;
+}
+
 export interface AdminDashboard {
   users: number;
   posts: number;
@@ -189,9 +197,10 @@ export interface AdminDashboard {
   pending_reports?: number;
   pending_friend_links?: number;
   recent_posts: PostItem[];
+  traffic?: AdminDashboardTraffic;
 }
 
-export type AsideWidgetId = 'tag_cloud' | 'recent_comments' | 'recent_users' | 'friend_links';
+export type AsideWidgetId = 'tag_cloud' | 'recent_comments' | 'recent_users' | 'friend_links' | 'showcase';
 
 export interface AsideWidget {
   id: AsideWidgetId;
@@ -203,6 +212,7 @@ export const DEFAULT_ASIDE_WIDGETS: AsideWidget[] = [
   { id: 'recent_comments', enabled: false },
   { id: 'recent_users', enabled: false },
   { id: 'friend_links', enabled: true },
+  { id: 'showcase', enabled: false },
 ];
 
 export interface ForumLimits {
@@ -231,12 +241,18 @@ export interface ForumLimits {
   aside_show_recent_comments: boolean;
   /** 右侧栏友情链接 */
   aside_show_friend_links: boolean;
+  /** 右侧栏开源展柜 */
+  aside_show_showcase: boolean;
   /** 右侧栏可选组件顺序与开关 */
   aside_widgets: AsideWidget[];
   /** 左侧栏「站点」展示友情链接入口 */
   nav_show_friend_links: boolean;
   /** 页脚展示友情链接入口 */
   footer_show_friend_links: boolean;
+  /** 左侧栏「站点」展示开源展柜入口 */
+  nav_show_showcase: boolean;
+  /** 页脚展示开源展柜入口 */
+  footer_show_showcase: boolean;
   /** 首页列表样式：title 仅标题 / thumbnail 缩略图 */
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   /** 伪静态（固定链接）开关 */
@@ -262,12 +278,17 @@ export interface ForumLimitsPublic {
   aside_show_tag_cloud: boolean;
   aside_show_recent_comments: boolean;
   aside_show_friend_links: boolean;
+  aside_show_showcase: boolean;
   aside_widgets: AsideWidget[];
   nav_show_friend_links: boolean;
   footer_show_friend_links: boolean;
+  nav_show_showcase: boolean;
+  footer_show_showcase: boolean;
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
   permalink_enabled: boolean;
   permalink_ext: string;
+  /** 是否上报前台路由 pageview（与后台监控采集开关同步） */
+  monitor_pageview: boolean;
 }
 
 export interface FriendLink {
@@ -391,6 +412,109 @@ export interface CommunityConfig {
   /** 只读：服务端自动推断的本站地址 */
   site_url: string;
   instance_id: string;
+}
+
+/** 网站监控设置 */
+export interface MonitorConfig {
+  enabled: boolean;
+  retention_days: number;
+  access_log_retention_days: number;
+  exclude_rules: string[];
+  default_exclude_rules?: string[];
+  trust_proxy: boolean;
+  access_log_dir?: string;
+  ip2location_v4_path?: string;
+  ip2location_v6_path?: string;
+  ip2location_v4_available?: boolean;
+  ip2location_v6_available?: boolean;
+  geoip_available: boolean;
+  geoip_country_path?: string;
+  geoip_asn_path?: string;
+  geoip_country_available?: boolean;
+  geoip_asn_available?: boolean;
+}
+
+export interface MonitorOverview {
+  enabled: boolean;
+  pageviews: number;
+  visitors: number;
+  unique_ips: number;
+  traffic: number;
+  bots: number;
+  requests: number;
+  status_4xx: number;
+  status_5xx: number;
+}
+
+export interface MonitorGeoItem {
+  country: string;
+  count: number;
+}
+
+export interface MonitorRegionItem {
+  country: string;
+  region: string;
+  region_iso: string;
+  count: number;
+}
+
+export interface MonitorCityItem {
+  country: string;
+  region: string;
+  city: string;
+  count: number;
+}
+
+export interface MonitorASNItem {
+  asn: number;
+  as_org: string;
+  count: number;
+}
+
+export interface MonitorGeoResult {
+  range: string;
+  countries: MonitorGeoItem[];
+  regions: MonitorRegionItem[];
+  cities: MonitorCityItem[];
+  asns: MonitorASNItem[];
+  has_data: boolean;
+}
+
+export interface MonitorStatItem {
+  key: string;
+  count: number;
+}
+
+export interface MonitorRealtimePoint {
+  minute: string;
+  count: number;
+  bytes: number;
+}
+
+export interface MonitorRealtime {
+  enabled: boolean;
+  requests_1m: number;
+  traffic_1m: number;
+  hourly_series: MonitorRealtimePoint[];
+}
+
+export interface MonitorLogItem {
+  id: number;
+  created_at: string;
+  method: string;
+  path: string;
+  status: number;
+  bytes: number;
+  duration_ms: number;
+  ip: string;
+  ua: string;
+  referer: string;
+  country: string;
+  region?: string;
+  city?: string;
+  asn?: number;
+  as_org?: string;
+  is_bot: boolean;
 }
 
 export interface CommunityInstance {

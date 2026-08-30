@@ -13,6 +13,7 @@ import UserLink from './UserLink';
 import ArticleOutline from './ArticleOutline';
 import PostAuthorCard from './PostAuthorCard';
 import AsideCheckInStrip from './AsideCheckInStrip';
+import ShowcaseAsideWidget from './ShowcaseAsideWidget';
 
 export type PostDetailAside = {
   author?: User | null;
@@ -114,6 +115,8 @@ export default function RightPanel({
 
   const renderWidget = (widget: AsideWidget) => {
     switch (widget.id) {
+      case 'showcase':
+        return <ShowcaseAsideWidget key="showcase" />;
       case 'friend_links':
         return (
           <div key="friend_links" className="widget-card widget-card--friend-links">
