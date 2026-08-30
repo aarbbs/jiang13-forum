@@ -205,15 +205,15 @@ docker run -d --name jiang13 \
 docker login
 .\build.bat -Target docker          # Windows
 # make docker                       # Linux/macOS
-docker push hangzhang714128/jiang13-forum:1.0.0
+docker push hangzhang714128/jiang13-forum:1.1.0
 docker push hangzhang714128/jiang13-forum:latest
 ```
 
 或直接构建：
 
 ```bash
-docker build --build-arg VERSION=1.0.0 -t hangzhang714128/jiang13-forum:1.0.0 -t hangzhang714128/jiang13-forum:latest .
-docker push hangzhang714128/jiang13-forum:1.0.0
+docker build --build-arg VERSION=1.1.0 -t hangzhang714128/jiang13-forum:1.1.0 -t hangzhang714128/jiang13-forum:latest .
+docker push hangzhang714128/jiang13-forum:1.1.0
 docker push hangzhang714128/jiang13-forum:latest
 ```
 
