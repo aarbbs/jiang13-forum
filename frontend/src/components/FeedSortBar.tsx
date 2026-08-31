@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
-import { boardPath, type PermalinkOpts } from '../utils/permalink';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { boardPath, parsePermalinkID, type PermalinkOpts } from '../utils/permalink';
 import { getCachedForumLimits, useForumLimits } from '../hooks/useForumLimits';
 import { Clock, MessageCircle, BadgeCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -86,14 +87,35 @@ export default function FeedSortBar({
   pendingValue,
 }: Props) {
   const { limits } = useForumLimits();
+  const { id: boardRouteId } = useParams();
+  const [params] = useSearchParams();
+  // 与 SSR href / HomePage 一致：从路由与查询串解析板块与筛选
+  const boardId = boardRouteId
+    ? (() => {
+        const id = parsePermalinkID(boardRouteId);
+        return Number.isFinite(id) && id > 0 ? id : 0;
+      })()
+    : (Number(params.get('board')) || 0);
+  const keyword = params.get('keyword') || '';
+  const tag = params.get('tag') || '';
+  const author = params.get('author') || '';
+  const titleOnly = params.get('title_only') === '1';
+
   const options = useMemo(
     () => enabledFeedSortTabs(limits.feed_sort_tabs).map(t => ({
       key: t.id as FeedSort,
       label: t.label,
       hint: SORT_META[t.id]?.hint ?? '',
       icon: SORT_META[t.id]?.icon ?? Clock,
+      href: buildHomeUrl(boardId, t.id as FeedSort, {
+        keyword,
+        tag,
+        author,
+        titleOnly,
+        permalink: limits,
+      }),
     })),
-    [limits.feed_sort_tabs],
+    [limits, boardId, keyword, tag, author, titleOnly],
   );
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -121,25 +143,28 @@ export default function FeedSortBar({
         aria-label="帖子排序"
         onKeyDown={onKeyDown}
       >
-        {options.map(({ key, label, hint, icon: Icon }, i) => {
+        {options.map(({ key, label, hint, icon: Icon, href }, i) => {
           const pending = pendingValue === key;
           return (
-            <button
+            <a
               key={key}
-              type="button"
+              href={href}
               role="tab"
               tabIndex={activeIndex === i ? 0 : -1}
               aria-selected={value === key}
               aria-busy={pending || undefined}
               title={`${label} · ${hint}`}
               className={cn('feed-sort-tab', value === key && 'active', pending && 'is-pending')}
-              onClick={() => onChange(key)}
+              onClick={(e) => {
+                e.preventDefault();
+                onChange(key);
+              }}
             >
               {pending
                 ? <Loader2 className="feed-sort-tab__spin" aria-hidden />
                 : <Icon aria-hidden />}
               <span className="feed-sort-tab__label">{label}</span>
-            </button>
+            </a>
           );
         })}
       </div>

@@ -2791,12 +2791,12 @@ a.post-row {
 .board-chip.active.board-chip--6 { background: var(--board-6-bg); color: var(--board-6-color); }
 .board-chip.active.board-chip--7 { background: var(--board-7-bg); color: var(--board-7-color); }
 
-/* 帖子排序栏：与左侧栏 active 样式保持一致 */
+/* 帖子排序栏：与左侧栏 active 样式保持一致；不占满整行，避免「共 N 条」贴中栏右缘 */
 .feed-sort-bar {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -2819,6 +2819,7 @@ a.post-row {
   cursor: pointer;
   flex-shrink: 0;
   white-space: nowrap;
+  text-decoration: none;
   transition: background 0.15s, color 0.15s;
 }
 
