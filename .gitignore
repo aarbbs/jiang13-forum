@@ -23,3 +23,6 @@ tmp-cookie.txt
 *.swp
 Thumbs.db
 .DS_Store
+
+# Lucide path 抽取临时产物
+frontend/tmp-lucide-paths.json
