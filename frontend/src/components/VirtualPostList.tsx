@@ -162,6 +162,12 @@ export default function VirtualPostList({
   }, [resetScrollKey, virtualizer, getScrollElement]);
 
   useLayoutEffect(() => {
+    // 收到新的恢复目标时允许再次 restore；null 表示已消费，勿动标记
+    if (restoreScrollTop == null) return;
+    restoredRef.current = false;
+  }, [restoreScrollTop]);
+
+  useLayoutEffect(() => {
     if (restoreScrollTop == null || restoredRef.current || posts.length === 0) return;
     const el = getScrollElement();
     if (el) {
@@ -172,10 +178,6 @@ export default function VirtualPostList({
     restoredRef.current = true;
     onScrollRestoredRef.current?.();
   }, [restoreScrollTop, posts.length, virtualizer, getScrollElement]);
-
-  useEffect(() => {
-    restoredRef.current = false;
-  }, [restoreScrollTop]);
 
   useEffect(() => {
     const el = getScrollElement();

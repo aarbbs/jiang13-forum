@@ -386,6 +386,7 @@ export default function MainLayout() {
               <Menu size={18} aria-hidden />
             </button>
           )}
+          {/* 点 Logo：回首页并强制刷新列表（已在首页时也会重拉） */}
           <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
             <SiteBrandMark branding={branding} className="header-logo-mark" />
             {!isMobile && <span className="header-logo-text">{branding.name}</span>}

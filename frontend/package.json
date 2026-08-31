@@ -52,7 +52,8 @@
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
     "turndown": "^7.2.4",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^4.5.7"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, ArrowDown } from 'lucide-react';
+import { FEED_PULL_REFRESH_EVENT } from '../utils/feedCache';
 
 /** 触发刷新的下拉距离（px） */
 const REFRESH_THRESHOLD = 68;
@@ -167,6 +168,18 @@ export default function PullToRefresh() {
         setSettling(true);
         setPull(REFRESH_THRESHOLD * 0.7);
         window.setTimeout(() => {
+          // Feed 页：应用内强制重拉（保留 SPA 其它状态）；其它页仍整页 reload
+          const isFeed = !!(
+            document.querySelector('.main-content--feed-mobile-scroll')
+            || document.querySelector('.page-wrap--feed .post-list-scroll')
+          );
+          if (isFeed) {
+            window.dispatchEvent(new Event(FEED_PULL_REFRESH_EVENT));
+            setRefreshing(false);
+            setSettling(true);
+            setPull(0);
+            return;
+          }
           window.location.reload();
         }, 180);
         return;
