@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import china from '@svg-maps/china';
 import { cn } from '@/lib/utils';
-import { buildChinaRegionCountMap, heatFill, emptyFill } from './monitorMapUtils';
+import { buildChinaRegionCountMap, heatFill } from './monitorMapUtils';
 
 type Loc = { id: string; name: string; path: string };
 
@@ -15,16 +15,35 @@ type RegionStat = {
 type Props = {
   regions: RegionStat[];
   className?: string;
+  /** 近 30 日是否已有国家级浏览量 */
+  hasCountryHits?: boolean;
+  /** 近 30 日是否已有省级浏览量 */
+  hasRegionHits?: boolean;
 };
 
 /** 中国省区地图：按 BIN 解析出的省/区填色 */
-export default function MonitorChinaMap({ regions, className }: Props) {
+export default function MonitorChinaMap({
+  regions,
+  className,
+  hasCountryHits = false,
+  hasRegionHits = false,
+}: Props) {
   const [hover, setHover] = useState<{ name: string; count: number } | null>(null);
   const counts = useMemo(() => buildChinaRegionCountMap(regions), [regions]);
   const max = useMemo(() => Math.max(0, ...Object.values(counts)), [counts]);
   const hasData = max > 0;
   const locations = (china as { locations: Loc[]; viewBox: string }).locations;
   const viewBox = (china as { viewBox: string }).viewBox;
+
+  let emptyTitle = '暂无省级访问数据';
+  let emptyHint = '放置 IP2LOCATION-LITE-DB3.BIN 后按省/区填色';
+  if (hasCountryHits && !hasRegionHits) {
+    emptyTitle = '有国家浏览量，尚无省级数据';
+    emptyHint = '需前台路由产生带省字段的浏览量；仅请求日志不会点亮中国地图。请确认已放置 IP2Location DB3 BIN。';
+  } else if (!hasCountryHits) {
+    emptyTitle = '暂无浏览量地理数据';
+    emptyHint = '需前台路由产生浏览量后才会按省填色；仅请求日志不会点亮此处。';
+  }
 
   return (
     <div className={cn('admin-monitor-svg-wrap', className)}>
@@ -63,8 +82,8 @@ export default function MonitorChinaMap({ regions, className }: Props) {
       )}
       {!hasData && (
         <div className="admin-monitor-map-empty-overlay">
-          <p>暂无省级访问数据</p>
-          <p>放置 IP2LOCATION-LITE-DB3.BIN 后按省/区填色</p>
+          <p>{emptyTitle}</p>
+          <p>{emptyHint}</p>
         </div>
       )}
     </div>

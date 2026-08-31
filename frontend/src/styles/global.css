@@ -15356,6 +15356,18 @@ button.post-poll__option,
   font-size: 12px;
   color: hsl(var(--muted-foreground));
   margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-monitor-today-hint {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.3;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .admin-monitor-today-value {
   font-size: 22px;
@@ -15364,6 +15376,13 @@ button.post-poll__option,
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
   word-break: break-all;
+}
+.admin-monitor-map-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.4;
 }
 
 .admin-monitor-main {

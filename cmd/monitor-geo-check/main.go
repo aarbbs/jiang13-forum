@@ -171,6 +171,10 @@ func main() {
 	}
 	fmt.Println()
 
+	fmt.Println("=== 对账抽样（近 30 日非 bot）===")
+	printGeoReconcileSamples(db, have, since)
+	fmt.Println()
+
 	fmt.Println("=== 样例行（近 30 日，最多 10 条）===")
 	cols := []string{"id", "created_at", "path", "is_bot"}
 	for _, c := range []string{"ip", "country", "region", "region_iso", "city", "asn", "as_org"} {
@@ -217,7 +221,100 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr, "请确认数据目录已放置 IP2LOCATION-LITE-DB3.BIN 与 GeoLite2-ASN.mmdb，且有公网访问产生的 pageview。")
 		fmt.Fprintln(os.Stderr, "本机/私网 IP 通常解不出省，属正常。")
+		fmt.Fprintln(os.Stderr, "注意: 请求日志有地理 ≠ 概览地图/排行有数据（后者只读 page_views）。")
 		os.Exit(2)
+	}
+}
+
+func printGeoReconcileSamples(db *gorm.DB, have map[string]bool, since time.Time) {
+	type sample struct {
+		ID        uint
+		CreatedAt time.Time
+		IP        string
+		Country   string
+		Region    string
+		RegionISO string `gorm:"column:region_iso"`
+		City      string
+		ASN       uint
+		ASOrg     string `gorm:"column:as_org"`
+		Path      string
+	}
+	selCols := []string{"id", "created_at", "path"}
+	for _, c := range []string{"ip", "country", "region", "region_iso", "city", "asn", "as_org"} {
+		if have[c] {
+			selCols = append(selCols, c)
+		}
+	}
+	sel := strings.Join(selCols, ", ")
+
+	printBlock := func(title string, n int64, rows []sample) {
+		fmt.Printf("%s: %d\n", title, n)
+		if len(rows) == 0 {
+			return
+		}
+		for _, s := range rows {
+			fmt.Printf("  #%d %s ip=%s country=%q region=%q iso=%q city=%q asn=%d org=%q path=%s\n",
+				s.ID, s.CreatedAt.Format("2006-01-02 15:04:05"), s.IP,
+				s.Country, s.Region, s.RegionISO, s.City, s.ASN, s.ASOrg, s.Path)
+		}
+	}
+
+	if have["city"] {
+		var n int64
+		_ = db.Table("page_views").
+			Where("created_at >= ? AND is_bot = ? AND city <> '' AND city GLOB '[A-Za-z]*'", since, false).
+			Count(&n).Error
+		var rows []sample
+		_ = db.Table("page_views").
+			Select(sel).
+			Where("created_at >= ? AND is_bot = ? AND city <> '' AND city GLOB '[A-Za-z]*'", since, false).
+			Order("id DESC").
+			Limit(5).
+			Scan(&rows).Error
+		printBlock("英文城市名（可能未中文化）", n, rows)
+	} else {
+		fmt.Println("英文城市名: (city 列缺失)")
+	}
+
+	if have["region"] || have["region_iso"] {
+		cond := "created_at >= ? AND is_bot = ? AND country <> ''"
+		emptyParts := []string{}
+		if have["region"] {
+			emptyParts = append(emptyParts, "(region = '' OR region IS NULL OR region = '-')")
+		}
+		if have["region_iso"] {
+			emptyParts = append(emptyParts, "(region_iso = '' OR region_iso IS NULL)")
+		}
+		where := cond + " AND (" + strings.Join(emptyParts, " AND ") + ")"
+		var n int64
+		_ = db.Table("page_views").Where(where, since, false).Count(&n).Error
+		var rows []sample
+		_ = db.Table("page_views").
+			Select(sel).
+			Where(where, since, false).
+			Order("id DESC").
+			Limit(5).
+			Scan(&rows).Error
+		printBlock("有国家但省为空", n, rows)
+	} else {
+		fmt.Println("有国家但省为空: (省列缺失)")
+	}
+
+	if have["asn"] {
+		var n int64
+		_ = db.Table("page_views").
+			Where("created_at >= ? AND is_bot = ? AND (asn = 0 OR asn IS NULL)", since, false).
+			Count(&n).Error
+		var rows []sample
+		_ = db.Table("page_views").
+			Select(sel).
+			Where("created_at >= ? AND is_bot = ? AND (asn = 0 OR asn IS NULL)", since, false).
+			Order("id DESC").
+			Limit(5).
+			Scan(&rows).Error
+		printBlock("asn=0（无运营商）", n, rows)
+	} else {
+		fmt.Println("asn=0: (asn 列缺失)")
 	}
 }
 

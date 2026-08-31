@@ -79,23 +79,29 @@ function GeoRankTable({
   cities,
   asns,
   mode,
-  mapMode,
   rankMode,
   onRankMode,
+  hasCountryHits,
 }: {
   cities: MonitorCityItem[];
   asns: MonitorASNItem[];
   mode: MapMode;
   rankMode: RankMode;
   onRankMode: (m: RankMode) => void;
+  /** 近 30 日是否已有国家级浏览量（用于区分「无 PV 地理」与缺库） */
+  hasCountryHits: boolean;
 }) {
   const cityRows = mode === 'china'
     ? cities.filter((i) => CHINA_CODES.has((i.country || '').toUpperCase()))
     : cities;
   const rows = rankMode === 'city' ? cityRows : asns;
   const emptyHint = rankMode === 'city'
-    ? '放置 IP2Location DB3 BIN 后可见城市排行'
-    : '放置 GeoLite2-ASN.mmdb 后可见运营商排行';
+    ? (hasCountryHits
+      ? '需前台路由产生带城市的浏览量；仅请求日志不会进入此排行。请确认已放置 IP2Location DB3 BIN。'
+      : '需前台路由产生浏览量后才会有城市排行；仅请求日志不会点亮此处。')
+    : (hasCountryHits
+      ? '需浏览量写入 ASN；请确认已放置 GeoLite2-ASN.mmdb。仅请求日志不会进入此排行。'
+      : '需前台路由产生浏览量后才会有运营商排行；仅请求日志不会点亮此处。');
 
   return (
     <div className="admin-monitor-rank">
@@ -117,7 +123,7 @@ function GeoRankTable({
       </div>
       {rows.length === 0 ? (
         <div className="admin-monitor-geo-empty">
-          <p>暂无来源数据</p>
+          <p>暂无浏览量来源数据</p>
           <p className="admin-monitor-muted">{emptyHint}</p>
         </div>
       ) : (
@@ -282,17 +288,23 @@ export default function AdminMonitorPage() {
 
   const metrics = useMemo(() => {
     if (!overview) return [];
+    const pvHint = '前台浏览';
+    const accessHintShort = '服务端请求';
+    const accessHintFull = '服务端请求（含 API，重启后重计）';
     return [
-      { label: '浏览量', value: formatNum(overview.pageviews) },
-      { label: '访客数', value: formatNum(overview.visitors) },
-      { label: '独立 IP', value: formatNum(overview.unique_ips) },
-      { label: '流量', value: formatBytes(overview.traffic) },
-      { label: '蜘蛛', value: formatNum(overview.bots) },
-      { label: '请求数', value: formatNum(overview.requests) },
-      { label: '4xx', value: formatNum(overview.status_4xx) },
-      { label: '5xx', value: formatNum(overview.status_5xx) },
+      { label: '浏览量', hint: pvHint, title: pvHint, value: formatNum(overview.pageviews) },
+      { label: '访客数', hint: pvHint, title: pvHint, value: formatNum(overview.visitors) },
+      { label: '独立 IP', hint: accessHintShort, title: accessHintFull, value: formatNum(overview.unique_ips) },
+      { label: '流量', hint: accessHintShort, title: accessHintFull, value: formatBytes(overview.traffic) },
+      { label: '蜘蛛', hint: accessHintShort, title: accessHintFull, value: formatNum(overview.bots) },
+      { label: '请求数', hint: accessHintShort, title: accessHintFull, value: formatNum(overview.requests) },
+      { label: '4xx', hint: accessHintShort, title: accessHintFull, value: formatNum(overview.status_4xx) },
+      { label: '5xx', hint: accessHintShort, title: accessHintFull, value: formatNum(overview.status_5xx) },
     ];
   }, [overview]);
+
+  const hasCountryHits = (geo?.countries?.length || 0) > 0;
+  const hasRegionHits = (geo?.regions?.length || 0) > 0;
 
   const saveSettings = async () => {
     if (!settings) return;
@@ -352,7 +364,7 @@ export default function AdminMonitorPage() {
             网站监控
           </h1>
           <p className="admin-page-desc">
-            浏览量/访客来自前台路由 pageview；请求数与日志来自服务端访问采集（含 /api）
+            浏览量/访客与访客地图来自前台路由 pageview；请求数、流量与请求日志来自服务端访问采集（含 /api，重启后请求类今日指标重计）
           </p>
         </div>
       </div>
@@ -391,8 +403,11 @@ export default function AdminMonitorPage() {
             </div>
             <div className="admin-monitor-today-grid">
               {metrics.map((m) => (
-                <div key={m.label} className="admin-monitor-today-item">
-                  <div className="admin-monitor-today-label">{m.label}</div>
+                <div key={m.label} className="admin-monitor-today-item" title={m.title}>
+                  <div className="admin-monitor-today-label">
+                    {m.label}
+                    <span className="admin-monitor-today-hint">{m.hint}</span>
+                  </div>
                   <div className="admin-monitor-today-value">{m.value}</div>
                 </div>
               ))}
@@ -404,7 +419,13 @@ export default function AdminMonitorPage() {
               <div className="admin-card-head admin-monitor-map-head">
                 <div className="admin-monitor-today-head" style={{ marginBottom: 0 }}>
                   <span className="admin-monitor-section-bar" aria-hidden />
-                  <h2 className="admin-monitor-section-title">访客地图（30 日）</h2>
+                  <div>
+                    <h2 className="admin-monitor-section-title">访客地图</h2>
+                    <p className="admin-monitor-map-sub">
+                      基于前台浏览 · 近 30 日
+                      {mapMode === 'china' ? ' · 按省/区填色' : ' · 按国家填色'}
+                    </p>
+                  </div>
                 </div>
                 <div className="admin-monitor-seg" role="group" aria-label="地图范围">
                   <button
@@ -428,7 +449,11 @@ export default function AdminMonitorPage() {
                   {mapMode === 'world' ? (
                     <MonitorWorldMap items={geoCountries(geo)} />
                   ) : (
-                    <MonitorChinaMap regions={geo?.regions || []} />
+                    <MonitorChinaMap
+                      regions={geo?.regions || []}
+                      hasCountryHits={hasCountryHits}
+                      hasRegionHits={hasRegionHits}
+                    />
                   )}
                 </div>
                 <div className="admin-monitor-map-side">
@@ -438,6 +463,7 @@ export default function AdminMonitorPage() {
                     mode={mapMode}
                     rankMode={rankMode}
                     onRankMode={setRankMode}
+                    hasCountryHits={hasCountryHits}
                   />
                 </div>
               </div>
@@ -554,10 +580,10 @@ export default function AdminMonitorPage() {
                   </thead>
                   <tbody>
                     {logs.map((row) => {
+                      const placeBits = [row.region, row.city, row.as_org].filter(Boolean);
                       const geoBits = [
                         row.country ? countryLabel(row.country) : '',
-                        row.city || '',
-                        row.as_org || '',
+                        ...placeBits,
                       ].filter(Boolean);
                       return (
                         <tr key={row.id}>
@@ -568,9 +594,9 @@ export default function AdminMonitorPage() {
                           <td className="admin-table-mono">
                             {row.ip || '—'}
                             {row.is_bot ? ' · bot' : ''}
-                            {(row.city || row.as_org) ? (
+                            {placeBits.length > 0 ? (
                               <div className="admin-monitor-muted" style={{ fontSize: 12 }}>
-                                {[row.city, row.as_org].filter(Boolean).join(' · ')}
+                                {placeBits.join(' · ')}
                               </div>
                             ) : null}
                           </td>
