@@ -227,6 +227,30 @@ a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--j13-border);
 }
 
+/* 站内跳转顶栏细进度条（2px，类 Next.js / YouTube） */
+.top-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--j13-green);
+  box-shadow: 0 0 8px rgba(24, 160, 88, 0.55), 0 0 2px rgba(24, 160, 88, 0.9);
+  transition: width 0.2s ease-out;
+  border-radius: 0 1px 1px 0;
+}
+
+.top-progress--done {
+  opacity: 0;
+  transition: width 0.12s ease-out, opacity 0.2s ease-out 0.05s;
+}
+
+html.dark .top-progress {
+  background: #36d399;
+  box-shadow: 0 0 8px rgba(54, 211, 153, 0.5), 0 0 2px rgba(54, 211, 153, 0.85);
+}
+
 /* 站点页脚 */
 .site-footer {
   flex-shrink: 0;
@@ -2751,6 +2775,14 @@ body:has(.admin-topbar) .ptr-indicator {
   flex-shrink: 0;
 }
 
+.feed-sort-tab.is-pending {
+  color: var(--j13-green);
+}
+
+.feed-sort-tab__spin {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
 @media (max-width: 768px) {
   .feed-head {
     flex-wrap: wrap;
@@ -3501,6 +3533,21 @@ body:has(.admin-topbar) .ptr-indicator {
   flex-shrink: 0;
 }
 
+/* 类型徽章缀在标题后：不参与收缩，标题在剩余宽度内 ellipsis */
+.post-title-type-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: none;
+}
+
+.post-title-type-badges .post-type-badge,
+.post-title-type-badges .post-qa-badge,
+.post-title-type-badges .post-bounty-badge {
+  margin-right: 0;
+}
+
 .post-title {
   display: block;
   overflow: hidden;
@@ -3513,8 +3560,9 @@ body:has(.admin-topbar) .ptr-indicator {
   color: var(--color-text-1);
   text-decoration: none;
   transition: color 0.15s;
+  /* 不抢满行宽：短标题时类型徽章紧挨末字；过长时在剩余空间内省略 */
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
 }
 
 a.post-title:visited {
@@ -11110,7 +11158,7 @@ button.profile-stat:hover strong {
   }
 }
 
-/* 路由懒加载占位已改为 FeedPageSkeleton，保留类名兼容 */
+/* 路由懒加载占位类名保留兼容（前台已改顶栏进度 + 空白） */
 
 /* ========== React 管理后台 ========== */
 .admin-shell { min-height: 100vh; background: hsl(var(--background)); }
@@ -11570,6 +11618,21 @@ button.profile-stat:hover strong {
 }
 .admin-settings-row-hint {
   font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.admin-settings-subsection {
+  margin-top: 1.25rem;
+}
+.admin-settings-subsection-title {
+  margin: 0 0 0.25rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground, #0f172a);
+}
+.admin-settings-subsection-desc {
+  margin: 0 0 0.75rem;
+  font-size: 12px;
+  line-height: 1.45;
   color: hsl(var(--muted-foreground));
 }
 
@@ -14520,6 +14583,51 @@ button.post-poll__option,
 .admin-sortable-row__label {
   font-weight: 600;
   color: var(--foreground, #0f172a);
+}
+.admin-sortable-row__field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.28rem;
+  min-width: 0;
+}
+.admin-sortable-row__field-name {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: hsl(var(--muted-foreground));
+}
+.admin-sortable-row__name-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 16rem;
+}
+.admin-sortable-row__name-wrap .admin-sortable-row__name-input {
+  width: 100%;
+  height: 36px;
+  padding-right: 2rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.55);
+  border: 1px solid hsl(var(--foreground) / 0.16);
+  box-shadow: inset 0 1px 1px hsl(var(--foreground) / 0.04);
+}
+.admin-sortable-row__name-wrap .admin-sortable-row__name-input:hover {
+  border-color: hsl(var(--foreground) / 0.28);
+}
+.admin-sortable-row__name-wrap .admin-sortable-row__name-input:focus-visible {
+  background: hsl(var(--background));
+  border-color: var(--j13-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--j13-green) 22%, transparent);
+}
+.admin-sortable-row__name-icon {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
 }
 .admin-sortable-row__hint {
   font-size: 12px;

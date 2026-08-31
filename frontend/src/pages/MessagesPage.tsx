@@ -14,8 +14,14 @@ import { postPath } from '../utils/permalink';
 import { userPath } from '../utils/userPath';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import { cn } from '@/lib/utils';
+import { getSessionSnapshot, setSessionSnapshot, deleteSessionSnapshot } from '../utils/sessionPageCache';
+import { PAGE_FORCE_REFRESH_EVENT } from '../utils/feedCache';
+import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
 
 type MsgTab = 'dm' | 'notify';
+type ConvSnap = { conversations: MessageConversation[]; total: number; page: number };
+type NotifySnap = { notifications: PrivateMessage[]; total: number; page: number };
+type ThreadSnap = { messages: PrivateMessage[]; total: number; peerUser: User | null };
 
 const NOTIFY_KINDS = [
   { key: 'all', label: '全部' },
@@ -136,11 +142,28 @@ export default function MessagesPage() {
   }, []);
 
   const loadConversations = useCallback(async (page = 1, append = false) => {
+    const key = `messages:conv:${page}`;
+    if (!append) {
+      const hit = getSessionSnapshot<ConvSnap>(key);
+      if (hit) {
+        setConversations(hit.conversations);
+        setConvTotal(hit.total);
+        setConvPage(hit.page);
+        setListLoading(false);
+        return;
+      }
+    }
     setListLoading(true);
     try {
       const r = await api.messageConversations({ page, size: 30 });
       const next = r.conversations || [];
-      setConversations((prev) => (append ? [...prev, ...next] : next));
+      setConversations((prev) => {
+        const merged = append ? [...prev, ...next] : next;
+        if (!append) {
+          setSessionSnapshot(key, { conversations: merged, total: r.total || 0, page: r.page || page });
+        }
+        return merged;
+      });
       setConvTotal(r.total || 0);
       setConvPage(r.page || page);
     } catch (e: unknown) {
@@ -151,6 +174,17 @@ export default function MessagesPage() {
   }, []);
 
   const loadNotifications = useCallback(async (page = 1, append = false, kind = 'all') => {
+    const key = `messages:notify:${kind}:${page}`;
+    if (!append) {
+      const hit = getSessionSnapshot<NotifySnap>(key);
+      if (hit) {
+        setNotifications(hit.notifications);
+        setNotifyTotal(hit.total);
+        setNotifyPage(hit.page);
+        setNotifyLoading(false);
+        return;
+      }
+    }
     setNotifyLoading(true);
     try {
       const r = await api.messageNotifications({
@@ -164,7 +198,9 @@ export default function MessagesPage() {
       // 打开通知页时标已读（首屏）
       if (!append && page === 1) {
         await api.markNotificationsRead().catch(() => undefined);
-        setNotifications(next.map((m) => ({ ...m, is_read: true })));
+        const marked = next.map((m) => ({ ...m, is_read: true }));
+        setNotifications(marked);
+        setSessionSnapshot(key, { notifications: marked, total: r.total || 0, page: r.page || page });
         setNotifyUnread(0);
         window.dispatchEvent(new Event('messages-unread-refresh'));
       } else {
@@ -177,19 +213,46 @@ export default function MessagesPage() {
     }
   }, []);
 
+  const [threadEpoch, setThreadEpoch] = useState(0);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
       nav(loginPath('/messages'));
       return;
     }
-    void refreshUnreadSplit();
     if (tab === 'dm') {
+      if (!getSessionSnapshot('messages:conv:1')) void refreshUnreadSplit();
       loadConversations(1);
     } else {
+      if (!getSessionSnapshot(`messages:notify:${notifyKind}:1`)) void refreshUnreadSplit();
       loadNotifications(1, false, notifyKind);
     }
   }, [user, authLoading, nav, tab, notifyKind, loadConversations, loadNotifications, refreshUnreadSplit]);
+
+  useEffect(() => {
+    const onForce = () => {
+      // 下拉预热会话列表后直接重读；线程快照需作废以便重拉
+      void refreshUnreadSplit();
+      if (tab === 'dm') {
+        void loadConversations(1);
+        if (peerSelected && selectedPeer !== null) {
+          deleteSessionSnapshot(`messages:thread:${selectedPeer}`);
+          setThreadEpoch(n => n + 1);
+        }
+      } else {
+        // 通知列表：预热未覆盖 kind，作废后重拉
+        deleteSessionSnapshot(`messages:notify:${notifyKind}:1`);
+        void loadNotifications(1, false, notifyKind);
+      }
+    };
+    window.addEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+    window.addEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onForce);
+    return () => {
+      window.removeEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+      window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onForce);
+    };
+  }, [tab, notifyKind, peerSelected, selectedPeer, loadConversations, loadNotifications, refreshUnreadSplit]);
 
   const scrollToBottom = useCallback((smooth = false) => {
     requestAnimationFrame(() => {
@@ -204,15 +267,30 @@ export default function MessagesPage() {
       setMsgTotal(0);
       return;
     }
+    const cached = getSessionSnapshot<ThreadSnap>(`messages:thread:${selectedPeer}`);
+    if (cached) {
+      setMessages(cached.messages);
+      setMsgTotal(cached.total);
+      setPeerUser(cached.peerUser);
+      setThreadLoading(false);
+      return;
+    }
     let cancelled = false;
     setThreadLoading(true);
     stickToBottomRef.current = true;
     api.conversationMessages(selectedPeer, { size: 50 })
       .then((r) => {
         if (cancelled) return;
-        setMessages(r.messages || []);
+        const messages = r.messages || [];
+        const peer = r.peer_user || null;
+        setMessages(messages);
         setMsgTotal(r.total || 0);
-        setPeerUser(r.peer_user || null);
+        setPeerUser(peer);
+        setSessionSnapshot(`messages:thread:${selectedPeer}`, {
+          messages,
+          total: r.total || 0,
+          peerUser: peer,
+        });
         setConversations((prev) => prev.map((c) => (
           c.peer_user_id === selectedPeer ? { ...c, unread_count: 0 } : c
         )));
@@ -226,7 +304,7 @@ export default function MessagesPage() {
         if (!cancelled) setThreadLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user, peerSelected, selectedPeer, refreshUnreadSplit]);
+  }, [user, peerSelected, selectedPeer, refreshUnreadSplit, threadEpoch]);
 
   useEffect(() => {
     if (!threadLoading && stickToBottomRef.current) {
@@ -321,7 +399,17 @@ export default function MessagesPage() {
     try {
       const r = await api.sendMessage({ to_user_id: selectedPeer, content });
       stickToBottomRef.current = true;
-      setMessages((prev) => [...prev, r.message]);
+      setMessages((prev) => {
+        const next = [...prev, r.message];
+        if (selectedPeer != null) {
+          setSessionSnapshot(`messages:thread:${selectedPeer}`, {
+            messages: next,
+            total: msgTotal + 1,
+            peerUser,
+          });
+        }
+        return next;
+      });
       setMsgTotal((n) => n + 1);
       setDraft('');
       setConversations((prev) => {
@@ -335,7 +423,9 @@ export default function MessagesPage() {
           unread_count: 0,
           updated_at: r.message.created_at,
         };
-        return [next, ...rest];
+        const merged = [next, ...rest];
+        setSessionSnapshot('messages:conv:1', { conversations: merged, total: convTotal, page: 1 });
+        return merged;
       });
       scrollToBottom(true);
     } catch (e: unknown) {

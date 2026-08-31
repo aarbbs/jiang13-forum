@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext, useLocation, useNavigationType } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Star, Lock, MessageSquare, MessageSquareOff, Flag, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,9 @@ import { getCachedSiteBranding } from '../hooks/useSiteBranding';
 import { formatDateTime, isTimeDiffSignificant } from '../utils/content';
 import { collectCommentSubtreeIds } from '../utils/comment';
 import { loadMyCommentIds } from '../utils/guest';
-import { clearAllFeedCache } from '../utils/feedCache';
+import { clearAllFeedCache, PAGE_FORCE_REFRESH_EVENT } from '../utils/feedCache';
+import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
+import { deleteSessionSnapshot, getSessionSnapshot, setSessionSnapshot } from '../utils/sessionPageCache';
 import { useGlobalWheelScroll } from '../hooks/useGlobalWheelScroll';
 import { loginPath } from '../utils/authRedirect';
 import { excerptFromHTML, firstImageFromHTML } from '../utils/seoText';
@@ -61,6 +63,27 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import type { PostHeading } from '../utils/postHeadings';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import NotFoundPage from './NotFoundPage';
+
+type PostDetailSnapshot = {
+  post: PostItem;
+  comments: Comment[];
+  poll: PollView | null;
+  lottery: PostLotteryView | null;
+  liked: boolean;
+  favorited: boolean;
+  canEdit: boolean;
+  isEdited: boolean;
+  editBlockReason: string;
+  editWindowHours: number;
+  bountyCanRefund: boolean;
+  bountyRefundBlockReason: string;
+  bountyEligibleReplyCount: number;
+  scrollTop: number;
+};
+
+function postDetailCacheKey(id: number) {
+  return `post:${id}`;
+}
 
 /** 格式化剩余可编辑时间 */
 function formatEditRemaining(createdAt: string, windowHours: number): string {
@@ -80,26 +103,31 @@ export default function PostDetailPage() {
   const postId = parsePermalinkID(id);
   const nav = useNavigate();
   const location = useLocation();
+  const navType = useNavigationType();
   const { user, refresh } = useAuth();
   const { limits } = useForumLimits();
   const { setPostOutline, isMobile } = useOutletContext<LayoutCtx>();
 
-  const [post, setPost] = useState<PostItem | null>(null);
-  const [poll, setPoll] = useState<PollView | null>(null);
-  const [lottery, setLottery] = useState<PostLotteryView | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [liked, setLiked] = useState(false);
-  const [favorited, setFavorited] = useState(false);
+  const initialSnap = (postId && !Number.isNaN(postId))
+    ? getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId))
+    : undefined;
+
+  const [post, setPost] = useState<PostItem | null>(initialSnap?.post ?? null);
+  const [poll, setPoll] = useState<PollView | null>(initialSnap?.poll ?? null);
+  const [lottery, setLottery] = useState<PostLotteryView | null>(initialSnap?.lottery ?? null);
+  const [comments, setComments] = useState<Comment[]>(initialSnap?.comments ?? []);
+  const [liked, setLiked] = useState(initialSnap?.liked ?? false);
+  const [favorited, setFavorited] = useState(initialSnap?.favorited ?? false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnap);
   const [highlightFloor, setHighlightFloor] = useState<number | null>(null);
   const [submitCount, setSubmitCount] = useState(0);
-  const [canEdit, setCanEdit] = useState(false);
-  const [isEdited, setIsEdited] = useState(false);
-  const [editBlockReason, setEditBlockReason] = useState('');
-  const [editWindowHours, setEditWindowHours] = useState(0);
+  const [canEdit, setCanEdit] = useState(initialSnap?.canEdit ?? false);
+  const [isEdited, setIsEdited] = useState(initialSnap?.isEdited ?? false);
+  const [editBlockReason, setEditBlockReason] = useState(initialSnap?.editBlockReason ?? '');
+  const [editWindowHours, setEditWindowHours] = useState(initialSnap?.editWindowHours ?? 0);
   const [showRevisions, setShowRevisions] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -114,14 +142,25 @@ export default function PostDetailPage() {
   const [rejecting, setRejecting] = useState(false);
   const [bountyAwardTarget, setBountyAwardTarget] = useState<number | null>(null);
   const [bountyAwarding, setBountyAwarding] = useState(false);
-  const [bountyCanRefund, setBountyCanRefund] = useState(true);
-  const [bountyRefundBlockReason, setBountyRefundBlockReason] = useState('');
-  const [bountyEligibleReplyCount, setBountyEligibleReplyCount] = useState(0);
+  const [bountyCanRefund, setBountyCanRefund] = useState(initialSnap?.bountyCanRefund ?? true);
+  const [bountyRefundBlockReason, setBountyRefundBlockReason] = useState(initialSnap?.bountyRefundBlockReason ?? '');
+  const [bountyEligibleReplyCount, setBountyEligibleReplyCount] = useState(initialSnap?.bountyEligibleReplyCount ?? 0);
+  /** 仅浏览器后退/前进还原滚动；从列表再次点进帖子从顶部开始 */
+  const [restoreScrollTop, setRestoreScrollTop] = useState<number | null>(() => {
+    if (!initialSnap) return null;
+    if (navType === 'POP' && !location.hash) return initialSnap.scrollTop;
+    return 0;
+  });
 
   const pageRef = useRef<HTMLDivElement>(null);
   const commentSectionRef = useRef<HTMLDivElement>(null);
   const commentBoxRef = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout>>();
+  const postRef = useRef<PostItem | null>(null);
+  const scrollTopRef = useRef(
+    initialSnap && navType === 'POP' && !location.hash ? initialSnap.scrollTop : 0,
+  );
+  postRef.current = post;
 
   useGlobalWheelScroll(pageRef, !loading && !!post);
 
@@ -180,19 +219,64 @@ export default function PostDetailPage() {
   const loadSeq = useRef(0);
   const detailPath = postPath(postId, limits);
 
-  useEffect(() => {
+  const applySnapshot = useCallback((snap: PostDetailSnapshot, opts?: { restoreScroll?: boolean }) => {
+    setPost(snap.post);
+    setPoll(snap.poll);
+    setLottery(snap.lottery);
+    setLiked(snap.liked);
+    setFavorited(snap.favorited);
+    setCanEdit(snap.canEdit);
+    setIsEdited(snap.isEdited);
+    setEditBlockReason(snap.editBlockReason);
+    setEditWindowHours(snap.editWindowHours);
+    setBountyCanRefund(snap.bountyCanRefund);
+    setBountyRefundBlockReason(snap.bountyRefundBlockReason);
+    setBountyEligibleReplyCount(snap.bountyEligibleReplyCount);
+    setComments(snap.comments);
+    if (opts?.restoreScroll) {
+      scrollTopRef.current = snap.scrollTop;
+      setRestoreScrollTop(snap.scrollTop);
+    } else {
+      scrollTopRef.current = 0;
+      // 同组件换帖时容器可能仍停在上一帖位置；初次进入已是 0 则不动，避免覆盖 #floor-N
+      const el = pageRef.current;
+      if (el && el.scrollTop !== 0) setRestoreScrollTop(0);
+    }
+  }, []);
+
+  const loadPostRef = useRef<(mode: 'auto' | 'force') => void>(() => {});
+  loadPostRef.current = (mode: 'auto' | 'force') => {
     if (!postId || Number.isNaN(postId)) {
       setPost(null);
       setLoading(false);
       return;
     }
+    if (mode === 'force') {
+      deleteSessionSnapshot(postDetailCacheKey(postId));
+    }
+    const cached = mode === 'force'
+      ? undefined
+      : getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId));
+    if (cached) {
+      loadSeq.current += 1;
+      applySnapshot(cached, { restoreScroll: navType === 'POP' && !location.hash });
+      setReplyTo(null);
+      setEditingCommentId(null);
+      setComposerOpen(false);
+      setHeadings([]);
+      setLoading(false);
+      return;
+    }
+    const seq = ++loadSeq.current;
+    const keep = !!postRef.current;
     setReplyTo(null);
     setEditingCommentId(null);
     setComposerOpen(false);
     setHeadings([]);
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    setPost(null);
+    if (!keep) {
+      setLoading(true);
+      setPost(null);
+    }
 
     (async () => {
       try {
@@ -202,29 +286,117 @@ export default function PostDetailPage() {
           api.comments(postId, myIds),
         ]);
         if (seq !== loadSeq.current) return;
-        setPost(detail.post);
-        setPoll(detail.poll ?? null);
-        setLottery(detail.lottery ?? null);
-        setLiked(detail.liked);
-        setFavorited(detail.favorited);
-        setCanEdit(detail.can_edit ?? false);
-        setIsEdited(detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at));
-        setEditBlockReason(detail.edit_block_reason ?? '');
-        setEditWindowHours(detail.post_edit_window_hours ?? 0);
-        setBountyCanRefund(detail.bounty_can_refund ?? true);
-        setBountyRefundBlockReason(detail.bounty_refund_block_reason ?? '');
-        setBountyEligibleReplyCount(detail.bounty_eligible_reply_count ?? 0);
-        setComments(Array.isArray(comm.comments) ? comm.comments : []);
+        const commentsList = Array.isArray(comm.comments) ? comm.comments : [];
+        const snap: PostDetailSnapshot = {
+          post: detail.post,
+          comments: commentsList,
+          poll: detail.poll ?? null,
+          lottery: detail.lottery ?? null,
+          liked: detail.liked,
+          favorited: detail.favorited,
+          canEdit: detail.can_edit ?? false,
+          isEdited: detail.is_edited ?? isTimeDiffSignificant(detail.post.created_at, detail.post.updated_at ?? detail.post.created_at),
+          editBlockReason: detail.edit_block_reason ?? '',
+          editWindowHours: detail.post_edit_window_hours ?? 0,
+          bountyCanRefund: detail.bounty_can_refund ?? true,
+          bountyRefundBlockReason: detail.bounty_refund_block_reason ?? '',
+          bountyEligibleReplyCount: detail.bounty_eligible_reply_count ?? 0,
+          scrollTop: 0,
+        };
+        setSessionSnapshot(postDetailCacheKey(postId), snap);
+        applySnapshot(snap, { restoreScroll: false });
+        if (mode === 'force') {
+          const el = pageRef.current;
+          if (el) el.scrollTop = 0;
+          scrollTopRef.current = 0;
+        }
         void refresh();
       } catch {
         if (seq !== loadSeq.current) return;
-        setPost(null);
+        if (!keep) setPost(null);
       } finally {
         if (seq === loadSeq.current) setLoading(false);
       }
     })();
+  };
+
+  useEffect(() => {
+    loadPostRef.current('auto');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅 postId 变化时加载
   }, [postId]);
+
+  useEffect(() => {
+    // 下拉已预热则应用快照；否则强制重拉
+    const onForce = () => {
+      if (!postId || Number.isNaN(postId)) return;
+      const warm = getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId));
+      if (warm) {
+        loadSeq.current += 1;
+        applySnapshot(warm, { restoreScroll: false });
+        setLoading(false);
+        const el = pageRef.current;
+        if (el) el.scrollTop = 0;
+        scrollTopRef.current = 0;
+        return;
+      }
+      loadPostRef.current('force');
+    };
+    window.addEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+    window.addEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onForce);
+    return () => {
+      window.removeEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+      window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onForce);
+    };
+  }, [postId, applySnapshot]);
+
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el || loading || !post) return;
+    const onScroll = () => {
+      scrollTopRef.current = el.scrollTop;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [loading, post]);
+
+  useLayoutEffect(() => {
+    if (restoreScrollTop == null || !pageRef.current || loading || !post) return;
+    pageRef.current.scrollTop = restoreScrollTop;
+    scrollTopRef.current = restoreScrollTop;
+    setRestoreScrollTop(null);
+  }, [restoreScrollTop, loading, post]);
+
+  useEffect(() => {
+    if (!post || post.id !== postId || loading) return;
+    setSessionSnapshot(postDetailCacheKey(post.id), {
+      post,
+      comments,
+      poll,
+      lottery,
+      liked,
+      favorited,
+      canEdit,
+      isEdited,
+      editBlockReason,
+      editWindowHours,
+      bountyCanRefund,
+      bountyRefundBlockReason,
+      bountyEligibleReplyCount,
+      scrollTop: scrollTopRef.current,
+    });
+  }, [
+    post, comments, poll, lottery, liked, favorited, canEdit, isEdited,
+    editBlockReason, editWindowHours, bountyCanRefund, bountyRefundBlockReason,
+    bountyEligibleReplyCount, postId, loading,
+  ]);
+
+  useEffect(() => () => {
+    const p = postRef.current;
+    if (!p) return;
+    const prev = getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(p.id));
+    if (!prev) return;
+    setSessionSnapshot(postDetailCacheKey(p.id), { ...prev, scrollTop: scrollTopRef.current });
+  }, []);
 
   const reloadComments = useCallback(async () => {
     const myIds = user ? [] : loadMyCommentIds();
@@ -573,6 +745,7 @@ export default function PostDetailPage() {
     setDeletingPost(true);
     try {
       await api.deletePost(postId);
+      deleteSessionSnapshot(postDetailCacheKey(postId));
       clearAllFeedCache();
       window.dispatchEvent(new Event('posts-refresh'));
       notify.success('帖子已删除');
@@ -592,7 +765,7 @@ export default function PostDetailPage() {
     onCancelReply: () => setReplyTo(null),
   };
 
-  if (loading) return <div className="post-detail-loading flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (loading && !post) return <div className="post-detail-loading flex justify-center py-16"><Spinner size="lg" /></div>;
   if (!post) {
     return (
       <NotFoundPage

@@ -967,6 +967,11 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 	author := strings.TrimSpace(c.Query("author"))
 	titleOnly := c.Query("title_only") == "1" || strings.EqualFold(c.Query("title_only"), "true")
 
+	sort := strings.TrimSpace(c.Query("sort"))
+	if sort == "" {
+		sort = h.Settings.DefaultFeedSort()
+	}
+
 	q := service.PostListQuery{
 		BoardID:       uint(boardID),
 		UserID:        uint(userID),
@@ -976,7 +981,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		Tag:           tag,
 		Author:        author,
 		TitleOnly:     titleOnly,
-		Sort:          c.DefaultQuery("sort", "reply"),
+		Sort:          sort,
 		ViewerID:      h.currentUserID(c),
 		ViewerIsAdmin: h.isAdmin(c),
 	}

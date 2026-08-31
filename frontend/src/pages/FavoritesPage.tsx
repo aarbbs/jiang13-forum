@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import type { PostItem } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
+import { useSessionResource } from '../hooks/useSessionResource';
 import PostListItem from '../components/PostListItem';
 import { loginPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
@@ -26,16 +27,19 @@ export default function FavoritesPage() {
   const { user, loading: authLoading } = useAuth();
   const { limits } = useForumLimits();
   useNoIndexSEO('我的收藏');
-  const [list, setList] = useState<FavItem[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: list = [], loading } = useSessionResource<FavItem[]>(
+    user ? 'favorites' : null,
+    () => api.favorites().then(d => (Array.isArray(d.favorites) ? d.favorites as FavItem[] : [])),
+    {
+      enabled: !!user && !authLoading,
+      onError: (e) => notify.error(e instanceof Error ? e.message : '加载失败'),
+    },
+  );
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { nav(loginPath('/favorites')); return; }
-    api.favorites()
-      .then(d => setList(Array.isArray(d.favorites) ? d.favorites as FavItem[] : []))
-      .catch(e => notify.error(e.message))
-      .finally(() => setLoading(false));
+    if (!user) nav(loginPath('/favorites'));
   }, [user, authLoading, nav]);
 
   if (authLoading || loading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;

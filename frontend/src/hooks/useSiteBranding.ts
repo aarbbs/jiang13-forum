@@ -123,6 +123,13 @@ export function useSiteBranding() {
   return { branding, loading };
 }
 
+/** 保留当前画面，后台重拉品牌配置（下拉刷新等） */
+export function refetchSiteBranding() {
+  inflight = null;
+  cacheEpoch += 1;
+  listeners.forEach(fn => fn());
+}
+
 /** 清除缓存并通知已挂载的 hook 重新拉取 */
 export function invalidateSiteBrandingCache() {
   cached = null;

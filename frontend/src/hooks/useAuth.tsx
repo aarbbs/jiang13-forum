@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { api } from '../api/client';
 import type { User } from '../api/types';
+import { clearAllFeedCache } from '../utils/feedCache';
+import { clearSessionSnapshots } from '../utils/sessionPageCache';
 
 interface AuthCtx {
   user: User | null;
@@ -31,6 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 初始化只拉一次用户信息
   useEffect(() => { refresh(); }, [refresh]);
+
+  const prevUserId = useRef<number | null | 'init'>('init');
+  useEffect(() => {
+    if (loading) return;
+    const id = user?.id ?? null;
+    if (prevUserId.current === 'init') {
+      prevUserId.current = id;
+      return;
+    }
+    if (prevUserId.current !== id) {
+      prevUserId.current = id;
+      clearSessionSnapshots();
+      clearAllFeedCache();
+    }
+  }, [user, loading]);
 
   const logout = async () => {
     await api.logout();

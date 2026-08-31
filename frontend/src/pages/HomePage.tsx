@@ -14,19 +14,20 @@ import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
 import FeedHeader from '../components/FeedHeader';
 import FeedSearchFilters from '../components/search/FeedSearchFilters';
-import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { parseSearchFromUrl, usePostSearch } from '../hooks/usePostSearch';
 import {
-  clearAllFeedCache,
   navigateFeed,
   FEED_RESET_EVENT,
   FEED_PULL_REFRESH_EVENT,
   type FeedNavState,
 } from '../utils/feedCache';
+import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
 import { feedCacheKey, getHomeStoreState } from '../store/homeStore';
+import { enabledFeedSortTabs, getDefaultFeedSort } from '../utils/feedSortTabs';
 import { openForumPost } from '../utils/openPost';
+import { startTransition, doneTransition } from '../utils/spaTransition';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { siteMetaDescription, useSiteBranding } from '../hooks/useSiteBranding';
 import { boardPath, canonicalRedirectPath, parsePermalinkID } from '../utils/permalink';
@@ -95,7 +96,8 @@ export default function HomePage() {
   const tag = params.get('tag') || '';
   const author = params.get('author') || '';
   const titleOnly = params.get('title_only') === '1';
-  const sort = parseFeedSort(params.get('sort'));
+  const rawSort = params.get('sort');
+  const sort = parseFeedSort(rawSort, limits.feed_sort_tabs);
   const board = (ctx?.boards ?? []).find(b => b.id === boardId);
   const isSiteHome = !boardId && !keyword && !tag && !author;
   const siteIntro = siteMetaDescription(branding);
@@ -135,6 +137,27 @@ export default function HomePage() {
     }
   }, [queryBoardId, boardId, boardRouteId, params, nav, limits, location.pathname, location.search]);
 
+  // URL 上的 sort 已被后台关闭时，纠正为默认排序
+  useEffect(() => {
+    if (limitsLoading) return;
+    if (rawSort !== 'latest' && rawSort !== 'hot' && rawSort !== 'reply') return;
+    const stillOn = enabledFeedSortTabs(limits.feed_sort_tabs).some(t => t.id === rawSort);
+    if (stillOn) return;
+    const def = getDefaultFeedSort(limits.feed_sort_tabs);
+    nav(buildHomeUrl(boardId, def, { keyword, tag, author, titleOnly, permalink: limits }), { replace: true });
+  }, [
+    limitsLoading,
+    limits.feed_sort_tabs,
+    limits,
+    rawSort,
+    boardId,
+    keyword,
+    tag,
+    author,
+    titleOnly,
+    nav,
+  ]);
+
   const cacheKey = useMemo(
     () => feedCacheKey({ boardId, keyword, sort, tag, author, titleOnly }),
     [boardId, keyword, sort, tag, author, titleOnly],
@@ -151,25 +174,40 @@ export default function HomePage() {
   const [postTotal, setPostTotal] = useState(initial.postTotal);
   const [page, setPage] = useState(initial.page);
   const [loading, setLoading] = useState(initial.loading);
+  /** 画面上已提交的筛选（URL 已变但数据未到时仍画上一份） */
+  const [view, setView] = useState({
+    cacheKey,
+    sort,
+    boardId,
+    keyword,
+    tag,
+    author,
+    titleOnly,
+  });
+  const [listPending, setListPending] = useState(false);
   const [restoreScrollTop, setRestoreScrollTop] = useState<number | null>(
     initial.posts.length > 0 ? initial.scrollTop : null,
   );
   const [listResetKey, setListResetKey] = useState(0);
 
   const scrollTopRef = useRef(initial.scrollTop);
-  const loadingRef = useRef(false);
+  const fetchSeqRef = useRef(0);
   const pageRef = useRef(initial.page);
   const cacheKeyRef = useRef(cacheKey);
+  const viewKeyRef = useRef(view.cacheKey);
+  const postsRef = useRef(posts);
   const scrollRafRef = useRef(0);
   /** 当前筛选键是否已完成「进入页」水合（避免 effect 重跑时反复 setRestoreScrollTop） */
   const hydratedKeyRef = useRef<string | null>(null);
   pageRef.current = page;
   cacheKeyRef.current = cacheKey;
+  viewKeyRef.current = view.cacheKey;
+  postsRef.current = posts;
 
-  // 筛选键切换：用新键的缓存重置本地 state（useMemo initial 不会自动 setState）
-  useEffect(() => {
-    const next = readHydrate(boardId, keyword, sort, tag, author, titleOnly);
-    hydratedKeyRef.current = null;
+  const commitDisplayed = useCallback((
+    next: FeedHydrate,
+    meta: { cacheKey: string; sort: FeedSort; boardId: number; keyword: string; tag: string; author: string; titleOnly: boolean },
+  ) => {
     setPosts(next.posts);
     setPostTotal(next.postTotal);
     setPage(next.page);
@@ -177,7 +215,30 @@ export default function HomePage() {
     scrollTopRef.current = next.scrollTop;
     setRestoreScrollTop(next.posts.length > 0 ? next.scrollTop : null);
     setLoading(next.loading);
-  }, [cacheKey, boardId, keyword, sort, tag, author, titleOnly]);
+    setListPending(false);
+    setView(meta);
+  }, []);
+
+  // 筛选键切换：有快照则立刻换页；否则保留当前画面等请求结束
+  useEffect(() => {
+    if ((location.state as FeedNavState | null)?.refreshFeed && navType !== 'POP') {
+      hydratedKeyRef.current = null;
+      return;
+    }
+    const next = readHydrate(boardId, keyword, sort, tag, author, titleOnly);
+    if (next.posts.length > 0) {
+      hydratedKeyRef.current = cacheKey;
+      commitDisplayed(next, { cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+      return;
+    }
+    hydratedKeyRef.current = null;
+    if (postsRef.current.length > 0) {
+      setListPending(true);
+      setLoading(false);
+      return;
+    }
+    commitDisplayed(next, { cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+  }, [cacheKey, boardId, keyword, sort, tag, author, titleOnly, commitDisplayed, location.state, navType]);
 
   const totalPages = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
   const showPagination = totalPages > 1 && posts.length > 0;
@@ -189,9 +250,8 @@ export default function HomePage() {
     setListResetKey(k => k + 1);
   }, []);
 
-  /** 强制刷新：清空全部 Feed 缓存并滚回顶部 */
+  /** 同筛选强制刷新：只复位滚动，保留旧列表直到 loadFirst 覆盖 */
   const beginFeedRefresh = useCallback(() => {
-    clearAllFeedCache();
     resetFeedView();
   }, [resetFeedView]);
 
@@ -200,9 +260,9 @@ export default function HomePage() {
     nextPosts: PostItem[],
     nextTotal: number,
     nextPage: number,
-    opts?: { scrollTop?: number; touchFetchTime?: boolean },
+    opts?: { scrollTop?: number; touchFetchTime?: boolean; key?: string },
   ) => {
-    const key = cacheKeyRef.current;
+    const key = opts?.key ?? cacheKeyRef.current;
     const prev = getHomeStoreState().getFeed(key);
     getHomeStoreState().setFeed(key, {
       posts: nextPosts,
@@ -215,12 +275,14 @@ export default function HomePage() {
     });
   }, []);
 
-  const fetchPage = useCallback(async (p: number, opts?: { silent?: boolean }) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+  const fetchPage = useCallback(async (p: number, opts?: { silent?: boolean; resetScroll?: boolean }) => {
+    const seq = ++fetchSeqRef.current;
+    const requestKey = cacheKeyRef.current;
     const silent = !!opts?.silent;
-    // 静默刷新：保留现有列表，不展示加载骨架
-    if (!silent) setLoading(true);
+    const keepView = postsRef.current.length > 0;
+    // 有旧列表时不卸页，只标 pending
+    if (!silent && !keepView) setLoading(true);
+    if (!silent && keepView) setListPending(true);
     try {
       const data = await api.posts({
         page: p,
@@ -232,42 +294,53 @@ export default function HomePage() {
         title_only: !tag && titleOnly ? '1' : '',
         sort,
       });
+      if (seq !== fetchSeqRef.current) return;
       const batch = Array.isArray(data.posts) ? data.posts : [];
       const total = data.total ?? 0;
+      const jumpTop = opts?.resetScroll || (keepView && requestKey !== viewKeyRef.current);
+      const scrollTop = jumpTop ? 0 : scrollTopRef.current;
+      if (jumpTop) {
+        setRestoreScrollTop(null);
+        scrollTopRef.current = 0;
+        setListResetKey(k => k + 1);
+      }
       setPosts(batch);
       setPostTotal(total);
       setPage(p);
       pageRef.current = p;
-      persistFeed(batch, total, p, { touchFetchTime: true });
+      setView({ cacheKey: requestKey, sort, boardId, keyword, tag, author, titleOnly });
+      persistFeed(batch, total, p, { scrollTop, touchFetchTime: true, key: requestKey });
     } catch (e: unknown) {
+      if (seq !== fetchSeqRef.current) return;
       if (!silent) {
         notify.error(e instanceof Error ? e.message : '加载失败');
-        setPosts([]);
-        setPostTotal(0);
-        setPage(1);
-        pageRef.current = 1;
+        if (!keepView) {
+          setPosts([]);
+          setPostTotal(0);
+          setPage(1);
+          pageRef.current = 1;
+        }
       }
     } finally {
-      loadingRef.current = false;
-      setLoading(false);
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+        setListPending(false);
+      }
     }
   }, [boardId, keyword, tag, author, titleOnly, sort, pageSize, persistFeed]);
 
   const loadFirst = useCallback(() => fetchPage(1), [fetchPage]);
 
   const goToPage = useCallback((p: number) => {
-    if (loadingRef.current) return;
     const maxPage = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
     if (p < 1 || p > maxPage) return;
     if (p === pageRef.current) return;
-    resetFeedView();
-    getHomeStoreState().patchScroll(cacheKeyRef.current, 0);
-    fetchPage(p);
-  }, [fetchPage, postTotal, pageSize, resetFeedView]);
+    void fetchPage(p, { resetScroll: true });
+  }, [fetchPage, postTotal, pageSize]);
 
   const handleSelectPost = useCallback((id: number) => {
     // 离开前再写一次滚动，确保详情页返回可还原
-    getHomeStoreState().patchScroll(cacheKeyRef.current, scrollTopRef.current);
+    getHomeStoreState().patchScroll(viewKeyRef.current, scrollTopRef.current);
     openForumPost(nav, id, limits.open_posts_in_new_tab);
   }, [nav, limits.open_posts_in_new_tab]);
 
@@ -278,14 +351,26 @@ export default function HomePage() {
     const forceRefresh = (location.state as FeedNavState | null)?.refreshFeed;
     // 浏览器后退/前进（POP）忽略 history 上残留的 refreshFeed，避免误清空缓存
     if (forceRefresh && navType !== 'POP') {
+      fetchSeqRef.current += 1;
       hydratedKeyRef.current = cacheKey;
-      beginFeedRefresh();
-      setPosts([]);
-      setPostTotal(0);
-      setPage(1);
-      pageRef.current = 1;
-      setLoading(true);
-      loadFirst();
+      // 预取已写入 store：整页替换，不卸成骨架
+      resetFeedView();
+      const warm = getHomeStoreState().getFeed(cacheKey);
+      if (warm && warm.posts.length > 0) {
+        commitDisplayed({
+          posts: warm.posts,
+          postTotal: warm.postTotal,
+          page: warm.page,
+          scrollTop: 0,
+          loading: false,
+        }, { cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+      } else {
+        // 预取失败时保留旧列表并重拉
+        setListPending(postsRef.current.length > 0);
+        if (postsRef.current.length === 0) setLoading(true);
+        setView({ cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+        loadFirst();
+      }
       // 消费后清掉 state，防止该 history 条目永远带着刷新标记
       nav(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
       return;
@@ -300,26 +385,31 @@ export default function HomePage() {
     if (cached && cached.posts.length > 0) {
       const needRestore = hydratedKeyRef.current !== cacheKey;
       hydratedKeyRef.current = cacheKey;
-      setPosts(cached.posts);
-      setPostTotal(cached.postTotal);
-      setPage(cached.page);
-      pageRef.current = cached.page;
-      setLoading(false);
-      // 仅在「首次进入该筛选」时恢复滚动，避免 limits/pageSize 变化导致 effect 重跑时打断用户滚动
       if (needRestore) {
-        setRestoreScrollTop(cached.scrollTop);
-        scrollTopRef.current = cached.scrollTop;
-      }
-      // 超过 TTL：后台静默刷新，不重置滚动
-      if (getHomeStoreState().isStale(cacheKey)) {
-        void fetchPage(cached.page, { silent: true });
+        commitDisplayed({
+          posts: cached.posts,
+          postTotal: cached.postTotal,
+          page: cached.page,
+          scrollTop: cached.scrollTop,
+          loading: false,
+        }, { cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+      } else {
+        setPosts(cached.posts);
+        setPostTotal(cached.postTotal);
+        setPage(cached.page);
+        pageRef.current = cached.page;
+        setLoading(false);
+        setListPending(false);
+        setView({ cacheKey, sort, boardId, keyword, tag, author, titleOnly });
       }
       return;
     }
 
     hydratedKeyRef.current = cacheKey;
-    setRestoreScrollTop(null);
-    scrollTopRef.current = 0;
+    if (postsRef.current.length === 0) {
+      setRestoreScrollTop(null);
+      scrollTopRef.current = 0;
+    }
     loadFirst();
   }, [
     limitsLoading,
@@ -333,36 +423,68 @@ export default function HomePage() {
     navType,
     nav,
     loadFirst,
-    fetchPage,
-    beginFeedRefresh,
+    commitDisplayed,
+    resetFeedView,
     isInvalidBoardRoute,
     isMissingBoard,
+    sort,
+    boardId,
+    keyword,
+    tag,
+    author,
+    titleOnly,
   ]);
 
   useEffect(() => {
-    const onFeedReset = () => beginFeedRefresh();
+    // Logo 等同 URL 强制刷新：仅复位滚动，不卸列表（数据由 transitionTo 预热）
+    const onFeedReset = () => {
+      fetchSeqRef.current += 1;
+      resetFeedView();
+    };
     window.addEventListener(FEED_RESET_EVENT, onFeedReset);
     return () => window.removeEventListener(FEED_RESET_EVENT, onFeedReset);
-  }, [beginFeedRefresh]);
+  }, [resetFeedView]);
 
   useEffect(() => {
-    // Logo / 下拉刷新 / 后台改帖：清空本地列表以露出骨架，再强制拉第 1 页
-    const fn = () => {
-      beginFeedRefresh();
-      setPosts([]);
-      setPostTotal(0);
-      setPage(1);
-      pageRef.current = 1;
+    // 下拉 / posts-refresh / 软刷新 commit：有预热则一次覆盖；禁止先卸列表
+    const applyWarmOrReload = () => {
+      fetchSeqRef.current += 1;
+      const key = cacheKeyRef.current;
+      const warm = getHomeStoreState().getFeed(key);
+      if (warm && warm.posts.length > 0) {
+        // 先写入新数据，再复位滚动（避免先 reset 造成空白闪一下）
+        commitDisplayed({
+          posts: warm.posts,
+          postTotal: warm.postTotal,
+          page: warm.page,
+          scrollTop: 0,
+          loading: false,
+        }, { cacheKey: key, sort, boardId, keyword, tag, author, titleOnly });
+        setListResetKey((k) => k + 1);
+        return;
+      }
+      // 未命中：保留旧 posts，静默重拉
+      if (postsRef.current.length > 0) {
+        setListPending(true);
+        setLoading(false);
+        void loadFirst();
+        return;
+      }
       setLoading(true);
-      loadFirst();
+      void loadFirst();
     };
-    window.addEventListener('posts-refresh', fn);
-    window.addEventListener(FEED_PULL_REFRESH_EVENT, fn);
+    window.addEventListener('posts-refresh', applyWarmOrReload);
+    window.addEventListener(FEED_PULL_REFRESH_EVENT, applyWarmOrReload);
+    window.addEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, applyWarmOrReload);
     return () => {
-      window.removeEventListener('posts-refresh', fn);
-      window.removeEventListener(FEED_PULL_REFRESH_EVENT, fn);
+      window.removeEventListener('posts-refresh', applyWarmOrReload);
+      window.removeEventListener(FEED_PULL_REFRESH_EVENT, applyWarmOrReload);
+      window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, applyWarmOrReload);
     };
-  }, [beginFeedRefresh, loadFirst]);
+  }, [
+    commitDisplayed, loadFirst,
+    sort, boardId, keyword, tag, author, titleOnly,
+  ]);
 
   // 卸载时取消未执行的 scroll rAF
   useEffect(() => () => {
@@ -375,22 +497,23 @@ export default function HomePage() {
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = 0;
-      getHomeStoreState().patchScroll(cacheKeyRef.current, scrollTopRef.current);
+      getHomeStoreState().patchScroll(viewKeyRef.current, scrollTopRef.current);
     });
   }, []);
 
   const handleSortChange = (next: FeedSort) => {
     if (next === sort) {
+      const tid = startTransition();
       beginFeedRefresh();
-      loadFirst();
+      void Promise.resolve(loadFirst()).finally(() => doneTransition(tid));
       return;
     }
     navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly, permalink: limits }));
   };
 
-  const showSortBar = !keyword && !tag && !author;
+  const showSortBar = !view.keyword && !view.tag && !view.author;
   const searchFilters = parseSearchFromUrl(location.pathname, params);
-  const isSearchActive = !!(keyword || author);
+  const isSearchActive = !!(view.keyword || view.author);
 
   if (isInvalidBoardRoute || isMissingBoard) {
     return (
@@ -401,9 +524,9 @@ export default function HomePage() {
     );
   }
 
-  // 首屏用同构骨架，避免标题/列表分区先后出现造成闪动
+  // 冷启动由门闩 / ensureColdBootReady 挡住；有旧列表时软刷新绝不卸空
   if ((loading || limitsLoading || (isBoardRoute && boardsLoading)) && posts.length === 0) {
-    return <FeedPageSkeleton />;
+    return null;
   }
 
   return (
@@ -412,14 +535,19 @@ export default function HomePage() {
         <div className="feed-top">
           <div className="feed-top__bar">
             <FeedHeader
-              keyword={keyword}
-              tag={tag}
-              author={author}
+              keyword={view.keyword}
+              tag={view.tag}
+              author={view.author}
               postTotal={postTotal}
               titleAs={isSiteHome ? 'h2' : 'h1'}
             />
             {showSortBar && (
-              <FeedSortBar value={sort} onChange={handleSortChange} postTotal={postTotal} />
+              <FeedSortBar
+                value={view.sort}
+                pendingValue={listPending ? sort : null}
+                onChange={handleSortChange}
+                postTotal={postTotal}
+              />
             )}
           </div>
           {isSearchActive && (
@@ -433,8 +561,8 @@ export default function HomePage() {
         </div>
         <VirtualPostList
           posts={posts}
-          sort={sort}
-          loading={loading || limitsLoading}
+          sort={view.sort}
+          loading={listPending ? false : (loading || limitsLoading)}
           hasMore={hasMore}
           showPagination={showPagination}
           page={page}
@@ -446,15 +574,15 @@ export default function HomePage() {
           resetScrollKey={listResetKey}
           onScrollTopChange={handleScrollTopChange}
           onScrollRestored={() => setRestoreScrollTop(null)}
-          keyword={keyword || tag || author}
-          isSearchMode={!!(keyword || author)}
-          searchKeyword={keyword}
-          searchAuthor={author}
-          searchTitleOnly={titleOnly}
+          keyword={view.keyword || view.tag || view.author}
+          isSearchMode={!!(view.keyword || view.author)}
+          searchKeyword={view.keyword}
+          searchAuthor={view.author}
+          searchTitleOnly={view.titleOnly}
           searchScopeBoardId={searchFilters.scopeBoardId}
           onClearSearch={postSearch.clearSearch}
-          boardId={boardId}
-          boardName={ctx?.boards?.find(b => b.id === boardId)?.name || ''}
+          boardId={view.boardId}
+          boardName={ctx?.boards?.find(b => b.id === view.boardId)?.name || ''}
           noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}
         />
       </div>

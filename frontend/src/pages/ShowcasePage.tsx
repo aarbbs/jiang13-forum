@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { ExternalLink, Globe2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { api } from '../api/client';
@@ -6,12 +5,15 @@ import type { CommunityShowcaseItem } from '../api/types';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { getCachedSiteBranding, useSiteBranding } from '../hooks/useSiteBranding';
 import { InFlowSiteFooter } from '../components/SiteFooter';
+import { useSessionResource } from '../hooks/useSessionResource';
 
 /** 官方精选的公网部署展柜（只读；仅人工精选条目） */
 export default function ShowcasePage() {
   const { branding } = useSiteBranding();
-  const [items, setItems] = useState<CommunityShowcaseItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: items = [], loading } = useSessionResource<CommunityShowcaseItem[]>(
+    'showcase',
+    () => api.communityShowcase().then((r) => (Array.isArray(r.items) ? r.items : [])),
+  );
 
   usePageSEO({
     title: '开源部署展柜',
@@ -20,23 +22,9 @@ export default function ShowcasePage() {
     canonicalPath: '/showcase',
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    api.communityShowcase()
-      .then((r) => {
-        if (!cancelled) setItems(Array.isArray(r.items) ? r.items : []);
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
   return (
-    <div className="showcase-page">
+    <div className="page-wrap">
+      <div className="showcase-page">
       <header className="showcase-head">
         <div className="showcase-head-mark" aria-hidden>
           <Globe2 size={22} />
@@ -82,6 +70,7 @@ export default function ShowcasePage() {
       )}
 
       <InFlowSiteFooter />
+      </div>
     </div>
   );
 }

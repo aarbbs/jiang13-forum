@@ -10,14 +10,13 @@ import ProjectListItem from '../components/ProjectListItem';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { getCachedSiteBranding } from '../hooks/useSiteBranding';
+import { useSessionResource } from '../hooks/useSessionResource';
+
+type ProjectsSnap = { list: GiteaProject[]; total: number; totalPages: number };
 
 export default function ProjectsPage() {
   const nav = useNavigate();
-  const [list, setList] = useState<GiteaProject[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
 
@@ -40,24 +39,20 @@ export default function ProjectsPage() {
     return () => window.clearTimeout(t);
   }, [queryInput]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api.projects({ page, limit: 30, q: query || undefined })
-      .then(d => {
-        if (cancelled) return;
-        setList(Array.isArray(d.projects) ? d.projects : []);
-        setTotal(d.total ?? 0);
-        setTotalPages(d.total_pages ?? 0);
-      })
-      .catch(e => {
-        if (!cancelled) notify.error(e instanceof Error ? e.message : '加载失败');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [page, query]);
+  const { data, loading } = useSessionResource<ProjectsSnap>(
+    `projects:${page}:${query}`,
+    () => api.projects({ page, limit: 30, q: query || undefined }).then(d => ({
+      list: Array.isArray(d.projects) ? d.projects : [],
+      total: d.total ?? 0,
+      totalPages: d.total_pages ?? 0,
+    })),
+    {
+      onError: (e) => notify.error(e instanceof Error ? e.message : '加载失败'),
+    },
+  );
+  const list = data?.list ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 0;
 
   return (
     <div className="page-wrap">

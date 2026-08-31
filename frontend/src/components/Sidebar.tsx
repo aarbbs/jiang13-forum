@@ -6,9 +6,9 @@ import type { Board } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
 import { buildHomeUrl, parseFeedSort } from './FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
+import { transitionTo } from '../utils/spaTransition';
 import BoardIconDisplay from './BoardIconDisplay';
 import { getBoardThemeIndex } from '../utils/boardTheme';
 import ArticleOutline from './ArticleOutline';
@@ -62,11 +62,11 @@ export default function Sidebar({
   const nav = useNavigate();
   const loc = useLocation();
   const [params] = useSearchParams();
-  const sort = parseFeedSort(params.get('sort'));
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { navPages } = useSitePages();
   const { limits } = useForumLimits();
+  const sort = parseFeedSort(params.get('sort'), limits.feed_sort_tabs);
   const showFriendLinksNav = limits.nav_show_friend_links !== false;
   const showShowcaseNav = !!limits.nav_show_showcase;
   const showSiteSection = navPages.length > 0 || showFriendLinksNav || showShowcaseNav;
@@ -137,22 +137,12 @@ export default function Sidebar({
       <div className="sidebar-section">浏览</div>
       <nav className="sidebar-nav">
         {feedNavLink('all', buildHomeUrl(0, sort, permalinkOpts), '全部帖子', <Home aria-hidden />, 0)}
-        {user && navItem('favorites', '我的收藏', <Star aria-hidden />, () => nav('/favorites'))}
-        {navItem('projects', '开源码桶', <FolderGit2 aria-hidden />, () => nav('/projects'))}
+        {user && navItem('favorites', '我的收藏', <Star aria-hidden />, () => void transitionTo(nav, '/favorites'))}
+        {navItem('projects', '开源码桶', <FolderGit2 aria-hidden />, () => void transitionTo(nav, '/projects'))}
       </nav>
 
       {(boardsLoading && boards.length === 0) ? (
-        <>
-          <div className="sidebar-section sidebar-section--boards">板块</div>
-          <nav className="sidebar-nav sidebar-nav--skeleton" aria-busy="true" aria-label="板块加载中">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="sidebar-nav-item sidebar-nav-item--skeleton">
-                <Skeleton className="skeleton--sidebar-icon" />
-                <Skeleton className="skeleton--sidebar-label" style={{ width: `${58 + (i % 3) * 12}%` }} />
-              </div>
-            ))}
-          </nav>
-        </>
+        <div className="sidebar-section sidebar-section--boards">板块</div>
       ) : boards.length > 0 ? (
         <>
           <div className="sidebar-section sidebar-section--boards">板块</div>
@@ -198,10 +188,10 @@ export default function Sidebar({
         <>
           <div className="sidebar-section sidebar-section--spaced">站点</div>
           <nav className="sidebar-nav">
-            {showFriendLinksNav && navItem('links', '友情链接', <Link2 aria-hidden />, () => nav('/links'))}
-            {showShowcaseNav && navItem('showcase', '开源展柜', <Globe2 aria-hidden />, () => nav('/showcase'))}
+            {showFriendLinksNav && navItem('links', '友情链接', <Link2 aria-hidden />, () => void transitionTo(nav, '/links'))}
+            {showShowcaseNav && navItem('showcase', '开源展柜', <Globe2 aria-hidden />, () => void transitionTo(nav, '/showcase'))}
             {navPages.map(p => (
-              navItem(`page-${p.slug}`, p.title, <FileText aria-hidden />, () => nav(pagePath(p.slug, limits)))
+              navItem(`page-${p.slug}`, p.title, <FileText aria-hidden />, () => void transitionTo(nav, pagePath(p.slug, limits)))
             ))}
           </nav>
         </>

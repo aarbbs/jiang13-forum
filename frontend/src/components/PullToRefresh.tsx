@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, ArrowDown } from 'lucide-react';
-import { FEED_PULL_REFRESH_EVENT } from '../utils/feedCache';
+import { softRefreshCurrentPage } from '../utils/softRefresh';
 
 /** 触发刷新的下拉距离（px） */
 const REFRESH_THRESHOLD = 68;
@@ -30,6 +30,9 @@ function pickScrollEl(): HTMLElement | null {
 
   const page = document.querySelector<HTMLElement>('.page-wrap:not(.page-wrap--feed)');
   if (page) return page;
+
+  const showcase = document.querySelector<HTMLElement>('.showcase-page');
+  if (showcase) return showcase.closest<HTMLElement>('.main-content') ?? showcase;
 
   const admin = document.querySelector<HTMLElement>('.admin-main');
   if (admin) return admin;
@@ -77,7 +80,7 @@ function isNestedScrollBlocking(target: EventTarget | null, bound: HTMLElement):
 }
 
 /**
- * 手机端下拉刷新：在内部滚动容器顶部下拉后整页重载。
+ * 手机端下拉刷新：在内部滚动容器顶部下拉后强制刷新当前页。
  * （浏览器原生 PTR 依赖 document 滚动，与本站 app-shell 布局不兼容。）
  *
  * 挂在 Router 外，故用 MutationObserver 在路由切换后重绑滚动容器。
@@ -168,19 +171,22 @@ export default function PullToRefresh() {
         setSettling(true);
         setPull(REFRESH_THRESHOLD * 0.7);
         window.setTimeout(() => {
-          // Feed 页：应用内强制重拉（保留 SPA 其它状态）；其它页仍整页 reload
-          const isFeed = !!(
-            document.querySelector('.main-content--feed-mobile-scroll')
-            || document.querySelector('.page-wrap--feed .post-list-scroll')
+          // 后台 / 登录页：整页 reload；前台：静默软刷新（无进度条，齐套后一次覆盖）
+          const isAdminOrAuth = !!(
+            document.querySelector('.admin-main')
+            || document.querySelector('.auth-page')
           );
-          if (isFeed) {
-            window.dispatchEvent(new Event(FEED_PULL_REFRESH_EVENT));
-            setRefreshing(false);
-            setSettling(true);
-            setPull(0);
+          if (isAdminOrAuth) {
+            window.location.reload();
             return;
           }
-          window.location.reload();
+          void softRefreshCurrentPage()
+            .catch(() => undefined)
+            .finally(() => {
+              setRefreshing(false);
+              setSettling(true);
+              setPull(0);
+            });
         }, 180);
         return;
       }

@@ -17,6 +17,7 @@ import PageLoader from './components/PageLoader';
 import AuthPageFallback from './components/AuthPageFallback';
 import { Toaster } from './components/ui/sonner';
 import PullToRefresh from './components/PullToRefresh';
+import TopProgressBar from './components/TopProgressBar';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 const HomePage = lazyWithRetry(() => import('./pages/HomePage'));
@@ -87,10 +88,10 @@ const router = createBrowserRouter(
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/links" element={<LinksPage />} />
-        <Route path="/showcase" element={<Suspense fallback={<PageLoader />}><ShowcasePage /></Suspense>} />
+        <Route path="/showcase" element={<Suspense fallback={null}><ShowcasePage /></Suspense>} />
         <Route path="/messages" element={<MessagesPage />} />
-        <Route path="/page/:slug" element={<Suspense fallback={<PageLoader />}><SitePageView /></Suspense>} />
-        <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>} />
+        <Route path="/page/:slug" element={<Suspense fallback={null}><SitePageView /></Suspense>} />
+        <Route path="*" element={<Suspense fallback={null}><NotFoundPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Suspense fallback={<PageLoader fullScreen />}><NotFoundPage standalone /></Suspense>} />
     </Route>,
@@ -103,6 +104,7 @@ export default function App() {
       <AuthProvider>
         <ErrorBoundary>
           <RouterProvider router={router} />
+          <TopProgressBar />
           <PullToRefresh />
           <Toaster />
         </ErrorBoundary>

@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { api } from '../../api/client';
 import { useAdminGuard } from '../../layouts/AdminLayout';
 import type { ForumLimits, FriendLink, FriendLinkApply, SiteBranding } from '../../api/types';
+import { DEFAULT_FEED_SORT_TABS } from '../../api/types';
 import { useSiteBranding, seedSiteBrandingCache, invalidateSiteBrandingCache } from '../../hooks/useSiteBranding';
 import { invalidateForumLimitsCache } from '../../hooks/useForumLimits';
 import { formatTime } from '../../utils/content';
@@ -185,6 +186,7 @@ export default function AdminLinksPage() {
           nav_show_showcase: false,
           footer_show_showcase: false,
           feed_list_style: 'title',
+          feed_sort_tabs: DEFAULT_FEED_SORT_TABS,
           permalink_enabled: false,
           permalink_ext: 'html',
           ...s.limits,
@@ -366,6 +368,7 @@ export default function AdminLinksPage() {
           nav_show_showcase: false,
           footer_show_showcase: false,
           feed_list_style: 'title',
+          feed_sort_tabs: DEFAULT_FEED_SORT_TABS,
           permalink_enabled: false,
           permalink_ext: 'html',
           post_edit_window_hours: 24,

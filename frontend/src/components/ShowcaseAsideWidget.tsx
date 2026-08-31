@@ -3,26 +3,82 @@ import { Globe2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { CommunityShowcaseItem } from '../api/types';
+import { getSessionSnapshot, setSessionSnapshot } from '../utils/sessionPageCache';
+import { PAGE_FORCE_REFRESH_EVENT } from '../utils/feedCache';
+import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
+
+const SHOWCASE_KEY = 'showcase';
 
 /** 右侧栏：开源展柜精简列表 */
 export default function ShowcaseAsideWidget() {
   const nav = useNavigate();
-  const [items, setItems] = useState<CommunityShowcaseItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getSessionSnapshot<CommunityShowcaseItem[]>(SHOWCASE_KEY);
+  const [items, setItems] = useState<CommunityShowcaseItem[]>(() => cached ?? []);
+  const [loading, setLoading] = useState(() => cached === undefined);
 
   useEffect(() => {
     let cancelled = false;
+    const hit = getSessionSnapshot<CommunityShowcaseItem[]>(SHOWCASE_KEY);
+    if (hit !== undefined) {
+      setItems(hit);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     api.communityShowcase()
       .then((r) => {
-        if (!cancelled) setItems(Array.isArray(r.items) ? r.items : []);
+        if (cancelled) return;
+        const next = Array.isArray(r.items) ? r.items : [];
+        setSessionSnapshot(SHOWCASE_KEY, next);
+        setItems(next);
       })
       .catch(() => {
-        if (!cancelled) setItems([]);
+        if (!cancelled) {
+          setSessionSnapshot(SHOWCASE_KEY, []);
+          setItems([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const fetchShowcase = (opts: { showLoading: boolean }) => {
+      if (opts.showLoading) setLoading(true);
+      api.communityShowcase()
+        .then((r) => {
+          const next = Array.isArray(r.items) ? r.items : [];
+          setSessionSnapshot(SHOWCASE_KEY, next);
+          setItems(next);
+        })
+        .catch(() => {
+          if (opts.showLoading) {
+            setSessionSnapshot(SHOWCASE_KEY, []);
+            setItems([]);
+          }
+          // 软刷新失败：保持旧 UI
+        })
+        .finally(() => setLoading(false));
+    };
+    const applyHitOrReload = (showLoading: boolean) => {
+      const hit = getSessionSnapshot<CommunityShowcaseItem[]>(SHOWCASE_KEY);
+      if (hit !== undefined) {
+        setItems(hit);
+        setLoading(false);
+        return;
+      }
+      fetchShowcase({ showLoading });
+    };
+    const onForce = () => applyHitOrReload(true);
+    const onCommit = () => applyHitOrReload(false);
+    window.addEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+    window.addEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onCommit);
+    return () => {
+      window.removeEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+      window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onCommit);
+    };
   }, []);
 
   return (

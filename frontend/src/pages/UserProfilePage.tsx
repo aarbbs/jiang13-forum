@@ -20,6 +20,7 @@ import { api } from '../api/client';
 import type { PostItem, UserActivityStats, UserPublic } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { useForumLimits } from '../hooks/useForumLimits';
+import { useSessionResource } from '../hooks/useSessionResource';
 import PostListItem from '../components/PostListItem';
 import FeedPagination from '../components/FeedPagination';
 import ComposeMessageDialog from '../components/ComposeMessageDialog';
@@ -31,6 +32,9 @@ import { canonicalRedirectPath, parsePermalinkID, userPath } from '../utils/perm
 import NotFoundPage from './NotFoundPage';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 
+type ProfileSnap = { profile: UserPublic; stats: UserActivityStats | null };
+type PostsSnap = { posts: PostItem[]; total: number };
+
 export default function UserProfilePage() {
   const { id: idParam } = useParams();
   const userId = parsePermalinkID(idParam);
@@ -40,15 +44,34 @@ export default function UserProfilePage() {
   const { limits } = useForumLimits();
   const pageSize = limits.page_size_default > 0 ? limits.page_size_default : 20;
 
-  const [profile, setProfile] = useState<UserPublic | null>(null);
-  const [stats, setStats] = useState<UserActivityStats | null>(null);
   const [msgOpen, setMsgOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
   const [postPage, setPostPage] = useState(1);
-  const [postTotal, setPostTotal] = useState(0);
+
+  const profileKey = userId && !Number.isNaN(userId) ? `user:${userId}` : null;
+  const { data: profileSnap, loading } = useSessionResource<ProfileSnap>(
+    profileKey,
+    () => api.userProfile(userId).then(d => ({ profile: d.user, stats: d.stats ?? null })),
+    {
+      enabled: !!profileKey,
+      onError: () => setNotFound(true),
+    },
+  );
+  const profile = profileSnap?.profile ?? null;
+  const stats = profileSnap?.stats ?? null;
+
+  const postsKey = profileKey && profile ? `${profileKey}:posts:${postPage}:${pageSize}` : null;
+  const { data: postsSnap, loading: postsLoading } = useSessionResource<PostsSnap>(
+    postsKey,
+    () => api.posts({ user_id: userId, page: postPage, size: pageSize, sort: 'latest' })
+      .then(d => ({ posts: Array.isArray(d.posts) ? d.posts : [], total: d.total ?? 0 })),
+    {
+      enabled: !!postsKey,
+      onError: (e) => notify.error(e instanceof Error ? e.message : '加载帖子失败'),
+    },
+  );
+  const posts = postsSnap?.posts ?? [];
+  const postTotal = postsSnap?.total ?? 0;
 
   const isSelf = !!me && me.id === userId;
   const totalPages = Math.max(1, Math.ceil(postTotal / pageSize));
@@ -56,43 +79,13 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (!userId || Number.isNaN(userId)) {
       setNotFound(true);
-      setLoading(false);
-      return;
     }
-    setLoading(true);
-    setNotFound(false);
-    setPostPage(1);
-    api.userProfile(userId)
-      .then(d => {
-        setProfile(d.user);
-        setStats(d.stats);
-      })
-      .catch(() => {
-        setProfile(null);
-        setStats(null);
-        setNotFound(true);
-      })
-      .finally(() => setLoading(false));
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || Number.isNaN(userId) || !profile) return;
-    let cancelled = false;
-    setPostsLoading(true);
-    api.posts({ user_id: userId, page: postPage, size: pageSize, sort: 'latest' })
-      .then(d => {
-        if (cancelled) return;
-        setPosts(Array.isArray(d.posts) ? d.posts : []);
-        setPostTotal(d.total ?? 0);
-      })
-      .catch(e => {
-        if (!cancelled) notify.error(e instanceof Error ? e.message : '加载帖子失败');
-      })
-      .finally(() => {
-        if (!cancelled) setPostsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [userId, profile, postPage, pageSize]);
+    setNotFound(false);
+    setPostPage(1);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId || Number.isNaN(userId)) return;

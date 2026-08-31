@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { buildHomeUrl } from '../components/FeedSortBar';
 import { navigateFeed } from '../utils/feedCache';
+import { transitionTo } from '../utils/spaTransition';
 import { notify } from '@/lib/notify';
 import { parsePermalinkID, type PermalinkOpts } from '../utils/permalink';
 
@@ -190,7 +191,7 @@ export function usePostSearch(
     }
 
     saveRecentSearch({ keyword: kw, author, titleOnly, scopeBoardId });
-    nav(target);
+    void transitionTo(nav, target);
     return true;
   }, [nav, params, loc.pathname, limits, buildUrl]);
 

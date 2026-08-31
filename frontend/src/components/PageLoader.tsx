@@ -6,7 +6,7 @@ type PageLoaderProps = {
   fullScreen?: boolean;
 };
 
-/** 通用路由懒加载占位；首页请用 FeedPageSkeleton，避免非 Feed 页闪出鱼骨骨架 */
+/** 通用路由懒加载占位（后台 / 全屏独立页）；前台 MainLayout 用顶栏进度条 + 空白 */
 export default function PageLoader({ fullScreen = false }: PageLoaderProps) {
   return (
     <div

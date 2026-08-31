@@ -61,6 +61,14 @@ function PostListItem({ post, sort = 'latest', boardId = 0, onSelect }: Props) {
     openPost();
   };
 
+  const hasTypeBadge = post.post_type === 'question'
+    || post.post_type === 'poll'
+    || post.post_type === 'lottery'
+    || (post.post_type === 'bounty' && (
+      (post.bounty_status === 'open' && (post.bounty_points ?? 0) > 0)
+      || post.bounty_status === 'awarded'
+    ));
+
   const titleRow = (
     <div className="post-title-row">
       {post.pinned && (
@@ -81,31 +89,36 @@ function PostListItem({ post, sort = 'latest', boardId = 0, onSelect }: Props) {
       {post.status === 'rejected' && (
         <span className="post-status-badge post-status-badge--rejected" title="未通过">未通过</span>
       )}
-      {post.post_type === 'question' && (
-        <span
-          className={`post-qa-badge${post.question_resolved ? ' post-qa-badge--resolved' : ' post-qa-badge--open'}`}
-          title={post.question_resolved ? '已解决' : '未解决'}
-        >
-          {post.question_resolved ? '已解决' : '未解决'}
-        </span>
-      )}
-      {post.post_type === 'poll' && (
-        <span className="post-type-badge post-type-badge--poll" title="投票">投票</span>
-      )}
-      {post.post_type === 'bounty' && post.bounty_status === 'open' && (post.bounty_points ?? 0) > 0 && (
-        <span className="post-bounty-badge post-bounty-badge--open" title="悬赏">悬赏 {post.bounty_points}</span>
-      )}
-      {post.post_type === 'bounty' && post.bounty_status === 'awarded' && (
-        <span className="post-bounty-badge post-bounty-badge--awarded" title="已采纳">已采纳</span>
-      )}
-      {post.post_type === 'lottery' && (
-        <span className="post-type-badge post-type-badge--lottery" title="抽奖">
-          {post.lottery_status === 'drawn' ? '已开奖' : '抽奖'}
-        </span>
-      )}
       <a href={href} className="post-title" onClick={onTitleClick}>
         {post.title}
       </a>
+      {/* 类型徽章放标题后：flex 自动扣宽，长标题省略号紧挨徽章左侧 */}
+      {hasTypeBadge && (
+        <span className="post-title-type-badges">
+          {post.post_type === 'question' && (
+            <span
+              className={`post-qa-badge${post.question_resolved ? ' post-qa-badge--resolved' : ' post-qa-badge--open'}`}
+              title={post.question_resolved ? '已解决' : '未解决'}
+            >
+              {post.question_resolved ? '已解决' : '未解决'}
+            </span>
+          )}
+          {post.post_type === 'poll' && (
+            <span className="post-type-badge post-type-badge--poll" title="投票">投票</span>
+          )}
+          {post.post_type === 'bounty' && post.bounty_status === 'open' && (post.bounty_points ?? 0) > 0 && (
+            <span className="post-bounty-badge post-bounty-badge--open" title="悬赏">悬赏 {post.bounty_points}</span>
+          )}
+          {post.post_type === 'bounty' && post.bounty_status === 'awarded' && (
+            <span className="post-bounty-badge post-bounty-badge--awarded" title="已采纳">已采纳</span>
+          )}
+          {post.post_type === 'lottery' && (
+            <span className="post-type-badge post-type-badge--lottery" title="抽奖">
+              {post.lottery_status === 'drawn' ? '已开奖' : '抽奖'}
+            </span>
+          )}
+        </span>
+      )}
     </div>
   );
 

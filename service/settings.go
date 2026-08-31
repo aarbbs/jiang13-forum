@@ -50,6 +50,7 @@ const (
 	SettingNavShowShowcase          = "nav_show_showcase"
 	SettingFooterShowShowcase       = "footer_show_showcase"
 	SettingFeedListStyle            = "feed_list_style"
+	SettingFeedSortTabs             = "feed_sort_tabs"
 
 	// 伪静态键名见 permalink.go：SettingPermalinkEnabled / SettingPermalinkExt
 
@@ -158,7 +159,8 @@ type ForumLimits struct {
 	NavShowShowcase         bool          `json:"nav_show_showcase"`
 	FooterShowShowcase      bool          `json:"footer_show_showcase"`
 
-	FeedListStyle string `json:"feed_list_style"`
+	FeedListStyle string       `json:"feed_list_style"`
+	FeedSortTabs  []FeedSortTab `json:"feed_sort_tabs"`
 
 	PermalinkEnabled bool   `json:"permalink_enabled"`
 	PermalinkExt     string `json:"permalink_ext"`
@@ -170,12 +172,23 @@ type AsideWidget struct {
 	Enabled bool   `json:"enabled"`
 }
 
+// FeedSortTab 首页 Feed 排序标签（名称 / 顺序 / 启停）
+type FeedSortTab struct {
+	ID      string `json:"id"`      // reply | latest | hot
+	Label   string `json:"label"`   // 展示名
+	Enabled bool   `json:"enabled"`
+}
+
 const (
 	AsideWidgetTagCloud       = "tag_cloud"
 	AsideWidgetRecentComments = "recent_comments"
 	AsideWidgetRecentUsers    = "recent_users"
 	AsideWidgetFriendLinks    = "friend_links"
 	AsideWidgetShowcase       = "showcase"
+
+	FeedSortReply  = "reply"
+	FeedSortLatest = "latest"
+	FeedSortHot    = "hot"
 )
 
 var asideWidgetDefaultOrder = []string{
@@ -184,6 +197,18 @@ var asideWidgetDefaultOrder = []string{
 	AsideWidgetRecentUsers,
 	AsideWidgetFriendLinks,
 	AsideWidgetShowcase,
+}
+
+var feedSortTabDefaultOrder = []string{
+	FeedSortReply,
+	FeedSortLatest,
+	FeedSortHot,
+}
+
+var feedSortTabDefaultLabels = map[string]string{
+	FeedSortReply:  "新评论",
+	FeedSortLatest: "新帖子",
+	FeedSortHot:    "推荐帖",
 }
 
 // ForumLimitsPublic 前台可见的限制（不含限流等内部配置）
@@ -214,7 +239,8 @@ type ForumLimitsPublic struct {
 	NavShowShowcase         bool          `json:"nav_show_showcase"`
 	FooterShowShowcase      bool          `json:"footer_show_showcase"`
 
-	FeedListStyle string `json:"feed_list_style"`
+	FeedListStyle string        `json:"feed_list_style"`
+	FeedSortTabs  []FeedSortTab `json:"feed_sort_tabs"`
 
 	PermalinkEnabled bool   `json:"permalink_enabled"`
 	PermalinkExt     string `json:"permalink_ext"`
@@ -261,6 +287,7 @@ var forumSettingDefs = []settingDef{
 
 var feedSettingDefaults = map[string]string{
 	SettingFeedListStyle: "title",
+	SettingFeedSortTabs:  `[{"id":"reply","label":"新评论","enabled":true},{"id":"latest","label":"新帖子","enabled":true},{"id":"hot","label":"推荐帖","enabled":true}]`,
 }
 
 var asideSettingDefaults = map[string]string{
@@ -656,6 +683,7 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		FooterShowShowcase:      s.FooterShowShowcase(),
 
 		FeedListStyle: s.FeedListStyle(),
+		FeedSortTabs:  s.FeedSortTabs(),
 
 		PermalinkEnabled: permalink.Enabled,
 		PermalinkExt:     permalink.Ext,
@@ -692,6 +720,7 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		FooterShowShowcase:      limits.FooterShowShowcase,
 
 		FeedListStyle: limits.FeedListStyle,
+		FeedSortTabs:  limits.FeedSortTabs,
 
 		PermalinkEnabled: limits.PermalinkEnabled,
 		PermalinkExt:     limits.PermalinkExt,
@@ -774,6 +803,14 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		return ErrInvalidSetting
 	}
 	if err := s.setString(SettingFeedListStyle, style); err != nil {
+		return err
+	}
+	tabs := NormalizeFeedSortTabs(in.FeedSortTabs)
+	tabsJSON, err := json.Marshal(tabs)
+	if err != nil {
+		return err
+	}
+	if err := s.setString(SettingFeedSortTabs, string(tabsJSON)); err != nil {
 		return err
 	}
 	return nil
@@ -1062,6 +1099,76 @@ func (s *ForumSettingsService) FeedListStyle() string {
 		return "title"
 	}
 	return v
+}
+
+func isValidFeedSortTabID(id string) bool {
+	switch id {
+	case FeedSortReply, FeedSortLatest, FeedSortHot:
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizeFeedSortTabs 校验并补全 Feed 排序标签（顺序保留，至少一项启用）
+func NormalizeFeedSortTabs(in []FeedSortTab) []FeedSortTab {
+	seen := make(map[string]bool, len(feedSortTabDefaultOrder))
+	out := make([]FeedSortTab, 0, len(feedSortTabDefaultOrder))
+	for _, t := range in {
+		id := strings.TrimSpace(t.ID)
+		if !isValidFeedSortTabID(id) || seen[id] {
+			continue
+		}
+		seen[id] = true
+		label := strings.TrimSpace(t.Label)
+		if label == "" {
+			label = feedSortTabDefaultLabels[id]
+		}
+		out = append(out, FeedSortTab{ID: id, Label: label, Enabled: t.Enabled})
+	}
+	for _, id := range feedSortTabDefaultOrder {
+		if seen[id] {
+			continue
+		}
+		out = append(out, FeedSortTab{
+			ID:      id,
+			Label:   feedSortTabDefaultLabels[id],
+			Enabled: true,
+		})
+	}
+	hasEnabled := false
+	for _, t := range out {
+		if t.Enabled {
+			hasEnabled = true
+			break
+		}
+	}
+	if !hasEnabled && len(out) > 0 {
+		out[0].Enabled = true
+	}
+	return out
+}
+
+func (s *ForumSettingsService) FeedSortTabs() []FeedSortTab {
+	raw := strings.TrimSpace(s.getString(SettingFeedSortTabs, ""))
+	if raw == "" {
+		raw = feedSettingDefaults[SettingFeedSortTabs]
+	}
+	var tabs []FeedSortTab
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &tabs)
+	}
+	return NormalizeFeedSortTabs(tabs)
+}
+
+// DefaultFeedSort 返回配置中第一个启用的排序键
+func (s *ForumSettingsService) DefaultFeedSort() string {
+	for _, t := range s.FeedSortTabs() {
+		if t.Enabled {
+			return t.ID
+		}
+	}
+	return FeedSortReply
 }
 
 // MailConfig 读取 SMTP 配置（密码不回显明文）

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TagCount } from '../api/types';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -63,20 +62,7 @@ export default function TagCloud({ tags, loading = false, activeTag = '' }: Prop
   }, [tags]);
 
   if (loading && tags.length === 0) {
-    return (
-      <div className="tag-cloud tag-cloud--skeleton" aria-busy="true" aria-label="标签加载中">
-        {Array.from({ length: 10 }, (_, i) => (
-          <Skeleton
-            key={i}
-            className="skeleton--tag-cloud"
-            style={{
-              width: `${42 + (i % 5) * 16}px`,
-              height: `${20 + (i % 3) * 4}px`,
-            }}
-          />
-        ))}
-      </div>
-    );
+    return null;
   }
 
   if (items.length === 0) {

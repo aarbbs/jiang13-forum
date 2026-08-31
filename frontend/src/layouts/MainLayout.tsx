@@ -1,6 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
-import PageLoader from '../components/PageLoader';
-import FeedPageSkeleton from '../components/FeedPageSkeleton';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Menu, Moon, Sun, Search, Plus, PanelRight, X, Mail, SlidersHorizontal } from 'lucide-react';
 import {
@@ -23,7 +21,12 @@ import BackToTop from '../components/BackToTop';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { resolveAsideWidgets } from '../utils/asideWidgets';
 import { buildHomeUrl, parseFeedSort } from '../components/FeedSortBar';
-import { navigateFeed } from '../utils/feedCache';
+import { navigateFeed, PAGE_FORCE_REFRESH_EVENT } from '../utils/feedCache';
+import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
+import { prefetchRoute, wasColdBootEnsured } from '../utils/prefetchRoute';
+import {
+  transitionTo,
+} from '../utils/spaTransition';
 import PostSearchPanel from '../components/search/PostSearchPanel';
 import {
   POST_SEARCH_OPEN_EVENT,
@@ -33,12 +36,13 @@ import { cn } from '@/lib/utils';
 import { getBoardThemeIndex } from '../utils/boardTheme';
 import { loginPath } from '../utils/authRedirect';
 import { openForumPost } from '../utils/openPost';
-import { useSiteBranding } from '../hooks/useSiteBranding';
+import { refetchSiteBranding, useSiteBranding } from '../hooks/useSiteBranding';
 import { useMonitorPageview } from '../hooks/useMonitorPageview';
 import SiteBrandMark from '../components/SiteBrandMark';
 import SiteFooter from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
 import { parsePermalinkID } from '../utils/permalink';
+import { ensureSitePagesLoaded } from '../hooks/useSitePages';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -73,15 +77,20 @@ export default function MainLayout() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [asideLoading, setAsideLoading] = useState(() => !hasCachedAside());
   const [boardsLoading, setBoardsLoading] = useState(() => getCachedBoards().length === 0);
+  const [layoutRefreshTick, setLayoutRefreshTick] = useState(0);
   const asideEverLoaded = useRef(false);
+  /** 冷启动门闩：main.tsx 已预热则可同步放行；否则等齐再呈现 */
+  const [shellReady, setShellReady] = useState(() => isCompose || wasColdBootEnsured());
+  const coldBootDone = useRef(isCompose || wasColdBootEnsured());
+  const bootGen = useRef(0);
   const [boardId, setBoardId] = useState(() => {
     const m = loc.pathname.match(/^\/board\/(\d+(?:\.[A-Za-z0-9]{1,16})?)$/);
     if (m) return parsePermalinkID(m[1]) || 0;
     return Number(params.get('board')) || 0;
   });
   const [keywordDraft, setKeywordDraft] = useState(params.get('keyword') || '');
-  const feedSort = parseFeedSort(params.get('sort'));
   const { limits: forumLimits } = useForumLimits();
+  const feedSort = parseFeedSort(params.get('sort'), forumLimits.feed_sort_tabs);
   const postSearch = usePostSearch(forumLimits);
   const asideWidgets = useMemo(() => resolveAsideWidgets(forumLimits), [forumLimits]);
   const showTagCloud = asideWidgets.some(w => w.id === 'tag_cloud' && w.enabled);
@@ -195,6 +204,94 @@ export default function MainLayout() {
     return () => window.removeEventListener('boards-refresh', onRefresh);
   }, [refreshBoards]);
 
+  // 冷启动兜底：main 未预热时静默等齐（不打进度条）；站内已预热则保持打开
+  useEffect(() => {
+    if (isCompose) {
+      coldBootDone.current = true;
+      setShellReady(true);
+      return;
+    }
+    if (coldBootDone.current || wasColdBootEnsured()) {
+      coldBootDone.current = true;
+      setShellReady(true);
+      setBoardsLoading(false);
+      setAsideLoading(false);
+      setTagsLoading(false);
+      asideEverLoaded.current = true;
+      return;
+    }
+
+    const gen = ++bootGen.current;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const path = `${loc.pathname}${loc.search}`;
+        const tasks: Promise<unknown>[] = [
+          prefetchRoute(path, { force: false }),
+          refreshBoards(),
+          ensureSitePagesLoaded(),
+        ];
+
+        if (!hideAside) {
+          if (showRecentComments) {
+            tasks.push(
+              api.recentComments().then((d) => {
+                const next = Array.isArray(d.comments) ? d.comments : [];
+                setRecentComments(next);
+                setCachedRecentComments(next);
+              }).catch(() => undefined),
+            );
+          }
+          if (showRecentUsers) {
+            tasks.push(
+              api.recentUsers().then((d) => {
+                const next = Array.isArray(d.users) ? d.users : [];
+                setRecentUsers(next);
+                setCachedRecentUsers(next);
+              }).catch(() => undefined),
+            );
+          }
+          if (showTagCloud) {
+            tasks.push(
+              api.tags(40).then((d) => {
+                const next = Array.isArray(d.tags) ? d.tags : [];
+                setTags(next);
+                setCachedTags(next);
+              }).catch(() => undefined),
+            );
+          }
+        }
+
+        await Promise.all(tasks);
+      } catch {
+        // 失败也放行
+      } finally {
+        if (!cancelled && bootGen.current === gen) {
+          asideEverLoaded.current = true;
+          setAsideLoading(false);
+          setTagsLoading(false);
+          setBoardsLoading(false);
+          coldBootDone.current = true;
+          setShellReady(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isCompose,
+    loc.pathname,
+    loc.search,
+    hideAside,
+    showRecentComments,
+    showRecentUsers,
+    showTagCloud,
+    refreshBoards,
+  ]);
+
   const refreshUnreadMessages = useCallback(() => {
     if (!user) {
       setUnreadMessages(0);
@@ -216,10 +313,50 @@ export default function MainLayout() {
     };
   }, [refreshUnreadMessages]);
 
+  useEffect(() => {
+    const syncFromCache = () => {
+      // 仅当 cache 有内容时覆盖，避免空数组盖住已渲染的非空 UI
+      const nextBoards = getCachedBoards();
+      if (nextBoards.length > 0) setBoards(nextBoards);
+      setBoardsLoading(false);
+      const nextStats = getCachedStats();
+      if (nextStats) setStats(nextStats);
+      const nextComments = getCachedRecentComments();
+      if (nextComments.length > 0 || hasCachedAside()) setRecentComments(nextComments);
+      const nextUsers = getCachedRecentUsers();
+      if (nextUsers.length > 0 || hasCachedAside()) setRecentUsers(nextUsers);
+      const nextTags = getCachedTags();
+      if (nextTags.length > 0) setTags(nextTags);
+      setTagsLoading(false);
+      setAsideLoading(false);
+      asideEverLoaded.current = true;
+      refetchSiteBranding();
+      refreshUnreadMessages();
+    };
+    const onForce = () => {
+      // 旧路径：仍可能被别处派发；尽量静默刷新壳层
+      refreshBoards();
+      refreshUnreadMessages();
+      refetchSiteBranding();
+      setLayoutRefreshTick(n => n + 1);
+    };
+    const onCommit = () => {
+      // 软刷新：预热已写入 cache，同一拍同步进 state，不触发分批 loading
+      syncFromCache();
+    };
+    window.addEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+    window.addEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onCommit);
+    return () => {
+      window.removeEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
+      window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onCommit);
+    };
+  }, [refreshBoards, refreshUnreadMessages]);
+
   // 标签云：进页/离开发帖页时拉取；不跟 posts-refresh 联动（置顶/推荐等不改标签）
   useEffect(() => {
     if (isCompose || !showTagCloud) return;
     let cancelled = false;
+    // 有 session 缓存则静默刷新（软刷新不卸空白）
     if (getCachedTags().length === 0) setTagsLoading(true);
     api.tags(40).then(d => {
       if (cancelled) return;
@@ -232,7 +369,7 @@ export default function MainLayout() {
     return () => {
       cancelled = true;
     };
-  }, [isCompose, showTagCloud]);
+  }, [isCompose, showTagCloud, layoutRefreshTick]);
 
   const needAsideData = !isCompose && (!hideAside || asideOpen);
   const needRecentComments = needAsideData && showRecentComments;
@@ -259,7 +396,7 @@ export default function MainLayout() {
     return () => {
       cancelled = true;
     };
-  }, [needRecentComments]);
+  }, [needRecentComments, layoutRefreshTick]);
 
   const needRecentUsers = needAsideData && showRecentUsers;
   useEffect(() => {
@@ -284,7 +421,7 @@ export default function MainLayout() {
     return () => {
       cancelled = true;
     };
-  }, [needRecentUsers]);
+  }, [needRecentUsers, layoutRefreshTick]);
 
   const doQuickSearch = () => {
     const { author, titleOnly, scopeBoardId } = postSearch.filters;
@@ -386,8 +523,8 @@ export default function MainLayout() {
               <Menu size={18} aria-hidden />
             </button>
           )}
-          {/* 点 Logo：回首页并强制刷新列表（已在首页时也会重拉） */}
-          <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/')}>
+          {/* 任意页点 Logo：回首页并强制刷新，不展示会话缓存 */}
+          <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/', { refresh: true })}>
             <SiteBrandMark branding={branding} className="header-logo-mark" />
             {!isMobile && <span className="header-logo-text">{branding.name}</span>}
           </button>
@@ -470,7 +607,7 @@ export default function MainLayout() {
             <button
               type="button"
               className="header-compose-btn"
-              onClick={() => user ? nav('/compose') : nav(loginPath('/compose'))}
+              onClick={() => user ? void transitionTo(nav, '/compose') : nav(loginPath('/compose'))}
               aria-label="发帖"
             >
               <Plus size={16} aria-hidden />
@@ -515,7 +652,7 @@ export default function MainLayout() {
                   className="header-icon-btn header-msg-btn"
                   title={unreadMessages > 0 ? `${unreadMessages} 条未读消息` : '站内消息'}
                   aria-label={unreadMessages > 0 ? `站内消息，${unreadMessages} 条未读` : '站内消息'}
-                  onClick={() => nav('/messages')}
+                  onClick={() => void transitionTo(nav, '/messages')}
                 >
                   <Mail size={18} aria-hidden />
                   {unreadMessages > 0 && (
@@ -535,14 +672,14 @@ export default function MainLayout() {
                     className="w-40"
                     onCloseAutoFocus={(e) => e.preventDefault()}
                   >
-                    <DropdownMenuItem onClick={() => nav(userPath(user.id))}>个人主页</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav('/profile')}>
+                    <DropdownMenuItem onClick={() => void transitionTo(nav, userPath(user.id))}>个人主页</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void transitionTo(nav, '/profile')}>
                       账号设置{typeof user.points === 'number' ? ` · ${user.points} 积分` : ''}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav('/messages')}>
+                    <DropdownMenuItem onClick={() => void transitionTo(nav, '/messages')}>
                       站内消息{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav('/favorites')}>我的收藏</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void transitionTo(nav, '/favorites')}>我的收藏</DropdownMenuItem>
                     {isMobile && (
                       <DropdownMenuItem onClick={toggle}>
                         {theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
@@ -588,7 +725,7 @@ export default function MainLayout() {
       )}
 
       <div className={`app-body${isCompose ? ' app-body--compose' : ''}`}>
-        {!isCompose && (
+        {!isCompose && shellReady && (
           <Sidebar
             boards={boards}
             activeBoard={boardId}
@@ -602,13 +739,16 @@ export default function MainLayout() {
           isCompose && 'content-workspace--compose',
           hideAside && !isCompose && 'content-workspace--aside-hidden',
         )}>
-        <main className={cn(
-          'main-content',
-          isCompose && 'main-content--compose',
-          // 手机 Feed：整栏滚动，板块条 / 排序栏可滚出视口，多露出帖子列表
-          isMobile && !isCompose && isFeedHome && 'main-content--feed-mobile-scroll',
-        )}>
-          {isMobile && !isCompose && isFeedHome && (
+        <main
+          className={cn(
+            'main-content',
+            isCompose && 'main-content--compose',
+            // 手机 Feed：整栏滚动，板块条 / 排序栏可滚出视口，多露出帖子列表
+            isMobile && !isCompose && isFeedHome && 'main-content--feed-mobile-scroll',
+          )}
+          aria-busy={!shellReady}
+        >
+          {shellReady && isMobile && !isCompose && isFeedHome && (
             <div
               ref={boardBarRef}
               className="mobile-board-bar"
@@ -646,13 +786,16 @@ export default function MainLayout() {
               })}
             </div>
           )}
-          <Suspense fallback={isFeedHome ? <FeedPageSkeleton /> : <PageLoader />}>
-            <Outlet context={layoutCtx} />
-          </Suspense>
+          {shellReady ? (
+            <Suspense fallback={null}>
+              <Outlet context={layoutCtx} />
+            </Suspense>
+          ) : null}
         </main>
 
         {!isCompose && (
-        <aside className="aside-panel">
+        <aside className="aside-panel" aria-busy={!shellReady}>
+          {shellReady && (
           <RightPanel
             recentComments={recentComments}
             recentUsers={recentUsers}
@@ -671,6 +814,7 @@ export default function MainLayout() {
               outlineTitle: postOutline?.title,
             } : null}
           />
+          )}
         </aside>
         )}
         </div>
@@ -710,12 +854,14 @@ export default function MainLayout() {
               </button>
             </div>
             <div className="aside-drawer-body sidebar-drawer-body">
+              {shellReady && (
               <Sidebar
                 boards={boards}
                 activeBoard={boardId}
                 onSelectBoard={setBoardId}
                 boardsLoading={boardsLoading}
               />
+              )}
               <div className="sidebar-drawer-extras">
                 <button
                   type="button"

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { ListTree, MessageCircle, Tags, Link2, UserPlus } from 'lucide-react';
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import type { AsideWidget, RecentComment, RecentUser, TagCount, User, ForumStats, FriendLink } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
@@ -31,41 +30,12 @@ interface Props {
   tagsLoading?: boolean;
   stats?: ForumStats | null;
   onPostClick: (id: number, opts?: { floor?: number }) => void;
-  /** 首次拉取中，显示骨架避免空态闪烁 */
+  /** 首次拉取中：不渲染该块内容（由冷启动门闩保证首屏已齐或空白） */
   loading?: boolean;
   /** 右侧栏可选组件顺序与开关 */
   asideWidgets: AsideWidget[];
   /** 帖子详情：右侧顶部展示作者与目录 */
   postDetail?: PostDetailAside | null;
-}
-
-function CommentSkeleton() {
-  return (
-    <div className="widget-skeleton" aria-busy="true" aria-label="评论加载中">
-      {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="widget-item widget-item--comment widget-item--skeleton">
-          <Skeleton className="skeleton--widget-avatar" />
-          <div className="widget-item-comment-main">
-            <Skeleton className="skeleton--widget-title" style={{ width: `${72 + (i % 3) * 8}%` }} />
-            <Skeleton className="skeleton--widget-meta" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function UserSkeleton() {
-  return (
-    <div className="widget-recent-users-grid" aria-busy="true" aria-label="用户加载中">
-      {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="widget-recent-user-cell widget-recent-user-cell--skeleton">
-          <Skeleton className="skeleton--recent-user-avatar" />
-          <Skeleton className="skeleton--recent-user-name" style={{ width: `${48 + (i % 3) * 10}%` }} />
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export default function RightPanel({
@@ -181,9 +151,7 @@ export default function RightPanel({
               最新评论
             </div>
             <div className="widget-card-body">
-              {loading && commentList.length === 0 ? (
-                <CommentSkeleton />
-              ) : commentList.length === 0 ? (
+              {loading && commentList.length === 0 ? null : commentList.length === 0 ? (
                 <div className="widget-empty">暂无评论</div>
               ) : commentList.map(item => (
                 <div
@@ -241,9 +209,7 @@ export default function RightPanel({
               最新注册
             </div>
             <div className="widget-card-body widget-card-body--users">
-              {loading && userList.length === 0 ? (
-                <UserSkeleton />
-              ) : userList.length === 0 ? (
+              {loading && userList.length === 0 ? null : userList.length === 0 ? (
                 <div className="widget-empty">暂无用户</div>
               ) : (
                 <div className="widget-recent-users-grid">

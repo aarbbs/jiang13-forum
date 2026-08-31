@@ -15,6 +15,7 @@ import { loginPath } from '../utils/authRedirect';
 import { resolveFriendLinkLogo, isReciprocalChecking, reciprocalStatusLabel } from '../utils/friendLink';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import FriendLinkApplyDialog from '../components/FriendLinkApplyDialog';
+import { useSessionResource } from '../hooks/useSessionResource';
 
 const APPLY_STATUS_ORDER: Record<FriendLinkApply['status'], number> = {
   pending: 0,
@@ -48,8 +49,6 @@ export default function LinksPage() {
   const { user } = useAuth();
   const [applyOpen, setApplyOpen] = useState(false);
   const [editApply, setEditApply] = useState<FriendLinkApply | null>(null);
-  const [myApplies, setMyApplies] = useState<FriendLinkApply[]>([]);
-  const [myLoading, setMyLoading] = useState(false);
   const [cancelingId, setCancelingId] = useState<number | null>(null);
 
   usePageSEO({
@@ -61,6 +60,15 @@ export default function LinksPage() {
 
   const friendLinks = (branding.friend_links ?? []).filter(
     (l: FriendLink) => l.name?.trim() && l.url?.trim(),
+  );
+
+  const { data: myApplies = [], loading: myLoading, replace: setMyApplies } = useSessionResource<FriendLinkApply[]>(
+    user ? 'links:applies' : null,
+    () => api.myFriendLinkApplies().then(r => r.applies ?? []),
+    {
+      enabled: !!user,
+      onError: (e) => notify.error(e instanceof Error ? e.message : '加载失败'),
+    },
   );
 
   const sortedApplies = useMemo(
@@ -98,16 +106,10 @@ export default function LinksPage() {
       setMyApplies([]);
       return;
     }
-    setMyLoading(true);
     api.myFriendLinkApplies()
       .then(r => setMyApplies(r.applies ?? []))
-      .catch(e => notify.error(e instanceof Error ? e.message : '加载失败'))
-      .finally(() => setMyLoading(false));
-  }, [user]);
-
-  useEffect(() => {
-    loadMyApplies();
-  }, [loadMyApplies]);
+      .catch(e => notify.error(e instanceof Error ? e.message : '加载失败'));
+  }, [user, setMyApplies]);
 
   useEffect(() => {
     if (!user || !myApplies.some(isReciprocalChecking)) return;

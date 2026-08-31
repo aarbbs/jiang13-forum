@@ -43,6 +43,7 @@ import { openForumPost } from '../utils/openPost';
 import { formatDateTime } from '../utils/content';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
+import { useSessionResource } from '../hooks/useSessionResource';
 
 const nickSchema = z.object({
   nickname: z.string().min(1, '请输入昵称').max(64),
@@ -75,7 +76,7 @@ export default function ProfilePage() {
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = parseTab(params.get('tab'));
-  const { user, loading: authLoading, refresh } = useAuth();
+  const { user, loading: authLoading, refresh, logout } = useAuth();
   useNoIndexSEO('个人中心');
   const [nickLoading, setNickLoading] = useState(false);
   const [sigLoading, setSigLoading] = useState(false);
@@ -88,12 +89,6 @@ export default function ProfilePage() {
   const [cropFileName, setCropFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
-  const [stats, setStats] = useState<UserActivityStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const [postPage, setPostPage] = useState(1);
-  const [postTotal, setPostTotal] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -102,7 +97,6 @@ export default function ProfilePage() {
 
   const { limits } = useForumLimits();
   const pageSize = limits.page_size_default > 0 ? limits.page_size_default : 20;
-  const totalPages = Math.max(1, Math.ceil(postTotal / pageSize));
 
   const nickForm = useForm<NickValues>({
     resolver: zodResolver(nickSchema),
@@ -181,37 +175,26 @@ export default function ProfilePage() {
     if (copyTimer.current) clearTimeout(copyTimer.current);
   }, []);
 
-  const loadStats = useCallback(() => {
-    setStatsLoading(true);
-    api.profileStats()
-      .then(d => setStats(d.stats))
-      .catch(() => setStats(null))
-      .finally(() => setStatsLoading(false));
-  }, []);
+  const { data: stats = null, loading: statsLoading } = useSessionResource<UserActivityStats | null>(
+    user ? `profile:stats:${user.id}` : null,
+    () => api.profileStats().then(d => d.stats ?? null),
+    { enabled: !!user },
+  );
 
-  useEffect(() => {
-    if (!user) return;
-    loadStats();
-  }, [user, loadStats]);
-
-  useEffect(() => {
-    if (!user || tab !== 'posts') return;
-    let cancelled = false;
-    setPostsLoading(true);
-    api.posts({ user_id: user.id, page: postPage, size: pageSize, sort: 'latest' })
-      .then(d => {
-        if (cancelled) return;
-        setPosts(Array.isArray(d.posts) ? d.posts : []);
-        setPostTotal(d.total ?? 0);
-      })
-      .catch(e => {
-        if (!cancelled) notify.error(e instanceof Error ? e.message : '加载帖子失败');
-      })
-      .finally(() => {
-        if (!cancelled) setPostsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [user, tab, postPage, pageSize]);
+  const [postPage, setPostPage] = useState(1);
+  const postsKey = user && tab === 'posts' ? `profile:posts:${user.id}:${postPage}:${pageSize}` : null;
+  const { data: postsSnap, loading: postsLoading } = useSessionResource<{ posts: PostItem[]; total: number }>(
+    postsKey,
+    () => api.posts({ user_id: user!.id, page: postPage, size: pageSize, sort: 'latest' })
+      .then(d => ({ posts: Array.isArray(d.posts) ? d.posts : [], total: d.total ?? 0 })),
+    {
+      enabled: !!postsKey,
+      onError: (e) => notify.error(e instanceof Error ? e.message : '加载帖子失败'),
+    },
+  );
+  const posts = postsSnap?.posts ?? [];
+  const postTotal = postsSnap?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(postTotal / pageSize));
 
   const closeCropDialog = useCallback((open: boolean) => {
     if (!open) {
@@ -263,7 +246,7 @@ export default function ProfilePage() {
       await api.updatePassword(values.old_password, values.new_password);
       notify.success('密码已修改，请重新登录');
       pwdForm.reset();
-      await api.logout();
+      await logout();
       nav('/login');
     } catch (e: unknown) {
       notify.error(e instanceof Error ? e.message : '修改失败');

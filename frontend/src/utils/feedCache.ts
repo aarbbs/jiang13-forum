@@ -6,6 +6,9 @@ import {
   getHomeStoreState,
   type FeedCacheEntry,
 } from '../store/homeStore';
+import { clearSessionSnapshots } from './sessionPageCache';
+import { softRefreshCurrentPage } from './softRefresh';
+import { transitionTo } from './spaTransition';
 
 /** 导航到帖子列表时附带的状态，用于同 URL 重复点击时强制刷新 */
 export type FeedNavState = { refreshFeed?: boolean };
@@ -55,9 +58,10 @@ export function setFeedCache(
   getHomeStoreState().setFeed(key, data);
 }
 
-/** 清除所有帖子列表缓存 */
+/** 清除所有帖子列表缓存（手动刷新 / 帖子变更时连详情快照一起作废） */
 export function clearAllFeedCache() {
   getHomeStoreState().clearAll();
+  clearSessionSnapshots('post:');
 }
 
 /** 主动刷新帖子列表时派发，用于同页内立即回到顶部 */
@@ -65,6 +69,9 @@ export const FEED_RESET_EVENT = 'feed-reset';
 
 /** 手机下拉刷新（Feed 页）：强制重拉列表并重置滚动，不整页 reload */
 export const FEED_PULL_REFRESH_EVENT = 'feed-pull-refresh';
+
+/** 手机下拉：强制刷新当前前台页（绕过会话快照，非整页 reload） */
+export const PAGE_FORCE_REFRESH_EVENT = 'page-force-refresh';
 
 /** 当前浏览器地址是否已是目标 Feed URL（忽略 hash） */
 function isSameFeedUrl(url: string): boolean {
@@ -80,15 +87,23 @@ function isSameFeedUrl(url: string): boolean {
 }
 
 /**
- * 清除缓存并导航到帖子列表。
- * 已在目标 URL（如首页再点 Logo）时额外派发强制重拉，不依赖 RR 是否换 key。
+ * 导航到帖子列表。
+ * 默认：等待预热后再换页；同 URL 或 `refresh: true` 时静默软刷新（无进度条）。
  */
-export function navigateFeed(nav: NavigateFunction, url: string) {
-  clearAllFeedCache();
-  window.dispatchEvent(new Event(FEED_RESET_EVENT));
-  // 同 URL 再点（典型：左上角 Logo）：必须立刻重拉，否则可能只清缓存、界面仍显示旧列表
-  if (isSameFeedUrl(url)) {
-    window.dispatchEvent(new Event(FEED_PULL_REFRESH_EVENT));
+export function navigateFeed(nav: NavigateFunction, url: string, opts?: { refresh?: boolean }) {
+  const same = isSameFeedUrl(url);
+  const refresh = opts?.refresh ?? same;
+  if (refresh) {
+    if (same) {
+      void softRefreshCurrentPage(url);
+      return;
+    }
+    void transitionTo(nav, url, {
+      force: true,
+      silent: true,
+      state: { refreshFeed: true } satisfies FeedNavState,
+    });
+    return;
   }
-  nav(url, { state: { refreshFeed: true } satisfies FeedNavState });
+  void transitionTo(nav, url);
 }

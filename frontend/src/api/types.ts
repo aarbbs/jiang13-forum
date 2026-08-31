@@ -215,6 +215,20 @@ export const DEFAULT_ASIDE_WIDGETS: AsideWidget[] = [
   { id: 'showcase', enabled: false },
 ];
 
+export type FeedSortId = 'reply' | 'latest' | 'hot';
+
+export interface FeedSortTab {
+  id: FeedSortId;
+  label: string;
+  enabled: boolean;
+}
+
+export const DEFAULT_FEED_SORT_TABS: FeedSortTab[] = [
+  { id: 'reply', label: '新评论', enabled: true },
+  { id: 'latest', label: '新帖子', enabled: true },
+  { id: 'hot', label: '推荐帖', enabled: true },
+];
+
 export interface ForumLimits {
   post_edit_window_hours: number;
   comment_edit_window_minutes: number;
@@ -255,6 +269,8 @@ export interface ForumLimits {
   footer_show_showcase: boolean;
   /** 首页列表样式：title 仅标题 / thumbnail 缩略图 */
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
+  /** 首页排序标签：名称、顺序、启停 */
+  feed_sort_tabs: FeedSortTab[];
   /** 伪静态（固定链接）开关 */
   permalink_enabled: boolean;
   /** 伪静态后缀，不含点，如 html / htm */
@@ -285,6 +301,7 @@ export interface ForumLimitsPublic {
   nav_show_showcase: boolean;
   footer_show_showcase: boolean;
   feed_list_style: 'title' | 'excerpt' | 'thumbnail';
+  feed_sort_tabs: FeedSortTab[];
   permalink_enabled: boolean;
   permalink_ext: string;
   /** 是否上报前台路由 pageview（与后台监控采集开关同步） */

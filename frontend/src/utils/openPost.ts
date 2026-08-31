@@ -1,5 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom';
 import { postPath, type PermalinkOpts } from './permalink';
+import { transitionTo } from './spaTransition';
 
 export type OpenForumPostOpts = PermalinkOpts & {
   /** 跳转到指定楼层（#floor-N） */
@@ -18,5 +19,5 @@ export function openForumPost(
     window.open(path, '_blank', 'noopener,noreferrer');
     return;
   }
-  nav(path);
+  void transitionTo(nav, path);
 }

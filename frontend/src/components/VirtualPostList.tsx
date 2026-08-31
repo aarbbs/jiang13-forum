@@ -4,7 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Inbox, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PostListItem from './PostListItem';
-import PostListSkeleton, { feedListRowEstimate } from './PostListSkeleton';
+import { feedListRowEstimate } from './PostListSkeleton';
 import FeedPagination from './FeedPagination';
 import { InFlowSiteFooter } from './SiteFooter';
 import { useAuth } from '../hooks/useAuth';
@@ -14,6 +14,7 @@ import { loginPath } from '../utils/authRedirect';
 import { dispatchOpenPostSearch } from '../hooks/usePostSearch';
 import type { PostItem } from '../api/types';
 import type { FeedSort } from './FeedSortBar';
+import { getDefaultFeedSortFromCache } from './FeedSortBar';
 
 interface Props {
   posts: PostItem[];
@@ -56,7 +57,7 @@ function getMobileFeedScrollEl(): HTMLElement | null {
 
 export default function VirtualPostList({
   posts,
-  sort = 'reply',
+  sort = getDefaultFeedSortFromCache(),
   loading,
   hasMore,
   showPagination,
@@ -242,9 +243,7 @@ export default function VirtualPostList({
 
   return (
     <div className="post-list-scroll" ref={parentRef}>
-      {isInitialLoad ? (
-        <PostListSkeleton listStyle={feedStyle} />
-      ) : isEmpty ? (
+      {isInitialLoad ? null : isEmpty ? (
         <div className="empty-feed" role="status">
           {isSearchEmpty
             ? <SearchX className="empty-feed-icon" aria-hidden size={36} strokeWidth={1.5} />

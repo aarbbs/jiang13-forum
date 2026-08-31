@@ -1,40 +1,55 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { boardPath, type PermalinkOpts } from '../utils/permalink';
-import { getCachedForumLimits } from '../hooks/useForumLimits';
-import { Clock, MessageCircle, BadgeCheck } from 'lucide-react';
+import { getCachedForumLimits, useForumLimits } from '../hooks/useForumLimits';
+import { Clock, MessageCircle, BadgeCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { moveTabIndex } from '../hooks/useOverlayA11y';
+import {
+  enabledFeedSortTabs,
+  getDefaultFeedSort,
+  normalizeFeedSortTabs,
+} from '../utils/feedSortTabs';
+import type { FeedSortTab } from '../api/types';
 
 export type FeedSort = 'latest' | 'reply' | 'hot';
 
-const SORT_OPTIONS: {
-  key: FeedSort;
-  label: string;
-  hint: string;
-  icon: typeof Clock;
-}[] = [
-  { key: 'reply', label: '新评论', hint: '最近有人评论', icon: MessageCircle },
-  { key: 'latest', label: '新帖子', hint: '按发帖时间', icon: Clock },
-  { key: 'hot', label: '推荐帖', hint: '站内推荐', icon: BadgeCheck },
-];
+const SORT_META: Record<FeedSort, { hint: string; icon: typeof Clock }> = {
+  reply: { hint: '最近有人评论', icon: MessageCircle },
+  latest: { hint: '按发帖时间', icon: Clock },
+  hot: { hint: '站内推荐', icon: BadgeCheck },
+};
 
 interface Props {
   value: FeedSort;
   onChange: (sort: FeedSort) => void;
   postTotal?: number;
+  /** 正在加载、尚未提交到画面的目标排序 */
+  pendingValue?: FeedSort | null;
 }
 
-/** 解析 URL sort；缺省为新评论（reply） */
-export function parseFeedSort(raw: string | null): FeedSort {
-  if (raw === 'latest' || raw === 'hot') return raw;
-  return 'reply';
+/** 当前配置下的默认排序（读缓存，供非 hook 路径） */
+export function getDefaultFeedSortFromCache(): FeedSort {
+  return getDefaultFeedSort(getCachedForumLimits().feed_sort_tabs);
+}
+
+/** 解析 URL sort；未启用或不合法时回落默认 */
+export function parseFeedSort(raw: string | null, tabs?: FeedSortTab[] | null): FeedSort {
+  const list = tabs ?? getCachedForumLimits().feed_sort_tabs;
+  const def = getDefaultFeedSort(list);
+  if (raw === 'latest' || raw === 'hot' || raw === 'reply') {
+    const enabled = enabledFeedSortTabs(list).some(t => t.id === raw);
+    if (enabled) return raw;
+  }
+  return def;
 }
 
 export function buildHomeUrl(
   boardId: number,
-  sort: FeedSort = 'reply',
+  sort?: FeedSort,
   opts?: { keyword?: string; tag?: string; author?: string; titleOnly?: boolean; permalink?: PermalinkOpts },
 ) {
+  const def = getDefaultFeedSortFromCache();
+  const effective = sort ?? def;
   const p = new URLSearchParams();
   const tag = opts?.tag?.trim();
   const keyword = opts?.keyword?.trim();
@@ -48,8 +63,8 @@ export function buildHomeUrl(
   } else if (author) {
     p.set('author', author);
   }
-  // 默认 reply 不写进 URL；latest / hot 显式带上
-  if (sort !== 'reply') p.set('sort', sort);
+  // 默认排序不写进 URL
+  if (effective !== def) p.set('sort', effective);
   const qs = p.toString();
 
   if (boardId) {
@@ -59,24 +74,38 @@ export function buildHomeUrl(
   return qs ? `/?${qs}` : '/';
 }
 
-export function feedSortLabel(sort: FeedSort): string {
-  return SORT_OPTIONS.find(o => o.key === sort)?.label ?? '帖子列表';
+export function feedSortLabel(sort: FeedSort, tabs?: FeedSortTab[] | null): string {
+  const list = normalizeFeedSortTabs(tabs ?? getCachedForumLimits().feed_sort_tabs);
+  return list.find(t => t.id === sort)?.label ?? '帖子列表';
 }
 
-export default function FeedSortBar({ value, onChange, postTotal }: Props) {
+export default function FeedSortBar({ value, onChange, postTotal, pendingValue }: Props) {
+  const { limits } = useForumLimits();
+  const options = useMemo(
+    () => enabledFeedSortTabs(limits.feed_sort_tabs).map(t => ({
+      key: t.id as FeedSort,
+      label: t.label,
+      hint: SORT_META[t.id]?.hint ?? '',
+      icon: SORT_META[t.id]?.icon ?? Clock,
+    })),
+    [limits.feed_sort_tabs],
+  );
+
   const listRef = useRef<HTMLDivElement>(null);
-  const activeIndex = Math.max(0, SORT_OPTIONS.findIndex(o => o.key === value));
+  const activeIndex = Math.max(0, options.findIndex(o => o.key === value));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const next = moveTabIndex(e.key, activeIndex, SORT_OPTIONS.length);
+    const next = moveTabIndex(e.key, activeIndex, options.length);
     if (next == null) return;
     e.preventDefault();
-    onChange(SORT_OPTIONS[next].key);
+    onChange(options[next].key);
     requestAnimationFrame(() => {
       const tabs = listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
       tabs?.[next]?.focus();
     });
   };
+
+  if (options.length === 0) return null;
 
   return (
     <div className="feed-toolbar">
@@ -87,21 +116,27 @@ export default function FeedSortBar({ value, onChange, postTotal }: Props) {
         aria-label="帖子排序"
         onKeyDown={onKeyDown}
       >
-        {SORT_OPTIONS.map(({ key, label, hint, icon: Icon }, i) => (
-        <button
-          key={key}
-          type="button"
-          role="tab"
-          tabIndex={activeIndex === i ? 0 : -1}
-          aria-selected={value === key}
-          title={`${label} · ${hint}`}
-          className={cn('feed-sort-tab', value === key && 'active')}
-          onClick={() => onChange(key)}
-        >
-          <Icon aria-hidden />
-          <span className="feed-sort-tab__label">{label}</span>
-        </button>
-      ))}
+        {options.map(({ key, label, hint, icon: Icon }, i) => {
+          const pending = pendingValue === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              tabIndex={activeIndex === i ? 0 : -1}
+              aria-selected={value === key}
+              aria-busy={pending || undefined}
+              title={`${label} · ${hint}`}
+              className={cn('feed-sort-tab', value === key && 'active', pending && 'is-pending')}
+              onClick={() => onChange(key)}
+            >
+              {pending
+                ? <Loader2 className="feed-sort-tab__spin" aria-hidden />
+                : <Icon aria-hidden />}
+              <span className="feed-sort-tab__label">{label}</span>
+            </button>
+          );
+        })}
       </div>
       {postTotal != null && (
         <span className="feed-toolbar__count">共 {postTotal} 条</span>

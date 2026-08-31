@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { ForumLimitsPublic } from '../api/types';
-import { DEFAULT_ASIDE_WIDGETS } from '../api/types';
+import { DEFAULT_ASIDE_WIDGETS, DEFAULT_FEED_SORT_TABS } from '../api/types';
 
 const DEFAULT_LIMITS: ForumLimitsPublic = {
   post_title_max: 128,
@@ -27,6 +27,7 @@ const DEFAULT_LIMITS: ForumLimitsPublic = {
   nav_show_showcase: false,
   footer_show_showcase: false,
   feed_list_style: 'title',
+  feed_sort_tabs: DEFAULT_FEED_SORT_TABS,
   permalink_enabled: false,
   permalink_ext: 'html',
   monitor_pageview: false,
@@ -77,6 +78,11 @@ export function useForumLimits() {
   }, [epoch]);
 
   return { limits, loading };
+}
+
+/** 冷启动 / 预热：确保 limits 已写入模块缓存 */
+export function ensureForumLimitsLoaded(): Promise<ForumLimitsPublic> {
+  return fetchLimits();
 }
 
 /** 清除缓存并通知已挂载的 hook 重新拉取 */

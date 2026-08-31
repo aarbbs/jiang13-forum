@@ -11,9 +11,11 @@ import { invalidateForumLimitsCache } from '../../hooks/useForumLimits';
 import { DEFAULT_BRANDING, seedSiteBrandingCache } from '../../hooks/useSiteBranding';
 import { clearAllFeedCache } from '../../utils/feedCache';
 import { normalizeAsideWidgets, resolveAsideWidgets, mergeForumLimitsWithAsideWidgets, resolveSavedAsideWidgets } from '../../utils/asideWidgets';
+import { normalizeFeedSortTabs } from '../../utils/feedSortTabs';
 import AsideWidgetList from '../../components/admin/AsideWidgetList';
+import FeedSortTabList from '../../components/admin/FeedSortTabList';
 import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, AsideWidget } from '../../api/types';
-import { DEFAULT_ASIDE_WIDGETS } from '../../api/types';
+import { DEFAULT_ASIDE_WIDGETS, DEFAULT_FEED_SORT_TABS } from '../../api/types';
 
 type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'storage' | 'filter' | 'system';
 
@@ -305,6 +307,7 @@ export default function AdminSettingsPage() {
           nav_show_showcase: false,
           footer_show_showcase: false,
           feed_list_style: 'title',
+          feed_sort_tabs: normalizeFeedSortTabs(s.limits?.feed_sort_tabs ?? DEFAULT_FEED_SORT_TABS),
           permalink_enabled: false,
           permalink_ext: 'html',
           ...s.limits,
@@ -916,7 +919,7 @@ export default function AdminSettingsPage() {
               <section className="admin-settings-section" id="settings-feed-list">
                 <div className="admin-settings-section-head">
                   <h3>列表呈现</h3>
-                  <p>首页及帖子列表的信息密度与缩略图展示</p>
+                  <p>首页及帖子列表的信息密度、缩略图与排序标签</p>
                 </div>
                 <div className="admin-settings-table" role="group" aria-label="列表呈现">
                   <div className="admin-settings-row">
@@ -945,6 +948,16 @@ export default function AdminSettingsPage() {
                       仅标题最紧凑；摘要模式增加一行预览；缩略图模式在有站内配图时右侧显示封面
                     </span>
                   </div>
+                </div>
+                <div className="admin-settings-subsection">
+                  <h4 className="admin-settings-subsection-title">首页排序标签</h4>
+                  <p className="admin-settings-subsection-desc">
+                    拖拽调整顺序；在「显示名称」框中改首页文案；右侧开关控制启停。第一个启用项为默认排序
+                  </p>
+                  <FeedSortTabList
+                    tabs={normalizeFeedSortTabs(limits.feed_sort_tabs ?? DEFAULT_FEED_SORT_TABS)}
+                    onChange={tabs => setLimits(prev => prev ? { ...prev, feed_sort_tabs: tabs } : prev)}
+                  />
                 </div>
               </section>
 
