@@ -208,6 +208,8 @@ export default function HomePage() {
   const scrollRafRef = useRef(0);
   /** 当前筛选键是否已完成「进入页」水合（避免 effect 重跑时反复 setRestoreScrollTop） */
   const hydratedKeyRef = useRef<string | null>(null);
+  /** 强制刷新已发起 loadFirst：消费 refreshFeed 后 effect 再跑时勿因空缓存重复请求 */
+  const refreshFetchKeyRef = useRef<string | null>(null);
   pageRef.current = page;
   cacheKeyRef.current = cacheKey;
   viewKeyRef.current = view.cacheKey;
@@ -338,7 +340,9 @@ export default function HomePage() {
     }
   }, [boardId, keyword, tag, author, titleOnly, sort, pageSize, persistFeed]);
 
-  const loadFirst = useCallback(() => fetchPage(1), [fetchPage]);
+  const loadFirst = useCallback((opts?: { resetScroll?: boolean }) => (
+    fetchPage(1, { resetScroll: opts?.resetScroll })
+  ), [fetchPage]);
 
   const goToPage = useCallback((p: number) => {
     const maxPage = Math.max(1, Math.ceil(Math.max(postTotal, 0) / pageSize));
@@ -362,24 +366,14 @@ export default function HomePage() {
     if (forceRefresh && navType !== 'POP') {
       fetchSeqRef.current += 1;
       hydratedKeyRef.current = cacheKey;
-      // 预取已写入 store：整页替换，不卸成骨架
+      refreshFetchKeyRef.current = cacheKey;
+      // 排序等强制刷新：丢弃该键旧分页/滚动，置顶重拉第 1 页
+      getHomeStoreState().clearFeed(cacheKey);
       resetFeedView();
-      const warm = getHomeStoreState().getFeed(cacheKey);
-      if (warm && warm.posts.length > 0) {
-        commitDisplayed({
-          posts: warm.posts,
-          postTotal: warm.postTotal,
-          page: warm.page,
-          scrollTop: 0,
-          loading: false,
-        }, { cacheKey, sort, boardId, keyword, tag, author, titleOnly });
-      } else {
-        // 预取失败时保留旧列表并重拉
-        setListPending(postsRef.current.length > 0);
-        if (postsRef.current.length === 0) setLoading(true);
-        setView({ cacheKey, sort, boardId, keyword, tag, author, titleOnly });
-        loadFirst();
-      }
+      setListPending(postsRef.current.length > 0);
+      if (postsRef.current.length === 0) setLoading(true);
+      setView({ cacheKey, sort, boardId, keyword, tag, author, titleOnly });
+      void loadFirst({ resetScroll: true });
       // 消费后清掉 state，防止该 history 条目永远带着刷新标记
       nav(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
       return;
@@ -388,6 +382,12 @@ export default function HomePage() {
     // POP 带回 refreshFeed 时也清掉，避免下次同条目再误触发
     if (forceRefresh && navType === 'POP') {
       nav(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+    }
+
+    // 刚强制刷新并清缓存：跳过随后因 state 清空触发的空缓存首拉
+    if (refreshFetchKeyRef.current === cacheKey) {
+      refreshFetchKeyRef.current = null;
+      return;
     }
 
     const cached = getHomeStoreState().getFeed(cacheKey);
@@ -511,13 +511,16 @@ export default function HomePage() {
   }, []);
 
   const handleSortChange = (next: FeedSort) => {
+    const url = buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly, permalink: limits });
+    // 排序标签：一律强制刷新到第 1 页顶部，不恢复浏览进度
     if (next === sort) {
       const tid = startTransition();
+      getHomeStoreState().clearFeed(cacheKeyRef.current);
       beginFeedRefresh();
-      void Promise.resolve(loadFirst()).finally(() => doneTransition(tid));
+      void Promise.resolve(loadFirst({ resetScroll: true })).finally(() => doneTransition(tid));
       return;
     }
-    navigateFeed(nav, buildHomeUrl(boardId, next, { keyword, tag, author, titleOnly, permalink: limits }));
+    navigateFeed(nav, url, { refresh: true });
   };
 
   const showSortBar = !view.keyword && !view.tag && !view.author;

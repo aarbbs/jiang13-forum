@@ -341,7 +341,6 @@ export default function MainLayout() {
       setTagsLoading(false);
       setAsideLoading(false);
       asideEverLoaded.current = true;
-      refetchSiteBranding();
       refreshUnreadMessages();
     };
     const onForce = () => {

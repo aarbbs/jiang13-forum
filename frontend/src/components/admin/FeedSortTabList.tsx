@@ -7,7 +7,7 @@ import { normalizeFeedSortTabs } from '../../utils/feedSortTabs';
 const TAB_META: Record<FeedSortId, { hint: string; placeholder: string }> = {
   reply: { hint: '按最后评论时间', placeholder: '新评论' },
   latest: { hint: '按发帖时间', placeholder: '新帖子' },
-  hot: { hint: '推荐优先，再按互动', placeholder: '推荐帖' },
+  hot: { hint: '仅展示推荐帖', placeholder: '推荐帖' },
 };
 
 type Props = {

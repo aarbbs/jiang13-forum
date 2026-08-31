@@ -47,7 +47,7 @@ type PostListQuery struct {
 	Tag           string // 精确标签筛选（整枚匹配，不走 keyword LIKE）
 	Author        string // 作者用户名或昵称（解析为 UserID）
 	TitleOnly     bool   // 关键词仅匹配标题
-	Sort          string // reply | latest | hot（hot=推荐优先）
+	Sort          string // reply | latest | hot（hot=仅推荐帖）
 	ViewerID      uint   // 当前查看者（用于 pending 仅作者可见）
 	ViewerIsAdmin bool
 	Status        string // 管理端筛选：pending|published|rejected|all；空则按可见性规则
@@ -343,6 +343,11 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 		normalized := "LOWER(',' || REPLACE(REPLACE(REPLACE(IFNULL(tags,''), '，', ','), ', ', ','), ' ,', ',') || ',')"
 		db = db.Where(normalized+" LIKE ? ESCAPE '\\'", "%,"+escaped+",%")
 	}
+	sortKey := normalizePostSort(q.Sort)
+	if sortKey == "hot" {
+		// 推荐帖：只展示人工推荐
+		db = db.Where("featured = ?", true)
+	}
 	var total int64
 	db.Count(&total)
 	var posts []model.Post
@@ -350,7 +355,7 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	if q.BoardID > 0 {
 		db = db.Order("board_pinned desc")
 	}
-	switch normalizePostSort(q.Sort) {
+	switch sortKey {
 	case "reply":
 		// 有回复的帖子优先，按最后回复时间倒序；无回复的帖子沉底（仅计已公开评论）
 		db = db.Order(`(
@@ -365,8 +370,8 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 		) DESC`)
 		db = db.Order("posts.created_at DESC")
 	case "hot":
-		// 推荐帖：人工推荐（featured）优先，再按互动
-		db = db.Order("featured desc, like_count desc, view_count desc")
+		// 仅推荐帖：按互动再按 id
+		db = db.Order("like_count desc, view_count desc")
 	default:
 		db = db.Order("id desc")
 	}

@@ -13,6 +13,7 @@ import type {
 import { parseFeedSort } from '../components/FeedSortBar';
 import { checkInCacheKey } from '../hooks/useCheckIn';
 import { ensureForumLimitsLoaded, getCachedForumLimits } from '../hooks/useForumLimits';
+import { ensureSiteBrandingLoaded } from '../hooks/useSiteBranding';
 import { ensureSitePagesLoaded } from '../hooks/useSitePages';
 import { feedCacheKey, getHomeStoreState } from '../store/homeStore';
 import { resolveAsideWidgets } from './asideWidgets';
@@ -343,7 +344,8 @@ export async function prefetchRoute(to: To, opts?: { force?: boolean }): Promise
 
 /** 壳层数据：boards/stats/站点页/右栏（与冷启动、软刷新共用） */
 export async function prefetchLayoutShell(opts?: { force?: boolean }): Promise<void> {
-  await ensureForumLimitsLoaded();
+  const force = !!opts?.force;
+  await ensureForumLimitsLoaded({ force });
   const limits = getCachedForumLimits();
   const widgets = resolveAsideWidgets(limits);
   const showRecentComments = widgets.some((w) => w.id === 'recent_comments' && w.enabled);
@@ -359,8 +361,13 @@ export async function prefetchLayoutShell(opts?: { force?: boolean }): Promise<v
     api.stats().then((next) => {
       if (next) setCachedStats(next);
     }).catch(() => undefined),
-    ensureSitePagesLoaded({ force: !!opts?.force }),
+    ensureSitePagesLoaded({ force }),
   ];
+
+  // 软刷新：与壳层同拍重拉站名 / 友链等品牌文案
+  if (force) {
+    tasks.push(ensureSiteBrandingLoaded({ force: true }).catch(() => undefined));
+  }
 
   if (!hideAside) {
     if (showRecentComments) {

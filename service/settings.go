@@ -188,7 +188,7 @@ const (
 
 	FeedSortReply  = "reply"
 	FeedSortLatest = "latest"
-	FeedSortHot    = "hot"
+	FeedSortHot    = "hot" // 仅推荐帖（featured）
 )
 
 var asideWidgetDefaultOrder = []string{

@@ -80,9 +80,18 @@ export function useForumLimits() {
   return { limits, loading };
 }
 
-/** 冷启动 / 预热：确保 limits 已写入模块缓存 */
-export function ensureForumLimitsLoaded(): Promise<ForumLimitsPublic> {
-  return fetchLimits();
+/** 冷启动 / 预热：确保 limits 已写入模块缓存；force 时重拉并在成功后通知 hook */
+export async function ensureForumLimitsLoaded(opts?: { force?: boolean }): Promise<ForumLimitsPublic> {
+  if (opts?.force) {
+    cached = null;
+    inflight = null;
+  }
+  const limits = await fetchLimits();
+  if (opts?.force) {
+    cacheEpoch += 1;
+    listeners.forEach(fn => fn());
+  }
+  return limits;
 }
 
 /** 文档 SSR / 管理端：同步写入 limits 模块缓存 */

@@ -46,9 +46,15 @@ function readBootBranding(): SiteBranding | null {
 let cached: SiteBranding | null = readBootBranding();
 let inflight: Promise<SiteBranding> | null = null;
 let cacheEpoch = 0;
+/** force 预热刚写入后，hook 因 epoch 重跑时复用缓存，避免连打两次 API */
+let preferCacheOnce = false;
 const listeners = new Set<() => void>();
 
 function fetchBranding(): Promise<SiteBranding> {
+  if (preferCacheOnce && cached) {
+    preferCacheOnce = false;
+    return Promise.resolve(cached);
+  }
   if (inflight) return inflight;
   // 有 boot/缓存时首屏已可用；仍请求 API 以同步最新配置
   inflight = api.siteBranding()
@@ -128,6 +134,23 @@ export function refetchSiteBranding() {
   inflight = null;
   cacheEpoch += 1;
   listeners.forEach(fn => fn());
+}
+
+/** 冷启动 / 预热：确保品牌已写入模块缓存；force 时重拉并在成功后通知 hook */
+export async function ensureSiteBrandingLoaded(opts?: { force?: boolean }): Promise<SiteBranding> {
+  if (!opts?.force && cached) return cached;
+  if (opts?.force) {
+    inflight = null;
+    preferCacheOnce = false;
+  }
+  const next = await fetchBranding();
+  applyDocumentBrand(next);
+  if (opts?.force) {
+    preferCacheOnce = true;
+    cacheEpoch += 1;
+    listeners.forEach(fn => fn());
+  }
+  return next;
 }
 
 /** 清除缓存并通知已挂载的 hook 重新拉取 */
