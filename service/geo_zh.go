@@ -27,79 +27,73 @@ type cnRegionMeta struct {
 
 // cnRegionMap 中国省级英文名/别名 → 中文名 + 地图 ISO
 var cnRegionMap = map[string]cnRegionMeta{
-	"beijing": {Name: "北京", ISO: "BJ"},
-	"peking":  {Name: "北京", ISO: "BJ"},
-	"tianjin": {Name: "天津", ISO: "TJ"},
-	"shanghai": {Name: "上海", ISO: "SH"},
-	"chongqing": {Name: "重庆", ISO: "CQ"},
-	"chungking": {Name: "重庆", ISO: "CQ"},
-	"hebei":     {Name: "河北", ISO: "HE"},
-	"shanxi":    {Name: "山西", ISO: "SX"},
-	"liaoning":  {Name: "辽宁", ISO: "LN"},
-	"jilin":     {Name: "吉林", ISO: "JL"},
-	"heilongjiang": {Name: "黑龙江", ISO: "HL"},
-	"jiangsu":   {Name: "江苏", ISO: "JS"},
-	"zhejiang":  {Name: "浙江", ISO: "ZJ"},
-	"anhui":     {Name: "安徽", ISO: "AH"},
-	"fujian":    {Name: "福建", ISO: "FJ"},
-	"jiangxi":   {Name: "江西", ISO: "JX"},
-	"shandong":  {Name: "山东", ISO: "SD"},
-	"henan":     {Name: "河南", ISO: "HA"},
-	"hubei":     {Name: "湖北", ISO: "HB"},
-	"hunan":     {Name: "湖南", ISO: "HN"},
-	"guangdong": {Name: "广东", ISO: "GD"},
-	"guangxi":   {Name: "广西", ISO: "GX"},
-	"hainan":    {Name: "海南", ISO: "HI"},
-	"sichuan":   {Name: "四川", ISO: "SC"},
-	"guizhou":   {Name: "贵州", ISO: "GZ"},
-	"yunnan":    {Name: "云南", ISO: "YN"},
-	"xizang":    {Name: "西藏", ISO: "XZ"},
-	"tibet":     {Name: "西藏", ISO: "XZ"},
-	"shaanxi":   {Name: "陕西", ISO: "SN"},
+	"beijing":          {Name: "北京", ISO: "BJ"},
+	"peking":           {Name: "北京", ISO: "BJ"},
+	"tianjin":          {Name: "天津", ISO: "TJ"},
+	"shanghai":         {Name: "上海", ISO: "SH"},
+	"chongqing":        {Name: "重庆", ISO: "CQ"},
+	"chungking":        {Name: "重庆", ISO: "CQ"},
+	"hebei":            {Name: "河北", ISO: "HE"},
+	"shanxi":           {Name: "山西", ISO: "SX"},
+	"liaoning":         {Name: "辽宁", ISO: "LN"},
+	"jilin":            {Name: "吉林", ISO: "JL"},
+	"heilongjiang":     {Name: "黑龙江", ISO: "HL"},
+	"jiangsu":          {Name: "江苏", ISO: "JS"},
+	"zhejiang":         {Name: "浙江", ISO: "ZJ"},
+	"anhui":            {Name: "安徽", ISO: "AH"},
+	"fujian":           {Name: "福建", ISO: "FJ"},
+	"jiangxi":          {Name: "江西", ISO: "JX"},
+	"shandong":         {Name: "山东", ISO: "SD"},
+	"henan":            {Name: "河南", ISO: "HA"},
+	"hubei":            {Name: "湖北", ISO: "HB"},
+	"hunan":            {Name: "湖南", ISO: "HN"},
+	"guangdong":        {Name: "广东", ISO: "GD"},
+	"guangxi":          {Name: "广西", ISO: "GX"},
+	"hainan":           {Name: "海南", ISO: "HI"},
+	"sichuan":          {Name: "四川", ISO: "SC"},
+	"guizhou":          {Name: "贵州", ISO: "GZ"},
+	"yunnan":           {Name: "云南", ISO: "YN"},
+	"xizang":           {Name: "西藏", ISO: "XZ"},
+	"tibet":            {Name: "西藏", ISO: "XZ"},
+	"shaanxi":          {Name: "陕西", ISO: "SN"},
 	"shaanxi province": {Name: "陕西", ISO: "SN"},
-	"gansu":     {Name: "甘肃", ISO: "GS"},
-	"qinghai":   {Name: "青海", ISO: "QH"},
-	"ningxia":   {Name: "宁夏", ISO: "NX"},
-	"xinjiang":  {Name: "新疆", ISO: "XJ"},
-	"inner mongolia": {Name: "内蒙古", ISO: "NM"},
-	"nei mongol": {Name: "内蒙古", ISO: "NM"},
-	"hong kong": {Name: "香港", ISO: "HK"},
-	"macau":     {Name: "澳门", ISO: "MO"},
-	"macao":     {Name: "澳门", ISO: "MO"},
-	"taiwan":    {Name: "台湾", ISO: "TW"},
+	"gansu":            {Name: "甘肃", ISO: "GS"},
+	"qinghai":          {Name: "青海", ISO: "QH"},
+	"ningxia":          {Name: "宁夏", ISO: "NX"},
+	"xinjiang":         {Name: "新疆", ISO: "XJ"},
+	"xinjiang uygur":   {Name: "新疆", ISO: "XJ"},
+	"inner mongolia":   {Name: "内蒙古", ISO: "NM"},
+	"nei mongol":       {Name: "内蒙古", ISO: "NM"},
+	"guangxi zhuangzu": {Name: "广西", ISO: "GX"},
+	"ningxia huizu":    {Name: "宁夏", ISO: "NX"},
+	"hong kong":        {Name: "香港", ISO: "HK"},
+	"macau":            {Name: "澳门", ISO: "MO"},
+	"macao":            {Name: "澳门", ISO: "MO"},
+	"taiwan":           {Name: "台湾", ISO: "TW"},
+	// 台湾各县市（IP2Location 常直接给县市名作为 region）
+	"changhua":   {Name: "台湾", ISO: "TW"},
+	"chiayi":     {Name: "台湾", ISO: "TW"},
+	"hsinchu":    {Name: "台湾", ISO: "TW"},
+	"hualien":    {Name: "台湾", ISO: "TW"},
+	"kaohsiung":  {Name: "台湾", ISO: "TW"},
+	"keelung":    {Name: "台湾", ISO: "TW"},
+	"kinmen":     {Name: "台湾", ISO: "TW"},
+	"lienchiang": {Name: "台湾", ISO: "TW"},
+	"miaoli":     {Name: "台湾", ISO: "TW"},
+	"nantou":     {Name: "台湾", ISO: "TW"},
+	"new taipei": {Name: "台湾", ISO: "TW"},
+	"penghu":     {Name: "台湾", ISO: "TW"},
+	"pingtung":   {Name: "台湾", ISO: "TW"},
+	"taichung":   {Name: "台湾", ISO: "TW"},
+	"tainan":     {Name: "台湾", ISO: "TW"},
+	"taipei":     {Name: "台湾", ISO: "TW"},
+	"taitung":    {Name: "台湾", ISO: "TW"},
+	"taoyuan":    {Name: "台湾", ISO: "TW"},
+	"yilan":      {Name: "台湾", ISO: "TW"},
+	"yunlin":     {Name: "台湾", ISO: "TW"},
 }
 
-// cityZh 常见城市英文名 → 中文
-var cityZh = map[string]string{
-	"beijing": "北京", "peking": "北京",
-	"shanghai": "上海",
-	"chongqing": "重庆", "chungking": "重庆",
-	"tianjin": "天津",
-	"hangzhou": "杭州",
-	"shenzhen": "深圳",
-	"guangzhou": "广州", "canton": "广州",
-	"chengdu": "成都",
-	"wuhan": "武汉",
-	"xi'an": "西安", "xian": "西安",
-	"nanjing": "南京", "nanking": "南京",
-	"suzhou": "苏州",
-	"qingdao": "青岛",
-	"dalian": "大连",
-	"ningbo": "宁波",
-	"xiamen": "厦门", "amoy": "厦门",
-	"changsha": "长沙",
-	"zhengzhou": "郑州",
-	"jinan": "济南",
-	"harbin": "哈尔滨",
-	"shenyang": "沈阳",
-	"kunming": "昆明",
-	"nanning": "南宁",
-	"urumqi": "乌鲁木齐",
-	"lhasa": "拉萨",
-	"hohhot": "呼和浩特",
-	"taipei": "台北",
-	"hong kong": "香港",
-}
+// cityZh 定义见 geo_zh_cities.go（LITE 中国城市全表 + 同音复合键）
 
 // asnOrgZh 常见 ASN / AS 组织名 → 中文运营商
 var asnOrgZh = map[uint]string{
@@ -189,7 +183,7 @@ func mapCNRegionCity(g *GeoInfo) {
 		}
 	}
 	if g.City != "" {
-		if zh, ok := lookupCityZh(g.City); ok {
+		if zh, ok := lookupCityZh(g.RegionISO, g.Region, g.City); ok {
 			g.City = zh
 		}
 	}
@@ -214,7 +208,7 @@ func lookupCNRegion(name string) (cnRegionMeta, bool) {
 		return meta, true
 	}
 	// 去掉常见后缀再试
-	for _, suffix := range []string{" province", " sheng", " autonomous region", " municipality"} {
+	for _, suffix := range []string{" province", " sheng", " autonomous region", " municipality", " zhuangzu", " huizu", " uygur"} {
 		if strings.HasSuffix(key, suffix) {
 			if meta, ok := cnRegionMap[strings.TrimSuffix(key, suffix)]; ok {
 				return meta, true
@@ -224,12 +218,67 @@ func lookupCNRegion(name string) (cnRegionMeta, bool) {
 	return cnRegionMeta{}, false
 }
 
-func lookupCityZh(name string) (string, bool) {
-	key := strings.ToLower(strings.TrimSpace(name))
-	if zh, ok := cityZh[key]; ok {
-		return zh, true
+// lookupCityZh 将 IP2Location 英文城市名映射为中文。
+// 同音城市优先用「省ISO|城市」复合键；并尝试去掉 city/shi 后缀与撇号变体。
+func lookupCityZh(regionISO, region, name string) (string, bool) {
+	key := normalizeCityKey(name)
+	if key == "" {
+		return "", false
+	}
+	iso := strings.ToLower(strings.TrimSpace(regionISO))
+	if iso == "" {
+		if meta, ok := lookupCNRegion(region); ok {
+			iso = strings.ToLower(meta.ISO)
+		}
+	}
+	candidates := cityKeyCandidates(key)
+	if iso != "" {
+		for _, c := range candidates {
+			if zh, ok := cityZh[iso+"|"+c]; ok {
+				return zh, true
+			}
+		}
+	}
+	for _, c := range candidates {
+		if zh, ok := cityZh[c]; ok {
+			return zh, true
+		}
 	}
 	return "", false
+}
+
+func normalizeCityKey(name string) string {
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" || key == "-" {
+		return ""
+	}
+	return key
+}
+
+func cityKeyCandidates(key string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	add(key)
+	add(strings.ReplaceAll(key, "'", ""))
+	for _, suffix := range []string{" city", " shi"} {
+		if strings.HasSuffix(key, suffix) {
+			base := strings.TrimSuffix(key, suffix)
+			add(base)
+			add(strings.ReplaceAll(base, "'", ""))
+		}
+	}
+	return out
 }
 
 func mapASOrgZh(org string) string {
