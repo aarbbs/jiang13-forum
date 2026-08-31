@@ -40,8 +40,9 @@ func SetupEmbed(r *gin.Engine) error {
 	if sub, err := fs.Sub(staticFS, "static/spa/assets"); err == nil {
 		fileServer := http.StripPrefix("/assets", http.FileServer(http.FS(sub)))
 		r.GET("/assets/*filepath", func(c *gin.Context) {
-			// hashed 资源可长期缓存；发版后文件名变更，旧 URL 自然 404
-			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			// 仅 200 写 immutable，避免中间层把旧 chunk 的 404 长期缓存
+			w := &cacheOnOKWriter{ResponseWriter: c.Writer, cacheControl: "public, max-age=31536000, immutable"}
+			c.Writer = w
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	}
@@ -55,6 +56,30 @@ func SetupEmbed(r *gin.Engine) error {
 		})
 	}
 	return nil
+}
+
+// cacheOnOKWriter 仅在最终状态码为 200 时写入长期 Cache-Control
+type cacheOnOKWriter struct {
+	gin.ResponseWriter
+	cacheControl string
+	wroteHeader  bool
+}
+
+func (w *cacheOnOKWriter) WriteHeader(code int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		if code == http.StatusOK {
+			w.Header().Set("Cache-Control", w.cacheControl)
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *cacheOnOKWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
 }
 
 // ServeSPA 返回 React SPA 入口（仅注入站点默认标题）

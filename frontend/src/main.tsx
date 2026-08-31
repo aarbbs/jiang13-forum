@@ -4,10 +4,17 @@ import { applyTheme, getStoredTheme } from './utils/theme';
 import App from './App';
 import { consumeHomeBoot } from './utils/homeBoot';
 import { beginHomeHydrate } from './utils/homeHydrate';
+import { reloadForStaleChunk } from './utils/chunkLoad';
 import { ensureColdBootReady, isMainLayoutPath } from './utils/prefetchRoute';
 
 applyTheme(getStoredTheme());
 consumeHomeBoot();
+
+// Vite modulepreload / 动态 import 失败（发版后旧 hashed URL 404）
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  reloadForStaleChunk();
+});
 
 function hasSSRHome(): boolean {
   return !!document.querySelector('#root .ssr-home');

@@ -1,5 +1,6 @@
 import type { NavigateFunction, NavigateOptions, To } from 'react-router-dom';
 import { notify } from '@/lib/notify';
+import { isChunkLoadError, reloadForStaleChunk } from './chunkLoad';
 import { prefetchRoute } from './prefetchRoute';
 
 type Listener = (active: boolean) => void;
@@ -100,6 +101,8 @@ export async function transitionTo(
     nav(target, navOpts);
   } catch (e: unknown) {
     if (!silent && mySeq !== seq) return;
+    // 发版后 chunk 404：整页刷新，不 toast 英文原错
+    if (isChunkLoadError(e) && reloadForStaleChunk()) return;
     notify.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     if (id != null) {

@@ -26,6 +26,7 @@ import {
   setCachedRecentUsers,
   setCachedTags,
 } from './layoutCache';
+import { isChunkLoadError, reloadForStaleChunk } from './chunkLoad';
 import { parsePermalinkID, parsePermalinkSlug } from './permalink';
 import { getSessionSnapshot, setSessionSnapshot } from './sessionPageCache';
 
@@ -57,27 +58,45 @@ function resolveUrl(to: To): URL {
 
 /** 预加载对应路由的 lazy chunk（与 App.tsx lazyWithRetry 对齐） */
 function preloadChunk(pathname: string): Promise<unknown> {
+  let load: Promise<unknown>;
   if (pathname === '/' || /^\/board\//.test(pathname)) {
-    return import('../pages/HomePage');
+    load = import('../pages/HomePage');
+  } else if (/^\/post\/[^/]+\/edit$/.test(pathname) || pathname === '/compose') {
+    load = import('../pages/ComposePage');
+  } else if (/^\/post\//.test(pathname)) {
+    load = import('../pages/PostDetailPage');
+  } else if (pathname === '/profile') {
+    load = import('../pages/ProfilePage');
+  } else if (/^\/user\//.test(pathname)) {
+    load = import('../pages/UserProfilePage');
+  } else if (pathname === '/favorites') {
+    load = import('../pages/FavoritesPage');
+  } else if (pathname === '/projects') {
+    load = import('../pages/ProjectsPage');
+  } else if (pathname === '/links') {
+    load = import('../pages/LinksPage');
+  } else if (pathname === '/showcase') {
+    load = import('../pages/ShowcasePage');
+  } else if (pathname === '/messages') {
+    load = import('../pages/MessagesPage');
+  } else if (/^\/page\//.test(pathname)) {
+    load = import('../pages/SitePageView');
+  } else if (pathname === '/login') {
+    load = import('../pages/LoginPage');
+  } else if (pathname === '/register') {
+    load = import('../pages/RegisterPage');
+  } else if (pathname === '/forgot-password') {
+    load = import('../pages/ForgotPasswordPage');
+  } else {
+    return Promise.resolve();
   }
-  if (/^\/post\/[^/]+\/edit$/.test(pathname) || pathname === '/compose') {
-    return import('../pages/ComposePage');
-  }
-  if (/^\/post\//.test(pathname)) {
-    return import('../pages/PostDetailPage');
-  }
-  if (pathname === '/profile') return import('../pages/ProfilePage');
-  if (/^\/user\//.test(pathname)) return import('../pages/UserProfilePage');
-  if (pathname === '/favorites') return import('../pages/FavoritesPage');
-  if (pathname === '/projects') return import('../pages/ProjectsPage');
-  if (pathname === '/links') return import('../pages/LinksPage');
-  if (pathname === '/showcase') return import('../pages/ShowcasePage');
-  if (pathname === '/messages') return import('../pages/MessagesPage');
-  if (/^\/page\//.test(pathname)) return import('../pages/SitePageView');
-  if (pathname === '/login') return import('../pages/LoginPage');
-  if (pathname === '/register') return import('../pages/RegisterPage');
-  if (pathname === '/forgot-password') return import('../pages/ForgotPasswordPage');
-  return Promise.resolve();
+  // 发版后旧 hashed URL 404：硬刷新，挂起 Promise 避免落到 toast
+  return load.catch((err: unknown) => {
+    if (isChunkLoadError(err) && reloadForStaleChunk()) {
+      return new Promise(() => {});
+    }
+    throw err;
+  });
 }
 
 async function prefetchFeed(url: URL, force: boolean): Promise<void> {
