@@ -67,3 +67,9 @@ export function useSitePages() {
 export function invalidateSitePagesCache() {
   cache = null;
 }
+
+/** 文档 SSR：同步写入站点页摘要缓存 */
+export function seedSitePagesCache(pages: SitePageSummary[]) {
+  cache = Array.isArray(pages) ? pages : [];
+  pending = null;
+}

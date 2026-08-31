@@ -326,8 +326,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 			})
 		})
 	} else {
-		r.GET("/", h.ServePublicSPA)
-		r.NoRoute(func(c *gin.Context) {
+		// 文档请求也解析登录 cookie，首页 SSR 才能输出头像/签到/收藏等完整壳
+		r.GET("/", authMW.OptionalAuth(), h.ServePublicSPA)
+		r.NoRoute(authMW.OptionalAuth(), func(c *gin.Context) {
 			if embed_static.IsSPARoute(c.Request.URL.Path) {
 				h.ServePublicSPA(c)
 				return

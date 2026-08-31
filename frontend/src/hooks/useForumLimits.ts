@@ -85,6 +85,13 @@ export function ensureForumLimitsLoaded(): Promise<ForumLimitsPublic> {
   return fetchLimits();
 }
 
+/** 文档 SSR / 管理端：同步写入 limits 模块缓存 */
+export function seedForumLimitsCache(limits: ForumLimitsPublic) {
+  cached = limits;
+  cacheEpoch += 1;
+  listeners.forEach(fn => fn());
+}
+
 /** 清除缓存并通知已挂载的 hook 重新拉取 */
 export function invalidateForumLimitsCache() {
   cached = null;

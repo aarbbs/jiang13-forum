@@ -5,23 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="拾三一隅，自在交流" />
     <title>姜十三论坛 - 拾三一隅，自在交流</title>
-    <style>
-      /* 关键布局样式：在 JS/CSS 包加载前即固定三栏结构，避免刷新时组件错位 */
-      html { scrollbar-gutter: stable; }
-      html, body, #root { height: 100%; margin: 0; touch-action: pan-x pan-y; }
-      body { overflow: hidden; font-size: 14px; line-height: 1.5; }
-      .app-shell { height: 100%; max-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
-      .app-frame { flex: 1; min-height: 0; height: 100%; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
-      .app-header { height: 56px; flex-shrink: 0; }
-      .site-footer { flex-shrink: 0; }
-      .app-body { flex: 1; display: flex; min-height: 0; width: 100%; overflow: hidden; touch-action: pan-x pan-y; }
-      .content-workspace { flex: 1; display: flex; min-width: 0; min-height: 0; overflow: hidden; touch-action: pan-x pan-y; }
-      .sidebar { width: 210px; flex-shrink: 0; }
-      .main-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
-      .aside-panel { width: 280px; flex-shrink: 0; }
-      @media (max-width: 1100px) { .aside-panel { display: none; } }
-      @media (max-width: 768px) { .sidebar { display: none; } }
-    </style>
+    <!-- 样式由 Vite 构建注入外链 CSS，不在此内联 style -->
     <script>
       (function () {
         var theme = localStorage.getItem('j13-theme') || 'light';

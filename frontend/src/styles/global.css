@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 文档入口壳层（原 index.html 内联 style，改为外链 CSS，对齐 Gitea 式 link stylesheet） */
+html { scrollbar-gutter: stable; }
+html, body, #root { height: 100%; margin: 0; touch-action: pan-x pan-y; }
+body { overflow: hidden; font-size: 14px; line-height: 1.5; }
+.app-shell { height: 100%; max-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
+.app-frame { flex: 1; min-height: 0; height: 100%; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
+.app-header { height: 56px; flex-shrink: 0; }
+.site-footer { flex-shrink: 0; }
+.app-body { flex: 1; display: flex; min-height: 0; width: 100%; overflow: hidden; touch-action: pan-x pan-y; }
+.content-workspace { flex: 1; display: flex; min-width: 0; min-height: 0; overflow: hidden; touch-action: pan-x pan-y; }
+.sidebar { width: 210px; flex-shrink: 0; }
+.main-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; touch-action: pan-x pan-y; }
+.aside-panel { width: 280px; flex-shrink: 0; }
+@media (max-width: 1100px) { .aside-panel { display: none; } }
+@media (max-width: 768px) { .sidebar { display: none; } }
+
 @layer base {
   :root {
     --background: 210 20% 98%;
@@ -499,6 +515,30 @@ img.site-brand-logo-img {
   flex-shrink: 0;
   font-size: 15px;
   color: var(--color-text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-search-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* SSR 主题钮：随 html.dark 切换日月图标 */
+.ssr-theme-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ssr-theme-icon--sun {
+  display: none;
+}
+html.dark .ssr-theme-icon--moon {
+  display: none;
+}
+html.dark .ssr-theme-icon--sun {
+  display: inline-flex;
 }
 
 .header-search-input {
@@ -2213,6 +2253,30 @@ body:has(.admin-topbar) .ptr-indicator {
   -ms-overflow-style: none;
 }
 
+/* 文档 SSR：静态列表（非 virtualizer absolute 行） */
+.content-surface--ssr {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+a.post-row {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+}
+.feed-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-text-3);
+  font-size: 14px;
+}
+.ssr-home .feed-header-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
 .virtual-list-wrap::-webkit-scrollbar,
 .post-list-scroll::-webkit-scrollbar {
   display: none;
@@ -3035,13 +3099,39 @@ body:has(.admin-topbar) .ptr-indicator {
 }
 
 .post-row--v2 .post-title-row {
+  display: flex;
+  align-items: center;
   gap: 4px;
 }
 
 .post-row--v2 .post-title {
   font-size: 15px;
   font-weight: 400;
-  line-height: 1.35;
+  /* 与侧栏类型徽章 height:20px 对齐，避免 SSR（span 标题）视觉偏高/偏低 */
+  line-height: 20px;
+}
+
+/* 标题右侧类型徽章：统一盒高与文字居中（投票等原先仅靠 padding，易与问答徽章不齐） */
+.post-row--v2 .post-title-type-badges {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  line-height: 1;
+}
+
+.post-row--v2 .post-title-type-badges .post-type-badge,
+.post-row--v2 .post-title-type-badges .post-qa-badge,
+.post-row--v2 .post-title-type-badges .post-bounty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 7px;
+  margin-right: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .post-row--v2 .post-excerpt {
@@ -7253,6 +7343,14 @@ a.waline-comment-author:hover {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.widget-card-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .widget-card-icon--hot { color: #e74c3c; }
@@ -7278,6 +7376,11 @@ a.waline-comment-author:hover {
   padding: 0 8px;
   font-size: 12px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-text-2);
+  text-decoration: none;
 }
 
 .widget-friend-links-title {

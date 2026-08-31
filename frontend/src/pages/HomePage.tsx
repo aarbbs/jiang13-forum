@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, startTransition as reactStartTransition } from 'react';
 import {
   useNavigate,
   useOutletContext,
@@ -12,6 +12,7 @@ import { api } from '../api/client';
 import type { PostItem } from '../api/types';
 import type { LayoutCtx } from '../layouts/MainLayout';
 import VirtualPostList from '../components/VirtualPostList';
+import StaticFeedList from '../components/StaticFeedList';
 import FeedHeader from '../components/FeedHeader';
 import FeedSearchFilters from '../components/search/FeedSearchFilters';
 import FeedSortBar, { parseFeedSort, buildHomeUrl, type FeedSort } from '../components/FeedSortBar';
@@ -28,6 +29,7 @@ import { feedCacheKey, getHomeStoreState } from '../store/homeStore';
 import { enabledFeedSortTabs, getDefaultFeedSort } from '../utils/feedSortTabs';
 import { openForumPost } from '../utils/openPost';
 import { startTransition, doneTransition } from '../utils/spaTransition';
+import { isHomeHydrating } from '../utils/homeHydrate';
 import { joinSEOKeywords, usePageSEO } from '../hooks/usePageSEO';
 import { siteMetaDescription, useSiteBranding } from '../hooks/useSiteBranding';
 import { boardPath, canonicalRedirectPath, parsePermalinkID } from '../utils/permalink';
@@ -189,6 +191,13 @@ export default function HomePage() {
     initial.posts.length > 0 ? initial.scrollTop : null,
   );
   const [listResetKey, setListResetKey] = useState(0);
+  /** hydrate 首帧用静态列表；完成后升级 VirtualPostList */
+  const [useVirtualList, setUseVirtualList] = useState(() => !isHomeHydrating());
+
+  useEffect(() => {
+    if (useVirtualList) return;
+    reactStartTransition(() => setUseVirtualList(true));
+  }, [useVirtualList]);
 
   const scrollTopRef = useRef(initial.scrollTop);
   const fetchSeqRef = useRef(0);
@@ -534,13 +543,25 @@ export default function HomePage() {
       <div className="feed-panel">
         <div className="feed-top">
           <div className="feed-top__bar">
-            <FeedHeader
-              keyword={view.keyword}
-              tag={view.tag}
-              author={view.author}
-              postTotal={postTotal}
-              titleAs={isSiteHome ? 'h2' : 'h1'}
-            />
+            {!useVirtualList ? (
+              (view.keyword || view.tag || view.author) ? (
+                <h1 className="feed-header-title">
+                  {view.tag
+                    ? `#${view.tag}`
+                    : view.keyword
+                      ? `搜索：${view.keyword}`
+                      : `作者：${view.author}`}
+                </h1>
+              ) : null
+            ) : (
+              <FeedHeader
+                keyword={view.keyword}
+                tag={view.tag}
+                author={view.author}
+                postTotal={postTotal}
+                titleAs={isSiteHome ? 'h2' : 'h1'}
+              />
+            )}
             {showSortBar && (
               <FeedSortBar
                 value={view.sort}
@@ -559,32 +580,36 @@ export default function HomePage() {
             />
           )}
         </div>
-        <VirtualPostList
-          posts={posts}
-          sort={view.sort}
-          loading={listPending ? false : (loading || limitsLoading)}
-          hasMore={hasMore}
-          showPagination={showPagination}
-          page={page}
-          totalPages={totalPages}
-          postTotal={postTotal}
-          onPageChange={goToPage}
-          onSelect={handleSelectPost}
-          restoreScrollTop={restoreScrollTop}
-          resetScrollKey={listResetKey}
-          onScrollTopChange={handleScrollTopChange}
-          onScrollRestored={() => setRestoreScrollTop(null)}
-          keyword={view.keyword || view.tag || view.author}
-          isSearchMode={!!(view.keyword || view.author)}
-          searchKeyword={view.keyword}
-          searchAuthor={view.author}
-          searchTitleOnly={view.titleOnly}
-          searchScopeBoardId={searchFilters.scopeBoardId}
-          onClearSearch={postSearch.clearSearch}
-          boardId={view.boardId}
-          boardName={ctx?.boards?.find(b => b.id === view.boardId)?.name || ''}
-          noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}
-        />
+        {!useVirtualList ? (
+          <StaticFeedList posts={posts} sort={view.sort} boardId={view.boardId} />
+        ) : (
+          <VirtualPostList
+            posts={posts}
+            sort={view.sort}
+            loading={listPending ? false : (loading || limitsLoading)}
+            hasMore={hasMore}
+            showPagination={showPagination}
+            page={page}
+            totalPages={totalPages}
+            postTotal={postTotal}
+            onPageChange={goToPage}
+            onSelect={handleSelectPost}
+            restoreScrollTop={restoreScrollTop}
+            resetScrollKey={listResetKey}
+            onScrollTopChange={handleScrollTopChange}
+            onScrollRestored={() => setRestoreScrollTop(null)}
+            keyword={view.keyword || view.tag || view.author}
+            isSearchMode={!!(view.keyword || view.author)}
+            searchKeyword={view.keyword}
+            searchAuthor={view.author}
+            searchTitleOnly={view.titleOnly}
+            searchScopeBoardId={searchFilters.scopeBoardId}
+            onClearSearch={postSearch.clearSearch}
+            boardId={view.boardId}
+            boardName={ctx?.boards?.find(b => b.id === view.boardId)?.name || ''}
+            noBoards={!ctx?.boardsLoading && (ctx?.boards?.length ?? 0) === 0}
+          />
+        )}
       </div>
     </div>
   );

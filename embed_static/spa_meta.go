@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"html"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// SPAPageMeta 注入到 SPA 入口 HTML 的 SEO / 社交预览元数据（仅 <head>，不写 #root，避免刷新闪屏）
+var spaRootEmptyRe = regexp.MustCompile(`(?s)<div id="root">\s*</div>`)
+
+// SPAPageMeta 注入到 SPA 入口 HTML 的 SEO / 社交预览元数据。
+// 默认不写 #root；首页/板块文档 SSR 可填 RootHTML / BootJSON。
 type SPAPageMeta struct {
 	Title       string // 完整 <title>
 	Description string
@@ -23,6 +27,8 @@ type SPAPageMeta struct {
 	Robots      string // 如 noindex,nofollow
 	JSONLD      string // 已序列化的 JSON-LD 对象（不含 script 标签）
 	Status      int    // HTTP 状态码，0 视为 200
+	RootHTML    string // 可选：写入 #root 的首屏 HTML（首页文档 SSR）
+	BootJSON    []byte // 可选：window.__J13_HOME_BOOT__ 合法 JSON
 }
 
 // ServeSPAWithMeta 返回带页面级 meta / JSON-LD 的干净 SPA 入口
@@ -56,15 +62,16 @@ func applySPAPageMeta(data []byte, meta *SPAPageMeta) []byte {
 		data = spaTitleRe.ReplaceAll(data, []byte("<title>"+escaped+"</title>"))
 	}
 
-	var head strings.Builder
-	writeMeta(&head, "description", meta.Description)
-	writeMeta(&head, "keywords", meta.Keywords)
+	// —— 静态 SEO HTML（meta / OG / JSON-LD），紧跟 </title>，不经 JS ——
+	var seo strings.Builder
+	writeMeta(&seo, "description", meta.Description)
+	writeMeta(&seo, "keywords", meta.Keywords)
 	if canonical := strings.TrimSpace(meta.Canonical); canonical != "" {
-		head.WriteString(`<link rel="canonical" href="` + html.EscapeString(canonical) + `"/>`)
+		seo.WriteString(`<link rel="canonical" href="` + html.EscapeString(canonical) + `"/>`)
 	}
 	robots := strings.TrimSpace(meta.Robots)
 	if robots != "" {
-		writeMeta(&head, "robots", robots)
+		writeMeta(&seo, "robots", robots)
 	}
 
 	ogType := strings.TrimSpace(meta.OGType)
@@ -75,34 +82,61 @@ func applySPAPageMeta(data []byte, meta *SPAPageMeta) []byte {
 	if locale == "" {
 		locale = "zh_CN"
 	}
-	writeProp(&head, "og:type", ogType)
-	writeProp(&head, "og:site_name", meta.SiteName)
-	writeProp(&head, "og:locale", locale)
-	writeProp(&head, "og:title", firstNonEmpty(meta.Title, title))
-	writeProp(&head, "og:description", meta.Description)
-	writeProp(&head, "og:url", meta.Canonical)
-	writeProp(&head, "og:image", meta.OGImage)
-	writeMetaName(&head, "twitter:card", twitterCard(meta.OGImage))
-	writeMetaName(&head, "twitter:title", firstNonEmpty(meta.Title, title))
-	writeMetaName(&head, "twitter:description", meta.Description)
-	writeMetaName(&head, "twitter:image", meta.OGImage)
+	writeProp(&seo, "og:type", ogType)
+	writeProp(&seo, "og:site_name", meta.SiteName)
+	writeProp(&seo, "og:locale", locale)
+	writeProp(&seo, "og:title", firstNonEmpty(meta.Title, title))
+	writeProp(&seo, "og:description", meta.Description)
+	writeProp(&seo, "og:url", meta.Canonical)
+	writeProp(&seo, "og:image", meta.OGImage)
+	writeMetaName(&seo, "twitter:card", twitterCard(meta.OGImage))
+	writeMetaName(&seo, "twitter:title", firstNonEmpty(meta.Title, title))
+	writeMetaName(&seo, "twitter:description", meta.Description)
+	writeMetaName(&seo, "twitter:image", meta.OGImage)
 
 	if jsonld := strings.TrimSpace(meta.JSONLD); jsonld != "" {
-		head.WriteString(`<script type="application/ld+json">`)
-		head.WriteString(jsonld)
-		head.WriteString(`</script>`)
+		// 常规 HTML 节点；仅转义 < 防止提前闭合，不是用 JS 写入
+		seo.WriteString(`<script type="application/ld+json">`)
+		seo.WriteString(string(bytes.ReplaceAll([]byte(jsonld), []byte("<"), []byte(`\u003c`))))
+		seo.WriteString(`</script>`)
 	}
 
-	// 同步注入品牌配置，避免 React 首屏用默认名闪一下
-	if boot := spaBrandingBootScript(); boot != "" {
-		head.WriteString(boot)
+	if seo.Len() > 0 {
+		data = bytes.Replace(data, []byte("</title>"), []byte("</title>\n"+seo.String()), 1)
 	}
 
-	if head.Len() > 0 {
-		data = bytes.Replace(data, []byte("</head>"), []byte(head.String()+"</head>"), 1)
+	// —— 可执行 boot 脚本仍放在 </head> 前 ——
+	var boot strings.Builder
+	if s := spaBrandingBootScript(); s != "" {
+		boot.WriteString(s)
+	}
+	if s := spaHomeBootScript(meta.BootJSON); s != "" {
+		boot.WriteString(s)
+	}
+	if boot.Len() > 0 {
+		data = bytes.Replace(data, []byte("</head>"), []byte(boot.String()+"</head>"), 1)
+	}
+
+	if root := strings.TrimSpace(meta.RootHTML); root != "" {
+		data = injectSPARootHTML(data, root)
 	}
 
 	return data
+}
+
+// spaHomeBootScript 生成 window.__J13_HOME_BOOT__=...; 内联脚本（前端灌缓存，非 SEO）
+func spaHomeBootScript(raw []byte) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || !json.Valid(raw) {
+		return ""
+	}
+	safe := bytes.ReplaceAll(raw, []byte("<"), []byte(`\u003c`))
+	return "<script>window.__J13_HOME_BOOT__=" + string(safe) + ";</script>"
+}
+
+// injectSPARootHTML 将首屏 HTML 写入 #root（允许空白）
+func injectSPARootHTML(data []byte, rootHTML string) []byte {
+	return spaRootEmptyRe.ReplaceAll(data, []byte(`<div id="root">`+rootHTML+`</div>`))
 }
 
 // spaBrandingBootScript 生成 window.__J13_BRANDING__=...; 内联脚本
@@ -114,7 +148,6 @@ func spaBrandingBootScript() string {
 	if len(raw) == 0 || !json.Valid(raw) {
 		return ""
 	}
-	// 防止 JSON 字符串中的 </script> 提前闭合标签
 	safe := bytes.ReplaceAll(raw, []byte("<"), []byte(`\u003c`))
 	return "<script>window.__J13_BRANDING__=" + string(safe) + ";</script>"
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense, startTransition } from 'react';
 import { Outlet, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Menu, Moon, Sun, Search, Plus, PanelRight, X, Mail, SlidersHorizontal } from 'lucide-react';
 import {
@@ -43,24 +43,35 @@ import SiteFooter from '../components/SiteFooter';
 import { userPath } from '../utils/userPath';
 import { parsePermalinkID } from '../utils/permalink';
 import { ensureSitePagesLoaded } from '../hooks/useSitePages';
+import { endHomeHydrate, isHomeHydrating } from '../utils/homeHydrate';
+import { getBootUnread } from '../utils/authBoot';
 
 export default function MainLayout() {
   const { user, loading: authLoading, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const { branding } = useSiteBranding();
   useMonitorPageview();
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const mqMobile = useMediaQuery('(max-width: 768px)');
   const hideAside = useMediaQuery('(max-width: 1100px)');
+  /** hydrate 首帧强制桌面布局（SSR 为桌面三栏），随后再跟 matchMedia */
+  const [forceDesktop, setForceDesktop] = useState(() => isHomeHydrating());
+  const isMobile = forceDesktop ? false : mqMobile;
   const nav = useNavigate();
   const loc = useLocation();
   const [params] = useSearchParams();
   const isCompose = loc.pathname.startsWith('/compose') || /\/post\/\d+\/edit$/.test(loc.pathname);
 
+  useEffect(() => {
+    if (!forceDesktop) return;
+    endHomeHydrate();
+    startTransition(() => setForceDesktop(false));
+  }, [forceDesktop]);
+
   const [boards, setBoards] = useState<Board[]>(() => getCachedBoards());
   const [stats, setStats] = useState<ForumStats | null>(() => getCachedStats());
   const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>(() => getCachedRecentUsers());
-  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(() => getBootUnread());
   const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
   const [tagsLoading, setTagsLoading] = useState(() => getCachedTags().length === 0);
   const [postOutline, setPostOutline] = useState<{
@@ -506,7 +517,7 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={cn('app-shell', forceDesktop && 'ssr-home')}>
       <div className="app-frame">
       <header className="app-header">
         <div className="header-inner">
@@ -731,6 +742,7 @@ export default function MainLayout() {
             activeBoard={boardId}
             onSelectBoard={setBoardId}
             boardsLoading={boardsLoading}
+            
           />
         )}
 
@@ -805,6 +817,7 @@ export default function MainLayout() {
             loading={asideLoading}
             asideWidgets={asideWidgets}
             onPostClick={openPost}
+            
             postDetail={isPostDetail ? {
               author: postOutline?.author ?? null,
               publishedAt: postOutline?.publishedAt,

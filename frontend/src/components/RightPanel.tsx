@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { ListTree, MessageCircle, Tags, Link2, UserPlus } from 'lucide-react';
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import type { AsideWidget, RecentComment, RecentUser, TagCount, User, ForumStats, FriendLink } from '../api/types';
 import type { PostHeading } from '../utils/postHeadings';
 import { useSiteBranding } from '../hooks/useSiteBranding';
@@ -79,10 +78,6 @@ export default function RightPanel({
     [asideWidgets],
   );
 
-  const handleApplyClick = () => {
-    nav('/links?apply=1');
-  };
-
   const renderWidget = (widget: AsideWidget) => {
     switch (widget.id) {
       case 'showcase':
@@ -97,15 +92,9 @@ export default function RightPanel({
                   友情链接
                 </button>
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="widget-friend-links-apply"
-                onClick={handleApplyClick}
-              >
+              <a href="/links?apply=1" className="widget-friend-links-apply">
                 申请
-              </Button>
+              </a>
             </div>
             <div className="widget-card-body widget-card-body--friend-links">
               {friendLinks.length === 0 ? (

@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import type { User } from '../api/types';
 import { clearAllFeedCache } from '../utils/feedCache';
 import { clearSessionSnapshots } from '../utils/sessionPageCache';
+import { peekAuthSeed } from '../utils/authBoot';
 
 interface AuthCtx {
   user: User | null;
@@ -17,8 +18,12 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // peek 不清种子，StrictMode 重挂 / initializer 双调仍与 SSR 同构
+  const [user, setUser] = useState<User | null>(() => {
+    const s = peekAuthSeed();
+    return s.hasSeed ? s.user : null;
+  });
+  const [loading, setLoading] = useState(() => !peekAuthSeed().hasSeed);
 
   const refresh = useCallback(async () => {
     try {
@@ -31,8 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 初始化只拉一次用户信息
-  useEffect(() => { refresh(); }, [refresh]);
+  // 有 SSR 种子时仍后台校验；无种子则首屏拉取
+  // 不清空 auth 种子：StrictMode 重挂会再次跑 useState initializer，破坏性 clear 会导致 user 空窗闪动
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const prevUserId = useRef<number | null | 'init'>('init');
   useEffect(() => {

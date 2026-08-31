@@ -10,7 +10,8 @@ export default function AsideCheckInStrip() {
   const { user, loading: authLoading } = useAuth();
   const { status, loading, busy, doCheckIn } = useCheckIn(!!user && !authLoading);
 
-  // 鉴权未完成：空白，避免「登录签到」→「今日已签到」闪一下
+  // 鉴权未完成且无种子：空白，避免访客签到卡闪一下再消失
+  // 有 SSR boot 时 loading 一开始就是 false
   if (authLoading) {
     return null;
   }

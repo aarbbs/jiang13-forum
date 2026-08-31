@@ -209,11 +209,8 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 			OGType:      "website",
 			OGImage:     defaultImage,
 		}, siteName, siteKeywords)
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botBoardHTML(meta, *board)))
-			return
-		}
-		embed_static.ServeSPAWithMeta(c, meta)
+		// 板块首页：真人与爬虫共用完整首屏 HTML
+		h.serveFeedDocument(c, meta, board.ID)
 		return
 	}
 
@@ -291,10 +288,10 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		return
 	}
 
-	// 其余已知路由：SPA + head meta；首页对爬虫额外返回可读正文
+	// 其余已知路由：SPA + head meta；首页/Feed 返回完整首屏 HTML
 	meta := h.buildSPAPageMeta(c, path, brand, base, siteName, defaultImage)
-	if isBot && (path == "/" || path == "") {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botHomeHTML(meta, brand)))
+	if path == "/" || path == "" {
+		h.serveFeedDocument(c, meta, 0)
 		return
 	}
 	embed_static.ServeSPAWithMeta(c, meta)

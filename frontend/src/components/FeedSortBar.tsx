@@ -79,7 +79,12 @@ export function feedSortLabel(sort: FeedSort, tabs?: FeedSortTab[] | null): stri
   return list.find(t => t.id === sort)?.label ?? '帖子列表';
 }
 
-export default function FeedSortBar({ value, onChange, postTotal, pendingValue }: Props) {
+export default function FeedSortBar({
+  value,
+  onChange,
+  postTotal,
+  pendingValue,
+}: Props) {
   const { limits } = useForumLimits();
   const options = useMemo(
     () => enabledFeedSortTabs(limits.feed_sort_tabs).map(t => ({

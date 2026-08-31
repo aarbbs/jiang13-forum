@@ -88,19 +88,18 @@ function isSameFeedUrl(url: string): boolean {
 
 /**
  * 导航到帖子列表。
- * 默认：等待预热后再换页；同 URL 或 `refresh: true` 时静默软刷新（无进度条）。
+ * 默认：等待预热后再换页；同 URL 或 `refresh: true` 时软刷新（带顶栏进度条）。
  */
 export function navigateFeed(nav: NavigateFunction, url: string, opts?: { refresh?: boolean }) {
   const same = isSameFeedUrl(url);
   const refresh = opts?.refresh ?? same;
   if (refresh) {
     if (same) {
-      void softRefreshCurrentPage(url);
+      void softRefreshCurrentPage(url, { progress: true });
       return;
     }
     void transitionTo(nav, url, {
       force: true,
-      silent: true,
       state: { refreshFeed: true } satisfies FeedNavState,
     });
     return;
