@@ -40,7 +40,7 @@ var seoCrawlerTokens = []string{
 	"oai-searchbot",
 }
 
-// IsSEOCrawler 是否为需要服务端 HTML 的爬虫 / 预览 bot（动态渲染）
+// IsSEOCrawler 是否为搜索引擎 / 社交预览类爬虫（供访问监控打 is_bot；公开页不再按 UA 分叉 HTML）
 func IsSEOCrawler(userAgent string) bool {
 	ua := strings.ToLower(strings.TrimSpace(userAgent))
 	if ua == "" {

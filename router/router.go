@@ -57,6 +57,9 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		}
 		return b
 	})
+	embed_static.SetSPAFaviconURL(func() string {
+		return settingsSvc.SiteBranding().Favicon
+	})
 	authSvc := service.NewAuthService(cfg.JWTSecret, filter, settingsSvc)
 	userSvc := service.NewUserService(filter, settingsSvc)
 	boardSvc := service.NewBoardService()
@@ -114,9 +117,10 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 	// 健康检查（容器 / 负载均衡探活）
 	r.GET("/health", h.APIHealth)
 
-	// SEO：抓取规则与站点地图
+	// SEO：抓取规则、站点地图、约定 favicon
 	r.GET("/robots.txt", h.RobotsTxt)
 	r.GET("/sitemap.xml", h.SitemapXML)
+	r.GET("/favicon.ico", h.FaviconICO)
 
 	// OIDC Provider（Gitea 等外部站点 SSO）
 	r.GET("/.well-known/openid-configuration", h.OIDCDiscovery)

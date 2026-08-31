@@ -62,12 +62,16 @@ func applySPAPageMeta(data []byte, meta *SPAPageMeta) []byte {
 		data = spaTitleRe.ReplaceAll(data, []byte("<title>"+escaped+"</title>"))
 	}
 
-	// —— 静态 SEO HTML（meta / OG / JSON-LD），紧跟 </title>，不经 JS ——
+	// —— 静态 SEO HTML（meta / OG / JSON-LD / favicon），紧跟 </title>，不经 JS ——
 	var seo strings.Builder
 	writeMeta(&seo, "description", meta.Description)
 	writeMeta(&seo, "keywords", meta.Keywords)
 	if canonical := strings.TrimSpace(meta.Canonical); canonical != "" {
 		seo.WriteString(`<link rel="canonical" href="` + html.EscapeString(canonical) + `"/>`)
+	}
+	if favicon := spaFaviconHref(); favicon != "" {
+		seo.WriteString(`<link rel="icon" href="` + html.EscapeString(favicon) + `"/>`)
+		seo.WriteString(`<link rel="shortcut icon" href="` + html.EscapeString(favicon) + `"/>`)
 	}
 	robots := strings.TrimSpace(meta.Robots)
 	if robots != "" {
@@ -186,4 +190,12 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// spaFaviconHref 当前站点配置的 Favicon（相对或绝对 URL）
+func spaFaviconHref() string {
+	if spaBrandFaviconFn == nil {
+		return ""
+	}
+	return strings.TrimSpace(spaBrandFaviconFn())
 }

@@ -14,9 +14,10 @@ import (
 var staticFS embed.FS
 
 var (
-	spaTitleRe      = regexp.MustCompile(`(?s)<title>.*?</title>`)
-	spaBrandTitleFn func() string
-	spaBrandJSONFn  func() []byte // 站点品牌 JSON，注入 window.__J13_BRANDING__
+	spaTitleRe        = regexp.MustCompile(`(?s)<title>.*?</title>`)
+	spaBrandTitleFn   func() string
+	spaBrandJSONFn    func() []byte // 站点品牌 JSON，注入 window.__J13_BRANDING__
+	spaBrandFaviconFn func() string // 站点 Favicon URL，注入 <link rel="icon">
 )
 
 // SetSPADocumentTitle 注册站点标题提供者，ServeSPA 会注入到入口 HTML，避免刷新闪烁
@@ -27,6 +28,11 @@ func SetSPADocumentTitle(fn func() string) {
 // SetSPABrandingJSON 注册品牌 JSON 提供者（须为合法 JSON 对象），供前端首屏同步读入
 func SetSPABrandingJSON(fn func() []byte) {
 	spaBrandJSONFn = fn
+}
+
+// SetSPAFaviconURL 注册 Favicon URL 提供者，注入到入口 HTML 的 <link rel="icon">
+func SetSPAFaviconURL(fn func() string) {
+	spaBrandFaviconFn = fn
 }
 
 // SetupEmbed 配置内嵌资源：React SPA 静态资源

@@ -2,18 +2,16 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"html"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/embed_static"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/service"
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -48,6 +46,18 @@ func (h *Handlers) RobotsTxt(c *gin.Context) {
 		b.WriteString("/sitemap.xml\n")
 	}
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(b.String()))
+}
+
+// FaviconICO 约定路径 /favicon.ico：有品牌图标则 302 到实际上传 URL，否则 404
+func (h *Handlers) FaviconICO(c *gin.Context) {
+	href := strings.TrimSpace(h.Settings.SiteBranding().Favicon)
+	if href == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// 相对路径保持站内跳转；绝对 URL 也可 Redirect
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Redirect(http.StatusFound, href)
 }
 
 // SitemapXML 公开页面站点地图
@@ -147,9 +157,9 @@ func (h *Handlers) SitemapXML(c *gin.Context) {
 	c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(b.String()))
 }
 
-// ServePublicSPA 公开页入口：
-// - 普通用户：干净 SPA + <head> meta（无正文预渲染，避免刷新闪屏）
-// - 搜索/社交爬虫：服务端 HTML（动态渲染）
+// ServePublicSPA 公开页入口：人机统一响应，不再按 User-Agent 分叉。
+// - 首页 / 板块：完整首屏 SSR（serveFeedDocument）
+// - 其余公开页：干净 SPA + <head> meta
 // - 伪静态：按后台配置的后缀做规范 URL，非规范路径 301
 func (h *Handlers) ServePublicSPA(c *gin.Context) {
 	path := c.Request.URL.Path
@@ -181,11 +191,6 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		}
 	}
 
-	isBot := service.IsSEOCrawler(c.Request.UserAgent())
-	if isBot {
-		c.Header("Vary", "User-Agent")
-	}
-
 	// 板块首页（含可选伪静态后缀）
 	if bm := permalink.MatchBoardPath(path); bm.OK {
 		if bm.NeedsCanonicalRedirect(path) {
@@ -194,7 +199,7 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		}
 		board, err := h.Board.GetByID(bm.ID)
 		if err != nil {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+			h.serveNotFound(c, base, siteName, siteKeywords, path)
 			return
 		}
 		desc := strings.TrimSpace(board.Description)
@@ -209,7 +214,6 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 			OGType:      "website",
 			OGImage:     defaultImage,
 		}, siteName, siteKeywords)
-		// 板块首页：真人与爬虫共用完整首屏 HTML
 		h.serveFeedDocument(c, meta, board.ID)
 		return
 	}
@@ -222,14 +226,10 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		}
 		post, err := h.Post.FindByID(pm.ID)
 		if err != nil || !service.CanViewPost(post, h.currentUserID(c), h.isAdmin(c)) {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+			h.serveNotFound(c, base, siteName, siteKeywords, path)
 			return
 		}
 		postKeywords := service.JoinSEOKeywords(post.Board.Name, siteKeywords)
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botPostHTML(base, siteName, defaultImage, postKeywords, post)))
-			return
-		}
 		embed_static.ServeSPAWithMeta(c, attachSiteSEO(h.postPageMeta(base, siteName, defaultImage, post), siteName, postKeywords))
 		return
 	}
@@ -242,11 +242,7 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		}
 		user, err := h.User.GetByID(um.ID)
 		if err != nil || user.Banned {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
-			return
-		}
-		if isBot {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(h.botUserHTML(base, siteName, defaultImage, siteKeywords, user)))
+			h.serveNotFound(c, base, siteName, siteKeywords, path)
 			return
 		}
 		embed_static.ServeSPAWithMeta(c, attachSiteSEO(h.userPageMeta(base, siteName, defaultImage, user), siteName, siteKeywords))
@@ -261,7 +257,7 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 		}
 		page, err := h.SitePage.GetBySlug(pg.Slug, h.isAdmin(c))
 		if err != nil {
-			h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+			h.serveNotFound(c, base, siteName, siteKeywords, path)
 			return
 		}
 		desc := service.ExcerptFromHTML(page.Content, seoDescMax)
@@ -273,18 +269,13 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 			OGType:      "article",
 			OGImage:     defaultImage,
 		}, siteName, siteKeywords)
-		if isBot {
-			body := fmt.Sprintf(`<h1>%s</h1><div>%s</div>`, html.EscapeString(page.Title), page.Content)
-			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(renderBotHTML(meta, body)))
-			return
-		}
 		embed_static.ServeSPAWithMeta(c, meta)
 		return
 	}
 
 	// 未知路径 → 404
 	if !isKnownPublicPath(path) {
-		h.serveNotFound(c, base, siteName, siteKeywords, path, isBot)
+		h.serveNotFound(c, base, siteName, siteKeywords, path)
 		return
 	}
 
@@ -297,12 +288,7 @@ func (h *Handlers) ServePublicSPA(c *gin.Context) {
 	embed_static.ServeSPAWithMeta(c, meta)
 }
 
-func (h *Handlers) serveNotFound(c *gin.Context, base, siteName, keywords, path string, isBot bool) {
-	if isBot {
-		c.Header("Vary", "User-Agent")
-		c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(botNotFoundHTML(base, siteName, keywords, path)))
-		return
-	}
+func (h *Handlers) serveNotFound(c *gin.Context, base, siteName, keywords, path string) {
 	embed_static.ServeSPAWithMeta(c, notFoundPageMeta(base, siteName, keywords, path))
 }
 
