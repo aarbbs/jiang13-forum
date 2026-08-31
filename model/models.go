@@ -115,7 +115,7 @@ type Post struct {
 	LotteryStatus      string         `gorm:"size:16;default:'';index" json:"lottery_status"` // open|drawn
 	Pinned             bool           `gorm:"default:false" json:"pinned"`                    // 全局置顶
 	BoardPinned        bool           `gorm:"default:false" json:"board_pinned"`              // 板块内置顶
-	Featured           bool           `gorm:"default:false;index" json:"featured"`            // 精华帖
+	Featured           bool           `gorm:"default:false;index" json:"featured"`            // 推荐帖（原精华）
 	EditLocked         bool           `gorm:"default:false" json:"edit_locked"`
 	CommentsLocked     bool           `gorm:"default:false" json:"comments_locked"`          // 禁止评论（结贴）
 	Status             string         `gorm:"size:16;default:published;index" json:"status"` // pending|published|rejected

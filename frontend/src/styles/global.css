@@ -2775,7 +2775,7 @@ body:has(.admin-topbar) .ptr-indicator {
   }
 
   /*
-   * 手机 Feed：主栏整页滚动，板块条 / 最新发帖·回复排序栏随列表滚走，
+   * 手机 Feed：主栏整页滚动，板块条 / 新评论·新帖子排序栏随列表滚走，
    * 避免它们占住视口上半，给帖子列表更多空间。
    */
   .main-content--feed-mobile-scroll {
@@ -3468,15 +3468,15 @@ body:has(.admin-topbar) .ptr-indicator {
 
 .post-feature-badge {
   padding: 0 7px 0 5px;
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.22);
+  color: var(--j13-green);
+  background: var(--j13-green-bg);
+  border: 1px solid color-mix(in srgb, var(--j13-green) 28%, transparent);
 }
 
 .dark .post-feature-badge {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.14);
-  border-color: rgba(251, 191, 36, 0.22);
+  color: var(--j13-green);
+  background: var(--j13-green-bg);
+  border-color: color-mix(in srgb, var(--j13-green) 35%, transparent);
 }
 
 .post-feature-badge .post-featured-icon {
@@ -3611,12 +3611,12 @@ a.post-title:visited {
   display: inline-block;
   vertical-align: -0.15em;
   flex-shrink: 0;
-  color: #d97706;
+  color: var(--j13-green);
   stroke-width: 1.75;
 }
 
 .dark .post-featured-icon {
-  color: #fbbf24;
+  color: var(--j13-green);
 }
 
 .post-meta {

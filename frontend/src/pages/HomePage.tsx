@@ -230,7 +230,7 @@ export default function HomePage() {
         tag: tag || '',
         author: tag ? '' : author,
         title_only: !tag && titleOnly ? '1' : '',
-        sort: sort === 'latest' ? '' : sort,
+        sort,
       });
       const batch = Array.isArray(data.posts) ? data.posts : [];
       const total = data.total ?? 0;

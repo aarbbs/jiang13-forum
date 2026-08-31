@@ -286,7 +286,7 @@ func (h *Handlers) APIAdminBoardPinPost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": msg, "board_pinned": req.BoardPinned})
 }
 
-// APIAdminFeaturePost 设为精华/取消精华（JSON）
+// APIAdminFeaturePost 设为推荐/取消推荐（JSON）
 func (h *Handlers) APIAdminFeaturePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	var req struct {
@@ -300,9 +300,9 @@ func (h *Handlers) APIAdminFeaturePost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	msg := "已取消精华"
+	msg := "已取消推荐"
 	if req.Featured {
-		msg = "已设为精华"
+		msg = "已设为推荐"
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg, "featured": req.Featured})
 }
@@ -976,7 +976,7 @@ func (h *Handlers) APIPosts(c *gin.Context) {
 		Tag:           tag,
 		Author:        author,
 		TitleOnly:     titleOnly,
-		Sort:          c.DefaultQuery("sort", "latest"),
+		Sort:          c.DefaultQuery("sort", "reply"),
 		ViewerID:      h.currentUserID(c),
 		ViewerIsAdmin: h.isAdmin(c),
 	}

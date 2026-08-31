@@ -147,7 +147,7 @@ export default function PostManageMenu({
             <DropdownMenuLabel>展示</DropdownMenuLabel>
             <DropdownMenuItem onSelect={onFeature}>
               <Sparkles size={14} aria-hidden />
-              {post.featured ? '取消精华' : '设为精华'}
+              {post.featured ? '取消推荐' : '设为推荐'}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onPin}>
               <Pin size={14} aria-hidden />

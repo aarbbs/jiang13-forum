@@ -56,7 +56,7 @@ function getMobileFeedScrollEl(): HTMLElement | null {
 
 export default function VirtualPostList({
   posts,
-  sort = 'latest',
+  sort = 'reply',
   loading,
   hasMore,
   showPagination,

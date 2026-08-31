@@ -47,7 +47,7 @@ type PostListQuery struct {
 	Tag           string // 精确标签筛选（整枚匹配，不走 keyword LIKE）
 	Author        string // 作者用户名或昵称（解析为 UserID）
 	TitleOnly     bool   // 关键词仅匹配标题
-	Sort          string // latest | reply | hot
+	Sort          string // reply | latest | hot（hot=推荐优先）
 	ViewerID      uint   // 当前查看者（用于 pending 仅作者可见）
 	ViewerIsAdmin bool
 	Status        string // 管理端筛选：pending|published|rejected|all；空则按可见性规则
@@ -365,7 +365,8 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 		) DESC`)
 		db = db.Order("posts.created_at DESC")
 	case "hot":
-		db = db.Order("like_count desc, view_count desc")
+		// 推荐帖：人工推荐（featured）优先，再按互动
+		db = db.Order("featured desc, like_count desc, view_count desc")
 	default:
 		db = db.Order("id desc")
 	}
@@ -375,10 +376,11 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 
 func normalizePostSort(sort string) string {
 	switch sort {
-	case "reply", "hot":
+	case "latest", "hot":
 		return sort
 	default:
-		return "latest"
+		// 含空串 / reply：默认新评论
+		return "reply"
 	}
 }
 

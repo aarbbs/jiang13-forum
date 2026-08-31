@@ -70,9 +70,9 @@ function PostListItem({ post, sort = 'latest', boardId = 0, onSelect }: Props) {
         <span className="post-pin-badge post-pin-badge--board" title="板块置顶">板块置顶</span>
       )}
       {post.featured && (
-        <span className="post-feature-badge" title="精华">
+        <span className="post-feature-badge" title="推荐">
           <FeaturedIcon size={12} />
-          精华
+          推荐
         </span>
       )}
       {post.status === 'pending' && (

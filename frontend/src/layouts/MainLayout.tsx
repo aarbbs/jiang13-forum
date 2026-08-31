@@ -216,7 +216,7 @@ export default function MainLayout() {
     };
   }, [refreshUnreadMessages]);
 
-  // 标签云：进页/离开发帖页时拉取；不跟 posts-refresh 联动（置顶/精华等不改标签）
+  // 标签云：进页/离开发帖页时拉取；不跟 posts-refresh 联动（置顶/推荐等不改标签）
   useEffect(() => {
     if (isCompose || !showTagCloud) return;
     let cancelled = false;

@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -6,13 +6,13 @@ interface Props {
   size?: number;
 }
 
-/** 精华帖标识 */
+/** 推荐帖标识 */
 export default function FeaturedIcon({ className, size = 16 }: Props) {
   return (
-    <Sparkles
+    <BadgeCheck
       className={cn('post-featured-icon', className)}
       size={size}
-      aria-label="精华"
+      aria-label="推荐"
       role="img"
     />
   );

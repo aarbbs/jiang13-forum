@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { boardPath, type PermalinkOpts } from '../utils/permalink';
 import { getCachedForumLimits } from '../hooks/useForumLimits';
-import { Clock, MessageCircle, Flame } from 'lucide-react';
+import { Clock, MessageCircle, BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { moveTabIndex } from '../hooks/useOverlayA11y';
 
@@ -13,9 +13,9 @@ const SORT_OPTIONS: {
   hint: string;
   icon: typeof Clock;
 }[] = [
-  { key: 'latest', label: '最新发帖', hint: '按发布时间', icon: Clock },
-  { key: 'reply', label: '最新回复', hint: '最近有人回复', icon: MessageCircle },
-  { key: 'hot', label: '热门讨论', hint: '按互动热度', icon: Flame },
+  { key: 'reply', label: '新评论', hint: '最近有人评论', icon: MessageCircle },
+  { key: 'latest', label: '新帖子', hint: '按发帖时间', icon: Clock },
+  { key: 'hot', label: '推荐帖', hint: '站内推荐', icon: BadgeCheck },
 ];
 
 interface Props {
@@ -24,14 +24,15 @@ interface Props {
   postTotal?: number;
 }
 
+/** 解析 URL sort；缺省为新评论（reply） */
 export function parseFeedSort(raw: string | null): FeedSort {
-  if (raw === 'reply' || raw === 'hot') return raw;
-  return 'latest';
+  if (raw === 'latest' || raw === 'hot') return raw;
+  return 'reply';
 }
 
 export function buildHomeUrl(
   boardId: number,
-  sort: FeedSort = 'latest',
+  sort: FeedSort = 'reply',
   opts?: { keyword?: string; tag?: string; author?: string; titleOnly?: boolean; permalink?: PermalinkOpts },
 ) {
   const p = new URLSearchParams();
@@ -47,7 +48,8 @@ export function buildHomeUrl(
   } else if (author) {
     p.set('author', author);
   }
-  if (sort !== 'latest') p.set('sort', sort);
+  // 默认 reply 不写进 URL；latest / hot 显式带上
+  if (sort !== 'reply') p.set('sort', sort);
   const qs = p.toString();
 
   if (boardId) {

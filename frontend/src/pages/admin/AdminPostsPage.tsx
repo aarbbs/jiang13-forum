@@ -218,7 +218,7 @@ export default function AdminPostsPage() {
             ? '回收站中的帖子可恢复或永久删除；永久删除后不可撤销'
             : tab === 'pending'
               ? '审核普通用户提交的帖子；通过后公开，拒绝后仅作者可见并私信通知'
-              : '精华、全局置顶、板块置顶、锁定编辑/讨论、删除（移入回收站）；支持按标题、标签或正文搜索'}
+              : '推荐、全局置顶、板块置顶、锁定编辑/讨论、删除（移入回收站）；支持按标题、标签或正文搜索'}
         </p>
       </div>
 
@@ -337,7 +337,7 @@ export default function AdminPostsPage() {
                   <th>作者</th>
                   <th>标签</th>
                   <th>评论</th>
-                  <th>精华</th>
+                  <th>推荐</th>
                   <th>全局置顶</th>
                   <th>板块置顶</th>
                   <th>编辑锁</th>
@@ -396,7 +396,7 @@ export default function AdminPostsPage() {
                           </Button>
                         )}
                         <Button size="sm" variant="outline" onClick={() => toggleFeature(p)}>
-                          {p.featured ? '取消精华' : '精华'}
+                          {p.featured ? '取消推荐' : '推荐'}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => togglePin(p)}>
                           {p.pinned ? '取消全局置顶' : '全局置顶'}

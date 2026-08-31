@@ -245,7 +245,7 @@ export default function AdminDashboardPage() {
                   ) : '—'}
                 </td>
                 <td className="space-x-1">
-                  {p.featured ? <Badge variant="orange">精华</Badge> : null}
+                  {p.featured ? <Badge variant="orange">推荐</Badge> : null}
                   {p.pinned ? <Badge variant="green">全局置顶</Badge> : null}
                   {p.board_pinned ? <Badge variant="green">板块置顶</Badge> : null}
                   {!p.featured && !p.pinned && !p.board_pinned ? '—' : null}
