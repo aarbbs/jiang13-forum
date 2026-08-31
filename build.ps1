@@ -12,7 +12,7 @@ $AppName = 'jiang13'
 $MainPkg = './cmd/jiang13'
 $BuildDir = 'dist'
 $DevDataDir = 'dist/data'
-$Version = '1.1.3'
+$Version = '1.1.4'
 $RegistryImage = 'hangzhang714128/jiang13-forum'
 $Ldlags = "-s -w -X main.version=$Version"
 
