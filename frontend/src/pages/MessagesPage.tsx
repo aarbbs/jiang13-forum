@@ -6,11 +6,15 @@ import {
   Bell,
   CheckCheck,
   Flag,
+  ImagePlus,
   Inbox,
   Mail,
   MessageCircleReply,
+  Search,
   Send,
   ShieldAlert,
+  Smile,
+  X,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,10 +25,14 @@ import type { MessageConversation, PrivateMessage, User } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { loginPath } from '../utils/authRedirect';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
-import { formatDateTime, formatTime } from '../utils/content';
+import { formatConvListTime, formatDateTime, formatTime } from '../utils/content';
 import { postPath } from '../utils/permalink';
 import { userPath } from '../utils/userPath';
 import { InFlowSiteFooter } from '../components/SiteFooter';
+import StickerPicker from '../components/emoji/StickerPicker';
+import type { Sticker } from '../data/stickers';
+import { ArticleImagePickerDialog } from '../components/editor/ArticleImagePickerDialog';
+import { Tooltip } from '../components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 import { getSessionSnapshot, setSessionSnapshot, deleteSessionSnapshot } from '../utils/sessionPageCache';
 import { PAGE_FORCE_REFRESH_EVENT } from '../utils/feedCache';
@@ -33,6 +41,46 @@ import { PAGE_SOFT_REFRESH_COMMIT_EVENT } from '../utils/softRefresh';
 type MsgTab = 'dm' | 'notify';
 type ConvSnap = { conversations: MessageConversation[]; total: number; page: number };
 type ThreadSnap = { messages: PrivateMessage[]; total: number; peerUser: User | null };
+type PmDraftEmbed = { id: string; url: string; name: string };
+type PmDraft = { text: string; embeds: PmDraftEmbed[] };
+
+function newEmbedId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function serializePmDraft(text: string, embeds: PmDraftEmbed[]) {
+  const trimmed = text.trim();
+  const parts = [
+    ...(trimmed ? [trimmed] : []),
+    ...embeds.map((e) => `![${e.name}](${e.url})`),
+  ];
+  return parts.join('\n');
+}
+
+function isDraftEmpty(text: string, embeds: PmDraftEmbed[]) {
+  return !text.trim() && embeds.length === 0;
+}
+
+/** 搜索/主页跳转用的对方用户摘要 → User */
+function toPeerUser(u: { id: number; username: string; nickname: string; avatar?: string }): User {
+  return {
+    id: u.id,
+    username: u.username,
+    nickname: u.nickname,
+    avatar: u.avatar || '',
+    role: 'user',
+  };
+}
+
+function makePendingConversation(peer: User): MessageConversation {
+  return {
+    peer_user_id: peer.id,
+    peer_user: peer,
+    is_system: false,
+    unread_count: 0,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 const NOTIFY_KINDS = [
   { key: 'all', label: '全部' },
@@ -72,6 +120,30 @@ function statusLabel(status?: string) {
 /** 仍待处理的审核通知（无状态按待审处理，兼容未回填） */
 function isPendingModeration(m: PrivateMessage) {
   return m.kind === 'moderation' && (!m.related_status || m.related_status === 'pending');
+}
+
+/** 私信气泡：纯文本 + 简易 markdown 图片 `![alt](url)` */
+function PmBubbleContent({ content }: { content: string }) {
+  const parts = content.split(/(!\[[^\]]*]\([^)]+\))/g);
+  return (
+    <div className="pm-bubble__text">
+      {parts.map((part, i) => {
+        const m = part.match(/^!\[([^\]]*)]\(([^)]+)\)$/);
+        if (m) {
+          return (
+            <img
+              key={i}
+              className="pm-bubble__img"
+              src={m[2]}
+              alt={m[1] || '图片'}
+              loading="lazy"
+            />
+          );
+        }
+        return part ? <span key={i}>{part}</span> : null;
+      })}
+    </div>
+  );
 }
 
 function KindIcon({ kind }: { kind: string }) {
@@ -135,7 +207,12 @@ function peerInitial(name: string) {
 
 function previewText(msg?: PrivateMessage) {
   if (!msg) return '暂无消息';
-  const text = (msg.content || msg.subject || '').replace(/\s+/g, ' ').trim();
+  const raw = (msg.content || msg.subject || '').trim();
+  if (!raw) return msg.subject || '暂无消息';
+  const text = raw
+    .replace(/!\[[^\]]*]\([^)]+\)/g, '[图片]')
+    .replace(/\s+/g, ' ')
+    .trim();
   return text || msg.subject || '暂无消息';
 }
 
@@ -143,22 +220,24 @@ function AvatarBubble({
   name,
   avatar,
   system,
+  className,
 }: {
   name: string;
   avatar?: string;
   system?: boolean;
+  className?: string;
 }) {
   if (system) {
     return (
-      <span className="pm-avatar pm-avatar--system" aria-hidden>
+      <span className={cn('pm-avatar pm-avatar--system', className)} aria-hidden>
         <Bell size={14} />
       </span>
     );
   }
   if (avatar) {
-    return <img src={avatar} alt="" className="pm-avatar" loading="lazy" decoding="async" />;
+    return <img src={avatar} alt="" className={cn('pm-avatar', className)} loading="lazy" decoding="async" />;
   }
-  return <span className="pm-avatar pm-avatar--fallback">{peerInitial(name)}</span>;
+  return <span className={cn('pm-avatar pm-avatar--fallback', className)}>{peerInitial(name)}</span>;
 }
 
 function parseTab(raw: string | null, peer: string | null): MsgTab {
@@ -190,8 +269,23 @@ export default function MessagesPage() {
   const [threadLoading, setThreadLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [peerUser, setPeerUser] = useState<User | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draftText, setDraftText] = useState('');
+  const [draftEmbeds, setDraftEmbeds] = useState<PmDraftEmbed[]>([]);
+  const [showSticker, setShowSticker] = useState(false);
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const draftRef = useRef<HTMLTextAreaElement>(null);
+  const draftsByPeerRef = useRef<Map<number, PmDraft>>(new Map());
+  const draftPeerRef = useRef<number | null>(null);
+  const draftTextRef = useRef(draftText);
+  const draftEmbedsRef = useRef(draftEmbeds);
   const [sending, setSending] = useState(false);
+
+  const [convSearchQuery, setConvSearchQuery] = useState('');
+  const [convSearchResults, setConvSearchResults] = useState<User[]>([]);
+  const [convSearchLoading, setConvSearchLoading] = useState(false);
+  const [convSearchOpen, setConvSearchOpen] = useState(false);
+  const convSearchSeq = useRef(0);
+  const convSearchBlurTimer = useRef<number | null>(null);
 
   const [notifications, setNotifications] = useState<PrivateMessage[]>([]);
   const [notifyTotal, setNotifyTotal] = useState(0);
@@ -206,10 +300,160 @@ export default function MessagesPage() {
   const stickToBottomRef = useRef(true);
   const notifyLoadSeq = useRef(0);
 
+  useEffect(() => {
+    draftTextRef.current = draftText;
+  }, [draftText]);
+
+  useEffect(() => {
+    draftEmbedsRef.current = draftEmbeds;
+  }, [draftEmbeds]);
+
+  const updateDraftText = useCallback((next: string | ((prev: string) => string)) => {
+    setDraftText((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      draftTextRef.current = value;
+      return value;
+    });
+  }, []);
+
+  const updateDraftEmbeds = useCallback((next: PmDraftEmbed[] | ((prev: PmDraftEmbed[]) => PmDraftEmbed[])) => {
+    setDraftEmbeds((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      draftEmbedsRef.current = value;
+      return value;
+    });
+  }, []);
+
   const dmConversations = useMemo(
     () => conversations.filter((c) => !c.is_system && c.peer_user_id > 0),
     [conversations],
   );
+
+  /** 将会话加入左侧列表（无历史消息时也显示，类似飞书「发起会话」） */
+  const ensurePeerConversation = useCallback((peer: User) => {
+    setConversations((prev) => {
+      const idx = prev.findIndex((c) => c.peer_user_id === peer.id);
+      if (idx >= 0) {
+        const cur = prev[idx];
+        if (cur.peer_user) return prev;
+        const next = [...prev];
+        next[idx] = { ...cur, peer_user: peer };
+        return next;
+      }
+      return [makePendingConversation(peer), ...prev];
+    });
+  }, []);
+
+  const clearConvSearch = useCallback(() => {
+    setConvSearchQuery('');
+    setConvSearchResults([]);
+    setConvSearchOpen(false);
+  }, []);
+
+  const selectSearchUser = useCallback((peer: User) => {
+    ensurePeerConversation(peer);
+    clearConvSearch();
+    setShowSticker(false);
+    setImagePickerOpen(false);
+    const p = new URLSearchParams();
+    p.set('tab', 'dm');
+    p.set('peer', String(peer.id));
+    setParams(p, { replace: true });
+  }, [clearConvSearch, ensurePeerConversation, setParams]);
+
+  /** 切换会话：缓存当前草稿、恢复目标草稿，并关闭表情/图片面板 */
+  useEffect(() => {
+    setShowSticker(false);
+    setImagePickerOpen(false);
+
+    const prev = draftPeerRef.current;
+    const nextPeer = peerSelected && selectedPeer !== null ? selectedPeer : null;
+
+    if (prev != null && prev !== nextPeer) {
+      const text = draftTextRef.current;
+      const embeds = draftEmbedsRef.current;
+      if (isDraftEmpty(text, embeds)) {
+        draftsByPeerRef.current.delete(prev);
+      } else {
+        draftsByPeerRef.current.set(prev, { text, embeds });
+      }
+    }
+
+    draftPeerRef.current = nextPeer;
+    if (nextPeer != null) {
+      const saved = draftsByPeerRef.current.get(nextPeer);
+      const text = saved?.text ?? '';
+      const embeds = saved?.embeds ?? [];
+      draftTextRef.current = text;
+      draftEmbedsRef.current = embeds;
+      setDraftText(text);
+      setDraftEmbeds(embeds);
+    } else {
+      draftTextRef.current = '';
+      draftEmbedsRef.current = [];
+      setDraftText('');
+      setDraftEmbeds([]);
+    }
+  }, [peerSelected, selectedPeer]);
+
+  /** 搜索用户（发起新会话） */
+  useEffect(() => {
+    const q = convSearchQuery.trim();
+    if (!q) {
+      setConvSearchResults([]);
+      setConvSearchLoading(false);
+      return;
+    }
+    const seq = ++convSearchSeq.current;
+    setConvSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      api.searchUsers(q, 8)
+        .then((r) => {
+          if (seq !== convSearchSeq.current) return;
+          const list = (r.users || [])
+            .filter((u) => u.id !== user?.id)
+            .map(toPeerUser);
+          setConvSearchResults(list);
+        })
+        .catch(() => {
+          if (seq !== convSearchSeq.current) return;
+          setConvSearchResults([]);
+        })
+        .finally(() => {
+          if (seq === convSearchSeq.current) setConvSearchLoading(false);
+        });
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [convSearchQuery, user?.id]);
+
+  /** URL 指定 peer 但列表尚无该会话时，补入列表并预载用户信息 */
+  useEffect(() => {
+    if (!user || !peerSelected || selectedPeer === null || selectedPeer <= 0) return;
+    const hit = conversations.find((c) => c.peer_user_id === selectedPeer);
+    if (hit?.peer_user) {
+      setPeerUser((prev) => prev ?? hit.peer_user!);
+      return;
+    }
+    let cancelled = false;
+    api.userProfile(selectedPeer)
+      .then((r) => {
+        if (cancelled) return;
+        const peer = toPeerUser(r.user);
+        ensurePeerConversation(peer);
+        setPeerUser((prev) => prev ?? peer);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        ensurePeerConversation({
+          id: selectedPeer,
+          username: `user${selectedPeer}`,
+          nickname: `用户 #${selectedPeer}`,
+          avatar: '',
+          role: 'user',
+        });
+      });
+    return () => { cancelled = true; };
+  }, [user, peerSelected, selectedPeer, conversations, ensurePeerConversation]);
 
   const visibleNotifications = useMemo(
     () => (unreadOnly ? notifications.filter((m) => !m.is_read) : notifications),
@@ -336,6 +580,7 @@ export default function MessagesPage() {
       setMessages(cached.messages);
       setMsgTotal(cached.total);
       setPeerUser(cached.peerUser);
+      if (cached.peerUser) ensurePeerConversation(cached.peerUser);
       setThreadLoading(false);
       return;
     }
@@ -350,6 +595,7 @@ export default function MessagesPage() {
         setMessages(messages);
         setMsgTotal(r.total || 0);
         setPeerUser(peer);
+        if (peer) ensurePeerConversation(peer);
         setSessionSnapshot(`messages:thread:${selectedPeer}`, {
           messages,
           total: r.total || 0,
@@ -368,7 +614,7 @@ export default function MessagesPage() {
         if (!cancelled) setThreadLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user, peerSelected, selectedPeer, refreshUnreadSplit, threadEpoch]);
+  }, [user, peerSelected, selectedPeer, refreshUnreadSplit, threadEpoch, ensurePeerConversation]);
 
   useEffect(() => {
     if (!threadLoading && stickToBottomRef.current) {
@@ -383,7 +629,6 @@ export default function MessagesPage() {
       if (notifyKind !== 'all') p.set('kind', notifyKind);
     }
     setParams(p, { replace: true });
-    setDraft('');
   };
 
   const setKind = (kind: string) => {
@@ -398,14 +643,12 @@ export default function MessagesPage() {
     p.set('tab', 'dm');
     p.set('peer', String(peerId));
     setParams(p, { replace: true });
-    setDraft('');
   };
 
   const closeThread = () => {
     const p = new URLSearchParams();
     p.set('tab', 'dm');
     setParams(p, { replace: true });
-    setDraft('');
   };
 
   const markAll = async () => {
@@ -471,9 +714,9 @@ export default function MessagesPage() {
 
   const send = async () => {
     if (!peerSelected || selectedPeer === null || selectedPeer === 0) return;
-    const content = draft.trim();
+    const content = serializePmDraft(draftText, draftEmbeds);
     if (!content) {
-      notify.warning('请填写内容');
+      notify.warning('请填写内容或添加图片');
       return;
     }
     setSending(true);
@@ -492,7 +735,12 @@ export default function MessagesPage() {
         return next;
       });
       setMsgTotal((n) => n + 1);
-      setDraft('');
+      setDraftText('');
+      setDraftEmbeds([]);
+      draftTextRef.current = '';
+      draftEmbedsRef.current = [];
+      draftsByPeerRef.current.delete(selectedPeer);
+      setShowSticker(false);
       setConversations((prev) => {
         const rest = prev.filter((c) => c.peer_user_id !== selectedPeer);
         const existing = prev.find((c) => c.peer_user_id === selectedPeer);
@@ -515,6 +763,47 @@ export default function MessagesPage() {
       setSending(false);
     }
   };
+
+  const insertAtCursor = useCallback((text: string) => {
+    const el = draftRef.current;
+    if (!el) {
+      updateDraftText((d) => d + text);
+      return;
+    }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const next = el.value.slice(0, start) + text + el.value.slice(end);
+    updateDraftText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + text.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }, [updateDraftText]);
+
+  const onPickSticker = useCallback((sticker: Sticker) => {
+    if (sticker.type === 'text' && sticker.text) {
+      insertAtCursor(sticker.text);
+    } else if (sticker.url) {
+      updateDraftEmbeds((prev) => [
+        ...prev,
+        { id: newEmbedId(), url: sticker.url!, name: sticker.name || '表情' },
+      ]);
+    }
+    setShowSticker(false);
+  }, [insertAtCursor, updateDraftEmbeds]);
+
+  const onInsertImages = useCallback((urls: string[]) => {
+    if (!urls.length) return;
+    updateDraftEmbeds((prev) => [
+      ...prev,
+      ...urls.map((url) => ({ id: newEmbedId(), url, name: '图片' })),
+    ]);
+  }, [updateDraftEmbeds]);
+
+  const removeEmbed = useCallback((id: string) => {
+    updateDraftEmbeds((prev) => prev.filter((e) => e.id !== id));
+  }, [updateDraftEmbeds]);
 
   if (authLoading || (tab === 'dm' && listLoading && conversations.length === 0 && !peerSelected)) {
     return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
@@ -546,7 +835,7 @@ export default function MessagesPage() {
           )}
         </div>
 
-        <div className="pm-workspace content-surface">
+        <div className={cn('pm-workspace content-surface', tab === 'dm' && 'pm-workspace--im')}>
           <div className="pm-tabs" role="tablist" aria-label="消息类型">
             <button
               type="button"
@@ -674,13 +963,80 @@ export default function MessagesPage() {
           ) : (
             <div className={cn('pm-layout', peerSelected && 'pm-layout--thread')}>
               <aside className="pm-list" aria-label="会话列表">
+                <div className="pm-list-search">
+                  <Search size={16} className="pm-list-search__icon" aria-hidden />
+                  <input
+                    type="search"
+                    className="pm-list-search__input"
+                    value={convSearchQuery}
+                    placeholder="搜索用户…"
+                    aria-label="搜索用户发起私信"
+                    aria-expanded={convSearchOpen}
+                    aria-controls="pm-conv-search-results"
+                    onChange={(e) => {
+                      setConvSearchQuery(e.target.value);
+                      setConvSearchOpen(true);
+                    }}
+                    onFocus={() => {
+                      if (convSearchBlurTimer.current) {
+                        window.clearTimeout(convSearchBlurTimer.current);
+                        convSearchBlurTimer.current = null;
+                      }
+                      if (convSearchQuery.trim()) setConvSearchOpen(true);
+                    }}
+                    onBlur={() => {
+                      convSearchBlurTimer.current = window.setTimeout(() => {
+                        setConvSearchOpen(false);
+                      }, 160);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') clearConvSearch();
+                      if (e.key === 'Enter' && convSearchResults[0]) {
+                        e.preventDefault();
+                        selectSearchUser(convSearchResults[0]);
+                      }
+                    }}
+                  />
+                  {convSearchOpen && convSearchQuery.trim() && (
+                    <ul
+                      id="pm-conv-search-results"
+                      className="pm-list-search__dropdown"
+                      role="listbox"
+                      aria-label="搜索结果"
+                    >
+                      {convSearchLoading ? (
+                        <li className="pm-list-search__empty">
+                          <Spinner size="sm" />
+                          <span>搜索中…</span>
+                        </li>
+                      ) : convSearchResults.length === 0 ? (
+                        <li className="pm-list-search__empty">未找到用户</li>
+                      ) : (
+                        convSearchResults.map((u) => (
+                          <li key={u.id} role="option">
+                            <button
+                              type="button"
+                              className="pm-list-search__item"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => selectSearchUser(u)}
+                            >
+                              <AvatarBubble name={u.nickname || u.username} avatar={u.avatar} className="pm-avatar--search" />
+                              <span className="pm-list-search__name">{u.nickname || u.username}</span>
+                              <span className="pm-list-search__username">@{u.username}</span>
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </div>
                 {listLoading && dmConversations.length === 0 ? (
                   <div className="flex justify-center py-10"><Spinner /></div>
                 ) : dmConversations.length === 0 ? (
                   <div className="pm-empty">
                     <Inbox size={28} strokeWidth={1.5} aria-hidden />
                     <p>还没有私信</p>
-                    <span>在用户主页点击「发私信」开始对话</span>
+                    <span>搜索用户或在用户主页点击「发私信」</span>
                   </div>
                 ) : (
                   dmConversations.map((c) => {
@@ -697,9 +1053,11 @@ export default function MessagesPage() {
                         <div className="pm-conv-item__body">
                           <div className="pm-conv-item__top">
                             <span className="pm-conv-item__name">{name}</span>
-                            <span className="pm-conv-item__time">
-                              {formatDateTime(c.last_message?.created_at || c.updated_at)}
-                            </span>
+                            {c.last_message && (
+                              <span className="pm-conv-item__time">
+                                {formatConvListTime(c.last_message.created_at || c.updated_at)}
+                              </span>
+                            )}
                           </div>
                           <div className="pm-conv-item__preview">
                             <span>{previewText(c.last_message)}</span>
@@ -746,9 +1104,9 @@ export default function MessagesPage() {
                         avatar={peerUser?.avatar || activeConv?.peer_user?.avatar}
                       />
                       <div className="pm-thread-head__meta">
-                        <Link to={userPath(selectedPeer)} className="pm-thread-head__name">{title}</Link>
-                        <span className="pm-thread-head__sub">私信对话</span>
+                        <span className="pm-thread-head__name">{title}</span>
                       </div>
+                      <Link to={userPath(selectedPeer)} className="pm-thread-head__profile">主页</Link>
                     </header>
 
                     <div
@@ -775,17 +1133,35 @@ export default function MessagesPage() {
                           ) : (
                             messages.map((m) => {
                               const mine = m.from_user_id === user.id;
+                              const peerAvatarUser = m.from_user
+                                || peerUser
+                                || activeConv?.peer_user;
+                              const avatarName = mine
+                                ? (user.nickname || user.username || '我')
+                                : (peerAvatarUser?.nickname || peerAvatarUser?.username || title);
+                              const avatarSrc = mine
+                                ? user.avatar
+                                : peerAvatarUser?.avatar;
+                              const avatar = (
+                                <AvatarBubble
+                                  name={avatarName}
+                                  avatar={avatarSrc}
+                                  className="pm-avatar--bubble"
+                                />
+                              );
                               return (
                                 <div
                                   key={m.id}
                                   className={cn('pm-bubble-row', mine && 'pm-bubble-row--mine')}
                                 >
-                                  <div className={cn('pm-bubble', mine && 'pm-bubble--mine')}>
-                                    <div className="pm-bubble__text">{m.content}</div>
-                                    <div className="pm-bubble__meta">
-                                      <time>{formatDateTime(m.created_at)}</time>
+                                  {!mine && avatar}
+                                  <div className="pm-bubble-stack">
+                                    <div className={cn('pm-bubble', mine && 'pm-bubble--mine')}>
+                                      <PmBubbleContent content={m.content} />
                                     </div>
+                                    <time className="pm-bubble__time">{formatDateTime(m.created_at)}</time>
                                   </div>
+                                  {mine && avatar}
                                 </div>
                               );
                             })
@@ -798,10 +1174,11 @@ export default function MessagesPage() {
                     {canCompose && (
                       <footer className="pm-composer">
                         <textarea
+                          ref={draftRef}
                           className="pm-composer__input"
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          rows={2}
+                          value={draftText}
+                          onChange={(e) => updateDraftText(e.target.value)}
+                          rows={3}
                           maxLength={4000}
                           placeholder={`发送给 ${title}…`}
                           onKeyDown={(e) => {
@@ -811,15 +1188,80 @@ export default function MessagesPage() {
                             }
                           }}
                         />
-                        <Button
-                          className="pm-composer__send"
-                          loading={sending}
-                          disabled={!draft.trim()}
-                          onClick={() => void send()}
-                        >
-                          <Send size={16} />
-                          发送
-                        </Button>
+                        {draftEmbeds.length > 0 && (
+                          <ul className="pm-composer__embeds" aria-label="待发送图片">
+                            {draftEmbeds.map((emb) => (
+                              <li key={emb.id} className="pm-composer__embed">
+                                <img src={emb.url} alt={emb.name} loading="lazy" />
+                                <button
+                                  type="button"
+                                  className="pm-composer__embed-remove"
+                                  aria-label={`移除${emb.name}`}
+                                  onClick={() => removeEmbed(emb.id)}
+                                >
+                                  <X size={12} aria-hidden />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="pm-composer__toolbar">
+                          <div className="pm-composer__tools">
+                            <Tooltip content="表情" side="top">
+                              <button
+                                type="button"
+                                className={cn('pm-composer__tool', showSticker && 'active')}
+                                aria-label="表情"
+                                aria-pressed={showSticker}
+                                onClick={() => {
+                                  setImagePickerOpen(false);
+                                  setShowSticker((v) => !v);
+                                }}
+                              >
+                                <Smile size={18} aria-hidden />
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="图片" side="top">
+                              <button
+                                type="button"
+                                className="pm-composer__tool"
+                                aria-label="图片"
+                                onClick={() => {
+                                  setShowSticker(false);
+                                  setImagePickerOpen(true);
+                                }}
+                              >
+                                <ImagePlus size={18} aria-hidden />
+                              </button>
+                            </Tooltip>
+                          </div>
+                          <button
+                            type="button"
+                            className="pm-composer__send"
+                            disabled={isDraftEmpty(draftText, draftEmbeds) || sending}
+                            onClick={() => void send()}
+                          >
+                            {sending ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <>
+                                发送
+                                <Send size={14} aria-hidden />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {showSticker && (
+                          <div className="pm-composer__picker">
+                            <StickerPicker onSelect={onPickSticker} />
+                          </div>
+                        )}
+                        <p className="pm-composer__hint">Enter 发送 · Shift+Enter 换行</p>
+                        <ArticleImagePickerDialog
+                          open={imagePickerOpen}
+                          onOpenChange={setImagePickerOpen}
+                          onInsert={onInsertImages}
+                        />
                       </footer>
                     )}
                   </>

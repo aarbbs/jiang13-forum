@@ -36,7 +36,8 @@ type homeBootPayload struct {
 	RecentComments []service.RecentCommentItem     `json:"recent_comments"`
 	RecentUsers    []service.RecentUserItem        `json:"recent_users"`
 	Tags           []service.TagCount              `json:"tags"`
-	Showcase       []service.CommunityShowcaseItem `json:"showcase"`
+	// omitempty：侧栏关闭或未拉取时不写字段，避免 SPA 把 [] 当成有效会话快照
+	Showcase []service.CommunityShowcaseItem `json:"showcase,omitempty"`
 	Pages          []service.SitePageSummary       `json:"pages"`
 	Limits         service.ForumLimitsPublic       `json:"limits"`
 	Branding       service.SiteBranding            `json:"branding"`
@@ -261,13 +262,15 @@ func (h *Handlers) gatherHomeSSR(c *gin.Context, boardID uint) (*homeSSRData, er
 		go func() {
 			defer wg.Done()
 			items, err := h.Community.ListShowcase(c.Request.Host)
-			if err != nil || items == nil {
+			if err != nil {
+				// 失败不写 showcase，让前端自行请求，避免假空粘死
+				return
+			}
+			if items == nil {
 				items = []service.CommunityShowcaseItem{}
 			}
 			out.boot.Showcase = items
 		}()
-	} else {
-		out.boot.Showcase = []service.CommunityShowcaseItem{}
 	}
 
 	uid := h.currentUserID(c)

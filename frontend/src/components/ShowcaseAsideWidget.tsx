@@ -19,12 +19,14 @@ export default function ShowcaseAsideWidget() {
   useEffect(() => {
     let cancelled = false;
     const hit = getSessionSnapshot<CommunityShowcaseItem[]>(SHOWCASE_KEY);
-    if (hit !== undefined) {
+    // 非空快照直接用；空数组可能是启动竞态假空，仍再拉
+    if (hit !== undefined && hit.length > 0) {
       setItems(hit);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (hit !== undefined) setItems(hit);
+    setLoading(hit === undefined);
     api.communityShowcase()
       .then((r) => {
         if (cancelled) return;
@@ -33,10 +35,8 @@ export default function ShowcaseAsideWidget() {
         setItems(next);
       })
       .catch(() => {
-        if (!cancelled) {
-          setSessionSnapshot(SHOWCASE_KEY, []);
-          setItems([]);
-        }
+        // 失败不写空快照，避免假空粘死
+        if (!cancelled && hit === undefined) setItems([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -54,17 +54,13 @@ export default function ShowcaseAsideWidget() {
           setItems(next);
         })
         .catch(() => {
-          if (opts.showLoading) {
-            setSessionSnapshot(SHOWCASE_KEY, []);
-            setItems([]);
-          }
-          // 软刷新失败：保持旧 UI
+          // 软刷新 / 强刷失败：保持旧 UI，不写空快照
         })
         .finally(() => setLoading(false));
     };
     const applyHitOrReload = (showLoading: boolean) => {
       const hit = getSessionSnapshot<CommunityShowcaseItem[]>(SHOWCASE_KEY);
-      if (hit !== undefined) {
+      if (hit !== undefined && hit.length > 0) {
         setItems(hit);
         setLoading(false);
         return;

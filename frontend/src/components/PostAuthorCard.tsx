@@ -9,7 +9,6 @@ import { useAuth } from '../hooks/useAuth';
 import { loginPath } from '../utils/authRedirect';
 import { formatTime } from '../utils/content';
 import { userPath } from '../utils/userPath';
-import ComposeMessageDialog from './ComposeMessageDialog';
 import UserLink from './UserLink';
 
 interface Props {
@@ -28,7 +27,6 @@ export default function PostAuthorCard({
   const { user: me } = useAuth();
   const [profile, setProfile] = useState<UserPublic | null>(null);
   const [stats, setStats] = useState<UserActivityStats | null>(null);
-  const [msgOpen, setMsgOpen] = useState(false);
 
   useEffect(() => {
     if (!author?.id) {
@@ -78,7 +76,7 @@ export default function PostAuthorCard({
       nav(loginPath(profileHref));
       return;
     }
-    setMsgOpen(true);
+    nav(`/messages?peer=${author.id}`);
   };
 
   return (
@@ -159,16 +157,6 @@ export default function PostAuthorCard({
           </Button>
         </div>
       </div>
-
-      {!isSelf && (
-        <ComposeMessageDialog
-          open={msgOpen}
-          onOpenChange={setMsgOpen}
-          toUserId={author.id}
-          toNickname={nick}
-          onSent={() => nav(`/messages?peer=${author.id}`)}
-        />
-      )}
     </div>
   );
 }

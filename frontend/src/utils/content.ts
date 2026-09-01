@@ -89,6 +89,25 @@ export function formatTime(iso: string) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+/** 会话列表时间：今天 HH:mm，同年 M月D日，更早含年 */
+export function formatConvListTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (
+    d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth()
+    && d.getDate() === now.getDate()
+  ) {
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 /** 完整日期时间（用于帖子发布/修改时间展示） */
 export function formatDateTime(iso: string) {
   const d = new Date(iso);

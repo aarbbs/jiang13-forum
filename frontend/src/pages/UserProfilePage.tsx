@@ -23,7 +23,6 @@ import { useForumLimits } from '../hooks/useForumLimits';
 import { useSessionResource } from '../hooks/useSessionResource';
 import PostListItem from '../components/PostListItem';
 import FeedPagination from '../components/FeedPagination';
-import ComposeMessageDialog from '../components/ComposeMessageDialog';
 import { openForumPost } from '../utils/openPost';
 import { formatDateTime } from '../utils/content';
 import { usePageSEO } from '../hooks/usePageSEO';
@@ -44,7 +43,6 @@ export default function UserProfilePage() {
   const { limits } = useForumLimits();
   const pageSize = limits.page_size_default > 0 ? limits.page_size_default : 20;
 
-  const [msgOpen, setMsgOpen] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [postPage, setPostPage] = useState(1);
 
@@ -183,7 +181,7 @@ export default function UserProfilePage() {
                       nav(loginPath(userPath(profile.id)));
                       return;
                     }
-                    setMsgOpen(true);
+                    nav(`/messages?peer=${profile.id}`);
                   }}
                 >
                   <Mail size={14} />
@@ -265,16 +263,6 @@ export default function UserProfilePage() {
         </div>
       </div>
       <InFlowSiteFooter />
-
-      {!isSelf && profile && me && (
-        <ComposeMessageDialog
-          open={msgOpen}
-          onOpenChange={setMsgOpen}
-          toUserId={profile.id}
-          toNickname={profile.nickname}
-          onSent={() => nav(`/messages?peer=${profile.id}`)}
-        />
-      )}
     </div>
   );
 }

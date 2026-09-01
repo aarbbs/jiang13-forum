@@ -13,15 +13,22 @@ type Fetcher<T> = () => Promise<T>;
  * 会话快照数据源：有缓存则跳过请求；无缓存时保留上一份画面直到新数据返回。
  * 手机下拉软刷新 commit / PAGE_FORCE_REFRESH_EVENT 会应用新快照。
  */
+function isEmptyArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 0;
+}
+
 export function useSessionResource<T>(
   key: string | null,
   fetcher: Fetcher<T>,
   opts?: {
     enabled?: boolean;
     onError?: (e: unknown) => void;
+    /** 缓存为空数组时仍后台再拉，避免启动竞态假空粘死 */
+    revalidateEmpty?: boolean;
   },
 ) {
   const enabled = opts?.enabled !== false;
+  const revalidateEmpty = opts?.revalidateEmpty === true;
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const onErrorRef = useRef(opts?.onError);
@@ -49,7 +56,7 @@ export function useSessionResource<T>(
     }
 
     const hit = getSessionSnapshot<T>(key);
-    if (hit !== undefined) {
+    if (hit !== undefined && !(revalidateEmpty && isEmptyArray(hit))) {
       setData(hit);
       setLoading(false);
       setPending(false);
@@ -57,9 +64,16 @@ export function useSessionResource<T>(
     }
 
     const seq = ++seqRef.current;
-    const keep = dataRef.current !== undefined;
-    if (keep) setPending(true);
-    else setLoading(true);
+    const keep = dataRef.current !== undefined || (hit !== undefined && isEmptyArray(hit));
+    if (hit !== undefined && isEmptyArray(hit)) {
+      setData(hit);
+      setPending(true);
+      setLoading(false);
+    } else if (keep && dataRef.current !== undefined) {
+      setPending(true);
+    } else {
+      setLoading(true);
+    }
 
     fetcherRef.current()
       .then((next) => {
@@ -70,6 +84,7 @@ export function useSessionResource<T>(
       .catch((e: unknown) => {
         if (seq !== seqRef.current) return;
         onErrorRef.current?.(e);
+        // 失败不写空快照；已有画面则保留
         if (!keep) setData(undefined);
       })
       .finally(() => {
@@ -81,7 +96,7 @@ export function useSessionResource<T>(
     return () => {
       seqRef.current += 1;
     };
-  }, [key, enabled]);
+  }, [key, enabled, revalidateEmpty]);
 
   const replace = useCallback((next: T | ((prev: T | undefined) => T)) => {
     setData((prev) => {
@@ -99,18 +114,20 @@ export function useSessionResource<T>(
     const reload = (opts: { allowLoading: boolean }) => {
       if (!key || !enabled) return;
       const warm = getSessionSnapshot<T>(key);
-      if (warm !== undefined) {
+      if (warm !== undefined && !(revalidateEmpty && isEmptyArray(warm))) {
         setData(warm);
         setLoading(false);
         setPending(false);
         return;
       }
       const seq = ++seqRef.current;
-      const keep = dataRef.current !== undefined;
+      const keep = dataRef.current !== undefined || (warm !== undefined && isEmptyArray(warm));
       if (opts.allowLoading) {
         deleteSessionSnapshot(key);
         if (keep) setPending(true);
         else setLoading(true);
+      } else if (warm !== undefined && isEmptyArray(warm)) {
+        setPending(true);
       }
       fetcherRef.current()
         .then((next) => {
@@ -138,7 +155,7 @@ export function useSessionResource<T>(
       window.removeEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);
       window.removeEventListener(PAGE_SOFT_REFRESH_COMMIT_EVENT, onCommit);
     };
-  }, [key, enabled]);
+  }, [key, enabled, revalidateEmpty]);
 
   return { data, loading, pending, replace, invalidate };
 }

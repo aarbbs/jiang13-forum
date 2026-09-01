@@ -31,7 +31,7 @@ function pickScrollEl(): HTMLElement | null {
   const page = document.querySelector<HTMLElement>('.page-wrap:not(.page-wrap--feed)');
   if (page) return page;
 
-  const showcase = document.querySelector<HTMLElement>('.showcase-page');
+  const showcase = document.querySelector<HTMLElement>('.showcase-panel');
   if (showcase) return showcase.closest<HTMLElement>('.main-content') ?? showcase;
 
   const admin = document.querySelector<HTMLElement>('.admin-main');

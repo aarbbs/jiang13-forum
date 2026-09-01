@@ -44,7 +44,7 @@ export type HomeBootPayload = {
   recent_comments: RecentComment[];
   recent_users: RecentUser[];
   tags: TagCount[];
-  showcase: CommunityShowcaseItem[];
+  showcase?: CommunityShowcaseItem[];
   pages: SitePageSummary[];
   limits: ForumLimitsPublic;
   branding: SiteBranding;
@@ -77,7 +77,10 @@ export function consumeHomeBoot(): HomeBootPayload | null {
   if (Array.isArray(boot.recent_comments)) setCachedRecentComments(boot.recent_comments);
   if (Array.isArray(boot.recent_users)) setCachedRecentUsers(boot.recent_users);
   if (Array.isArray(boot.tags)) setCachedTags(boot.tags);
-  if (Array.isArray(boot.showcase)) setSessionSnapshot('showcase', boot.showcase);
+  // 仅当 boot 显式带 showcase 时灌入（侧栏关闭时省略，避免 [] 粘死）
+  if ('showcase' in boot && Array.isArray(boot.showcase)) {
+    setSessionSnapshot('showcase', boot.showcase);
+  }
 
   // 鉴权 / 签到：有 user 字段即种子（含 null = 已确认访客）
   if ('user' in boot) {
