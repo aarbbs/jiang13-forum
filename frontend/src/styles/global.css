@@ -350,9 +350,6 @@ html.dark .top-progress {
   .post-list-scroll > .site-footer {
     display: none;
   }
-  .header-menu-btn {
-    display: none;
-  }
 }
 
 .admin-brand-sections > .admin-settings-section {
@@ -1092,6 +1089,11 @@ html.dark .ssr-theme-icon--sun {
   align-items: center;
   justify-content: center;
   transition: background 0.15s, color 0.15s;
+}
+
+/* 桌面默认隐藏；手机在 max-width:768 中显示（需压过 .header-icon-btn） */
+.header-icon-btn.header-menu-btn {
+  display: none;
 }
 
 .header-icon-btn:hover {
@@ -1985,7 +1987,7 @@ html.dark .ssr-theme-icon--sun {
   .header-inner { padding: 0 12px; gap: 8px; }
   .header-brand { flex-shrink: 0; }
   .header-logo-text { display: none; }
-  .header-menu-btn { display: inline-flex; }
+  .header-icon-btn.header-menu-btn { display: flex; }
   .header-theme-btn { display: none; }
   .header-compose-btn__label { display: none; }
   .header-search-wrap { max-width: none; }
@@ -2808,12 +2810,12 @@ a.post-row {
 .board-chip.active.board-chip--6 { background: var(--board-6-bg); color: var(--board-6-color); }
 .board-chip.active.board-chip--7 { background: var(--board-7-bg); color: var(--board-7-color); }
 
-/* 帖子排序栏：与左侧栏 active 样式保持一致；不占满整行，避免「共 N 条」贴中栏右缘 */
+/* 帖子排序栏：与左侧栏 active 样式保持一致；flex:1 把「共 N 条」推到工具栏右缘 */
 .feed-sort-bar {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 0 1 auto;
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -3161,7 +3163,7 @@ a.post-row {
 .post-row--v2 .post-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
@@ -3175,7 +3177,7 @@ a.post-row {
   flex-wrap: nowrap;
   gap: 0;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1;
   overflow: hidden;
 }
 
