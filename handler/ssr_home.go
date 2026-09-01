@@ -553,7 +553,7 @@ func writeSSRFeed(b *strings.Builder, boot homeBootPayload, meta homeSSRMeta) {
 		tabs := boot.Limits.FeedSortTabs
 		if len(tabs) == 0 {
 			tabs = []service.FeedSortTab{
-				{ID: service.FeedSortReply, Label: "新评论", Enabled: true},
+				{ID: service.FeedSortReply, Label: "最新", Enabled: true},
 				{ID: service.FeedSortLatest, Label: "新帖子", Enabled: true},
 				{ID: service.FeedSortHot, Label: "推荐帖", Enabled: true},
 			}

@@ -952,7 +952,7 @@ export default function AdminSettingsPage() {
                 <div className="admin-settings-subsection">
                   <h4 className="admin-settings-subsection-title">首页排序标签</h4>
                   <p className="admin-settings-subsection-desc">
-                    拖拽调整顺序；在「显示名称」框中改首页文案；右侧开关控制启停。第一个启用项为默认排序
+                    拖拽调整顺序；在「显示名称」框中改首页文案；右侧开关控制启停。第一个启用项为默认排序。「最新」按发帖与评论的最近时间混排
                   </p>
                   <FeedSortTabList
                     tabs={normalizeFeedSortTabs(limits.feed_sort_tabs ?? DEFAULT_FEED_SORT_TABS)}

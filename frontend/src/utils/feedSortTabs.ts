@@ -4,7 +4,7 @@ import { DEFAULT_FEED_SORT_TABS } from '../api/types';
 const FEED_SORT_IDS: FeedSortId[] = ['reply', 'latest', 'hot'];
 
 const DEFAULT_LABELS: Record<FeedSortId, string> = {
-  reply: '新评论',
+  reply: '最新',
   latest: '新帖子',
   hot: '推荐帖',
 };

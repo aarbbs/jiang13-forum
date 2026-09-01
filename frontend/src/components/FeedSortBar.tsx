@@ -15,7 +15,7 @@ import type { FeedSortTab } from '../api/types';
 export type FeedSort = 'latest' | 'reply' | 'hot';
 
 const SORT_META: Record<FeedSort, { hint: string; icon: typeof Clock }> = {
-  reply: { hint: '最近有人评论', icon: MessageCircle },
+  reply: { hint: '按最近活动（发帖或评论）', icon: MessageCircle },
   latest: { hint: '按发帖时间', icon: Clock },
   hot: { hint: '仅展示推荐帖', icon: BadgeCheck },
 };

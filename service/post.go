@@ -357,18 +357,12 @@ func (s *PostService) List(q PostListQuery) ([]model.Post, int64, error) {
 	}
 	switch sortKey {
 	case "reply":
-		// 有回复的帖子优先，按最后回复时间倒序；无回复的帖子沉底（仅计已公开评论）
-		db = db.Order(`(
-			SELECT COUNT(*) FROM comments
-			WHERE comments.post_id = posts.id AND comments.deleted_at IS NULL
-			AND comments.status = 'published'
-		) > 0 DESC`)
-		db = db.Order(`(
+		// 最近活动：按最后公开评论时间与发帖时间的较晚者倒序（零回复新帖也能靠前）
+		db = db.Order(`COALESCE((
 			SELECT MAX(created_at) FROM comments
 			WHERE comments.post_id = posts.id AND comments.deleted_at IS NULL
 			AND comments.status = 'published'
-		) DESC`)
-		db = db.Order("posts.created_at DESC")
+		), posts.created_at) DESC`)
 	case "hot":
 		// 仅推荐帖：按互动再按 id
 		db = db.Order("like_count desc, view_count desc")
@@ -384,7 +378,7 @@ func normalizePostSort(sort string) string {
 	case "latest", "hot":
 		return sort
 	default:
-		// 含空串 / reply：默认新评论
+		// 含空串 / reply：默认最近活动
 		return "reply"
 	}
 }

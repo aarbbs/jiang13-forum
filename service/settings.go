@@ -206,7 +206,7 @@ var feedSortTabDefaultOrder = []string{
 }
 
 var feedSortTabDefaultLabels = map[string]string{
-	FeedSortReply:  "新评论",
+	FeedSortReply:  "最新",
 	FeedSortLatest: "新帖子",
 	FeedSortHot:    "推荐帖",
 }
@@ -287,7 +287,7 @@ var forumSettingDefs = []settingDef{
 
 var feedSettingDefaults = map[string]string{
 	SettingFeedListStyle: "title",
-	SettingFeedSortTabs:  `[{"id":"reply","label":"新评论","enabled":true},{"id":"latest","label":"新帖子","enabled":true},{"id":"hot","label":"推荐帖","enabled":true}]`,
+	SettingFeedSortTabs:  `[{"id":"reply","label":"最新","enabled":true},{"id":"latest","label":"新帖子","enabled":true},{"id":"hot","label":"推荐帖","enabled":true}]`,
 }
 
 var asideSettingDefaults = map[string]string{

@@ -224,7 +224,7 @@ export interface FeedSortTab {
 }
 
 export const DEFAULT_FEED_SORT_TABS: FeedSortTab[] = [
-  { id: 'reply', label: '新评论', enabled: true },
+  { id: 'reply', label: '最新', enabled: true },
   { id: 'latest', label: '新帖子', enabled: true },
   { id: 'hot', label: '推荐帖', enabled: true },
 ];
