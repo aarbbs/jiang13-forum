@@ -1,15 +1,19 @@
+import { useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { renderCommentContent } from '../utils/content';
+import { handleMdCodeBlockUiClick } from '../utils/enhanceCodeBlocks';
 import { userPath } from '../utils/userPath';
+import { notify } from '@/lib/notify';
 
 interface Props {
   content: string;
 }
 
-/** 渲染评论正文（支持正文内 @ 高亮与点击跳转） */
+/** 渲染评论正文（支持正文内 @ 高亮、代码块阅读态与点击跳转） */
 export default function CommentContent({ content }: Props) {
   const nav = useNavigate();
+  const html = useMemo(() => renderCommentContent(content), [content]);
 
   const openMention = async (name: string) => {
     try {
@@ -26,17 +30,29 @@ export default function CommentContent({ content }: Props) {
     }
   };
 
+  const onClick = useCallback(async (e: React.MouseEvent) => {
+    try {
+      if (await handleMdCodeBlockUiClick(e.target)) {
+        e.preventDefault();
+        return;
+      }
+    } catch {
+      notify.error('复制失败');
+      return;
+    }
+
+    const el = (e.target as HTMLElement).closest('.mention') as HTMLElement | null;
+    if (!el) return;
+    const name = el.getAttribute('data-name');
+    if (!name) return;
+    e.preventDefault();
+    void openMention(name);
+  }, [nav]);
+
   return (
     <div
-      className="floor-body"
-      onClick={(e) => {
-        const el = (e.target as HTMLElement).closest('.mention') as HTMLElement | null;
-        if (!el) return;
-        const name = el.getAttribute('data-name');
-        if (!name) return;
-        e.preventDefault();
-        void openMention(name);
-      }}
+      className="floor-body post-detail-content"
+      onClick={(e) => { void onClick(e); }}
       onKeyDown={(e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         const el = e.target as HTMLElement;
@@ -46,9 +62,7 @@ export default function CommentContent({ content }: Props) {
         e.preventDefault();
         void openMention(name);
       }}
-      dangerouslySetInnerHTML={{
-        __html: renderCommentContent(content),
-      }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }

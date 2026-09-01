@@ -1,5 +1,6 @@
 import {
-  useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useState, useMemo, type ReactNode,
+  useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useState, useMemo,
+  type ReactNode, type Ref,
 } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { TextSelection, NodeSelection } from '@tiptap/pm/state';
@@ -37,7 +38,10 @@ import { ReplyOnly } from './editor/ReplyOnlyExtension';
 import { PointsOnly } from './editor/PointsOnlyExtension';
 import { TabIndent } from './editor/TabIndentExtension';
 import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension';
+import { ArticleSticker } from './editor/ArticleStickerExtension';
 import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
+import StickerPicker from './emoji/StickerPicker';
+import type { Sticker } from '../data/stickers';
 import { ClearFloatParagraph, ClearFloatSync } from './editor/ClearFloatParagraph';
 import { ArticleLinkDialog, type ArticleLinkConfirm } from './editor/ArticleLinkDialog';
 import { ArticleImagePickerDialog } from './editor/ArticleImagePickerDialog';
@@ -84,6 +88,7 @@ interface ToolBtn {
   align?: 'start' | 'center' | 'end';
   active?: boolean;
   className?: string;
+  buttonRef?: Ref<HTMLButtonElement>;
   action: () => void;
 }
 
@@ -119,9 +124,17 @@ function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, POST_CONTENT_PURIFY_CONFIG);
 }
 
-/** 判断编辑器内容是否为空 */
+/** 判断编辑器内容是否为空（纯贴纸/图片也算有内容） */
 function isEditorEmpty(editor: Editor): boolean {
-  return editor.state.doc.textContent.trim().length === 0;
+  if (editor.state.doc.textContent.trim().length > 0) return false;
+  let hasMedia = false;
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'image' || node.type.name === 'sticker' || node.type.name === 'imageGroup') {
+      hasMedia = true;
+      return false;
+    }
+  });
+  return !hasMedia;
 }
 
 /**
@@ -177,10 +190,12 @@ function renderToolButtons(tools: ToolBtn[]) {
       ) : null}
       <Tooltip content={t.title} hint={t.hint} align={t.align} side="bottom">
         <button
+          ref={t.buttonRef}
           type="button"
           className={`article-tool-btn${t.active ? ' active' : ''}${t.className ? ` ${t.className}` : ''}`}
           onMouseDown={e => e.preventDefault()}
           onClick={t.action}
+          aria-pressed={t.active || undefined}
         >
           {t.icon}
         </button>
@@ -213,7 +228,10 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const [tableTarget, setTableTarget] = useState<TableTarget>('rich');
   const [tableEditing, setTableEditing] = useState(false);
+  const [showSticker, setShowSticker] = useState(false);
   const markdownRef = useRef<HTMLTextAreaElement>(null);
+  const editorBoxRef = useRef<HTMLDivElement>(null);
+  const stickerBtnRef = useRef<HTMLButtonElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -246,6 +264,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         },
       }),
       ArticleImage.configure({ inline: false, allowBase64: false }),
+      ArticleSticker,
       ImageGroup,
       Placeholder.configure({
         placeholder: ({ node }) => {
@@ -322,23 +341,42 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     placeCaretInFirstTextblock(editor);
   }, [value, editor, mode]);
 
-  // 全屏时锁定页面滚动，Esc 退出
+  // 全屏时锁定页面滚动；Esc 先关表情面板，再退出全屏
   useEffect(() => {
-    if (!fullscreen) return undefined;
+    if (!fullscreen && !showSticker) return undefined;
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const prevOverflow = fullscreen ? document.body.style.overflow : null;
+    if (fullscreen) document.body.style.overflow = 'hidden';
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFullscreen(false);
+      if (e.key !== 'Escape') return;
+      if (showSticker) {
+        setShowSticker(false);
+        stickerBtnRef.current?.focus();
+        return;
+      }
+      if (fullscreen) setFullscreen(false);
     };
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      document.body.style.overflow = prevOverflow;
+      if (prevOverflow !== null) document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [fullscreen]);
+  }, [fullscreen, showSticker]);
+
+  // 点击编辑器外关闭贴纸面板
+  useEffect(() => {
+    if (!showSticker) return;
+    const onPointer = (e: MouseEvent) => {
+      if (editorBoxRef.current && !editorBoxRef.current.contains(e.target as Node)) {
+        setShowSticker(false);
+        stickerBtnRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, [showSticker]);
 
   useImperativeHandle(ref, () => ({
     getHTML: () => {
@@ -523,6 +561,30 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
   }, [editor]);
 
+  const insertSticker = useCallback((sticker: Sticker) => {
+    if (mode === 'markdown') {
+      const textarea = markdownRef.current;
+      if (!textarea) return;
+      const snippet = (sticker.type === 'text' && sticker.text)
+        ? sticker.text
+        : (sticker.url ? `![${sticker.name || '表情'}](${sticker.url})` : '');
+      if (!snippet) return;
+      insertAtCursor(textarea, markdownSource, snippet, handleMarkdownChange);
+      setShowSticker(false);
+      return;
+    }
+    if (!editor) return;
+    if (sticker.type === 'text' && sticker.text) {
+      editor.chain().focus().insertContent(sticker.text).run();
+    } else if (sticker.url) {
+      editor.chain().focus().insertContent([
+        { type: 'sticker', attrs: { src: sticker.url, alt: sticker.name } },
+        { type: 'text', text: ' ' },
+      ]).run();
+    }
+    setShowSticker(false);
+  }, [editor, mode, markdownSource, handleMarkdownChange]);
+
   const openImagePicker = useCallback((target: ImagePickerTarget) => {
     setImagePickerTarget(target);
     setImagePickerOpen(true);
@@ -614,6 +676,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     const html = sanitizeHtml(editor.getHTML());
     lastValueRef.current = html;
     setMarkdownSource(htmlToMarkdown(html));
+    setShowSticker(false);
     setMode('markdown');
   }, [editor]);
 
@@ -626,6 +689,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       editor.commands.setContent(html || '', { emitUpdate: false });
       placeCaretInFirstTextblock(editor);
     }
+    setShowSticker(false);
     setMode('rich');
   }, [editor, markdownSource, onChange]);
 
@@ -675,6 +739,15 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         hint: '点击一张图后合并其附近连续图片（无需框选多张）',
         active: groupActive,
         action: wrapSelectedAsGroup,
+      },
+      {
+        icon: <span className="article-tool-btn__owo">OwO</span>,
+        title: '表情 OwO',
+        hint: '插入贴纸或颜文字',
+        active: showSticker,
+        className: 'article-tool-btn--owo',
+        buttonRef: stickerBtnRef,
+        action: () => setShowSticker(v => !v),
       },
     ];
 
@@ -760,7 +833,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     }
 
     return tools;
-  }, [editor, enableContentGates, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, enableContentGates, showSticker, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => {
     const tools: ToolBtn[] = [
@@ -781,6 +854,15 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         title: '图片',
         hint: '上传、链接或从已上传中选择',
         action: () => openImagePicker('markdown'),
+      },
+      {
+        icon: <span className="article-tool-btn__owo">OwO</span>,
+        title: '表情 OwO',
+        hint: '插入贴纸或颜文字',
+        active: showSticker,
+        className: 'article-tool-btn--owo',
+        buttonRef: stickerBtnRef,
+        action: () => setShowSticker(v => !v),
       },
     ];
     if (enableContentGates) {
@@ -809,7 +891,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       );
     }
     return tools;
-  }, [enableContentGates, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker]);
+  }, [enableContentGates, showSticker, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'
@@ -817,12 +899,16 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     : (editor ? countWords(editor.getText()) : 0);
 
   return (
-    <div className={`article-editor article-editor--${mode}${fullscreen ? ' article-editor--fullscreen' : ''}`}>
+    <div
+      ref={editorBoxRef}
+      className={`article-editor article-editor--${mode}${fullscreen ? ' article-editor--fullscreen' : ''}`}
+    >
       <div className="article-editor-bar">
         <div className="article-editor-tools">
           {renderToolButtons(tools)}
         </div>
       </div>
+      {showSticker && <StickerPicker onSelect={insertSticker} />}
 
       <div className="article-editor-body">
         {mode === 'rich' ? (

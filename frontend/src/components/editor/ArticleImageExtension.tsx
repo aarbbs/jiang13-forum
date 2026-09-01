@@ -1,5 +1,6 @@
 import Image from '@tiptap/extension-image';
 import { mergeAttributes } from '@tiptap/core';
+import { isStickerSrc } from './ArticleStickerExtension';
 
 /** 单图展示形态（对齐 Notion / Medium 常见选项） */
 export type ImageDisplay = 'default' | 'wide' | 'float-left' | 'float-right';
@@ -18,6 +19,19 @@ declare module '@tiptap/core' {
  */
 export const ArticleImage = Image.extend({
   name: 'image',
+
+  parseHTML() {
+    return [
+      {
+        tag: this.options.allowBase64 ? 'img[src]' : 'img[src]:not([src^="data:"])',
+        getAttrs: (node) => {
+          if (typeof node === 'string') return false;
+          if (isStickerSrc(node.getAttribute('src'))) return false;
+          return null;
+        },
+      },
+    ];
+  },
 
   addAttributes() {
     return {

@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { renderPostContentHtml } from '../utils/postContent';
+import { handleMdCodeBlockUiClick } from '../utils/enhanceCodeBlocks';
 import { loginPath, registerPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { notify } from '@/lib/notify';
@@ -105,40 +106,12 @@ export default function PostContent({
       }
       return;
     }
-    const foldBtn = target.closest<HTMLElement>('[data-code-fold]');
-    if (foldBtn) {
-      e.preventDefault();
-      const block = foldBtn.closest('.md-codeblock');
-      if (!block) return;
-      const collapsed = block.classList.toggle('md-codeblock--collapsed');
-      const lineCount = parseInt(block.getAttribute('data-line-count') || '0', 10)
-        || block.querySelectorAll('.md-code-line').length
-        || 1;
-      if (collapsed && lineCount <= 5) block.classList.add('md-codeblock--short');
-      else block.classList.remove('md-codeblock--short');
-      foldBtn.textContent = collapsed ? '展开' : '收起';
-      return;
-    }
-    const copyBtn = target.closest<HTMLElement>('[data-code-copy]');
-    if (copyBtn) {
-      e.preventDefault();
-      const block = copyBtn.closest('.md-codeblock');
-      const bodies = block?.querySelectorAll('.md-code-line__body');
-      const text = bodies && bodies.length
-        ? [...bodies].map(el => el.textContent ?? '').join('\n')
-        : (block?.querySelector('pre')?.textContent ?? '');
-      try {
-        await navigator.clipboard.writeText(text);
-        const prev = copyBtn.textContent;
-        copyBtn.textContent = '已复制';
-        copyBtn.classList.add('is-copied');
-        window.setTimeout(() => {
-          copyBtn.textContent = prev || '复制';
-          copyBtn.classList.remove('is-copied');
-        }, 1600);
-      } catch {
-        notify.error('复制失败');
+    try {
+      if (await handleMdCodeBlockUiClick(target)) {
+        e.preventDefault();
       }
+    } catch {
+      notify.error('复制失败');
     }
   }, [nav, openLightbox, onRequestReply, onUnlocked, postId, unlocking]);
 

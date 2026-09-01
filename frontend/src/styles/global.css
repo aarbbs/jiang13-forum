@@ -5742,7 +5742,7 @@ a.post-title:visited {
   font-style: italic;
 }
 
-.post-detail-content img:not([src*="/stickers/"]) {
+.post-detail-content img:not([src*="/stickers/"]):not(.article-sticker) {
   max-width: 100%;
   height: auto;
   border-radius: 10px;
@@ -6849,6 +6849,17 @@ a.post-title:visited {
   z-index: 30;
 }
 
+.article-editor > .sticker-picker {
+  margin-top: 0;
+  flex-shrink: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  box-shadow: none;
+  z-index: 28;
+}
+
 .sticker-picker-tabs {
   display: flex;
   flex-shrink: 0;
@@ -6875,30 +6886,86 @@ a.post-title:visited {
 }
 
 .sticker-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
-  padding: 6px;
+  --sticker-size: 32px;
+  --sticker-gap: var(--sticker-size);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  column-gap: var(--sticker-gap);
+  row-gap: var(--sticker-gap);
+  padding: 8px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
 }
 
+.sticker-picker-grid:focus {
+  outline: none;
+}
+
 .sticker-picker-item {
+  position: relative;
   border: none;
   background: none;
-  padding: 2px;
+  padding: 0;
   cursor: pointer;
   border-radius: 8px;
-  transition: background 0.1s, transform 0.1s;
+  transition: background 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.sticker-picker-item--image {
+  flex: 0 0 var(--sticker-size);
+  width: var(--sticker-size);
+  height: var(--sticker-size);
+}
+
+.sticker-picker-item--image img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: var(--sticker-size);
+  height: var(--sticker-size);
+  object-fit: contain;
+}
+
+.sticker-picker-item--text {
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+  min-height: var(--sticker-size);
+  padding: 4px 8px;
+}
+
 .sticker-picker-item:hover {
-  background: var(--color-fill-2);
-  transform: scale(1.15);
+  background: color-mix(in srgb, var(--color-text-1) 8%, var(--j13-bg-surface));
+}
+
+/* 图片格与表情同大，浅灰底扩到空隙里才看得见 */
+.sticker-picker-item--image::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 8px;
+  background: transparent;
+  z-index: 0;
+  pointer-events: none;
+  transition: background 0.1s;
+}
+
+.sticker-picker-item--image:hover {
+  background: transparent;
+}
+
+.sticker-picker-item--image:hover::before {
+  background: color-mix(in srgb, var(--color-text-1) 8%, var(--j13-bg-surface));
+}
+
+.sticker-picker-item:focus {
+  outline: none;
 }
 
 .sticker-picker-item:focus-visible {
@@ -6907,7 +6974,8 @@ a.post-title:visited {
 }
 
 .sticker-picker-loading {
-  grid-column: 1 / -1;
+  flex: 1 1 100%;
+  width: 100%;
   text-align: center;
   padding: 24px;
   color: var(--color-text-4);
@@ -6939,9 +7007,10 @@ a.post-title:visited {
   padding: 0;
 }
 
-.comment-editor .article-tool-btn--owo {
+.comment-editor .article-tool-btn--owo,
+.article-tool-btn--owo {
   width: auto;
-  min-width: 28px;
+  min-width: 32px;
   padding: 0 8px;
 }
 
@@ -6972,11 +7041,19 @@ a.post-title:visited {
   line-height: 1.6;
 }
 
-/* 评论正文中的贴纸 img */
+/* 评论 / 帖子正文 / 发帖编辑器中的贴纸：行内小图，不占一段 */
 .floor-body img[src*="/stickers/"],
-.comment-body img[src*="/stickers/"] {
+.comment-body img[src*="/stickers/"],
+.post-detail-content img[src*="/stickers/"],
+.post-detail-content img.article-sticker,
+.site-page__body img[src*="/stickers/"],
+.site-page__body img.article-sticker,
+.article-prosemirror img[src*="/stickers/"],
+.article-prosemirror img.article-sticker,
+.article-editor-content img[src*="/stickers/"],
+.article-editor-content img.article-sticker {
   display: inline-block !important;
-  vertical-align: middle;
+  vertical-align: text-bottom;
   width: 28px;
   height: 28px;
   max-width: 28px;
@@ -6988,38 +7065,22 @@ a.post-title:visited {
   clear: none !important;
 }
 
-/* 编辑器内贴纸 img 尺寸约束 */
-.comment-editor .article-prosemirror img[src*="/stickers/"],
-.comment-editor .article-editor-content img[src*="/stickers/"] {
-  display: inline-block !important;
-  width: 28px;
-  height: 28px;
-  max-width: 28px;
-  vertical-align: middle;
-  margin: 0 1px !important;
-  border-radius: 4px;
-  box-shadow: none !important;
-  object-fit: contain;
-  clear: none !important;
-}
-
-/* 选择器中颜文字纯文本样式 */
+/* 选择器中颜文字：宽度随内容，不截断、不挤进固定格子 */
 .sticker-picker-text {
   display: inline-block;
-  max-width: 100%;
   font-size: 14px;
   line-height: 1.4;
   font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Sans Mono', monospace;
   color: var(--color-text-1);
-  word-break: break-all;
+  white-space: nowrap;
+  word-break: normal;
   text-align: center;
-  padding: 2px;
+  padding: 0;
 }
 
-/* 移动端：贴纸选择器 4 列 */
+/* 移动端：颜文字仍按内容宽度；图片间距仍等于一枚表情 */
 @media (max-width: 640px) {
   .sticker-picker { max-height: 240px; }
-  .sticker-picker-grid { grid-template-columns: repeat(4, 1fr); }
   .sticker-picker-tab { padding: 6px 10px; font-size: 12px; }
   .comment-editor .article-tool-btn { width: 30px; height: 30px; }
   .comment-editor .article-tool-btn--owo { width: auto; min-width: 30px; padding: 0 8px; }
@@ -7219,6 +7280,21 @@ a.waline-comment-author:hover {
   font-size: 14px;
   line-height: 1.65;
   word-break: break-word;
+}
+
+/* 评论沿用文章列表 / 段落间距：Enter 分段，Shift+Enter 为段内换行 */
+.floor-body.post-detail-content {
+  font-size: 14px;
+  line-height: 1.65;
+  letter-spacing: normal;
+}
+
+.floor-body.post-detail-content > p:first-child,
+.comment-editor .post-detail-content > p:first-child {
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 .waline-comment-bubble .quote-block {
   margin: 6px 0;
@@ -10401,7 +10477,7 @@ button.profile-stat:hover strong {
   text-underline-offset: 2px;
 }
 
-.article-prosemirror img {
+.article-prosemirror img:not([src*="/stickers/"]):not(.article-sticker) {
   max-width: 100%;
   height: auto;
   border-radius: 8px;

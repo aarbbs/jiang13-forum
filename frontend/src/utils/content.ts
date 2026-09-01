@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { POST_CONTENT_PURIFY_CONFIG } from './postContent';
+import { enhanceCodeBlocks } from './enhanceCodeBlocks';
 
 /** 转义 HTML 并保留换行 */
 function escapeWithBreaks(text: string): string {
@@ -60,11 +61,15 @@ function processMentionsInHtml(html: string): string {
   return div.innerHTML;
 }
 
-/** 渲染评论内容：HTML 净化 + @提及高亮，兼容旧版纯文本 */
+/** 渲染评论内容：HTML 净化 + @提及高亮 + 代码块阅读态，兼容旧版纯文本 */
 export function renderCommentContent(content: string): string {
   if (isHtmlContent(content)) {
     const sanitized = DOMPurify.sanitize(content, POST_CONTENT_PURIFY_CONFIG) as string;
-    return processMentionsInHtml(sanitized);
+    const withMentions = processMentionsInHtml(sanitized);
+    const doc = new DOMParser().parseFromString(`<div id="j13-comment-root">${withMentions}</div>`, 'text/html');
+    const root = doc.getElementById('j13-comment-root') ?? doc.body;
+    enhanceCodeBlocks(root);
+    return root.innerHTML;
   }
   return highlightMentions(content);
 }

@@ -177,3 +177,44 @@ export function enhanceCodeBlocks(root: ParentNode): void {
     if (display.lineNumbers) pre.classList.add('md-codeblock__pre--lines');
   });
 }
+
+const CODE_FOLD_SHORT_LINES = 5;
+
+/**
+ * 阅读态代码块：折叠 / 复制。由帖子与评论共用，点击已处理时返回 true。
+ */
+export async function handleMdCodeBlockUiClick(target: EventTarget | null): Promise<boolean> {
+  if (!(target instanceof Element)) return false;
+
+  const foldBtn = target.closest<HTMLElement>('[data-code-fold]');
+  if (foldBtn) {
+    const block = foldBtn.closest('.md-codeblock');
+    if (!block) return true;
+    const collapsed = block.classList.toggle('md-codeblock--collapsed');
+    const lineCount = parseInt(block.getAttribute('data-line-count') || '0', 10)
+      || block.querySelectorAll('.md-code-line').length
+      || 1;
+    if (collapsed && lineCount <= CODE_FOLD_SHORT_LINES) block.classList.add('md-codeblock--short');
+    else block.classList.remove('md-codeblock--short');
+    foldBtn.textContent = collapsed ? '展开' : '收起';
+    return true;
+  }
+
+  const copyBtn = target.closest<HTMLElement>('[data-code-copy]');
+  if (!copyBtn) return false;
+
+  const block = copyBtn.closest('.md-codeblock');
+  const bodies = block?.querySelectorAll('.md-code-line__body');
+  const text = bodies && bodies.length
+    ? [...bodies].map(el => el.textContent ?? '').join('\n')
+    : (block?.querySelector('pre')?.textContent ?? '');
+  await navigator.clipboard.writeText(text);
+  const prev = copyBtn.textContent;
+  copyBtn.textContent = '已复制';
+  copyBtn.classList.add('is-copied');
+  window.setTimeout(() => {
+    copyBtn.textContent = prev || '复制';
+    copyBtn.classList.remove('is-copied');
+  }, 1600);
+  return true;
+}

@@ -36,17 +36,58 @@ export default function StickerPicker({ onSelect }: Props) {
   }, [active]);
 
   useEffect(() => {
-    const el = gridRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[focusIndex];
-    el?.focus();
-  }, [focusIndex, stickers]);
+    if (loading || stickers.length === 0) return;
+    gridRef.current?.focus();
+  }, [loading, stickers]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const cols = 8;
-    if (e.key === 'ArrowRight') { e.preventDefault(); setFocusIndex((i) => Math.min(stickers.length - 1, i + 1)); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); setFocusIndex((i) => Math.max(0, i - 1)); }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); setFocusIndex((i) => Math.min(stickers.length - 1, i + cols)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusIndex((i) => Math.max(0, i - cols)); }
-    else if (e.key === 'Enter' || e.key === ' ') {
+    const items = gridRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    if (!items?.length) return;
+
+    const moveTo = (next: number) => {
+      e.preventDefault();
+      const i = Math.max(0, Math.min(items.length - 1, next));
+      setFocusIndex(i);
+      items[i]?.focus();
+    };
+
+    if (e.key === 'ArrowRight') {
+      moveTo(focusIndex + 1);
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      moveTo(focusIndex - 1);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      // 颜文字宽度不固定，按视觉行列找下一格，避免按固定 8 列错位
+      e.preventDefault();
+      const cur = items[focusIndex];
+      if (!cur) return;
+      const cr = cur.getBoundingClientRect();
+      const cx = cr.left + cr.width / 2;
+      const cy = cr.top + cr.height / 2;
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      let best = -1;
+      let bestScore = Infinity;
+      items.forEach((el, i) => {
+        if (i === focusIndex) return;
+        const r = el.getBoundingClientRect();
+        const dy = (r.top + r.height / 2) - cy;
+        if (dy * dir <= 6) return;
+        const score = Math.abs(dy) * 24 + Math.abs((r.left + r.width / 2) - cx);
+        if (score < bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      });
+      if (best >= 0) {
+        setFocusIndex(best);
+        items[best]?.focus();
+      }
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       const s = stickers[focusIndex];
       if (s) onSelect(s);
@@ -73,6 +114,7 @@ export default function StickerPicker({ onSelect }: Props) {
         ref={gridRef}
         className="sticker-picker-grid"
         role="listbox"
+        tabIndex={0}
         aria-label={`${active}贴纸`}
         aria-activedescendant={`${autoId}-opt-${focusIndex}`}
         onKeyDown={onKeyDown}
@@ -82,33 +124,35 @@ export default function StickerPicker({ onSelect }: Props) {
         ) : stickers.length === 0 ? (
           <div className="sticker-picker-loading">暂无贴纸</div>
         ) : (
-          stickers.map((s, i) => (
-            <button
-              key={s.id}
-              id={`${autoId}-opt-${i}`}
-              type="button"
-              role="option"
-              tabIndex={focusIndex === i ? 0 : -1}
-              aria-selected={focusIndex === i}
-              aria-label={s.name}
-              className="sticker-picker-item"
-              onClick={() => onSelect(s)}
-              onFocus={() => setFocusIndex(i)}
-            >
-              {s.type === 'text' && s.text ? (
-                <span className="sticker-picker-text">{s.text}</span>
-              ) : (
-                <img
-                  src={s.url}
-                  alt={s.name}
-                  width={32}
-                  height={32}
-                  style={{ width: 32, height: 32, objectFit: 'contain' }}
-                  loading="lazy"
-                />
-              )}
-            </button>
-          ))
+          stickers.map((s, i) => {
+            const isText = s.type === 'text' && !!s.text;
+            return (
+              <button
+                key={s.id}
+                id={`${autoId}-opt-${i}`}
+                type="button"
+                role="option"
+                tabIndex={focusIndex === i ? 0 : -1}
+                aria-selected={focusIndex === i}
+                aria-label={s.name}
+                className={isText ? 'sticker-picker-item sticker-picker-item--text' : 'sticker-picker-item sticker-picker-item--image'}
+                onClick={() => onSelect(s)}
+                onFocus={() => setFocusIndex(i)}
+              >
+                {isText ? (
+                  <span className="sticker-picker-text">{s.text}</span>
+                ) : (
+                  <img
+                    src={s.url}
+                    alt={s.name}
+                    width={32}
+                    height={32}
+                    loading="lazy"
+                  />
+                )}
+              </button>
+            );
+          })
         )}
       </div>
     </div>

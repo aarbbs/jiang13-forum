@@ -15,10 +15,7 @@ export async function loadHotStickers(): Promise<Sticker[]> {
   const allEmoji = getAllStickers();
   const all = [...allEmoji, ...KAOMOJI_STICKERS];
   return all
-    .filter((s) => {
-      if (s.category === '颜文字') return true;
-      return s.aliases?.some((a) => HOT_KEYWORDS.includes(a)) || HOT_KEYWORDS.includes(s.name);
-    })
+    .filter((s) => s.aliases?.some((a) => HOT_KEYWORDS.includes(a)) || HOT_KEYWORDS.includes(s.name))
     .slice(0, 30)
     .map((s) => ({ ...s, category: '热门' as const }));
 }
