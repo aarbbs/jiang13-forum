@@ -31,6 +31,7 @@ import { userPath } from '../utils/userPath';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import StickerPicker from '../components/emoji/StickerPicker';
 import type { Sticker } from '../data/stickers';
+import PmComposerInput, { isPmStickerSrc, type PmComposerInputHandle } from '../components/PmComposerInput';
 import { ArticleImagePickerDialog } from '../components/editor/ArticleImagePickerDialog';
 import { Tooltip } from '../components/ui/Tooltip';
 import { cn } from '@/lib/utils';
@@ -130,12 +131,13 @@ function PmBubbleContent({ content }: { content: string }) {
       {parts.map((part, i) => {
         const m = part.match(/^!\[([^\]]*)]\(([^)]+)\)$/);
         if (m) {
+          const sticker = isPmStickerSrc(m[2]);
           return (
             <img
               key={i}
-              className="pm-bubble__img"
+              className={sticker ? 'pm-bubble__sticker' : 'pm-bubble__img'}
               src={m[2]}
-              alt={m[1] || '图片'}
+              alt={m[1] || (sticker ? '表情' : '图片')}
               loading="lazy"
             />
           );
@@ -273,7 +275,7 @@ export default function MessagesPage() {
   const [draftEmbeds, setDraftEmbeds] = useState<PmDraftEmbed[]>([]);
   const [showSticker, setShowSticker] = useState(false);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
-  const draftRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<PmComposerInputHandle>(null);
   const draftsByPeerRef = useRef<Map<number, PmDraft>>(new Map());
   const draftPeerRef = useRef<number | null>(null);
   const draftTextRef = useRef(draftText);
@@ -714,7 +716,7 @@ export default function MessagesPage() {
 
   const send = async () => {
     if (!peerSelected || selectedPeer === null || selectedPeer === 0) return;
-    const content = serializePmDraft(draftText, draftEmbeds);
+    const content = serializePmDraft(draftTextRef.current, draftEmbedsRef.current);
     if (!content) {
       notify.warning('请填写内容或添加图片');
       return;
@@ -764,34 +766,15 @@ export default function MessagesPage() {
     }
   };
 
-  const insertAtCursor = useCallback((text: string) => {
-    const el = draftRef.current;
-    if (!el) {
-      updateDraftText((d) => d + text);
-      return;
-    }
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
-    const next = el.value.slice(0, start) + text + el.value.slice(end);
-    updateDraftText(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const pos = start + text.length;
-      el.setSelectionRange(pos, pos);
-    });
-  }, [updateDraftText]);
-
   const onPickSticker = useCallback((sticker: Sticker) => {
     if (sticker.type === 'text' && sticker.text) {
-      insertAtCursor(sticker.text);
+      composerRef.current?.insertText(sticker.text);
     } else if (sticker.url) {
-      updateDraftEmbeds((prev) => [
-        ...prev,
-        { id: newEmbedId(), url: sticker.url!, name: sticker.name || '表情' },
-      ]);
+      composerRef.current?.insertSticker(sticker);
     }
     setShowSticker(false);
-  }, [insertAtCursor, updateDraftEmbeds]);
+    composerRef.current?.focus();
+  }, []);
 
   const onInsertImages = useCallback((urls: string[]) => {
     if (!urls.length) return;
@@ -1173,20 +1156,13 @@ export default function MessagesPage() {
 
                     {canCompose && (
                       <footer className="pm-composer">
-                        <textarea
-                          ref={draftRef}
-                          className="pm-composer__input"
+                        <PmComposerInput
+                          ref={composerRef}
                           value={draftText}
-                          onChange={(e) => updateDraftText(e.target.value)}
-                          rows={3}
-                          maxLength={4000}
+                          onChange={updateDraftText}
                           placeholder={`发送给 ${title}…`}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              void send();
-                            }
-                          }}
+                          onSubmit={() => { void send(); }}
+                          disabled={sending}
                         />
                         {draftEmbeds.length > 0 && (
                           <ul className="pm-composer__embeds" aria-label="待发送图片">

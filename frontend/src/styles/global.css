@@ -13547,7 +13547,8 @@ a.pm-thread-head__name:hover {
   box-sizing: border-box;
   min-height: 72px;
   max-height: 160px;
-  resize: vertical;
+  overflow-y: auto;
+  cursor: text;
   border: 1px solid var(--j13-border-light);
   border-radius: 10px;
   padding: 10px 14px;
@@ -13557,12 +13558,43 @@ a.pm-thread-head__name:hover {
   color: var(--color-text-1);
   background: var(--j13-bg-workspace);
   outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
 .pm-composer__input:focus {
   border-color: color-mix(in srgb, var(--j13-green) 40%, var(--j13-border-light));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--j13-green) 8%, transparent);
+}
+
+.pm-composer__input[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-4);
+  pointer-events: none;
+}
+
+.pm-composer__sticker,
+.pm-bubble__sticker {
+  display: inline-block;
+  vertical-align: middle;
+  width: 28px;
+  height: 28px;
+  max-width: 28px;
+  margin: 0 1px;
+  border-radius: 4px;
+  object-fit: contain;
+  background: transparent;
+}
+
+.pm-composer__inline-img {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 96px;
+  max-height: 64px;
+  margin: 0 2px;
+  border-radius: 6px;
+  object-fit: contain;
 }
 
 .pm-composer__embeds {
