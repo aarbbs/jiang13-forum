@@ -14,7 +14,7 @@ import { api } from '@/api/client';
 import type { PostItem, SitePageSummary } from '@/api/types';
 import { pagePath, postPath } from '@/utils/permalink';
 import { useForumLimits } from '@/hooks/useForumLimits';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 
 export interface ArticleLinkConfirm {
   url: string;
@@ -69,6 +69,7 @@ export function ArticleLinkDialog({
   const { limits } = useForumLimits();
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -80,15 +81,19 @@ export function ArticleLinkDialog({
     if (!open) return;
     setUrl(initialUrl || '');
     setText(initialText || '');
+    setAdvancedOpen(false);
     setQuery('');
     setDebouncedQuery('');
+    setPosts([]);
+    setPages([]);
+    setLoaded(false);
   }, [open, initialUrl, initialText]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !advancedOpen) return;
     const t = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [query, open]);
+  }, [query, open, advancedOpen]);
 
   const loadSiteHits = useCallback(async (keyword: string) => {
     setLoading(true);
@@ -120,10 +125,11 @@ export function ArticleLinkDialog({
     }
   }, []);
 
+  // 仅展开高级选项时再请求站内内容，避免默认打开就打接口
   useEffect(() => {
-    if (!open) return;
+    if (!open || !advancedOpen) return;
     void loadSiteHits(debouncedQuery);
-  }, [open, debouncedQuery, loadSiteHits]);
+  }, [open, advancedOpen, debouncedQuery, loadSiteHits]);
 
   const hits: SiteHit[] = useMemo(() => {
     const postHits: SiteHit[] = posts.map(p => ({
@@ -143,7 +149,8 @@ export function ArticleLinkDialog({
 
   const pickHit = (hit: SiteHit) => {
     setUrl(hit.url);
-    setText(prev => (prev.trim() ? prev : hit.title));
+    // 选站内内容时同步用标题作为链接文字
+    setText(hit.title);
   };
 
   const handleConfirm = () => {
@@ -171,7 +178,6 @@ export function ArticleLinkDialog({
         </DialogHeader>
 
         <section className="article-link-dialog__section">
-          <h3 className="article-link-dialog__section-title">输入目标 URL</h3>
           <div className="article-link-dialog__field">
             <Label htmlFor="article-link-url">网址</Label>
             <Input
@@ -206,55 +212,68 @@ export function ArticleLinkDialog({
           </div>
         </section>
 
-        <section className="article-link-dialog__section">
-          <h3 className="article-link-dialog__section-title">或链接到站点中的内容</h3>
-          <div className="article-link-dialog__field">
-            <Label htmlFor="article-link-search">搜索</Label>
-            <Input
-              id="article-link-search"
-              type="search"
-              value={query}
-              placeholder="搜索帖子或单页…"
-              onChange={e => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="article-link-dialog__hits">
-            <p className="article-link-dialog__hits-hint">
-              {debouncedQuery
-                ? `搜索「${debouncedQuery}」`
-                : '未指定搜索条件。自动显示最近发布条目。'}
-            </p>
-            {loading && !loaded ? (
-              <div className="article-link-dialog__hits-empty">
-                <Loader2 size={18} className="article-link-dialog__spin" />
-                <span>加载中…</span>
+        <section className="article-link-dialog__section article-link-dialog__advanced">
+          <button
+            type="button"
+            className={`article-link-dialog__advanced-toggle${advancedOpen ? ' is-open' : ''}`}
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen(v => !v)}
+          >
+            <span>高级选项</span>
+            <ChevronDown size={16} aria-hidden className="article-link-dialog__advanced-chevron" />
+          </button>
+          {advancedOpen ? (
+            <div className="article-link-dialog__advanced-body">
+              <h3 className="article-link-dialog__section-title">链接到站点中的内容</h3>
+              <div className="article-link-dialog__field">
+                <Label htmlFor="article-link-search">搜索</Label>
+                <Input
+                  id="article-link-search"
+                  type="search"
+                  value={query}
+                  placeholder="搜索帖子或单页…"
+                  onChange={e => setQuery(e.target.value)}
+                />
               </div>
-            ) : !hits.length ? (
-              <div className="article-link-dialog__hits-empty">暂无匹配内容</div>
-            ) : (
-              <ul className="article-link-dialog__hit-list">
-                {hits.map(hit => (
-                  <li key={hit.key}>
-                    <button
-                      type="button"
-                      className={`article-link-dialog__hit${url === hit.url ? ' is-selected' : ''}`}
-                      onClick={() => pickHit(hit)}
-                    >
-                      <span className="article-link-dialog__hit-title">{hit.title}</span>
-                      <span className="article-link-dialog__hit-kind">
-                        {hit.kind === 'post' ? '帖子' : '单页'}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {loading && loaded ? (
-              <div className="article-link-dialog__hits-loading">
-                <Loader2 size={14} className="article-link-dialog__spin" />
+              <div className="article-link-dialog__hits">
+                <p className="article-link-dialog__hits-hint">
+                  {debouncedQuery
+                    ? `搜索「${debouncedQuery}」`
+                    : '未指定搜索条件。自动显示最近发布条目。'}
+                </p>
+                {loading && !loaded ? (
+                  <div className="article-link-dialog__hits-empty">
+                    <Loader2 size={18} className="article-link-dialog__spin" />
+                    <span>加载中…</span>
+                  </div>
+                ) : !hits.length ? (
+                  <div className="article-link-dialog__hits-empty">暂无匹配内容</div>
+                ) : (
+                  <ul className="article-link-dialog__hit-list">
+                    {hits.map(hit => (
+                      <li key={hit.key}>
+                        <button
+                          type="button"
+                          className={`article-link-dialog__hit${url === hit.url ? ' is-selected' : ''}`}
+                          onClick={() => pickHit(hit)}
+                        >
+                          <span className="article-link-dialog__hit-title">{hit.title}</span>
+                          <span className="article-link-dialog__hit-kind">
+                            {hit.kind === 'post' ? '帖子' : '单页'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {loading && loaded ? (
+                  <div className="article-link-dialog__hits-loading">
+                    <Loader2 size={14} className="article-link-dialog__spin" />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </section>
 
         <DialogFooter className="article-link-dialog__footer">
