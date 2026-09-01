@@ -345,6 +345,16 @@ html.dark .top-progress {
   }
 }
 
+@media (min-width: 769px) {
+  /* 桌面：只保留壳层贴底页脚，隐藏列表内流入页脚 */
+  .post-list-scroll > .site-footer {
+    display: none;
+  }
+  .header-menu-btn {
+    display: none;
+  }
+}
+
 .admin-brand-sections > .admin-settings-section {
   margin-top: 20px;
   padding-top: 16px;
@@ -1974,9 +1984,16 @@ html.dark .ssr-theme-icon--sun {
   .sidebar { display: none; }
   .header-inner { padding: 0 12px; gap: 8px; }
   .header-brand { flex-shrink: 0; }
+  .header-logo-text { display: none; }
+  .header-menu-btn { display: inline-flex; }
+  .header-theme-btn { display: none; }
+  .header-compose-btn__label { display: none; }
   .header-search-wrap { max-width: none; }
   .header-compose-btn { width: 34px; padding: 0; justify-content: center; }
   .header-action-group { gap: 4px; }
+
+  /* 手机：藏壳层贴底页脚（列表内 InFlow 负责） */
+  .app-frame > .site-footer { display: none; }
 
   .post-search-field__input {
     font-size: 16px;
@@ -3144,7 +3161,7 @@ a.post-row {
 .post-row--v2 .post-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
@@ -3158,7 +3175,7 @@ a.post-row {
   flex-wrap: nowrap;
   gap: 0;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
   overflow: hidden;
 }
 
@@ -3354,6 +3371,8 @@ a.post-row {
 
 .post-row--v2 .post-stats {
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: 0;
 }
 
 .post-row--v2 .post-stat {

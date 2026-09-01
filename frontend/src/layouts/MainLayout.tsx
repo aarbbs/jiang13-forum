@@ -520,10 +520,10 @@ export default function MainLayout() {
       <div className="app-frame">
       <header className="app-header">
         <div className="header-inner">
-          {isMobile && !isCompose && (
+          {!isCompose && (
             <button
               type="button"
-              className="header-icon-btn"
+              className="header-icon-btn header-menu-btn"
               onClick={openSidebar}
               aria-label="打开导航菜单"
               aria-expanded={sidebarOpen}
@@ -536,7 +536,7 @@ export default function MainLayout() {
           {/* 任意页点 Logo：回首页并强制刷新，不展示会话缓存 */}
           <button type="button" className="header-brand" onClick={() => navigateFeed(nav, '/', { refresh: true })}>
             <SiteBrandMark branding={branding} className="header-logo-mark" />
-            {!isMobile && <span className="header-logo-text">{branding.name}</span>}
+            <span className="header-logo-text">{branding.name}</span>
           </button>
 
           {!isCompose && isMobile && (
@@ -621,7 +621,7 @@ export default function MainLayout() {
               aria-label="发帖"
             >
               <Plus size={16} aria-hidden />
-              {!isMobile && <span>发帖</span>}
+              <span className="header-compose-btn__label">发帖</span>
             </button>
             )}
 
@@ -641,17 +641,15 @@ export default function MainLayout() {
                 </button>
               )}
 
-              {!isMobile && (
-                <button
+              <button
                   type="button"
-                  className="header-icon-btn"
+                  className="header-icon-btn header-theme-btn"
                   onClick={toggle}
                   aria-label={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
                   title={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
                 >
                   {theme === 'light' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
                 </button>
-              )}
 
               {authLoading ? (
                 <span className="header-auth-slot header-auth-slot--loading" aria-hidden />

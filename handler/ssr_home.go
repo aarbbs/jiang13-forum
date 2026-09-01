@@ -342,6 +342,10 @@ func renderHomeSSRHTML(data *homeSSRData) string {
 	b.WriteString(`<div class="app-shell ssr-home"><div class="app-frame">`)
 
 	b.WriteString(`<header class="app-header"><div class="header-inner">`)
+	// 手机端汉堡：桌面 CSS 隐藏；hydrate 后由 React 接管点击
+	b.WriteString(`<button type="button" class="header-icon-btn header-menu-btn" aria-label="打开导航菜单" title="导航">`)
+	b.WriteString(ssrIconMenu())
+	b.WriteString(`</button>`)
 	b.WriteString(`<a class="header-brand" href="/">`)
 	if logo := strings.TrimSpace(boot.Branding.Logo); logo != "" {
 		b.WriteString(`<img class="header-logo-mark" src="` + html.EscapeString(logo) + `" alt=""/>`)
@@ -366,11 +370,11 @@ func renderHomeSSRHTML(data *homeSSRData) string {
 	}
 	b.WriteString(`<a class="header-compose-btn" href="` + composeHref + `" aria-label="发帖">`)
 	b.WriteString(ssrIconPlus())
-	b.WriteString(`<span>发帖</span></a>`)
+	b.WriteString(`<span class="header-compose-btn__label">发帖</span></a>`)
 
 	b.WriteString(`<div class="header-action-group">`)
-	// 主题：双图标 + CSS，配合 documentElement.dark
-	b.WriteString(`<button type="button" class="header-icon-btn" aria-label="切换主题" title="切换主题">`)
+	// 主题：双图标 + CSS，配合 documentElement.dark；手机顶栏 CSS 隐藏
+	b.WriteString(`<button type="button" class="header-icon-btn header-theme-btn" aria-label="切换主题" title="切换主题">`)
 	b.WriteString(`<span class="ssr-theme-icon ssr-theme-icon--moon">` + ssrIconMoon() + `</span>`)
 	b.WriteString(`<span class="ssr-theme-icon ssr-theme-icon--sun">` + ssrIconSun() + `</span>`)
 	b.WriteString(`</button>`)
@@ -593,7 +597,10 @@ func writeSSRFeed(b *strings.Builder, boot homeBootPayload, meta homeSSRMeta) {
 			writeSSRPostRow(b, &boot.Posts[i], boot.BoardID, meta.permalink, boot.Sort, titleOnly, needExcerpt, needThumb)
 		}
 	}
-	b.WriteString(`</div></div></div></div>`)
+	b.WriteString(`</div>`)
+	// 手机端流入页脚（桌面 CSS 隐藏）；壳层贴底页脚见 writeSSRFooter
+	writeSSRFooter(b, boot, meta)
+	b.WriteString(`</div></div></div>`)
 }
 
 func ssrFilterQuery(boot homeBootPayload) url.Values {
