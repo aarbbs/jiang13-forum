@@ -1535,11 +1535,10 @@ html.dark .ssr-theme-icon--sun {
   align-items: center;
   justify-content: center;
   line-height: 0;
-  background: var(--j13-green-bg);
-  color: var(--j13-green);
+  background: var(--j13-green);
+  color: #fff;
   font-size: 18px;
-  font-weight: 700;
-  box-shadow: 0 0 0 1px var(--j13-border-light);
+  font-weight: 600;
 }
 
 .widget-author-avatar img {
