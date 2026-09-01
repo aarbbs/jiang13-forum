@@ -232,11 +232,13 @@ export default function RightPanel({
     <div className={`aside-panel-inner${isPostDetail ? ' aside-panel-inner--post-detail' : ''}`}>
       {isPostDetail && (
         <>
-          <PostAuthorCard
-            author={postDetail.author}
-            publishedAt={postDetail.publishedAt}
-            viewCount={postDetail.viewCount}
-          />
+          {postDetail.author?.id ? (
+            <PostAuthorCard
+              author={postDetail.author}
+              publishedAt={postDetail.publishedAt}
+              viewCount={postDetail.viewCount}
+            />
+          ) : null}
           <div className="widget-card widget-card--outline">
             <div className="widget-card-head">
               <ListTree className="widget-card-icon widget-card-icon--outline" aria-hidden />

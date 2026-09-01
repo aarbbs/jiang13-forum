@@ -148,7 +148,10 @@ export default function MainLayout() {
     setSidebarOpen(false);
   }, [loc.pathname, loc.search]);
   useEffect(() => {
-    if (!/^\/post\/\d+/.test(loc.pathname)) setPostOutline(null);
+    const isArticleAside =
+      (/^\/post\/\d+/.test(loc.pathname) && !/\/edit$/.test(loc.pathname))
+      || /^\/page\//.test(loc.pathname);
+    if (!isArticleAside) setPostOutline(null);
   }, [loc.pathname]);
   useEffect(() => {
     if (!hideAside) setAsideOpen(false);
@@ -477,6 +480,10 @@ export default function MainLayout() {
   const activeChipIndex = Math.max(0, boardChipIds.indexOf(mobileActiveBoard === -1 ? 0 : mobileActiveBoard));
 
   const isPostDetail = /^\/post\/\d+/.test(loc.pathname) && !/\/edit$/.test(loc.pathname);
+  const isSitePage = /^\/page\//.test(loc.pathname);
+  const isArticleAside = isPostDetail || isSitePage;
+  // 帖子有作者 →「作者与目录」；单页仅目录
+  const articleAsideLabel = isPostDetail ? '作者与目录' : '文章目录';
   const setPostOutlineSafe = useCallback((outline: {
     headings: PostHeading[];
     scrollRoot: HTMLElement | null;
@@ -632,10 +639,10 @@ export default function MainLayout() {
                   type="button"
                   className="header-icon-btn"
                   onClick={openAside}
-                  aria-label={isPostDetail ? '打开作者与目录' : '打开社区动态'}
+                  aria-label={isArticleAside ? `打开${articleAsideLabel}` : '打开社区动态'}
                   aria-expanded={asideOpen}
                   aria-controls="aside-drawer"
-                  title={isPostDetail ? '作者与目录' : '社区动态'}
+                  title={isArticleAside ? articleAsideLabel : '社区动态'}
                 >
                   <PanelRight size={18} aria-hidden />
                 </button>
@@ -815,7 +822,7 @@ export default function MainLayout() {
             asideWidgets={asideWidgets}
             onPostClick={openPost}
             
-            postDetail={isPostDetail ? {
+            postDetail={isArticleAside ? {
               author: postOutline?.author ?? null,
               publishedAt: postOutline?.publishedAt,
               viewCount: postOutline?.viewCount,
@@ -879,7 +886,7 @@ export default function MainLayout() {
                   onClick={() => { closeSidebar(); openAside(); }}
                 >
                   <PanelRight size={16} aria-hidden />
-                  {isPostDetail ? '作者与目录' : '社区动态'}
+                  {isArticleAside ? articleAsideLabel : '社区动态'}
                 </button>
                 <button
                   type="button"
@@ -910,10 +917,10 @@ export default function MainLayout() {
             className="aside-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label={isPostDetail ? '作者与目录' : '社区动态'}
+            aria-label={isArticleAside ? articleAsideLabel : '社区动态'}
           >
             <div className="aside-drawer-head">
-              <span>{isPostDetail ? '作者与目录' : '社区动态'}</span>
+              <span>{isArticleAside ? articleAsideLabel : '社区动态'}</span>
               <button
                 ref={asideCloseRef}
                 type="button"
@@ -934,7 +941,7 @@ export default function MainLayout() {
                 loading={asideLoading}
                 asideWidgets={asideWidgets}
                 onPostClick={openPost}
-                postDetail={isPostDetail ? {
+                postDetail={isArticleAside ? {
                   author: postOutline?.author ?? null,
                   publishedAt: postOutline?.publishedAt,
                   viewCount: postOutline?.viewCount,
