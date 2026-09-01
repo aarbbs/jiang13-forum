@@ -1,7 +1,6 @@
-import { useMemo, useCallback, useEffect, useState } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { renderPostContentHtml } from '../utils/postContent';
-import { extractHeadingsFromHtml, type PostHeading } from '../utils/postHeadings';
 import { loginPath, registerPath } from '../utils/authRedirect';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { notify } from '@/lib/notify';
@@ -12,8 +11,6 @@ interface Props {
   html: string;
   isLoggedIn: boolean;
   className?: string;
-  /** 正文标题树变化时回调（用于侧栏目录） */
-  onHeadingsChange?: (headings: PostHeading[]) => void;
   /** 点击「回复可见」门控的「去回复」 */
   onRequestReply?: () => void;
   /** 积分解锁成功后刷新正文 */
@@ -26,7 +23,6 @@ export default function PostContent({
   html,
   isLoggedIn,
   className = 'post-detail-content',
-  onHeadingsChange,
   onRequestReply,
   onUnlocked,
   postId: postIdProp,
@@ -39,19 +35,12 @@ export default function PostContent({
   const [lightboxAlt, setLightboxAlt] = useState('');
   const [unlocking, setUnlocking] = useState(false);
 
-  const prepared = useMemo(() => {
-    const rendered = renderPostContentHtml(html, isLoggedIn, {
+  const preparedHtml = useMemo(
+    () => renderPostContentHtml(html, isLoggedIn, {
       openLinksInNewTab: limits.open_content_links_in_new_tab,
-    });
-    return {
-      html: rendered,
-      headings: extractHeadingsFromHtml(rendered),
-    };
-  }, [html, isLoggedIn, limits.open_content_links_in_new_tab]);
-
-  useEffect(() => {
-    onHeadingsChange?.(prepared.headings);
-  }, [prepared.headings, onHeadingsChange]);
+    }),
+    [html, isLoggedIn, limits.open_content_links_in_new_tab],
+  );
 
   const openLightbox = useCallback((img: HTMLImageElement) => {
     const full = img.getAttribute('data-full') || img.currentSrc || img.src;
@@ -167,7 +156,7 @@ export default function PostContent({
         className={className}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        dangerouslySetInnerHTML={{ __html: prepared.html }}
+        dangerouslySetInnerHTML={{ __html: preparedHtml }}
       />
       <ImageLightbox
         src={lightboxSrc}

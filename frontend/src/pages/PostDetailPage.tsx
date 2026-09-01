@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation, useNavigationType } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Star, Lock, MessageSquare, MessageSquareOff, Flag, MoreHorizontal } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
@@ -60,7 +60,8 @@ import { excerptFromHTML, firstImageFromHTML } from '../utils/seoText';
 import { canonicalRedirectPath, parsePermalinkID, postPath } from '../utils/permalink';
 import { useForumLimits } from '../hooks/useForumLimits';
 import type { LayoutCtx } from '../layouts/MainLayout';
-import type { PostHeading } from '../utils/postHeadings';
+import { extractHeadingsFromHtml } from '../utils/postHeadings';
+import { renderPostContentHtml } from '../utils/postContent';
 import { InFlowSiteFooter } from '../components/SiteFooter';
 import NotFoundPage from './NotFoundPage';
 
@@ -132,7 +133,6 @@ export default function PostDetailPage() {
   const [deletingPost, setDeletingPost] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [headings, setHeadings] = useState<PostHeading[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>('spam');
   const [reportDetail, setReportDetail] = useState('');
@@ -173,6 +173,15 @@ export default function PostDetailPage() {
 
   const brand = getCachedSiteBranding();
   const postContent = post?.content ?? '';
+  const isLoggedIn = !!user;
+  // 同步从正文派生目录，避免预取缓存命中后 setHeadings([]) 盖掉子组件上报且不再回调
+  const headings = useMemo(() => {
+    if (!postContent.trim()) return [];
+    const rendered = renderPostContentHtml(postContent, isLoggedIn, {
+      openLinksInNewTab: limits.open_content_links_in_new_tab,
+    });
+    return extractHeadingsFromHtml(rendered);
+  }, [postContent, isLoggedIn, limits.open_content_links_in_new_tab]);
   const postSEO = post ? {
     title: post.title,
     description: excerptFromHTML(postContent),
@@ -195,10 +204,6 @@ export default function PostDetailPage() {
     },
   } : null;
   usePageSEO(postSEO);
-
-  const handleHeadingsChange = useCallback((next: PostHeading[]) => {
-    setHeadings(next);
-  }, []);
 
   useEffect(() => {
     if (loading || !post) {
@@ -263,7 +268,6 @@ export default function PostDetailPage() {
       setReplyTo(null);
       setEditingCommentId(null);
       setComposerOpen(false);
-      setHeadings([]);
       setLoading(false);
       return;
     }
@@ -272,7 +276,6 @@ export default function PostDetailPage() {
     setReplyTo(null);
     setEditingCommentId(null);
     setComposerOpen(false);
-    setHeadings([]);
     if (!keep) {
       setLoading(true);
       setPost(null);
@@ -1124,9 +1127,8 @@ export default function PostDetailPage() {
 
         <PostContent
           html={post.content || ''}
-          isLoggedIn={!!user}
+          isLoggedIn={isLoggedIn}
           postId={post.id}
-          onHeadingsChange={handleHeadingsChange}
           onRequestReply={scrollToCommentBox}
           onUnlocked={() => { void reloadPostContent(); }}
         />
