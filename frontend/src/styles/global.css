@@ -1977,6 +1977,69 @@ html.dark .ssr-theme-icon--sun {
   overflow-y: auto;
 }
 
+/* 三栏主滚动区统一细绿色可拖滚动条 */
+.sidebar,
+.post-detail-page,
+.page-wrap,
+.post-list-scroll,
+.virtual-list-wrap,
+.aside-panel,
+.aside-drawer-body,
+.widget-outline-body {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--j13-green) 45%, var(--j13-border)) transparent;
+  -ms-overflow-style: auto;
+}
+
+.sidebar::-webkit-scrollbar,
+.post-detail-page::-webkit-scrollbar,
+.page-wrap::-webkit-scrollbar,
+.post-list-scroll::-webkit-scrollbar,
+.virtual-list-wrap::-webkit-scrollbar,
+.aside-panel::-webkit-scrollbar,
+.aside-drawer-body::-webkit-scrollbar,
+.widget-outline-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.post-detail-page::-webkit-scrollbar-track,
+.page-wrap::-webkit-scrollbar-track,
+.post-list-scroll::-webkit-scrollbar-track,
+.virtual-list-wrap::-webkit-scrollbar-track,
+.aside-panel::-webkit-scrollbar-track,
+.aside-drawer-body::-webkit-scrollbar-track,
+.widget-outline-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.post-detail-page::-webkit-scrollbar-thumb,
+.page-wrap::-webkit-scrollbar-thumb,
+.post-list-scroll::-webkit-scrollbar-thumb,
+.virtual-list-wrap::-webkit-scrollbar-thumb,
+.aside-panel::-webkit-scrollbar-thumb,
+.aside-drawer-body::-webkit-scrollbar-thumb,
+.widget-outline-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--j13-green) 40%, var(--j13-border));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.post-detail-page::-webkit-scrollbar-thumb:hover,
+.page-wrap::-webkit-scrollbar-thumb:hover,
+.post-list-scroll::-webkit-scrollbar-thumb:hover,
+.virtual-list-wrap::-webkit-scrollbar-thumb:hover,
+.aside-panel::-webkit-scrollbar-thumb:hover,
+.aside-drawer-body::-webkit-scrollbar-thumb:hover,
+.widget-outline-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--j13-green) 65%, var(--j13-border));
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .aside-drawer,
   .sidebar-drawer { animation: none; }
@@ -2088,8 +2151,6 @@ html.dark .ssr-theme-icon--sun {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   padding: 12px;
 }
 
@@ -2259,17 +2320,11 @@ body:has(.admin-topbar) .ptr-indicator {
   overflow: hidden;
 }
 
-.page-wrap::-webkit-scrollbar {
-  display: none;
-}
-
 .virtual-list-wrap,
 .post-list-scroll {
   flex: 1;
   overflow: auto;
   min-height: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 
 /* 文档 SSR：静态列表（非 virtualizer absolute 行） */
@@ -2294,11 +2349,6 @@ a.post-row {
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text-1);
-}
-
-.virtual-list-wrap::-webkit-scrollbar,
-.post-list-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .feed-list-footer {
@@ -4429,31 +4479,6 @@ a.post-title:visited {
   gap: 16px;
   padding: 16px 20px 24px;
   background: var(--j13-bg-workspace);
-  /* 长文需要可拖拽定位；列表页仍隐藏滚动条保持干净 */
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--j13-green) 45%, var(--j13-border)) transparent;
-  -ms-overflow-style: auto;
-}
-
-.post-detail-page::-webkit-scrollbar {
-  width: 8px;
-}
-
-.post-detail-page::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.post-detail-page::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--j13-green) 40%, var(--j13-border));
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.post-detail-page::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--j13-green) 65%, var(--j13-border));
-  background-clip: padding-box;
-  border: 2px solid transparent;
 }
 
 .post-detail-header {
