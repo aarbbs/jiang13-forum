@@ -12,11 +12,11 @@ import {
   List, ListOrdered, Code, Link as LinkIcon, Image as ImageIcon,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
-import { api } from '../api/client';
-import { notify } from '@/lib/notify';
 import { ArticleCodeBlock } from './editor/ArticleCodeBlockExtension';
 import { ArticleCodeBlockDialog } from './editor/ArticleCodeBlockDialog';
 import { ArticleImage } from './editor/ArticleImageExtension';
+import { ArticleImagePickerDialog } from './editor/ArticleImagePickerDialog';
+import { ArticleLinkDialog, type ArticleLinkConfirm } from './editor/ArticleLinkDialog';
 import { TabIndent } from './editor/TabIndentExtension';
 import type { CodeBlockInsertOptions } from '../utils/codeBlockOptions';
 import { Tooltip } from './ui/Tooltip';
@@ -49,28 +49,6 @@ function isEditorEmpty(editor: Editor): boolean {
   return !hasImage;
 }
 
-/** 触发图片文件选择并上传 */
-async function uploadImageFiles(): Promise<string[]> {
-  return new Promise(resolve => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/gif,image/webp';
-    input.multiple = false;
-    input.onchange = async () => {
-      const files = [...(input.files ?? [])];
-      if (!files.length) { resolve([]); return; }
-      try {
-        const { url } = await api.uploadPostImage(files[0]);
-        resolve([url]);
-      } catch (e: unknown) {
-        notify.error(e instanceof Error ? e.message : '图片上传失败');
-        resolve([]);
-      }
-    };
-    input.click();
-  });
-}
-
 const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEditor(
   { value, onChange, placeholder = '说点什么吧…' },
   ref,
@@ -79,6 +57,11 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
   const lastValueRef = useRef(value);
   const [, setTick] = useState(0);
   const [showSticker, setShowSticker] = useState(false);
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkDialogUrl, setLinkDialogUrl] = useState('');
+  const [linkDialogText, setLinkDialogText] = useState('');
+  const [linkDialogEditing, setLinkDialogEditing] = useState(false);
   const [codeBlockDialogOpen, setCodeBlockDialogOpen] = useState(false);
   const [codeBlockEditing, setCodeBlockEditing] = useState(false);
   const [codeBlockInitial, setCodeBlockInitial] = useState<CodeBlockInsertOptions | null>(null);
@@ -99,6 +82,11 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
         openOnClick: false,
         autolink: true,
         defaultProtocol: 'https',
+        // 新标签由全站设置在展示层处理，编辑器不写 target/rel
+        HTMLAttributes: {
+          target: null,
+          rel: null,
+        },
       }),
       ArticleImage.configure({ inline: true, allowBase64: true }),
       Placeholder.configure({ placeholder }),
@@ -179,11 +167,14 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
     setShowSticker(false);
   }, [editor]);
 
-  const setImage = useCallback(async () => {
-    if (!editor) return;
-    const urls = await uploadImageFiles();
-    if (!urls.length) return;
-    editor.chain().focus().setImage({ src: urls[0] }).run();
+  const applyImageUrls = useCallback((urls: string[]) => {
+    if (!editor || !urls.length) return;
+    // 评论为 inline 图，无图组：逐张插入并跟空格，便于光标落在右侧
+    const nodes = urls.flatMap(src => [
+      { type: 'image' as const, attrs: { src } },
+      { type: 'text' as const, text: ' ' },
+    ]);
+    editor.chain().focus().insertContent(nodes).run();
   }, [editor]);
 
   const openCodeBlockDialog = useCallback(() => {
@@ -213,23 +204,70 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
     }).run();
   }, [editor]);
 
-  const setLink = useCallback(() => {
+  const openLinkDialog = useCallback(() => {
     if (!editor) return;
-    const prev = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('链接地址', prev ?? 'https://');
-    if (url === null) return;
+    const { from, to, empty } = editor.state.selection;
+    let text = empty ? '' : editor.state.doc.textBetween(from, to, '');
+    let href = '';
+    let editing = false;
+    if (editor.isActive('link')) {
+      const attrs = editor.getAttributes('link');
+      href = (attrs.href as string) || '';
+      editing = Boolean(href);
+      editor.chain().focus().extendMarkRange('link').run();
+      const sel = editor.state.selection;
+      text = editor.state.doc.textBetween(sel.from, sel.to, '') || text;
+    }
+    setLinkDialogUrl(href);
+    setLinkDialogText(text);
+    setLinkDialogEditing(editing);
+    setLinkDialogOpen(true);
+  }, [editor]);
+
+  const applyLink = useCallback((payload: ArticleLinkConfirm) => {
+    if (!editor) return;
+    const { url, text } = payload;
     if (!url) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    // 新标签行为由全站 open_content_links_in_new_tab 在展示层处理
+    const linkAttrs = { href: url };
+    const { empty } = editor.state.selection;
+    const hasLink = editor.isActive('link');
+    if (!empty || hasLink) {
+      editor.chain().focus().extendMarkRange('link').setLink(linkAttrs).run();
+      const { from, to } = editor.state.selection;
+      const current = editor.state.doc.textBetween(from, to, '');
+      if (text && current !== text) {
+        editor.chain().focus().insertContentAt(
+          { from, to },
+          {
+            type: 'text',
+            text,
+            marks: [{ type: 'link', attrs: linkAttrs }],
+          },
+        ).run();
+      }
+      return;
+    }
+    editor.chain().focus().insertContent({
+      type: 'text',
+      text: text || '链接文字',
+      marks: [{ type: 'link', attrs: linkAttrs }],
+    }).run();
+  }, [editor]);
+
+  const removeLink = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().extendMarkRange('link').unsetLink().run();
   }, [editor]);
 
   if (!editor) {
     return <div className="comment-editor"><div className="article-editor-bar" /><div className="article-editor-body" /></div>;
   }
 
-  const tools: { icon: React.ReactNode; title: string; active?: boolean; action: () => void; className?: string }[] = [
+  const tools: { icon: React.ReactNode; title: string; hint?: string; active?: boolean; action: () => void; className?: string }[] = [
     { icon: <Bold size={15} />, title: '加粗', active: editor.isActive('bold'), action: () => editor.chain().focus().toggleBold().run() },
     { icon: <Italic size={15} />, title: '斜体', active: editor.isActive('italic'), action: () => editor.chain().focus().toggleItalic().run() },
     { icon: <UnderlineIcon size={15} />, title: '下划线', active: editor.isActive('underline'), action: () => editor.chain().focus().toggleUnderline().run() },
@@ -237,8 +275,13 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
     { icon: <List size={15} />, title: '无序列表', active: editor.isActive('bulletList'), action: () => editor.chain().focus().toggleBulletList().run() },
     { icon: <ListOrdered size={15} />, title: '有序列表', active: editor.isActive('orderedList'), action: () => editor.chain().focus().toggleOrderedList().run() },
     { icon: <Code size={15} />, title: '代码块', active: editor.isActive('codeBlock'), action: openCodeBlockDialog },
-    { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: setLink },
-    { icon: <ImageIcon size={15} />, title: '上传图片', action: setImage },
+    { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: openLinkDialog },
+    {
+      icon: <ImageIcon size={15} />,
+      title: '图片',
+      hint: '上传、链接或从已上传中选择',
+      action: () => setImagePickerOpen(true),
+    },
     { icon: <span className="article-tool-btn__owo">OwO</span>, title: '表情 OwO', active: showSticker, action: () => setShowSticker(v => !v), className: 'article-tool-btn--owo' },
   ];
 
@@ -247,14 +290,14 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
       <div className="article-editor-bar">
         <div className="article-editor-tools">
           {tools.map((t, i) => (
-            <Tooltip key={i} content={t.title} side="bottom">
+            <Tooltip key={i} content={t.title} hint={t.hint} side="bottom">
               <button
                 ref={i === tools.length - 1 ? stickerBtnRef : undefined}
                 type="button"
                 className={`article-tool-btn${t.active ? ' active' : ''}${t.className ? ` ${t.className}` : ''}`}
                 onMouseDown={e => e.preventDefault()}
                 onClick={t.action}
-                aria-label={t.title}
+                aria-label={t.hint ? `${t.title}，${t.hint}` : t.title}
               >
                 {t.icon}
               </button>
@@ -268,6 +311,20 @@ const CommentEditor = forwardRef<CommentEditorHandle, Props>(function CommentEdi
         </div>
       </div>
       {showSticker && <StickerPicker onSelect={insertSticker} />}
+      <ArticleLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        initialUrl={linkDialogUrl}
+        initialText={linkDialogText}
+        editing={linkDialogEditing}
+        onConfirm={applyLink}
+        onRemove={linkDialogEditing ? removeLink : undefined}
+      />
+      <ArticleImagePickerDialog
+        open={imagePickerOpen}
+        onOpenChange={setImagePickerOpen}
+        onInsert={applyImageUrls}
+      />
       <ArticleCodeBlockDialog
         open={codeBlockDialogOpen}
         onOpenChange={setCodeBlockDialogOpen}

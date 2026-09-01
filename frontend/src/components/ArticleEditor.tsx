@@ -31,7 +31,6 @@ import {
   insertMarkdownLink,
 } from '../utils/markdownFormat';
 import { countWords } from '../utils/text';
-import { api } from '../api/client';
 import { notify } from '@/lib/notify';
 import { MembersOnly } from './editor/MembersOnlyExtension';
 import { ReplyOnly } from './editor/ReplyOnlyExtension';
@@ -40,7 +39,8 @@ import { TabIndent } from './editor/TabIndentExtension';
 import { ArticleImage, type ImageDisplay } from './editor/ArticleImageExtension';
 import { ImageGroup, suggestImageGroupLayout } from './editor/ImageGroupExtension';
 import { ClearFloatParagraph, ClearFloatSync } from './editor/ClearFloatParagraph';
-import { ArticleLinkDialog } from './editor/ArticleLinkDialog';
+import { ArticleLinkDialog, type ArticleLinkConfirm } from './editor/ArticleLinkDialog';
+import { ArticleImagePickerDialog } from './editor/ArticleImagePickerDialog';
 import { ArticleCodeBlockDialog } from './editor/ArticleCodeBlockDialog';
 import { ArticleCodeBlock } from './editor/ArticleCodeBlockExtension';
 import {
@@ -73,6 +73,7 @@ interface Props {
 
 type EditorMode = 'rich' | 'markdown';
 type LinkTarget = 'rich' | 'markdown';
+type ImagePickerTarget = 'rich' | 'markdown';
 type CodeBlockTarget = 'rich' | 'markdown';
 type TableTarget = 'rich' | 'markdown';
 
@@ -167,34 +168,6 @@ function cycleHeading(editor: Editor) {
   editor.chain().focus().toggleHeading({ level: 2 }).run();
 }
 
-/** 触发图片文件选择并上传（支持多选） */
-async function uploadPostImageFiles(multiple = true): Promise<string[]> {
-  return new Promise(resolve => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/gif,image/webp';
-    input.multiple = multiple;
-    input.onchange = async () => {
-      const files = [...(input.files ?? [])];
-      if (!files.length) {
-        resolve([]);
-        return;
-      }
-      const urls: string[] = [];
-      for (const file of files) {
-        try {
-          const { url } = await api.uploadPostImage(file);
-          urls.push(url);
-        } catch (e: unknown) {
-          notify.error(e instanceof Error ? e.message : '图片上传失败');
-        }
-      }
-      resolve(urls);
-    };
-    input.click();
-  });
-}
-
 /** 渲染工具栏按钮列表 */
 function renderToolButtons(tools: ToolBtn[]) {
   return tools.map((t, i) => (
@@ -228,7 +201,11 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const [markdownSource, setMarkdownSource] = useState('');
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState('');
+  const [linkDialogText, setLinkDialogText] = useState('');
+  const [linkDialogEditing, setLinkDialogEditing] = useState(false);
   const [linkTarget, setLinkTarget] = useState<LinkTarget>('rich');
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [imagePickerTarget, setImagePickerTarget] = useState<ImagePickerTarget>('rich');
   const [codeBlockDialogOpen, setCodeBlockDialogOpen] = useState(false);
   const [codeBlockTarget, setCodeBlockTarget] = useState<CodeBlockTarget>('rich');
   const [codeBlockEditing, setCodeBlockEditing] = useState(false);
@@ -262,6 +239,11 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         openOnClick: false,
         autolink: true,
         defaultProtocol: 'https',
+        // 新标签由全站设置在展示层处理，编辑器不写 target/rel
+        HTMLAttributes: {
+          target: null,
+          rel: null,
+        },
       }),
       ArticleImage.configure({ inline: false, allowBase64: false }),
       ImageGroup,
@@ -393,14 +375,33 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const openLinkDialog = useCallback((target: LinkTarget) => {
     if (target === 'rich') {
       if (!editor) return;
-      const prev = editor.getAttributes('link').href as string | undefined;
-      setLinkDialogUrl(prev ?? '');
+      const { from, to, empty } = editor.state.selection;
+      let text = empty ? '' : editor.state.doc.textBetween(from, to, '');
+      let href = '';
+      let editing = false;
+      if (editor.isActive('link')) {
+        const attrs = editor.getAttributes('link');
+        href = (attrs.href as string) || '';
+        editing = Boolean(href);
+        editor.chain().focus().extendMarkRange('link').run();
+        const sel = editor.state.selection;
+        text = editor.state.doc.textBetween(sel.from, sel.to, '') || text;
+      }
+      setLinkDialogUrl(href);
+      setLinkDialogText(text);
+      setLinkDialogEditing(editing);
     } else {
+      const textarea = markdownRef.current;
+      const selected = textarea
+        ? markdownSource.slice(textarea.selectionStart, textarea.selectionEnd)
+        : '';
       setLinkDialogUrl('');
+      setLinkDialogText(selected);
+      setLinkDialogEditing(false);
     }
     setLinkTarget(target);
     setLinkDialogOpen(true);
-  }, [editor]);
+  }, [editor, markdownSource]);
 
   const openCodeBlockDialog = useCallback((target: CodeBlockTarget) => {
     setCodeBlockTarget(target);
@@ -477,11 +478,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     }
   }, [editor]);
 
-  const applyLink = useCallback((url: string) => {
+  const applyLink = useCallback((payload: ArticleLinkConfirm) => {
+    const { url, text } = payload;
     if (linkTarget === 'markdown') {
       const textarea = markdownRef.current;
       if (!textarea || !url) return;
-      insertMarkdownLink(textarea, markdownSource, url, handleMarkdownChange);
+      insertMarkdownLink(textarea, markdownSource, url, handleMarkdownChange, { text });
       return;
     }
     if (!editor) return;
@@ -489,7 +491,31 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    // 新标签行为由全站 open_content_links_in_new_tab 在展示层处理
+    const linkAttrs = { href: url };
+    const { empty } = editor.state.selection;
+    const hasLink = editor.isActive('link');
+    if (!empty || hasLink) {
+      editor.chain().focus().extendMarkRange('link').setLink(linkAttrs).run();
+      const { from, to } = editor.state.selection;
+      const current = editor.state.doc.textBetween(from, to, '');
+      if (text && current !== text) {
+        editor.chain().focus().insertContentAt(
+          { from, to },
+          {
+            type: 'text',
+            text,
+            marks: [{ type: 'link', attrs: linkAttrs }],
+          },
+        ).run();
+      }
+      return;
+    }
+    editor.chain().focus().insertContent({
+      type: 'text',
+      text: text || '链接文字',
+      marks: [{ type: 'link', attrs: linkAttrs }],
+    }).run();
   }, [editor, linkTarget, markdownSource, handleMarkdownChange]);
 
   const removeLink = useCallback(() => {
@@ -497,16 +523,33 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
   }, [editor]);
 
-  const setImage = useCallback(async () => {
-    if (!editor) return;
-    const urls = await uploadPostImageFiles(true);
+  const openImagePicker = useCallback((target: ImagePickerTarget) => {
+    setImagePickerTarget(target);
+    setImagePickerOpen(true);
+  }, []);
+
+  const applyImageUrls = useCallback((urls: string[]) => {
     if (!urls.length) return;
+    if (imagePickerTarget === 'markdown') {
+      const textarea = markdownRef.current;
+      if (!textarea) return;
+      if (urls.length === 1) {
+        insertAtCursor(textarea, markdownSource, `\n\n![图片](${urls[0]})\n\n`, handleMarkdownChange);
+        return;
+      }
+      const layout = suggestImageGroupLayout(urls.length);
+      const imgs = urls.map(u => `<img src="${u}" alt="">`).join('');
+      const block = `\n\n<div data-image-group data-layout="${layout}" class="image-group image-group--${layout}">${imgs}</div>\n\n`;
+      insertAtCursor(textarea, markdownSource, block, handleMarkdownChange);
+      return;
+    }
+    if (!editor) return;
     if (urls.length === 1) {
       editor.chain().focus().setImage({ src: urls[0] }).run();
       return;
     }
     editor.chain().focus().insertImageGroup(urls, suggestImageGroupLayout(urls.length)).run();
-  }, [editor]);
+  }, [editor, imagePickerTarget, markdownSource, handleMarkdownChange]);
 
   const setImageDisplay = useCallback((display: ImageDisplay) => {
     if (!editor) return;
@@ -596,21 +639,6 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     fn(textarea, markdownSource, handleMarkdownChange);
   }, [markdownSource, handleMarkdownChange]);
 
-  const insertMarkdownImage = useCallback(async () => {
-    const textarea = markdownRef.current;
-    if (!textarea) return;
-    const urls = await uploadPostImageFiles(true);
-    if (!urls.length) return;
-    if (urls.length === 1) {
-      insertAtCursor(textarea, markdownSource, `\n\n![图片](${urls[0]})\n\n`, handleMarkdownChange);
-      return;
-    }
-    const layout = suggestImageGroupLayout(urls.length);
-    const imgs = urls.map(u => `<img src="${u}" alt="">`).join('');
-    const block = `\n\n<div data-image-group data-layout="${layout}" class="image-group image-group--${layout}">${imgs}</div>\n\n`;
-    insertAtCursor(textarea, markdownSource, block, handleMarkdownChange);
-  }, [markdownSource, handleMarkdownChange]);
-
   const markdownPreviewHtml = useMemo(
     () => sanitizeHtml(markdownToHtml(markdownSource)),
     [markdownSource],
@@ -637,9 +665,9 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       { icon: <LinkIcon size={15} />, title: '链接', active: editor.isActive('link'), action: () => openLinkDialog('rich') },
       {
         icon: <ImageIcon size={15} />,
-        title: '上传图片',
-        hint: '可多选；多张自动并排成图组',
-        action: setImage,
+        title: '图片',
+        hint: '上传、链接或从已上传中选择',
+        action: () => openImagePicker('rich'),
       },
       {
         icon: <Columns2 size={15} />,
@@ -732,7 +760,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     }
 
     return tools;
-  }, [editor, enableContentGates, openLinkDialog, openCodeBlockDialog, openTableDialog, setImage, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, enableContentGates, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => {
     const tools: ToolBtn[] = [
@@ -748,7 +776,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       { icon: <Code size={15} />, title: '代码块', hint: '语言、行号与折叠', action: () => openCodeBlockDialog('markdown') },
       { icon: <TableIcon size={15} />, title: '表格', hint: '插入 GFM 管道表', action: () => openTableDialog('markdown') },
       { icon: <LinkIcon size={15} />, title: '链接', action: () => openLinkDialog('markdown') },
-      { icon: <ImageIcon size={15} />, title: '上传图片', action: insertMarkdownImage },
+      {
+        icon: <ImageIcon size={15} />,
+        title: '图片',
+        hint: '上传、链接或从已上传中选择',
+        action: () => openImagePicker('markdown'),
+      },
     ];
     if (enableContentGates) {
       tools.push(
@@ -776,7 +809,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       );
     }
     return tools;
-  }, [enableContentGates, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, insertMarkdownImage]);
+  }, [enableContentGates, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'
@@ -897,8 +930,15 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
         initialUrl={linkDialogUrl}
+        initialText={linkDialogText}
+        editing={linkDialogEditing}
         onConfirm={applyLink}
-        onRemove={linkTarget === 'rich' && linkDialogUrl ? removeLink : undefined}
+        onRemove={linkTarget === 'rich' && linkDialogEditing ? removeLink : undefined}
+      />
+      <ArticleImagePickerDialog
+        open={imagePickerOpen}
+        onOpenChange={setImagePickerOpen}
+        onInsert={applyImageUrls}
       />
       <ArticleCodeBlockDialog
         open={codeBlockDialogOpen}

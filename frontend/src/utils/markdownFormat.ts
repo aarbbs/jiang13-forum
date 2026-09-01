@@ -122,9 +122,12 @@ export function insertMarkdownLink(
   value: string,
   url: string,
   onChange: ChangeHandler,
+  opts?: { text?: string },
 ) {
   const { selectionStart, selectionEnd } = textarea;
-  const selected = value.slice(selectionStart, selectionEnd) || '链接文字';
+  const selected = opts?.text?.trim()
+    || value.slice(selectionStart, selectionEnd)
+    || '链接文字';
   const insert = `[${selected}](${url})`;
   const next = value.slice(0, selectionStart) + insert + value.slice(selectionEnd);
   applyTextareaChange(

@@ -8,6 +8,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// APIMyPostImages 当前用户已上传的帖子图片列表
+func (h *Handlers) APIMyPostImages(c *gin.Context) {
+	if h.Store == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "上传存储未初始化"})
+		return
+	}
+	uid := h.currentUserID(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "24"))
+	result, err := h.Store.ListUserPostImages(uid, page, size)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // APIAdminMedia 列出媒体资源
 func (h *Handlers) APIAdminMedia(c *gin.Context) {
 	if h.Store == nil {

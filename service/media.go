@@ -154,6 +154,122 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 	}, nil
 }
 
+// ListUserPostImages 列出当前用户历史上传的帖子图片（category=posts）
+func (s *UploadStore) ListUserPostImages(userID uint, page, size int) (*MediaListResult, error) {
+	if s == nil {
+		return nil, errors.New("上传存储未初始化")
+	}
+	if model.DB == nil {
+		return nil, errors.New("数据库未初始化")
+	}
+	if userID == 0 {
+		return nil, errors.New("未登录")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 24
+	}
+	if size > 100 {
+		size = 100
+	}
+
+	var records []model.Media
+	if err := model.DB.Where("category = ? AND user_id = ?", UploadCategoryPosts, userID).
+		Order("created_at desc, id desc").
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	// 上传会登记原图 + WebP；图库按 stem 去重，优先展示 WebP（与插入 URL 一致）
+	records = dedupePostMediaPreferWebP(records)
+
+	total := len(records)
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + size - 1) / size
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := (page - 1) * size
+	if start > total {
+		start = total
+	}
+	end := start + size
+	if end > total {
+		end = total
+	}
+	pageRecords := records[start:end]
+
+	files := make([]MediaItem, 0, len(pageRecords))
+	for _, r := range pageRecords {
+		mod := r.UpdatedAt
+		if mod.IsZero() {
+			mod = r.CreatedAt
+		}
+		files = append(files, MediaItem{
+			Category:    r.Category,
+			Name:        r.Name,
+			URL:         r.URL,
+			Size:        r.Size,
+			ModifiedAt:  mod.UTC(),
+			ContentType: r.ContentType,
+			StorageType: r.StorageType,
+		})
+	}
+
+	mode, _, _, _ := s.snapshot()
+	storageType := config.StorageTypeLocal
+	if mode == config.StorageTypeS3 {
+		storageType = config.StorageTypeS3
+	}
+
+	return &MediaListResult{
+		Files:          files,
+		Total:          total,
+		Page:           page,
+		TotalPages:     totalPages,
+		StorageType:    storageType,
+		CategoryCounts: map[string]int{UploadCategoryPosts: total},
+	}, nil
+}
+
+// dedupePostMediaPreferWebP 同一上传的原图/WebP 只保留一条，优先 WebP
+func dedupePostMediaPreferWebP(records []model.Media) []model.Media {
+	type slot struct {
+		idx    int
+		isWebP bool
+	}
+	seen := map[string]slot{}
+	out := make([]model.Media, 0, len(records))
+	for _, r := range records {
+		stem := mediaFileStem(r.Name)
+		isWebP := strings.EqualFold(filepath.Ext(r.Name), ".webp") ||
+			strings.EqualFold(r.ContentType, "image/webp")
+		if s, ok := seen[stem]; ok {
+			if isWebP && !s.isWebP {
+				out[s.idx] = r
+				seen[stem] = slot{idx: s.idx, isWebP: true}
+			}
+			continue
+		}
+		seen[stem] = slot{idx: len(out), isWebP: isWebP}
+		out = append(out, r)
+	}
+	return out
+}
+
+func mediaFileStem(name string) string {
+	name = filepath.Base(strings.TrimSpace(name))
+	ext := filepath.Ext(name)
+	if ext == "" {
+		return strings.ToLower(name)
+	}
+	return strings.ToLower(strings.TrimSuffix(name, ext))
+}
+
 // DeleteMedia 按 URL 批量删除媒体（含伴生扩展名与数据库索引）
 func (s *UploadStore) DeleteMedia(urls []string) (int, error) {
 	if s == nil {

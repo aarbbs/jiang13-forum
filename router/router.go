@@ -177,6 +177,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.POST("/profile/password", h.APIUpdatePassword)
 		api.POST("/profile/avatar", h.APIUploadAvatar)
 		api.POST("/uploads/image", h.APIUploadPostImage)
+		api.GET("/uploads/images", h.APIMyPostImages)
 		api.POST("/posts", middleware.RateLimitMiddleware(limiter, "post"), h.APICreatePost)
 		api.PUT("/posts/:id", h.APIUpdatePost)
 		api.DELETE("/posts/:id", h.APIDeletePost)

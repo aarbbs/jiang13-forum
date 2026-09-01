@@ -419,6 +419,14 @@ export const api = {
     fd.append('image', file);
     return request<{ url: string }>('/api/uploads/image', { method: 'POST', body: fd, headers: {} });
   },
+  /** 当前用户历史上传的帖子图片 */
+  myPostImages: (params?: { page?: number; size?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.size) q.set('size', String(params.size));
+    const qs = q.toString();
+    return request<MediaListResult>(`/api/uploads/images${qs ? `?${qs}` : ''}`);
+  },
   createPost: (data: {
     board_id: string; title: string; content: string; tags?: string; post_type?: string;
     poll_options?: string; bounty_points?: number; lottery_winner_count?: number;
