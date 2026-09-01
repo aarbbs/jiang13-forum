@@ -664,6 +664,8 @@ export const api = {
   },
   markNotificationsRead: () =>
     request<{ message: string }>('/api/messages/notifications/read', { method: 'POST' }),
+  markMessageRead: (id: number) =>
+    request<{ message: string }>(`/api/messages/${id}/read`, { method: 'POST' }),
   sendMessage: (body: { to_user_id: number; subject?: string; content: string }) =>
     request<{ message: PrivateMessage }>('/api/messages', {
       method: 'POST', body: JSON.stringify(body),

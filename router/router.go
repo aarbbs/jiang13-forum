@@ -195,6 +195,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		api.GET("/messages/unread-count", h.APIMessageUnreadCount)
 		api.GET("/messages/notifications", h.APIMessageNotifications)
 		api.POST("/messages/notifications/read", h.APIMarkNotificationsRead)
+		api.POST("/messages/:id/read", h.APIMarkMessageRead)
 		api.GET("/messages/conversations", h.APIMessageConversations)
 		api.GET("/messages/conversations/:peerId", h.APIConversationMessages)
 		api.POST("/messages/conversations/:peerId/read", h.APIMarkConversationRead)

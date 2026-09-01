@@ -3,11 +3,13 @@ package service
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"git.iioio.com/freefire/jiang13-forum/model"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,13 +26,15 @@ func NewMessageService(filter *SensitiveFilter, settings *ForumSettingsService) 
 }
 
 type MessageSendInput struct {
-	FromUserID      uint
-	ToUserID        uint
-	Subject         string
-	Content         string
-	Kind            string
-	RelatedPostID   *uint
-	RelatedReportID *uint
+	FromUserID       uint
+	ToUserID         uint
+	Subject          string
+	Content          string
+	Kind             string
+	RelatedPostID    *uint
+	RelatedReportID  *uint
+	RelatedCommentID *uint
+	RelatedFloor     *int
 }
 
 // Send 发送私信（用户互发或系统通知）
@@ -82,14 +86,16 @@ func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error
 	}
 
 	msg := &model.PrivateMessage{
-		FromUserID:      in.FromUserID,
-		ToUserID:        in.ToUserID,
-		Subject:         subject,
-		Content:         content,
-		Kind:            kind,
-		RelatedPostID:   in.RelatedPostID,
-		RelatedReportID: in.RelatedReportID,
-		IsRead:          false,
+		FromUserID:       in.FromUserID,
+		ToUserID:         in.ToUserID,
+		Subject:          subject,
+		Content:          content,
+		Kind:             kind,
+		RelatedPostID:    in.RelatedPostID,
+		RelatedReportID:  in.RelatedReportID,
+		RelatedCommentID: in.RelatedCommentID,
+		RelatedFloor:     in.RelatedFloor,
+		IsRead:           false,
 	}
 	if err := model.DB.Create(msg).Error; err != nil {
 		return nil, err
@@ -98,20 +104,52 @@ func (s *MessageService) Send(in MessageSendInput) (*model.PrivateMessage, error
 	return msg, nil
 }
 
+// SystemNotifyRefs 系统通知关联目标（帖子 / 评论 / 举报）
+type SystemNotifyRefs struct {
+	PostID    *uint
+	ReportID  *uint
+	CommentID *uint
+	Floor     *int
+}
+
 // SendSystem 系统私信（管理员/系统 → 用户）
 func (s *MessageService) SendSystem(toUserID uint, subject, content, kind string, relatedPostID, relatedReportID *uint) (*model.PrivateMessage, error) {
+	return s.SendSystemWithRefs(toUserID, subject, content, kind, SystemNotifyRefs{
+		PostID:   relatedPostID,
+		ReportID: relatedReportID,
+	})
+}
+
+// SendSystemWithRefs 系统私信（可附带评论楼层深链）
+func (s *MessageService) SendSystemWithRefs(toUserID uint, subject, content, kind string, refs SystemNotifyRefs) (*model.PrivateMessage, error) {
 	if kind == "" {
 		kind = model.MessageKindSystem
 	}
 	return s.Send(MessageSendInput{
-		FromUserID:      0,
-		ToUserID:        toUserID,
-		Subject:         subject,
-		Content:         content,
-		Kind:            kind,
-		RelatedPostID:   relatedPostID,
-		RelatedReportID: relatedReportID,
+		FromUserID:       0,
+		ToUserID:         toUserID,
+		Subject:          subject,
+		Content:          content,
+		Kind:             kind,
+		RelatedPostID:    refs.PostID,
+		RelatedReportID:  refs.ReportID,
+		RelatedCommentID: refs.CommentID,
+		RelatedFloor:     refs.Floor,
 	})
+}
+
+// MarkMessageRead 将单条消息标为已读（仅收件人本人）
+func (s *MessageService) MarkMessageRead(userID, messageID uint) error {
+	if messageID == 0 {
+		return errors.New("无效的消息")
+	}
+	res := model.DB.Model(&model.PrivateMessage{}).
+		Where("id = ? AND to_user_id = ? AND is_read = ?", messageID, userID, false).
+		Update("is_read", true)
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 // MarkAllRead 全部标为已读
@@ -175,7 +213,210 @@ func (s *MessageService) ListNotifications(userID uint, page, size int, kind str
 	if list == nil {
 		list = []model.PrivateMessage{}
 	}
+	s.enrichModerationStatus(list)
 	return list, total, nil
+}
+
+// enrichModerationStatus 为待审通知回填目标当前审核状态
+func (s *MessageService) enrichModerationStatus(list []model.PrivateMessage) {
+	if len(list) == 0 {
+		return
+	}
+
+	resolvedByIndex := enrichModerationCommentIDs(list)
+
+	commentIDs := make([]uint, 0, len(list))
+	postIDs := make([]uint, 0, len(list))
+	// 历史评论通知：按帖+楼层回查（兜底）
+	type pfKey struct {
+		PostID uint
+		Floor  int
+	}
+	pfNeeded := make([]pfKey, 0, len(list))
+	seenC := map[uint]struct{}{}
+	seenP := map[uint]struct{}{}
+	seenPF := map[pfKey]struct{}{}
+
+	for i := range list {
+		m := &list[i]
+		if m.Kind != model.MessageKindModeration {
+			continue
+		}
+		if m.RelatedCommentID != nil && *m.RelatedCommentID > 0 {
+			id := *m.RelatedCommentID
+			if _, ok := seenC[id]; !ok {
+				seenC[id] = struct{}{}
+				commentIDs = append(commentIDs, id)
+			}
+			continue
+		}
+		if cid, ok := resolvedByIndex[i]; ok && cid > 0 {
+			if _, ok := seenC[cid]; !ok {
+				seenC[cid] = struct{}{}
+				commentIDs = append(commentIDs, cid)
+			}
+			continue
+		}
+		if m.RelatedPostID == nil || *m.RelatedPostID == 0 {
+			continue
+		}
+		pid := *m.RelatedPostID
+		if looksLikeModerationComment(m.Subject, m.Content) {
+			floor := 0
+			if m.RelatedFloor != nil && *m.RelatedFloor > 0 {
+				floor = *m.RelatedFloor
+			} else {
+				floor = parseNotifyFloor(m.Content)
+			}
+			if floor > 0 {
+				k := pfKey{PostID: pid, Floor: floor}
+				if _, ok := seenPF[k]; !ok {
+					seenPF[k] = struct{}{}
+					pfNeeded = append(pfNeeded, k)
+				}
+			}
+			continue
+		}
+		if _, ok := seenP[pid]; !ok {
+			seenP[pid] = struct{}{}
+			postIDs = append(postIDs, pid)
+		}
+	}
+
+	commentStatus := map[uint]string{}
+	if len(commentIDs) > 0 {
+		type row struct {
+			ID        uint
+			Status    string
+			DeletedAt gorm.DeletedAt
+		}
+		var rows []row
+		_ = model.DB.Unscoped().Model(&model.Comment{}).
+			Select("id", "status", "deleted_at").
+			Where("id IN ?", commentIDs).
+			Find(&rows)
+		for _, r := range rows {
+			commentStatus[r.ID] = contentStatusOrDeleted(r.Status, r.DeletedAt)
+		}
+		for _, id := range commentIDs {
+			if _, ok := commentStatus[id]; !ok {
+				commentStatus[id] = "deleted"
+			}
+		}
+	}
+
+	statusByPF := map[pfKey]string{}
+	if len(pfNeeded) > 0 {
+		postSet := map[uint]struct{}{}
+		for _, k := range pfNeeded {
+			postSet[k.PostID] = struct{}{}
+		}
+		pids := make([]uint, 0, len(postSet))
+		for id := range postSet {
+			pids = append(pids, id)
+		}
+		type row struct {
+			PostID    uint
+			Floor     int
+			Status    string
+			DeletedAt gorm.DeletedAt
+		}
+		var rows []row
+		_ = model.DB.Unscoped().Model(&model.Comment{}).
+			Select("post_id", "floor", "status", "deleted_at").
+			Where("post_id IN ?", pids).
+			Find(&rows)
+		for _, r := range rows {
+			k := pfKey{PostID: r.PostID, Floor: r.Floor}
+			// 同楼多条时后者覆盖；正常业务一帖一楼唯一
+			statusByPF[k] = contentStatusOrDeleted(r.Status, r.DeletedAt)
+		}
+		for _, k := range pfNeeded {
+			if _, ok := statusByPF[k]; !ok {
+				statusByPF[k] = "deleted"
+			}
+		}
+	}
+
+	postStatus := map[uint]string{}
+	if len(postIDs) > 0 {
+		type row struct {
+			ID        uint
+			Status    string
+			DeletedAt gorm.DeletedAt
+		}
+		var rows []row
+		_ = model.DB.Unscoped().Model(&model.Post{}).
+			Select("id", "status", "deleted_at").
+			Where("id IN ?", postIDs).
+			Find(&rows)
+		for _, r := range rows {
+			postStatus[r.ID] = contentStatusOrDeleted(r.Status, r.DeletedAt)
+		}
+		for _, id := range postIDs {
+			if _, ok := postStatus[id]; !ok {
+				postStatus[id] = "deleted"
+			}
+		}
+	}
+
+	for i := range list {
+		m := &list[i]
+		if m.Kind != model.MessageKindModeration {
+			continue
+		}
+		if m.RelatedCommentID != nil && *m.RelatedCommentID > 0 {
+			m.RelatedStatus = commentStatus[*m.RelatedCommentID]
+			continue
+		}
+		if cid, ok := resolvedByIndex[i]; ok && cid > 0 {
+			m.RelatedStatus = commentStatus[cid]
+			continue
+		}
+		if m.RelatedPostID == nil || *m.RelatedPostID == 0 {
+			continue
+		}
+		pid := *m.RelatedPostID
+		if looksLikeModerationComment(m.Subject, m.Content) {
+			floor := 0
+			if m.RelatedFloor != nil && *m.RelatedFloor > 0 {
+				floor = *m.RelatedFloor
+			} else {
+				floor = parseNotifyFloor(m.Content)
+			}
+			if floor > 0 {
+				m.RelatedStatus = statusByPF[pfKey{PostID: pid, Floor: floor}]
+			}
+			continue
+		}
+		m.RelatedStatus = postStatus[pid]
+	}
+}
+
+var notifyFloorRe = regexp.MustCompile(`#(\d+)\s*楼`)
+
+// parseNotifyFloor 从待审评论文案解析楼号（如「#2 楼评论」「#1 楼下」）
+func parseNotifyFloor(content string) int {
+	m := notifyFloorRe.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return 0
+	}
+	var n int
+	_, _ = fmt.Sscanf(m[1], "%d", &n)
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
+func contentStatusOrDeleted(status string, deletedAt gorm.DeletedAt) string {
+	if deletedAt.Valid {
+		return "deleted"
+	}
+	if status != "" {
+		return status
+	}
+	return model.ContentStatusPublished
 }
 
 // MarkNotificationsRead 将系统通知全部标为已读

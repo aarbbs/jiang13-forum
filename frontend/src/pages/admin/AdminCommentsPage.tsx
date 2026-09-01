@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,8 @@ function formatAdminTime(iso: string) {
 
 export default function AdminCommentsPage() {
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = Number(searchParams.get('id') || 0) || 0;
   const { ready } = useAdminGuard();
   const [tab, setTab] = useState<Tab>('pending');
   const [comments, setComments] = useState<Comment[]>([]);
@@ -49,6 +51,9 @@ export default function AdminCommentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [pendingCount, setPendingCount] = useState(0);
   const [revComment, setRevComment] = useState<Comment | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(focusId > 0 ? focusId : null);
+  const focusTriedRef = useRef(false);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const loadList = (p = page, st: Tab = tab) => {
     setLoading(true);
@@ -89,6 +94,45 @@ export default function AdminCommentsPage() {
     if (ready) load(1, tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, tab]);
+
+  // 从通知深链 ?id= 定位并高亮待审行
+  useEffect(() => {
+    if (!ready || loading || focusId <= 0 || focusTriedRef.current) return;
+    if (tab === 'trash') return;
+
+    const found = comments.find((c) => c.id === focusId);
+    if (found) {
+      focusTriedRef.current = true;
+      setHighlightId(focusId);
+      requestAnimationFrame(() => {
+        document.getElementById(`admin-comment-row-${focusId}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      });
+      clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => setHighlightId(null), 2800);
+      const next = new URLSearchParams(searchParams);
+      next.delete('id');
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
+    // pending 未找到则切到全部再试一次
+    if (tab === 'pending') {
+      setTab('all');
+      setPage(1);
+      return;
+    }
+
+    focusTriedRef.current = true;
+    notify.warning('该评论可能已审核或不在当前列表');
+    const next = new URLSearchParams(searchParams);
+    next.delete('id');
+    setSearchParams(next, { replace: true });
+  }, [ready, loading, comments, focusId, tab, searchParams, setSearchParams]);
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), []);
 
   const approve = async (id: number) => {
     try {
@@ -268,7 +312,11 @@ export default function AdminCommentsPage() {
               </thead>
               <tbody>
                 {comments.map(c => (
-                  <tr key={c.id}>
+                  <tr
+                    key={c.id}
+                    id={`admin-comment-row-${c.id}`}
+                    className={cn(highlightId === c.id && 'admin-row-highlight')}
+                  >
                     <td>{c.id}</td>
                     <td>#{c.floor}</td>
                     <td>

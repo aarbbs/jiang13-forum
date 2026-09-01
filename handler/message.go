@@ -136,6 +136,20 @@ func (h *Handlers) APIMarkNotificationsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "通知已全部标为已读"})
 }
 
+// APIMarkMessageRead 单条消息已读
+func (h *Handlers) APIMarkMessageRead(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的消息"})
+		return
+	}
+	if err := h.Message.MarkMessageRead(h.currentUserID(c), uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已标为已读"})
+}
+
 // APISendMessage 发送私信
 func (h *Handlers) APISendMessage(c *gin.Context) {
 	var req struct {

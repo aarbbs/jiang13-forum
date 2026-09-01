@@ -72,6 +72,8 @@ export default function MainLayout() {
   const [recentComments, setRecentComments] = useState<RecentComment[]>(() => getCachedRecentComments());
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>(() => getCachedRecentUsers());
   const [unreadMessages, setUnreadMessages] = useState(() => getBootUnread());
+  const [dmUnread, setDmUnread] = useState(0);
+  const [notifyUnread, setNotifyUnread] = useState(0);
   const [tags, setTags] = useState<TagCount[]>(() => getCachedTags());
   const [tagsLoading, setTagsLoading] = useState(() => getCachedTags().length === 0);
   const [postOutline, setPostOutline] = useState<{
@@ -309,12 +311,28 @@ export default function MainLayout() {
   const refreshUnreadMessages = useCallback(() => {
     if (!user) {
       setUnreadMessages(0);
+      setDmUnread(0);
+      setNotifyUnread(0);
       return;
     }
     api.messageUnreadCount()
-      .then((r) => setUnreadMessages(r.count || 0))
-      .catch(() => setUnreadMessages(0));
+      .then((r) => {
+        setUnreadMessages(r.count || 0);
+        setDmUnread(r.dm_count ?? 0);
+        setNotifyUnread(r.notify_count ?? 0);
+      })
+      .catch(() => {
+        setUnreadMessages(0);
+        setDmUnread(0);
+        setNotifyUnread(0);
+      });
   }, [user]);
+
+  /** 仅有通知未读时直达通知 Tab，避免先看到空私信列表 */
+  const openMessages = useCallback(() => {
+    const path = notifyUnread > 0 && dmUnread === 0 ? '/messages?tab=notify' : '/messages';
+    void transitionTo(nav, path);
+  }, [nav, notifyUnread, dmUnread]);
 
   useEffect(() => {
     refreshUnreadMessages();
@@ -667,7 +685,7 @@ export default function MainLayout() {
                   className="header-icon-btn header-msg-btn"
                   title={unreadMessages > 0 ? `${unreadMessages} 条未读消息` : '站内消息'}
                   aria-label={unreadMessages > 0 ? `站内消息，${unreadMessages} 条未读` : '站内消息'}
-                  onClick={() => void transitionTo(nav, '/messages')}
+                  onClick={openMessages}
                 >
                   <Mail size={18} aria-hidden />
                   {unreadMessages > 0 && (
@@ -691,7 +709,7 @@ export default function MainLayout() {
                     <DropdownMenuItem onClick={() => void transitionTo(nav, '/profile')}>
                       账号设置{typeof user.points === 'number' ? ` · ${user.points} 积分` : ''}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void transitionTo(nav, '/messages')}>
+                    <DropdownMenuItem onClick={openMessages}>
                       站内消息{unreadMessages > 0 ? ` (${unreadMessages})` : ''}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => void transitionTo(nav, '/favorites')}>我的收藏</DropdownMenuItem>

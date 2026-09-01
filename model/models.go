@@ -226,16 +226,20 @@ const (
 
 // PrivateMessage 站内私信
 type PrivateMessage struct {
-	ID              uint      `gorm:"primaryKey" json:"id"`
-	FromUserID      uint      `gorm:"index;not null" json:"from_user_id"` // 0 表示系统
-	ToUserID        uint      `gorm:"index;not null" json:"to_user_id"`
-	Subject         string    `gorm:"size:256;not null" json:"subject"`
-	Content         string    `gorm:"type:text;not null" json:"content"`
-	Kind            string    `gorm:"size:32;default:user;index" json:"kind"`
-	RelatedPostID   *uint     `gorm:"index" json:"related_post_id,omitempty"`
-	RelatedReportID *uint     `gorm:"index" json:"related_report_id,omitempty"`
-	IsRead          bool      `gorm:"default:false;index" json:"is_read"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	FromUserID        uint      `gorm:"index;not null" json:"from_user_id"` // 0 表示系统
+	ToUserID          uint      `gorm:"index;not null" json:"to_user_id"`
+	Subject           string    `gorm:"size:256;not null" json:"subject"`
+	Content           string    `gorm:"type:text;not null" json:"content"`
+	Kind              string    `gorm:"size:32;default:user;index" json:"kind"`
+	RelatedPostID     *uint     `gorm:"index" json:"related_post_id,omitempty"`
+	RelatedReportID   *uint     `gorm:"index" json:"related_report_id,omitempty"`
+	RelatedCommentID  *uint     `gorm:"index" json:"related_comment_id,omitempty"`
+	RelatedFloor      *int      `json:"related_floor,omitempty"` // 评论自身楼号，对应 #floor-N
+	IsRead            bool      `gorm:"default:false;index" json:"is_read"`
+	CreatedAt         time.Time `json:"created_at"`
+	// RelatedStatus 列表接口实时回填：pending|published|rejected|deleted（不落库）
+	RelatedStatus string `json:"related_status,omitempty" gorm:"-"`
 
 	FromUser User `gorm:"foreignKey:FromUserID" json:"from_user,omitempty"`
 	ToUser   User `gorm:"foreignKey:ToUserID" json:"to_user,omitempty"`

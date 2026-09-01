@@ -305,14 +305,20 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 		if commentAuthorID > 0 {
 			pid := postID
 			rid := rep.ID
+			cid := *rep.CommentID
+			floor := commentFloor
 			body := fmt.Sprintf("你在帖子《%s》下的评论（#%d）未通过审核。\n\n原因：\n%s", postTitle, commentFloor, reason)
-			_, _ = s.messages.SendSystem(
+			_, _ = s.messages.SendSystemWithRefs(
 				commentAuthorID,
 				fmt.Sprintf("评论未通过审核 · 《%s》", postTitle),
 				body,
 				model.MessageKindReject,
-				&pid,
-				&rid,
+				SystemNotifyRefs{
+					PostID:    &pid,
+					ReportID:  &rid,
+					CommentID: &cid,
+					Floor:     &floor,
+				},
 			)
 		}
 	default:
@@ -345,13 +351,19 @@ func (s *ReportService) Handle(in HandleReportInput) (*model.PostReport, error) 
 	}
 	pid := postID
 	rid := rep.ID
-	_, _ = s.messages.SendSystem(
+	resultRefs := SystemNotifyRefs{PostID: &pid, ReportID: &rid}
+	if isCommentReport && rep.CommentID != nil {
+		cid := *rep.CommentID
+		floor := commentFloor
+		resultRefs.CommentID = &cid
+		resultRefs.Floor = &floor
+	}
+	_, _ = s.messages.SendSystemWithRefs(
 		rep.ReporterID,
 		"举报处理结果通知",
 		content,
 		model.MessageKindReportResult,
-		&pid,
-		&rid,
+		resultRefs,
 	)
 
 	_ = model.DB.Preload("Post", func(tx *gorm.DB) *gorm.DB {

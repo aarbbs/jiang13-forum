@@ -96,9 +96,15 @@ func (s *NotifyService) NotifyCommentPublished(comment *model.Comment) {
 	subject := "收到新回复"
 	content := FormatReplyContent(authorName, title, displayFloor, isNested)
 	pid := comment.PostID
-	_, _ = s.messages.SendSystem(toUserID, subject, content, model.MessageKindReply, &pid, nil)
+	cid := comment.ID
+	floor := comment.Floor
+	_, _ = s.messages.SendSystemWithRefs(toUserID, subject, content, model.MessageKindReply, SystemNotifyRefs{
+		PostID:    &pid,
+		CommentID: &cid,
+		Floor:     &floor,
+	})
 
-	s.sendReplyMail(toUserID, authorName, title, comment.PostID, displayFloor, isNested, comment.Content)
+	s.sendReplyMail(toUserID, authorName, title, comment.PostID, comment.Floor, displayFloor, isNested, comment.Content)
 }
 
 // NotifyCommentMentions 评论公开后通知被 @提及的用户（跳过已收到回复通知的人）
@@ -125,6 +131,8 @@ func (s *NotifyService) NotifyCommentMentions(comment *model.Comment) {
 	}
 	displayFloor := s.resolveDisplayFloor(comment)
 	pid := comment.PostID
+	cid := comment.ID
+	floor := comment.Floor
 	subject := "有人 @了你"
 	content := FormatMentionContent(authorName, title, displayFloor)
 
@@ -132,7 +140,11 @@ func (s *NotifyService) NotifyCommentMentions(comment *model.Comment) {
 		if uid == 0 || uid == comment.UserID || uid == replyTo {
 			continue
 		}
-		_, _ = s.messages.SendSystem(uid, subject, content, model.MessageKindMention, &pid, nil)
+		_, _ = s.messages.SendSystemWithRefs(uid, subject, content, model.MessageKindMention, SystemNotifyRefs{
+			PostID:    &pid,
+			CommentID: &cid,
+			Floor:     &floor,
+		})
 	}
 }
 
@@ -149,8 +161,9 @@ func (s *NotifyService) NotifyPendingPost(post *model.Post) {
 	subject := "新的待审核帖子"
 	content := FormatPendingPostContent(authorName, title, post.ID)
 	pid := post.ID
-	s.notifyAdmins(subject, content, model.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
-		return BuildModerationMail(siteName, "帖子", authorName, title, post.ID, 0, false, AbsoluteURL(baseURL, "/admin/posts"))
+	s.notifyAdmins(subject, content, model.MessageKindModeration, SystemNotifyRefs{PostID: &pid}, func(siteName, baseURL string) (string, string, string) {
+		adminPath := fmt.Sprintf("/admin/posts?id=%d", post.ID)
+		return BuildModerationMail(siteName, "帖子", authorName, title, post.ID, 0, false, AbsoluteURL(baseURL, adminPath))
 	})
 }
 
@@ -173,14 +186,21 @@ func (s *NotifyService) NotifyPendingComment(comment *model.Comment) {
 	isNested := comment.ReplyTo != nil && *comment.ReplyTo > 0
 	content := FormatPendingCommentContent(authorName, title, displayFloor, isNested)
 	pid := comment.PostID
-	s.notifyAdmins(subject, content, model.MessageKindModeration, &pid, func(siteName, baseURL string) (string, string, string) {
-		return BuildModerationMail(siteName, "评论", authorName, title, comment.PostID, displayFloor, isNested, AbsoluteURL(baseURL, "/admin/comments"))
+	cid := comment.ID
+	floor := comment.Floor
+	adminPath := fmt.Sprintf("/admin/comments?id=%d", comment.ID)
+	s.notifyAdmins(subject, content, model.MessageKindModeration, SystemNotifyRefs{
+		PostID:    &pid,
+		CommentID: &cid,
+		Floor:     &floor,
+	}, func(siteName, baseURL string) (string, string, string) {
+		return BuildModerationMail(siteName, "评论", authorName, title, comment.PostID, displayFloor, isNested, AbsoluteURL(baseURL, adminPath))
 	})
 }
 
 func (s *NotifyService) notifyAdmins(
 	subject, content, kind string,
-	relatedPostID *uint,
+	refs SystemNotifyRefs,
 	buildMail func(siteName, baseURL string) (subj, text, html string),
 ) {
 	admins, err := s.listAdmins()
@@ -197,7 +217,7 @@ func (s *NotifyService) notifyAdmins(
 	}
 
 	for _, admin := range admins {
-		_, _ = s.messages.SendSystem(admin.ID, subject, content, kind, relatedPostID, nil)
+		_, _ = s.messages.SendSystemWithRefs(admin.ID, subject, content, kind, refs)
 		email := strings.TrimSpace(admin.Email)
 		if email == "" || mailSubj == "" {
 			continue
@@ -211,7 +231,7 @@ func (s *NotifyService) notifyAdmins(
 	}
 }
 
-func (s *NotifyService) sendReplyMail(toUserID uint, authorName, postTitle string, postID uint, displayFloor int, isNested bool, rawContent string) {
+func (s *NotifyService) sendReplyMail(toUserID uint, authorName, postTitle string, postID uint, ownFloor, displayFloor int, isNested bool, rawContent string) {
 	if s.mail == nil || !s.settings.MailReady() {
 		return
 	}
@@ -227,6 +247,10 @@ func (s *NotifyService) sendReplyMail(toUserID uint, authorName, postTitle strin
 	baseURL := s.settings.SitePublicBaseURL("")
 	postPath := s.settings.Permalink().PostPath(postID)
 	link := AbsoluteURL(baseURL, postPath)
+	// 直达评论自身楼层（嵌套回复也有独立 floor）
+	if ownFloor > 0 {
+		link = fmt.Sprintf("%s#floor-%d", link, ownFloor)
+	}
 	excerpt := truncateNotifyExcerpt(rawContent, 120)
 	subj, text, html := BuildReplyMail(siteName, authorName, postTitle, displayFloor, isNested, excerpt, link)
 	_ = s.mail.SendHTML(email, subj, text, html)

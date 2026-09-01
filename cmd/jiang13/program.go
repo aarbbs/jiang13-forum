@@ -12,6 +12,7 @@ import (
 	"github.com/kardianos/service"
 
 	"git.iioio.com/freefire/jiang13-forum/config"
+	forumsvc "git.iioio.com/freefire/jiang13-forum/service"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/router"
 )
@@ -77,6 +78,9 @@ func (p *program) setup() error {
 
 	if err := model.InitDB(cfg.DBPath()); err != nil {
 		return fmt.Errorf("数据库初始化失败: %w", err)
+	}
+	if err := forumsvc.BackfillModerationNotifyRefs(); err != nil {
+		log.Printf("待审通知关联字段回填警告: %v", err)
 	}
 	if err := model.InitMonitorDB(cfg.MonitorDBPath()); err != nil {
 		return fmt.Errorf("监控库初始化失败: %w", err)

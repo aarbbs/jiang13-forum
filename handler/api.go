@@ -421,13 +421,18 @@ func (h *Handlers) APIAdminRejectComment(c *gin.Context) {
 			title = "未知帖子"
 		}
 		pid := comment.PostID
-		_, _ = h.Message.SendSystem(
+		cid := comment.ID
+		floor := comment.Floor
+		_, _ = h.Message.SendSystemWithRefs(
 			comment.UserID,
 			"评论未通过审核",
 			service.FormatCommentRejectContent(title, comment.PostID, comment.Floor, reason),
 			model.MessageKindReject,
-			&pid,
-			nil,
+			service.SystemNotifyRefs{
+				PostID:    &pid,
+				CommentID: &cid,
+				Floor:     &floor,
+			},
 		)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "已拒绝该评论并通知作者", "status": model.ContentStatusRejected})

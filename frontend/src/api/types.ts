@@ -717,9 +717,13 @@ export interface PrivateMessage {
   to_user_id: number;
   subject: string;
   content: string;
-  kind: 'user' | 'system' | 'reject' | 'report_result' | string;
+  kind: 'user' | 'system' | 'reject' | 'report_result' | 'reply' | 'mention' | 'moderation' | string;
   related_post_id?: number;
   related_report_id?: number;
+  related_comment_id?: number;
+  related_floor?: number;
+  /** 待审目标实时状态：pending|published|rejected|deleted */
+  related_status?: string;
   is_read: boolean;
   created_at: string;
   from_user?: User;

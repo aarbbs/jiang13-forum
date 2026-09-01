@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Lock, LockOpen, MessageSquareOff, Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,8 @@ function formatAdminTime(iso: string) {
 
 export default function AdminPostsPage() {
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = Number(searchParams.get('id') || 0) || 0;
   const { ready } = useAdminGuard();
   const [tab, setTab] = useState<Tab>('pending');
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -42,6 +44,9 @@ export default function AdminPostsPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [search, setSearch] = useState('');
+  const [highlightId, setHighlightId] = useState<number | null>(focusId > 0 ? focusId : null);
+  const focusTriedRef = useRef(false);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const loadActive = (p = page, kw = search, status = tab === 'pending' ? 'pending' : 'all') => {
     setLoading(true);
@@ -91,6 +96,43 @@ export default function AdminPostsPage() {
     load(1, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随 tab/search/ready 刷新
   }, [ready, search, tab]);
+
+  // 从通知深链 ?id= 定位并高亮
+  useEffect(() => {
+    if (!ready || loading || focusId <= 0 || focusTriedRef.current) return;
+    if (tab === 'trash') return;
+
+    const found = posts.find((p) => p.id === focusId);
+    if (found) {
+      focusTriedRef.current = true;
+      setHighlightId(focusId);
+      requestAnimationFrame(() => {
+        document.getElementById(`admin-post-row-${focusId}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      });
+      clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => setHighlightId(null), 2800);
+      const next = new URLSearchParams(searchParams);
+      next.delete('id');
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
+    if (tab === 'pending') {
+      setTab('active');
+      return;
+    }
+
+    focusTriedRef.current = true;
+    notify.warning('该帖子可能已审核或不在当前列表');
+    const next = new URLSearchParams(searchParams);
+    next.delete('id');
+    setSearchParams(next, { replace: true });
+  }, [ready, loading, posts, focusId, tab, searchParams, setSearchParams]);
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), []);
 
   const switchTab = (next: Tab) => {
     if (next === tab) return;
@@ -352,7 +394,11 @@ export default function AdminPostsPage() {
                 {posts.map(p => {
                   const edited = p.updated_at && isTimeDiffSignificant(p.created_at, p.updated_at);
                   return (
-                  <tr key={p.id}>
+                  <tr
+                    key={p.id}
+                    id={`admin-post-row-${p.id}`}
+                    className={cn(highlightId === p.id && 'admin-row-highlight')}
+                  >
                     <td>{p.id}</td>
                     <td className="max-w-[200px] truncate">
                       <button type="button" className="admin-text-link" onClick={() => nav(`/post/${p.id}`)}>
