@@ -20,6 +20,7 @@
 [快速开始](#-快速开始) ·
 [界面预览](#-界面预览) ·
 [功能亮点](#-功能亮点) ·
+[更新日志](docs/site-posts/changelog.md) ·
 [路线图](ROADMAP.md) ·
 [参与贡献](CONTRIBUTING.md)
 
@@ -172,6 +173,11 @@ make compose-up
 
 浏览器打开 `http://localhost:3000/register` 注册；**首个用户自动成为管理员**。
 
+版本变更与升级说明见 **[更新日志](docs/site-posts/changelog.md)**。Docker 与 Windows / Linux 单文件共用同一版本号。
+
+- Docker 标签：[hub.docker.com/r/hangzhang714128/jiang13-forum/tags](https://hub.docker.com/r/hangzhang714128/jiang13-forum/tags)
+- 预编译包：[Gitea Releases](https://git.iioio.com/freefire/jiang13-forum/releases)
+
 **拉取已构建镜像（Docker Hub）：**
 
 ```bash
@@ -239,7 +245,29 @@ docker push hangzhang714128/jiang13-forum:latest
 
 ### 3. 直接启动（二进制）
 
-把二进制放到目标目录后直接运行（首次会在同目录生成 `app.ini`）：
+不想自己编译时，从 [Gitea Releases](https://git.iioio.com/freefire/jiang13-forum/releases) 下载与 Docker 同版本号的文件即可：
+
+| 文件 | 平台 |
+|------|------|
+| `jiang13-*-windows-amd64.exe` | Windows x64 |
+| `jiang13-*-linux-amd64` | Linux x64 |
+
+当前 **1.1.5：** [Windows](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-windows-amd64.exe) · [Linux](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-linux-amd64)
+
+把文件放到目标目录后直接运行（首次会在同目录生成 `app.ini`）：
+
+```bash
+# Windows
+.\jiang13-1.1.5-windows-amd64.exe
+# 或改名为 jiang13.exe 后：
+.\jiang13.exe
+
+# Linux
+chmod +x jiang13-1.1.5-linux-amd64
+./jiang13-1.1.5-linux-amd64
+```
+
+本地刚编译的产物在 `dist/`：
 
 ```bash
 # Windows
