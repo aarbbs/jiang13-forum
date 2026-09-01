@@ -10,7 +10,7 @@
 
 Docker 镜像、Windows exe、Linux 单文件 **共用同一版本号**。有新版本时，以本页为准。
 
-**当前版本：1.1.5**（2026-09-01）
+**当前版本：1.1.6**（2026-09-01）
 
 ## 去哪看新版本
 
@@ -21,16 +21,16 @@ Docker 镜像、Windows exe、Linux 单文件 **共用同一版本号**。有新
 | Windows / Linux | 预编译单文件（与 Docker 同版本） | [Gitea Releases](https://git.iioio.com/freefire/jiang13-forum/releases) |
 | 源码 | 提交记录与自行编译 | [Gitea 仓库](https://git.iioio.com/freefire/jiang13-forum) |
 
-**1.1.5 直接下载：**
+**1.1.6 直接下载：**
 
-- Windows x64：[jiang13-1.1.5-windows-amd64.exe](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-windows-amd64.exe)
-- Linux x64：[jiang13-1.1.5-linux-amd64](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-linux-amd64)
-- 校验文件：[SHA256SUMS.txt](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/SHA256SUMS.txt)
+- Windows x64：[jiang13-1.1.6-windows-amd64.exe](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.6/jiang13-1.1.6-windows-amd64.exe)
+- Linux x64：[jiang13-1.1.6-linux-amd64](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.6/jiang13-1.1.6-linux-amd64)
+- 校验文件：[SHA256SUMS.txt](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.6/SHA256SUMS.txt)
 
 拉取指定版本镜像：
 
 ```bash
-docker pull hangzhang714128/jiang13-forum:1.1.5
+docker pull hangzhang714128/jiang13-forum:1.1.6
 # 或始终跟随最新
 docker pull hangzhang714128/jiang13-forum:latest
 ```
@@ -46,6 +46,22 @@ Linux：赋予执行权限后放到原目录覆盖，同样保留 `data/` 与 `a
 - 升级后若页面样式异常，强制刷新浏览器（Ctrl+F5）。程序也会在前端资源失效时自动硬刷新。
 
 ---
+
+## 1.1.6 — 2026-09-01
+
+编辑器插入体验与首页默认 Feed 排序更合理。
+
+**新增 / 调整**
+
+- 链接对话框支持网址、链接文字与站内帖子/单页搜索；站内搜索收进「高级选项」，点选同步链接文字
+- 文章与评论共用统一图片插入选择器（上传 / 链接 / 已上传）
+- 链接是否新标签打开交由全站设置，对话框不再单独开关
+- 首页默认「最新」按发帖与最后评论的较晚时间混排，零回复新帖不再沉底
+- 单页详情右侧栏与帖子共用目录布局；三栏主滚动区统一细绿色滚动条
+
+**修复**
+
+- 帖子目录从正文同步派生，避免预取缓存竞态导致空树
 
 ## 1.1.5 — 2026-09-01
 

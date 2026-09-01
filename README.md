@@ -212,15 +212,15 @@ docker run -d --name jiang13 \
 docker login
 .\build.bat -Target docker          # Windows
 # make docker                       # Linux/macOS
-docker push hangzhang714128/jiang13-forum:1.1.5
+docker push hangzhang714128/jiang13-forum:1.1.6
 docker push hangzhang714128/jiang13-forum:latest
 ```
 
 或直接构建：
 
 ```bash
-docker build --build-arg VERSION=1.1.5 -t hangzhang714128/jiang13-forum:1.1.5 -t hangzhang714128/jiang13-forum:latest .
-docker push hangzhang714128/jiang13-forum:1.1.5
+docker build --build-arg VERSION=1.1.6 -t hangzhang714128/jiang13-forum:1.1.6 -t hangzhang714128/jiang13-forum:latest .
+docker push hangzhang714128/jiang13-forum:1.1.6
 docker push hangzhang714128/jiang13-forum:latest
 ```
 
@@ -252,19 +252,19 @@ docker push hangzhang714128/jiang13-forum:latest
 | `jiang13-*-windows-amd64.exe` | Windows x64 |
 | `jiang13-*-linux-amd64` | Linux x64 |
 
-当前 **1.1.5：** [Windows](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-windows-amd64.exe) · [Linux](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.5/jiang13-1.1.5-linux-amd64)
+当前 **1.1.6：** [Windows](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.6/jiang13-1.1.6-windows-amd64.exe) · [Linux](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.6/jiang13-1.1.6-linux-amd64)
 
 把文件放到目标目录后直接运行（首次会在同目录生成 `app.ini`）：
 
 ```bash
 # Windows
-.\jiang13-1.1.5-windows-amd64.exe
+.\jiang13-1.1.6-windows-amd64.exe
 # 或改名为 jiang13.exe 后：
 .\jiang13.exe
 
 # Linux
-chmod +x jiang13-1.1.5-linux-amd64
-./jiang13-1.1.5-linux-amd64
+chmod +x jiang13-1.1.6-linux-amd64
+./jiang13-1.1.6-linux-amd64
 ```
 
 本地刚编译的产物在 `dist/`：
