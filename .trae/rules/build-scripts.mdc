@@ -1,0 +1,36 @@
+---
+description: 编译与构建脚本约定（Windows build.bat/ps1、Makefile、跨平台同步）
+alwaysApply: true
+---
+
+# 编译与构建脚本
+
+Go 单二进制 + `go:embed` 前端；产物在 `dist/`。
+
+## 运行编译（优先用封装命令，不要猜命令）
+
+| 平台 | 命令 |
+|------|------|
+| Windows | `build.bat` 或 `build.bat -Target <target>` |
+| Linux / macOS | `make` 或 `make <target>` |
+
+**不要**在 Windows 上直接运行 `make`（系统自带多为 Embarcadero MAKE，不兼容本项目 Makefile）。
+
+Windows 上**不要**让用户直接 `.\build.ps1`（默认 ExecutionPolicy 会拦截）；应通过 `build.bat`（内部 `-ExecutionPolicy Bypass`）调用。
+
+常用 target：`build`（默认）、`dev`、`run`、`frontend`、`clean`、`build-all`、`build-windows`、`build-linux`、`tidy`、`help`。
+
+## 修改构建脚本时的约定
+
+1. **双轨同步**：`build.ps1` 与 `Makefile` 目标与行为保持一致；改其一须同步另一份。
+2. **`build.bat` 仅用 ASCII 注释**：`.bat` 会被 cmd 按 GBK 解析，UTF-8 中文注释会导致整行乱码、`powershell` 无法执行。
+3. **`build.ps1` 可用 UTF-8**：由 PowerShell 执行，中文注释无妨。
+4. **构建顺序**：先 `frontend` 内 `npm run build`，再 `go build -trimpath -ldflags "-s -w -X main.version=..." -o dist/jiang13 ./cmd/jiang13`。
+5. **入口包**：`./cmd/jiang13`；Windows 产物带 `.exe`。
+
+## 新增 target 检查清单
+
+- [ ] `build.ps1` 的 `ValidateSet` 与 `switch` 分支
+- [ ] `Makefile` 对应 `.PHONY` 与 recipe
+- [ ] `build.bat -Target help` 说明（help 输出在 ps1 内）
+- [ ] README「快速开始」如需对外暴露再更新
