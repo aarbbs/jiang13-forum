@@ -109,7 +109,7 @@ export default function PostDetailPage() {
   const { limits } = useForumLimits();
   const { setPostOutline, isMobile } = useOutletContext<LayoutCtx>();
 
-  const initialSnap = (postId && !Number.isNaN(postId))
+  const initialSnap = (postId && !Number.isNaN(postId) && navType === 'POP')
     ? getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId))
     : undefined;
 
@@ -259,7 +259,7 @@ export default function PostDetailPage() {
     if (mode === 'force') {
       deleteSessionSnapshot(postDetailCacheKey(postId));
     }
-    const cached = mode === 'force'
+    const cached = mode === 'force' || navType !== 'POP'
       ? undefined
       : getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId));
     if (cached) {
@@ -329,19 +329,9 @@ export default function PostDetailPage() {
   }, [postId]);
 
   useEffect(() => {
-    // 下拉已预热则应用快照；否则强制重拉
+    // 下拉/软刷新：始终强制重拉，确保拿到最新数据
     const onForce = () => {
       if (!postId || Number.isNaN(postId)) return;
-      const warm = getSessionSnapshot<PostDetailSnapshot>(postDetailCacheKey(postId));
-      if (warm) {
-        loadSeq.current += 1;
-        applySnapshot(warm, { restoreScroll: false });
-        setLoading(false);
-        const el = pageRef.current;
-        if (el) el.scrollTop = 0;
-        scrollTopRef.current = 0;
-        return;
-      }
       loadPostRef.current('force');
     };
     window.addEventListener(PAGE_FORCE_REFRESH_EVENT, onForce);

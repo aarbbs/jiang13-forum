@@ -346,6 +346,23 @@ export default function MessagesPage() {
     });
   }, []);
 
+  /** 更新会话未读数，同时同步 session 缓存防止后续恢复 stale 数据 */
+  const updateConvUnread = useCallback((peerId: number, unread: number) => {
+    setConversations((prev) => {
+      const next = prev.map((c) =>
+        c.peer_user_id === peerId ? { ...c, unread_count: unread } : c
+      );
+      const cached = getSessionSnapshot<ConvSnap>('messages:conv:1');
+      if (cached) {
+        setSessionSnapshot('messages:conv:1', {
+          ...cached,
+          conversations: next,
+        });
+      }
+      return next;
+    });
+  }, []);
+
   const clearConvSearch = useCallback(() => {
     setConvSearchQuery('');
     setConvSearchResults([]);
@@ -584,6 +601,11 @@ export default function MessagesPage() {
       setPeerUser(cached.peerUser);
       if (cached.peerUser) ensurePeerConversation(cached.peerUser);
       setThreadLoading(false);
+      // 缓存命中时仍需标记后端已读，并更新前端会话列表未读数
+      void api.markConversationRead(selectedPeer).catch(() => undefined);
+      updateConvUnread(selectedPeer, 0);
+      window.dispatchEvent(new Event('messages-unread-refresh'));
+      void refreshUnreadSplit();
       return;
     }
     let cancelled = false;
@@ -603,9 +625,7 @@ export default function MessagesPage() {
           total: r.total || 0,
           peerUser: peer,
         });
-        setConversations((prev) => prev.map((c) => (
-          c.peer_user_id === selectedPeer ? { ...c, unread_count: 0 } : c
-        )));
+        updateConvUnread(selectedPeer, 0);
         window.dispatchEvent(new Event('messages-unread-refresh'));
         void refreshUnreadSplit();
       })
@@ -662,7 +682,14 @@ export default function MessagesPage() {
         notify.success('通知已全部标为已读');
       } else {
         await api.markAllMessagesRead();
-        setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })));
+        setConversations((prev) => {
+          const next = prev.map((c) => ({ ...c, unread_count: 0 }));
+          const cached = getSessionSnapshot<ConvSnap>('messages:conv:1');
+          if (cached) {
+            setSessionSnapshot('messages:conv:1', { ...cached, conversations: next });
+          }
+          return next;
+        });
         setDmUnread(0);
         setNotifyUnread(0);
         notify.success('已全部标为已读');
