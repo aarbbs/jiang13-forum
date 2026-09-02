@@ -10,7 +10,7 @@
 
 Docker 镜像、Windows exe、Linux 单文件 **共用同一版本号**。有新版本时，以本页为准。
 
-**当前版本：1.1.7**（2026-09-02）
+**当前版本：1.1.8**（2026-09-02）
 
 ## 去哪看新版本
 
@@ -18,19 +18,19 @@ Docker 镜像、Windows exe、Linux 单文件 **共用同一版本号**。有新
 | --- | --- | --- |
 | 本页 | 版本号、变更说明、升级注意 | 本站 `/page/changelog` |
 | Docker | 镜像标签（`latest` 与 `1.1.x`） | [Docker Hub · Tags](https://hub.docker.com/r/hangzhang714128/jiang13-forum/tags) |
-| Windows / Linux | 预编译单文件（与 Docker 同版本） | [Gitea Releases](https://git.iioio.com/freefire/jiang13-forum/releases) |
+| Windows / Linux / macOS | 预编译单文件（与 Docker 同版本） | [Gitea Releases](https://git.iioio.com/freefire/jiang13-forum/releases) |
 | 源码 | 提交记录与自行编译 | [Gitea 仓库](https://git.iioio.com/freefire/jiang13-forum) |
 
-**1.1.7 直接下载：**
+**1.1.8 直接下载：**
 
-- Windows x64：[jiang13-1.1.7-windows-amd64.exe](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.7/jiang13-1.1.7-windows-amd64.exe)
-- Linux x64：[jiang13-1.1.7-linux-amd64](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.7/jiang13-1.1.7-linux-amd64)
-- 校验文件：[SHA256SUMS.txt](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.7/SHA256SUMS.txt)
+- Windows x64：[jiang13_v1.1.8_windows-amd64.exe](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.8/jiang13_v1.1.8_windows-amd64.exe)
+- Linux x64：[jiang13_v1.1.8_linux-amd64](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.8/jiang13_v1.1.8_linux-amd64)
+- macOS arm64：[jiang13_v1.1.8_darwin-arm64](https://git.iioio.com/freefire/jiang13-forum/releases/download/v1.1.8/jiang13_v1.1.8_darwin-arm64)
 
 拉取指定版本镜像：
 
 ```bash
-docker pull hangzhang714128/jiang13-forum:1.1.7
+docker pull hangzhang714128/jiang13-forum:1.1.8
 # 或始终跟随最新
 docker pull hangzhang714128/jiang13-forum:latest
 ```
@@ -44,6 +44,23 @@ Linux：赋予执行权限后放到原目录覆盖，同样保留 `data/` 与 `a
 - 一般只需换镜像或换 exe，数据目录向后兼容。
 - Docker 请继续挂载原来的 `/data` 卷，切勿新建空目录当「升级」。
 - 升级后若页面样式异常，强制刷新浏览器（Ctrl+F5）。程序也会在前端资源失效时自动硬刷新。
+
+---
+
+## 1.1.8 — 2026-09-02
+
+表情选择与评论富文本展示完善，私信表情不再发成图片附件。
+
+**新增 / 调整**
+
+- 表情选择器在评论富文本中可直接插入，与文章编辑器一致
+- 私信页支持表情选择器，点击表情直接插入文本框
+
+**修复**
+
+- 私信中插入的表情改为文本内容发送，不再作为图片附件
+- 消息未读数在多端间同步更及时
+- 帖子详情快照逻辑修复，避免打开旧缓存页
 
 ---
 
