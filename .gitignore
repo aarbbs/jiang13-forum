@@ -20,9 +20,10 @@ tmp-cookie.txt
 # ç¼–è¾‘å™¨ / OS
 .idea/
 .vscode/
+.trae/
 *.swp
 Thumbs.db
 .DS_Store
 
-# Lucide path ³éÈ¡ÁÙÊ±²úÎï
+# Lucide path ï¿½ï¿½È¡ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
 frontend/tmp-lucide-paths.json
