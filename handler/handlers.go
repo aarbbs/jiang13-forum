@@ -42,6 +42,7 @@ type Handlers struct {
 	Badge           *service.BadgeService
 	SitePage        *service.SitePageService
 	FriendLinkApply *service.FriendLinkApplyService
+	InviteCode      *service.InviteCodeService
 }
 
 func (h *Handlers) setAuthCookie(c *gin.Context, token string) {
@@ -135,6 +136,7 @@ func (h *Handlers) APIRegisterConfig(c *gin.Context) {
 		"mail_ready":         mailReady,
 		"require_email_code": mailReady,
 		"register_open":      userCount == 0 || mailReady,
+		"invite_required":    h.Settings.InviteRequired(),
 		"email_code_len":     service.EmailCodeLen,
 	})
 }
@@ -232,11 +234,12 @@ func (h *Handlers) APISearchUsers(c *gin.Context) {
 
 func (h *Handlers) APIRegister(c *gin.Context) {
 	var req struct {
-		Username  string `json:"username" form:"username" binding:"required"`
-		Password  string `json:"password" form:"password" binding:"required"`
-		Nickname  string `json:"nickname" form:"nickname"`
-		Email     string `json:"email" form:"email" binding:"required"`
-		EmailCode string `json:"email_code" form:"email_code"`
+		Username   string `json:"username" form:"username" binding:"required"`
+		Password   string `json:"password" form:"password" binding:"required"`
+		Nickname   string `json:"nickname" form:"nickname"`
+		Email      string `json:"email" form:"email" binding:"required"`
+		EmailCode  string `json:"email_code" form:"email_code"`
+		InviteCode string `json:"invite_code" form:"invite_code"`
 	}
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
@@ -256,10 +259,31 @@ func (h *Handlers) APIRegister(c *gin.Context) {
 		}
 	}
 
+	inviteRequired := h.Settings.InviteRequired()
+	inviteCode := strings.ToUpper(strings.TrimSpace(req.InviteCode))
+	if inviteRequired && inviteCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": service.ErrInviteCodeRequired.Error()})
+		return
+	}
+	if inviteCode != "" {
+		if err := h.InviteCode.Validate(inviteCode); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	user, err := h.Auth.Register(req.Username, req.Password, req.Nickname, req.Email)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	if inviteCode != "" {
+		if err := h.InviteCode.Redeem(inviteCode); err != nil {
+			// 邀请码消耗失败则回滚已创建账号，避免绕过限制
+			_ = model.DB.Delete(user).Error
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	token, _, _ := h.Auth.Login(req.Username, req.Password, c.ClientIP())
 	h.setAuthCookie(c, token)

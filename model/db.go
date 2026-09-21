@@ -49,7 +49,7 @@ func InitDB(dbPath string) error {
 		&PostLike{}, &CommentLike{}, &PostFavorite{}, &PostRevision{}, &CommentRevision{}, &ForumSetting{},
 		&OAuthClient{}, &OAuthAuthCode{},
 		&GiteaRepo{},
-		&PrivateMessage{}, &PostReport{}, &FriendLinkApply{},
+		&PrivateMessage{}, &PostReport{}, &FriendLinkApply{}, &InviteCode{},
 		&Media{},
 		&PointLedger{}, &CheckIn{}, &LotteryDraw{}, &PostContentUnlock{},
 		&BadgeDef{}, &UserBadge{},

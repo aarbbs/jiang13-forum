@@ -24,6 +24,7 @@ const schema = (minLen: number) => z.object({
   email: z.string().min(1, '请输入邮箱').email('请输入有效邮箱'),
   password: z.string().min(minLen, `密码至少 ${minLen} 位`),
   email_code: z.string().optional(),
+  invite_code: z.string().optional(),
 });
 
 type FormValues = z.infer<ReturnType<typeof schema>>;
@@ -47,7 +48,7 @@ export default function RegisterPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema(limits.password_min_len)),
-    defaultValues: { username: '', nickname: '', email: '', password: '', email_code: '' },
+    defaultValues: { username: '', nickname: '', email: '', password: '', email_code: '', invite_code: '' },
   });
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function RegisterPage() {
         mail_ready: false,
         require_email_code: false,
         register_open: false,
+        invite_required: false,
       }));
   }, []);
 
@@ -98,6 +100,11 @@ export default function RegisterPage() {
         return;
       }
     }
+    const inviteCode = (values.invite_code || '').trim().toUpperCase();
+    if (regConfig?.invite_required && !inviteCode) {
+      form.setError('invite_code', { message: '请填写邀请码' });
+      return;
+    }
     setLoading(true);
     try {
       await api.register({
@@ -106,6 +113,7 @@ export default function RegisterPage() {
         nickname: values.nickname || values.username,
         email: values.email,
         emailCode: values.email_code,
+        inviteCode,
       });
       await refresh();
       notify.success('注册成功');
@@ -174,6 +182,25 @@ export default function RegisterPage() {
                       <FormLabel>邮箱</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="用于接收验证码" autoComplete="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="invite_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{regConfig?.invite_required ? '邀请码' : '邀请码（选填）'}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="请输入邀请码"
+                          autoComplete="off"
+                          spellCheck={false}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -679,8 +679,24 @@ export interface RegisterConfig {
   mail_ready: boolean;
   require_email_code: boolean;
   register_open: boolean;
+  /** 是否强制填写邀请码 */
+  invite_required: boolean;
   /** 邮箱验证码位数，默认 6 */
   email_code_len?: number;
+}
+
+/** 注册邀请码 */
+export interface InviteCode {
+  id: number;
+  code: string;
+  /** 0 = 不限次数 */
+  max_uses: number;
+  used_count: number;
+  enabled: boolean;
+  note: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Paginated<T> {

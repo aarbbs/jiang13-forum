@@ -107,6 +107,7 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		Points: service.NewPointsService(), Badge: service.NewBadgeService(),
 		SitePage:        service.NewSitePageService(filter),
 		FriendLinkApply: friendLinkApplySvc,
+		InviteCode:      service.NewInviteCodeService(),
 	}
 	authMW := middleware.NewAuthMiddleware(authSvc)
 
@@ -298,6 +299,11 @@ func Setup(cfg *config.Config) (*gin.Engine, error) {
 		adminAPI.POST("/media/delete", h.APIAdminDeleteMedia)
 		adminAPI.POST("/backup", h.APIAdminBackup)
 		adminAPI.GET("/backup/download/:name", h.APIAdminDownloadBackup)
+		adminAPI.GET("/invite-codes", h.APIAdminInviteCodes)
+		adminAPI.POST("/invite-codes", h.APIAdminCreateInviteCode)
+		adminAPI.DELETE("/invite-codes/:id", h.APIAdminDeleteInviteCode)
+		adminAPI.POST("/invite-codes/:id/toggle", h.APIAdminToggleInviteCode)
+		adminAPI.PUT("/settings/register", h.APIAdminUpdateRegisterSettings)
 	}
 
 	// 后台管理页面由 React SPA 渲染（JSON API 见上方 /api/admin）

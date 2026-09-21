@@ -38,6 +38,8 @@ const (
 	SettingAvatarMaxMB    = "avatar_max_mb"
 	SettingSignatureMax   = "signature_max"
 
+	SettingInviteRequired = "register_invite_required"
+
 	SettingOpenPostsInNewTab        = "open_posts_in_new_tab"
 	SettingOpenContentLinksInNewTab = "open_content_links_in_new_tab"
 	SettingAsideShowTagCloud        = "aside_show_tag_cloud"
@@ -361,6 +363,10 @@ var monitorSettingDefaults = map[string]string{
 	SettingMonitorTrustProxy:         "1",
 }
 
+var registerSettingDefaults = map[string]string{
+	SettingInviteRequired: "0", // 默认关闭强制邀请码
+}
+
 var siteBrandingDefaults = map[string]string{
 	SettingSiteName:        "姜十三论坛",
 	SettingSiteSlogan:      "拾三一隅，自在交流",
@@ -588,6 +594,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 		}
 	}
 	for key, val := range monitorSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
+	for key, val := range registerSettingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
 		if count == 0 {
@@ -856,6 +869,20 @@ func (s *ForumSettingsService) PageSizeDefault() int { return s.getInt(SettingPa
 func (s *ForumSettingsService) PasswordMinLen() int { return s.getInt(SettingPasswordMinLen, 6) }
 func (s *ForumSettingsService) AvatarMaxMB() int    { return s.getInt(SettingAvatarMaxMB, 2) }
 func (s *ForumSettingsService) SignatureMax() int   { return s.getInt(SettingSignatureMax, 200) }
+
+// InviteRequired 是否强制注册时填写邀请码
+func (s *ForumSettingsService) InviteRequired() bool {
+	return s.getString(SettingInviteRequired, "0") == "1"
+}
+
+// SetInviteRequired 开启/关闭强制邀请码
+func (s *ForumSettingsService) SetInviteRequired(required bool) error {
+	v := "0"
+	if required {
+		v = "1"
+	}
+	return s.setString(SettingInviteRequired, v)
+}
 
 func (s *ForumSettingsService) OpenPostsInNewTab() bool {
 	return s.getString(SettingOpenPostsInNewTab, "1") == "1"

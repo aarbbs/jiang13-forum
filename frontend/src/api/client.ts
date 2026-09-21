@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem, MonitorConfig, MonitorOverview, MonitorGeoResult, MonitorStatItem, MonitorRealtime, MonitorLogItem } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, InviteCode, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem, MonitorConfig, MonitorOverview, MonitorGeoResult, MonitorStatItem, MonitorRealtime, MonitorLogItem } from './types';
 
 const BASE = '';
 
@@ -261,6 +261,22 @@ export const api = {
   adminUpdateFilterWords: (content: string) =>
     request<{ message: string; word_count: number }>('/api/admin/settings/filter-words', {
       method: 'PUT', body: JSON.stringify({ content }),
+    }),
+  adminInviteCodes: () =>
+    request<{ invite_codes: InviteCode[]; invite_required: boolean }>('/api/admin/invite-codes'),
+  adminCreateInviteCode: (body: { code?: string; max_uses: number; note?: string }) =>
+    request<{ message: string; invite_code: InviteCode }>('/api/admin/invite-codes', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  adminDeleteInviteCode: (id: number) =>
+    request<{ message: string }>(`/api/admin/invite-codes/${id}`, { method: 'DELETE' }),
+  adminToggleInviteCode: (id: number) =>
+    request<{ message: string; invite_code: InviteCode }>(`/api/admin/invite-codes/${id}/toggle`, {
+      method: 'POST',
+    }),
+  adminUpdateRegisterSettings: (body: { invite_required: boolean }) =>
+    request<{ message: string; invite_required: boolean }>('/api/admin/settings/register', {
+      method: 'PUT', body: JSON.stringify(body),
     }),
   postRevisions: (id: number) =>
     request<{ revisions: PostRevision[] }>(`/api/posts/${id}/revisions`),
@@ -547,6 +563,7 @@ export const api = {
     nickname: string;
     email: string;
     emailCode?: string;
+    inviteCode?: string;
   }) => {
     const fd = new FormData();
     fd.append('username', data.username);
@@ -554,6 +571,7 @@ export const api = {
     fd.append('nickname', data.nickname);
     fd.append('email', data.email);
     if (data.emailCode) fd.append('email_code', data.emailCode);
+    if (data.inviteCode) fd.append('invite_code', data.inviteCode);
     return request('/api/register', { method: 'POST', body: fd, headers: {} });
   },
   registerConfig: () => request<RegisterConfig>('/api/register/config'),

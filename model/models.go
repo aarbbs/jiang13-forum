@@ -291,6 +291,20 @@ type FriendLinkApply struct {
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
 
+// InviteCode 注册邀请码
+// MaxUses 为 0 表示不限次数；UsedCount 达到 MaxUses 后自动停用。
+type InviteCode struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Code      string    `gorm:"uniqueIndex;size:64;not null" json:"code"`
+	MaxUses   int       `gorm:"default:0" json:"max_uses"` // 0 = 不限次数
+	UsedCount int       `gorm:"default:0" json:"used_count"`
+	Enabled   bool      `gorm:"default:true" json:"enabled"`
+	Note      string    `gorm:"size:256;default:''" json:"note"`
+	CreatedBy uint      `gorm:"default:0" json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // PostReport 帖子/评论举报（CommentID 有值时为评论举报）
 type PostReport struct {
 	ID         uint       `gorm:"primaryKey" json:"id"`

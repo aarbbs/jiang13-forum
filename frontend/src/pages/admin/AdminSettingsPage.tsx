@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Mail, Shield, Server, SlidersHorizontal, KeyRound, FolderGit2, Palette, HardDrive } from 'lucide-react';
+import { Database, Mail, Shield, Server, SlidersHorizontal, KeyRound, FolderGit2, Palette, HardDrive, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,10 +14,10 @@ import { normalizeAsideWidgets, resolveAsideWidgets, mergeForumLimitsWithAsideWi
 import { normalizeFeedSortTabs } from '../../utils/feedSortTabs';
 import AsideWidgetList from '../../components/admin/AsideWidgetList';
 import FeedSortTabList from '../../components/admin/FeedSortTabList';
-import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, AsideWidget } from '../../api/types';
+import type { AdminSettings, ForumLimits, MailConfig, OIDCConfig, OAuthClient, GiteaSyncConfig, StorageConfig, SiteBranding, AsideWidget, InviteCode } from '../../api/types';
 import { DEFAULT_ASIDE_WIDGETS, DEFAULT_FEED_SORT_TABS } from '../../api/types';
 
-type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'storage' | 'filter' | 'system';
+type TabId = 'branding' | 'limits' | 'mail' | 'oidc' | 'gitea' | 'storage' | 'filter' | 'invite' | 'system';
 
 type NumberLimitKey = {
   [K in keyof ForumLimits]: ForumLimits[K] extends number ? K : never;
@@ -118,6 +118,7 @@ const TABS: { id: TabId; label: string; icon: typeof SlidersHorizontal }[] = [
   { id: 'gitea', label: 'Gitea 同步', icon: FolderGit2 },
   { id: 'storage', label: '对象存储', icon: HardDrive },
   { id: 'filter', label: '敏感词', icon: Shield },
+  { id: 'invite', label: '邀请码', icon: Ticket },
   { id: 'system', label: '系统维护', icon: Server },
 ];
 
@@ -279,6 +280,12 @@ export default function AdminSettingsPage() {
   const [savingClient, setSavingClient] = useState(false);
   const [testingMail, setTestingMail] = useState(false);
   const [savingFilter, setSavingFilter] = useState(false);
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [inviteRequired, setInviteRequired] = useState(false);
+  const [newInvite, setNewInvite] = useState({ code: '', max_uses: 1, note: '' });
+  const [savingInvite, setSavingInvite] = useState(false);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [inviteBusyId, setInviteBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -321,6 +328,12 @@ export default function AdminSettingsPage() {
         setOauthClients(s.oauth_clients ?? []);
         setFilterWords(s.filter_words);
         if (s.mail?.from) setTestTo(s.mail.from);
+        void api.adminInviteCodes()
+          .then(r => {
+            setInviteCodes(r.invite_codes ?? []);
+            setInviteRequired(r.invite_required);
+          })
+          .catch(() => {});
       })
       .finally(() => setLoading(false));
   }, [ready]);
@@ -617,6 +630,65 @@ export default function AdminSettingsPage() {
       notify.error(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSavingFilter(false);
+    }
+  };
+
+  const handleSaveInviteRequired = async () => {
+    setSavingInvite(true);
+    try {
+      const r = await api.adminUpdateRegisterSettings({ invite_required: inviteRequired });
+      setInviteRequired(r.invite_required);
+      notify.success(r.message);
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSavingInvite(false);
+    }
+  };
+
+  const handleCreateInviteCode = async () => {
+    const maxUses = Math.max(0, Math.floor(Number(newInvite.max_uses) || 0));
+    setCreatingInvite(true);
+    try {
+      const r = await api.adminCreateInviteCode({
+        code: newInvite.code.trim() || undefined,
+        max_uses: maxUses,
+        note: newInvite.note.trim() || undefined,
+      });
+      notify.success(r.message);
+      setInviteCodes(prev => [r.invite_code, ...prev]);
+      setNewInvite({ code: '', max_uses: 1, note: '' });
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '创建失败');
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const handleDeleteInviteCode = async (id: number) => {
+    if (!window.confirm('确定删除该邀请码？删除后无法恢复。')) return;
+    setInviteBusyId(id);
+    try {
+      const r = await api.adminDeleteInviteCode(id);
+      notify.success(r.message);
+      setInviteCodes(prev => prev.filter(c => c.id !== id));
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setInviteBusyId(null);
+    }
+  };
+
+  const handleToggleInviteCode = async (id: number) => {
+    setInviteBusyId(id);
+    try {
+      const r = await api.adminToggleInviteCode(id);
+      notify.success(r.message);
+      setInviteCodes(prev => prev.map(c => (c.id === id ? r.invite_code : c)));
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setInviteBusyId(null);
     }
   };
 
@@ -1658,6 +1730,116 @@ export default function AdminSettingsPage() {
             <p>敏感词会在发帖、评论、昵称等文本中自动替换为 *</p>
             <Button onClick={handleSaveFilterWords} loading={savingFilter}>
               保存敏感词
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'invite' && (
+        <div className="admin-settings-panel admin-mail-panel">
+          <div className="admin-card admin-settings-card">
+            <div className="admin-card-head">
+              <span>邀请码管理</span>
+              <span className="admin-settings-card-badge">{inviteCodes.length} 个</span>
+            </div>
+            <div className="admin-card-body admin-mail-body">
+              <label className="admin-mail-switch" htmlFor="invite-required">
+                <input
+                  id="invite-required"
+                  type="checkbox"
+                  checked={inviteRequired}
+                  onChange={e => setInviteRequired(e.target.checked)}
+                />
+                <span className="admin-mail-switch-ui" aria-hidden />
+                <span className="admin-mail-switch-copy">
+                  <strong>强制邀请码注册</strong>
+                  <small>开启后，用户在注册时必须填写有效邀请码才能注册</small>
+                </span>
+              </label>
+
+              <div className="admin-mail-grid" style={{ marginTop: 12 }}>
+                <div className="admin-mail-field">
+                  <label htmlFor="invite-code">邀请码</label>
+                  <Input
+                    id="invite-code"
+                    value={newInvite.code}
+                    onChange={e => setNewInvite(n => ({ ...n, code: e.target.value.toUpperCase() }))}
+                    placeholder="留空自动生成"
+                    maxLength={64}
+                    spellCheck={false}
+                  />
+                  <span className="admin-mail-field-hint">留空则自动生成 10 位随机码</span>
+                </div>
+                <div className="admin-mail-field">
+                  <label htmlFor="invite-max-uses">可用次数</label>
+                  <Input
+                    id="invite-max-uses"
+                    type="number"
+                    min={0}
+                    value={newInvite.max_uses}
+                    onChange={e => setNewInvite(n => ({ ...n, max_uses: parseInt(e.target.value, 10) || 0 }))}
+                  />
+                  <span className="admin-mail-field-hint">0 = 不限次数</span>
+                </div>
+                <div className="admin-mail-field admin-mail-field--span2">
+                  <label htmlFor="invite-note">备注</label>
+                  <Input
+                    id="invite-note"
+                    value={newInvite.note}
+                    onChange={e => setNewInvite(n => ({ ...n, note: e.target.value }))}
+                    placeholder="可选，便于区分用途"
+                    maxLength={256}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-settings-bar" style={{ marginTop: 8 }}>
+                <p>新邀请码默认启用；达到次数上限后自动停用</p>
+                <Button onClick={handleCreateInviteCode} loading={creatingInvite}>
+                  创建邀请码
+                </Button>
+              </div>
+
+              {inviteCodes.length > 0 && (
+                <div className="admin-oauth-list" style={{ marginTop: 16 }}>
+                  {inviteCodes.map(c => {
+                    const remaining = c.max_uses > 0 ? Math.max(0, c.max_uses - c.used_count) : null;
+                    return (
+                      <div key={c.id} className="admin-oauth-row">
+                        <div>
+                          <strong className="admin-invite-code">{c.code}</strong>
+                          <div className="admin-mail-field-hint">
+                            {c.note ? `${c.note} · ` : ''}
+                            已用 {c.used_count}
+                            {remaining !== null ? ` / ${c.max_uses} 次` : ' / 不限次数'}
+                            {c.enabled ? '' : ' · 已停用'}
+                          </div>
+                        </div>
+                        <div className="admin-oauth-actions">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            loading={inviteBusyId === c.id}
+                            onClick={() => handleToggleInviteCode(c.id)}
+                          >
+                            {c.enabled ? '停用' : '启用'}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteInviteCode(c.id)}>
+                            删除
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="admin-settings-bar">
+            <p>保存后立即生效；注册页将按此要求邀请码</p>
+            <Button onClick={handleSaveInviteRequired} loading={savingInvite}>
+              保存注册设置
             </Button>
           </div>
         </div>
