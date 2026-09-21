@@ -372,23 +372,49 @@ func (h *Handlers) APIUpdatePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "密码已修改"})
 }
 
+// avatarGIFSourceMaxBytes 动图 GIF 头像源文件上限；服务端会裁剪/缩放为固定边长 WebP
+const avatarGIFSourceMaxBytes = 20 * 1024 * 1024
+
 func (h *Handlers) APIUploadAvatar(c *gin.Context) {
 	file, err := c.FormFile("avatar")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择头像文件"})
 		return
 	}
+	crop := parseUploadCrop(c)
 	maxBytes := int64(h.Settings.AvatarMaxMB()) * 1024 * 1024
+	if crop != nil {
+		// 动图 GIF：源文件通常较大，转码后为固定边长 WebP
+		maxBytes = avatarGIFSourceMaxBytes
+	}
 	if file.Size > maxBytes {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件过大"})
 		return
 	}
-	url, err := h.User.UploadAvatar(h.currentUserID(c), file, h.Store)
+	url, err := h.User.UploadAvatar(h.currentUserID(c), file, h.Store, crop)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "头像已更新", "avatar": url})
+}
+
+// parseUploadCrop 解析头像裁剪区域（crop_x/crop_y/crop_w/crop_h），缺省返回 nil。
+func parseUploadCrop(c *gin.Context) *service.CropRect {
+	w, errW := strconv.Atoi(strings.TrimSpace(c.PostForm("crop_w")))
+	hgt, errH := strconv.Atoi(strings.TrimSpace(c.PostForm("crop_h")))
+	if errW != nil || errH != nil || w <= 0 || hgt <= 0 {
+		return nil
+	}
+	x, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("crop_x")))
+	y, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("crop_y")))
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return &service.CropRect{X: x, Y: y, W: w, H: hgt}
 }
 
 func (h *Handlers) APIUploadPostImage(c *gin.Context) {

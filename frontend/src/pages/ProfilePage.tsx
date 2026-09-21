@@ -37,7 +37,7 @@ import { useForumLimits } from '../hooks/useForumLimits';
 import AvatarCropDialog from '../components/AvatarCropDialog';
 import PostListItem from '../components/PostListItem';
 import FeedPagination from '../components/FeedPagination';
-import { AVATAR_ACCEPT, validateAvatarFile } from '../utils/avatarCrop';
+import { AVATAR_ACCEPT, validateAvatarFile, type AvatarCropRect } from '../utils/avatarCrop';
 import { loginPath } from '../utils/authRedirect';
 import { openForumPost } from '../utils/openPost';
 import { formatDateTime } from '../utils/content';
@@ -83,9 +83,11 @@ export default function ProfilePage() {
   const [pwdLoading, setPwdLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
+  const [pendingCrop, setPendingCrop] = useState<AvatarCropRect | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropSourceFile, setCropSourceFile] = useState<File | null>(null);
   const [cropFileName, setCropFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
@@ -203,6 +205,7 @@ export default function ProfilePage() {
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
+      setCropSourceFile(null);
       setCropFileName('');
       if (fileRef.current) fileRef.current.value = '';
     }
@@ -258,6 +261,7 @@ export default function ProfilePage() {
   const clearPendingAvatar = () => {
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setPendingAvatar(null);
+    setPendingCrop(null);
     setAvatarPreview(null);
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -271,6 +275,7 @@ export default function ProfilePage() {
     }
     if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
     setCropFileName(file.name);
+    setCropSourceFile(file);
     setCropImageSrc(URL.createObjectURL(file));
     setCropOpen(true);
   };
@@ -280,17 +285,18 @@ export default function ProfilePage() {
     if (file) openCropForFile(file);
   };
 
-  const onCropConfirm = (file: File) => {
+  const onCropConfirm = (result: { file: File; crop?: AvatarCropRect }) => {
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    setPendingAvatar(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    setPendingAvatar(result.file);
+    setPendingCrop(result.crop ?? null);
+    setAvatarPreview(URL.createObjectURL(result.file));
   };
 
   const onSaveAvatar = async () => {
     if (!pendingAvatar) return;
     setAvatarLoading(true);
     try {
-      await api.uploadAvatar(pendingAvatar);
+      await api.uploadAvatar(pendingAvatar, pendingCrop ?? undefined);
       await refresh();
       clearPendingAvatar();
       notify.success('头像已更新');
@@ -513,6 +519,7 @@ export default function ProfilePage() {
         <AvatarCropDialog
           open={cropOpen}
           imageSrc={cropImageSrc}
+          sourceFile={cropSourceFile}
           fileName={cropFileName}
           maxMb={limits.avatar_max_mb}
           onOpenChange={closeCropDialog}

@@ -206,13 +206,25 @@ func (s *UserService) UpdatePassword(userID uint, oldPass, newPass string) error
 	return model.DB.Model(&user).Update("password", hash).Error
 }
 
-// UploadAvatar 上传头像；成功后删除用户旧头像文件，避免磁盘/对象存储堆积
-func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, store *UploadStore) (string, error) {
+// AvatarOutputSize 头像输出边长（像素）
+const AvatarOutputSize = 512
+
+// UploadAvatar 上传头像；成功后删除用户旧头像文件，避免磁盘/对象存储堆积。
+// crop 非空（动图 GIF）时按裁剪区域逐帧裁剪并缩放为正方形。
+func (s *UserService) UploadAvatar(userID uint, file *multipart.FileHeader, store *UploadStore, crop *CropRect) (string, error) {
 	var user model.User
 	if err := model.DB.Select("id", "avatar").First(&user, userID).Error; err != nil {
 		return "", err
 	}
-	url, err := SaveUploadedImage(store, file, UploadCategoryAvatars, fmt.Sprintf("%d", userID))
+	var (
+		url string
+		err error
+	)
+	if crop != nil {
+		url, err = store.SaveImageCropped(file, UploadCategoryAvatars, fmt.Sprintf("%d", userID), crop, AvatarOutputSize)
+	} else {
+		url, err = SaveUploadedImage(store, file, UploadCategoryAvatars, fmt.Sprintf("%d", userID))
+	}
 	if err != nil {
 		return "", err
 	}

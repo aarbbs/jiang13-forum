@@ -6,6 +6,19 @@ export const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image
 /** 头像输出尺寸 */
 export const AVATAR_OUTPUT_SIZE = 512;
 
+/** 裁剪区域（源图像像素坐标） */
+export interface AvatarCropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** 是否需要走服务端逐帧裁剪（动图 GIF 无法用 canvas 裁剪而不丢动画） */
+export function isGifFile(file: File): boolean {
+  return file.type === 'image/gif' || /\.gif$/i.test(file.name);
+}
+
 /**
  * 原图体积软上限：仅防止浏览器加载过大文件卡死。
  * 实际上传限额看裁剪后的文件（见 validateAvatarOutput）。

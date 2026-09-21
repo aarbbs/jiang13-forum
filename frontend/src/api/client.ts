@@ -409,9 +409,15 @@ export const api = {
     fd.append('new_password', newPassword);
     return request('/api/profile/password', { method: 'POST', body: fd, headers: {} });
   },
-  uploadAvatar: (file: File) => {
+  uploadAvatar: (file: File, crop?: { x: number; y: number; w: number; h: number }) => {
     const fd = new FormData();
     fd.append('avatar', file);
+    if (crop) {
+      fd.append('crop_x', String(crop.x));
+      fd.append('crop_y', String(crop.y));
+      fd.append('crop_w', String(crop.w));
+      fd.append('crop_h', String(crop.h));
+    }
     return request<{ avatar: string }>('/api/profile/avatar', { method: 'POST', body: fd, headers: {} });
   },
   uploadPostImage: (file: File) => {

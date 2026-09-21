@@ -189,6 +189,15 @@ func (s *UploadStore) UploadsRoot() string {
 
 // SaveImage 保存图片：始终保留原图；静态图额外写 WebP 衍生，按展示方案返回 URL
 func (s *UploadStore) SaveImage(file *multipart.FileHeader, category, namePrefix string) (string, error) {
+	return s.saveImage(file, category, namePrefix, nil)
+}
+
+// SaveImageCropped 保存图片，并按给定裁剪区域/正方形边长处理（用于头像动图逐帧裁剪等）。
+func (s *UploadStore) SaveImageCropped(file *multipart.FileHeader, category, namePrefix string, crop *CropRect, squareOut int) (string, error) {
+	return s.saveImage(file, category, namePrefix, &imageProcessOptions{crop: crop, squareOut: squareOut})
+}
+
+func (s *UploadStore) saveImage(file *multipart.FileHeader, category, namePrefix string, opt *imageProcessOptions) (string, error) {
 	if s == nil {
 		return "", errors.New("上传存储未初始化")
 	}
@@ -197,7 +206,7 @@ func (s *UploadStore) SaveImage(file *multipart.FileHeader, category, namePrefix
 		return "", errors.New("无效的上传分类")
 	}
 
-	prepared, err := prepareUploadImage(file)
+	prepared, err := prepareUploadImage(file, opt)
 	if err != nil {
 		return "", err
 	}

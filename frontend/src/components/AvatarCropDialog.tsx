@@ -11,21 +11,31 @@ import {
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { notify } from '@/lib/notify';
-import { getCroppedAvatarFile, validateAvatarOutput } from '../utils/avatarCrop';
+import { getCroppedAvatarFile, isGifFile, validateAvatarOutput, type AvatarCropRect } from '../utils/avatarCrop';
+
+export interface AvatarCropResult {
+  /** 待上传文件；GIF 时为原图，其余为裁剪后的文件 */
+  file: File;
+  /** 动图 GIF 的裁剪区域（交由服务端逐帧裁剪） */
+  crop?: AvatarCropRect;
+}
 
 interface Props {
   open: boolean;
   imageSrc: string | null;
+  /** 原始选中文件（GIF 保留动画需原样上传） */
+  sourceFile?: File | null;
   fileName?: string;
   /** 裁剪后文件体积上限（MB） */
   maxMb: number;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (file: File) => void;
+  onConfirm: (result: AvatarCropResult) => void;
 }
 
 export default function AvatarCropDialog({
   open,
   imageSrc,
+  sourceFile,
   fileName,
   maxMb,
   onOpenChange,
@@ -52,13 +62,25 @@ export default function AvatarCropDialog({
     if (!imageSrc || !croppedAreaPixels) return;
     setConfirming(true);
     try {
+      const rect: AvatarCropRect = {
+        x: Math.max(0, Math.round(croppedAreaPixels.x)),
+        y: Math.max(0, Math.round(croppedAreaPixels.y)),
+        w: Math.max(1, Math.round(croppedAreaPixels.width)),
+        h: Math.max(1, Math.round(croppedAreaPixels.height)),
+      };
+      // 动图 GIF：canvas 会压平为首帧，改为原图 + 裁剪区域交由服务端逐帧裁剪
+      if (sourceFile && isGifFile(sourceFile)) {
+        onConfirm({ file: sourceFile, crop: rect });
+        onOpenChange(false);
+        return;
+      }
       const file = await getCroppedAvatarFile(imageSrc, croppedAreaPixels, fileName);
       const sizeErr = validateAvatarOutput(file, maxMb);
       if (sizeErr) {
         notify.error(sizeErr);
         return;
       }
-      onConfirm(file);
+      onConfirm({ file });
       onOpenChange(false);
     } catch {
       notify.error('裁剪失败，请重试');
@@ -73,7 +95,7 @@ export default function AvatarCropDialog({
         <DialogHeader>
           <DialogTitle>裁剪头像</DialogTitle>
           <DialogDescription>
-            拖动图片调整位置，滚轮或滑块缩放。裁剪结果按原图格式保存（JPG→JPEG，PNG 保留透明）；GIF 裁剪后变为静态 JPG。服务端会额外生成 WebP。
+            拖动图片调整位置，滚轮或滑块缩放。JPG/PNG 裁剪后按原图格式保存；GIF 保留动画，由服务端按裁剪区域生成动图 WebP。
           </DialogDescription>
         </DialogHeader>
 
