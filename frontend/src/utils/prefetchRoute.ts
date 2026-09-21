@@ -6,6 +6,7 @@ import type {
   CommunityShowcaseItem,
   FriendLinkApply,
   PollView,
+  PostAttachment,
   PostItem,
   PostLotteryView,
   SitePage,
@@ -36,6 +37,7 @@ type PostDetailSnapshot = {
   comments: Comment[];
   poll: PollView | null;
   lottery: PostLotteryView | null;
+  attachments: PostAttachment[];
   liked: boolean;
   favorited: boolean;
   canEdit: boolean;
@@ -151,6 +153,7 @@ async function prefetchPost(id: number, force: boolean): Promise<void> {
     comments: Array.isArray(comm.comments) ? comm.comments : [],
     poll: detail.poll ?? null,
     lottery: detail.lottery ?? null,
+    attachments: detail.attachments ?? [],
     liked: detail.liked,
     favorited: detail.favorited,
     canEdit: detail.can_edit ?? false,

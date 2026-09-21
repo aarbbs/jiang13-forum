@@ -16,7 +16,7 @@ import {
   FileCode, PenLine, Maximize2, Minimize2,
   Columns2, PanelLeft, PanelRight, StretchHorizontal,
   Table as TableIcon, BetweenHorizonalStart, BetweenVerticalStart, Rows3, Columns3,
-  MessageSquareLock, Coins,
+  MessageSquareLock, Coins, Paperclip,
 } from 'lucide-react';
 import { POST_CONTENT_PURIFY_CONFIG } from '../utils/postContent';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdownContent';
@@ -45,6 +45,7 @@ import type { Sticker } from '../data/stickers';
 import { ClearFloatParagraph, ClearFloatSync } from './editor/ClearFloatParagraph';
 import { ArticleLinkDialog, type ArticleLinkConfirm } from './editor/ArticleLinkDialog';
 import { ArticleImagePickerDialog } from './editor/ArticleImagePickerDialog';
+import { ArticleAttachmentDialog } from './editor/ArticleAttachmentDialog';
 import { ArticleCodeBlockDialog } from './editor/ArticleCodeBlockDialog';
 import { ArticleCodeBlock } from './editor/ArticleCodeBlockExtension';
 import {
@@ -57,6 +58,7 @@ import {
 } from '../utils/codeBlockOptions';
 import { fenceLengthForContent } from '../utils/markdownFences';
 import { Tooltip } from './ui/Tooltip';
+import type { PostAttachmentInput } from '../api/types';
 
 export interface ArticleEditorHandle {
   getHTML: () => string;
@@ -73,6 +75,12 @@ interface Props {
    * 发帖默认 true；自定义单页等场景应关闭。
    */
   enableContentGates?: boolean;
+  /** 是否显示「附件」工具栏按钮（仅发帖启用） */
+  enableAttachments?: boolean;
+  /** 附件列表（受控） */
+  attachments?: PostAttachmentInput[];
+  /** 附件变化回调 */
+  onAttachmentsChange?: (list: PostAttachmentInput[]) => void;
 }
 
 type EditorMode = 'rich' | 'markdown';
@@ -205,7 +213,15 @@ function renderToolButtons(tools: ToolBtn[]) {
 }
 
 const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor(
-  { value, onChange, placeholder = '在此撰写正文…', enableContentGates = true },
+  {
+    value,
+    onChange,
+    placeholder = '在此撰写正文…',
+    enableContentGates = true,
+    enableAttachments = false,
+    attachments = [],
+    onAttachmentsChange,
+  },
   ref,
 ) {
   const isInternalUpdate = useRef(false);
@@ -221,6 +237,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
   const [linkTarget, setLinkTarget] = useState<LinkTarget>('rich');
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [imagePickerTarget, setImagePickerTarget] = useState<ImagePickerTarget>('rich');
+  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
   const [codeBlockDialogOpen, setCodeBlockDialogOpen] = useState(false);
   const [codeBlockTarget, setCodeBlockTarget] = useState<CodeBlockTarget>('rich');
   const [codeBlockEditing, setCodeBlockEditing] = useState(false);
@@ -733,6 +750,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         hint: '上传、链接或从已上传中选择',
         action: () => openImagePicker('rich'),
       },
+      ...(enableAttachments ? [{
+        icon: <Paperclip size={15} />,
+        title: '附件',
+        hint: '上传附件文件',
+        action: () => setAttachmentDialogOpen(true),
+      }] : []),
       {
         icon: <Columns2 size={15} />,
         title: '合并为图组',
@@ -833,7 +856,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
     }
 
     return tools;
-  }, [editor, enableContentGates, showSticker, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
+  }, [editor, enableContentGates, enableAttachments, showSticker, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker, wrapMembersOnly, wrapReplyOnly, wrapPointsOnly, wrapSelectedAsGroup, setImageDisplay]);
 
   const buildMarkdownTools = useCallback((): ToolBtn[] => {
     const tools: ToolBtn[] = [
@@ -855,6 +878,12 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         hint: '上传、链接或从已上传中选择',
         action: () => openImagePicker('markdown'),
       },
+      ...(enableAttachments ? [{
+        icon: <Paperclip size={15} />,
+        title: '附件',
+        hint: '上传附件文件',
+        action: () => setAttachmentDialogOpen(true),
+      }] : []),
       {
         icon: <span className="article-tool-btn__owo">OwO</span>,
         title: '表情 OwO',
@@ -891,7 +920,7 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
       );
     }
     return tools;
-  }, [enableContentGates, showSticker, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker]);
+  }, [enableContentGates, enableAttachments, showSticker, withMarkdown, openLinkDialog, openCodeBlockDialog, openTableDialog, openImagePicker]);
 
   const tools = mode === 'rich' ? buildRichTools() : buildMarkdownTools();
   const words = mode === 'markdown'
@@ -1026,6 +1055,14 @@ const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEdi
         onOpenChange={setImagePickerOpen}
         onInsert={applyImageUrls}
       />
+      {enableAttachments && (
+        <ArticleAttachmentDialog
+          open={attachmentDialogOpen}
+          onOpenChange={setAttachmentDialogOpen}
+          attachments={attachments}
+          onChange={onAttachmentsChange ?? (() => {})}
+        />
+      )}
       <ArticleCodeBlockDialog
         open={codeBlockDialogOpen}
         onOpenChange={setCodeBlockDialogOpen}

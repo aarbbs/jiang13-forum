@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem, MonitorConfig, MonitorOverview, MonitorGeoResult, MonitorStatItem, MonitorRealtime, MonitorLogItem } from './types';
+import type { User, UserPublic, UserActivityStats, Board, PostItem, Comment, RecentComment, RecentUser, ForumStats, TagCount, AdminDashboard, AdminSettings, ForumLimits, ForumLimitsPublic, PostDetailResponse, PostRevision, CommentRevision, MailConfig, OIDCConfig, OAuthClient, OAuthClientInput, GiteaProject, GiteaSyncConfig, StorageConfig, MediaListResult, SiteBranding, RegisterConfig, PrivateMessage, MessageConversation, PostReport, ReportReason, ReportStatus, BadgeDef, PointLedger, CheckInStatus, LotteryStatus, SitePage, SitePageSummary, PollView, PostLotteryView, FriendLinkApply, CommunityConfig, CommunityInstance, CommunityShowcaseItem, MonitorConfig, MonitorOverview, MonitorGeoResult, MonitorStatItem, MonitorRealtime, MonitorLogItem, PostAttachmentInput } from './types';
 
 const BASE = '';
 
@@ -419,6 +419,13 @@ export const api = {
     fd.append('image', file);
     return request<{ url: string }>('/api/uploads/image', { method: 'POST', body: fd, headers: {} });
   },
+  uploadPostFile: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{ message: string; url: string; name: string; size: number; content_type?: string }>(
+      '/api/uploads/file', { method: 'POST', body: fd, headers: {} },
+    );
+  },
   /** 当前用户历史上传的帖子图片 */
   myPostImages: (params?: { page?: number; size?: number }) => {
     const q = new URLSearchParams();
@@ -430,6 +437,7 @@ export const api = {
   createPost: (data: {
     board_id: string; title: string; content: string; tags?: string; post_type?: string;
     poll_options?: string; bounty_points?: number; lottery_winner_count?: number;
+    attachments?: PostAttachmentInput[];
   }) => {
     const fd = new FormData();
     fd.append('board_id', data.board_id);
@@ -440,9 +448,10 @@ export const api = {
     if (data.poll_options) fd.append('poll_options', data.poll_options);
     if (data.bounty_points != null) fd.append('bounty_points', String(data.bounty_points));
     if (data.lottery_winner_count != null) fd.append('lottery_winner_count', String(data.lottery_winner_count));
+    if (data.attachments && data.attachments.length) fd.append('attachments', JSON.stringify(data.attachments));
     return request<{ post_id: number; message?: string; status?: string }>('/api/posts', { method: 'POST', body: fd, headers: {} });
   },
-  updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number; post_type?: string }) => {
+  updatePost: (id: number, data: { title: string; content: string; tags?: string; board_id?: string | number; post_type?: string; attachments?: PostAttachmentInput[] }) => {
     const fd = new FormData();
     fd.append('title', data.title);
     fd.append('content', data.content);
@@ -453,6 +462,7 @@ export const api = {
     if (data.post_type) {
       fd.append('post_type', data.post_type);
     }
+    if (data.attachments) fd.append('attachments', JSON.stringify(data.attachments));
     return request<{ message: string }>(`/api/posts/${id}`, { method: 'PUT', body: fd, headers: {} });
   },
   setQuestionResolved: (id: number, resolved: boolean) => {

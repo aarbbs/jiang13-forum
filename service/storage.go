@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/url"
 	"os"
@@ -24,6 +25,7 @@ const (
 	UploadCategoryAvatars = "avatars"
 	UploadCategoryPosts   = "posts"
 	UploadCategorySite    = "site"
+	UploadCategoryFiles   = "files"
 )
 
 // StorageConfig 上传存储配置（管理后台 / 内部使用）
@@ -276,6 +278,124 @@ func (s *UploadStore) SaveImage(file *multipart.FileHeader, category, namePrefix
 		go WarmPostImageThumb(s.UploadsRoot(), rel)
 	}
 	return publicURL, nil
+}
+
+// SaveFile 保存任意附件文件（不做 WebP 衍生），返回公开 URL 与原始文件名。
+// 物理文件名保留原始名（截断）以便后台媒体库识别，同时登记媒体索引（category=files）。
+func (s *UploadStore) SaveFile(file *multipart.FileHeader, category, namePrefix string) (publicURL, name string, size int64, err error) {
+	if s == nil {
+		return "", "", 0, errors.New("上传存储未初始化")
+	}
+	category = strings.Trim(category, "/")
+	if category == "" {
+		return "", "", 0, errors.New("无效的上传分类")
+	}
+
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext == "" {
+		return "", "", 0, errors.New("文件缺少扩展名")
+	}
+	origName := sanitizeUploadFileName(filepath.Base(file.Filename))
+	// 物理文件名：前缀 + 时间戳 + 截断后的原始名（保留可读性且避免超长）
+	stem := strings.TrimSuffix(origName, filepath.Ext(origName))
+	if runes := []rune(stem); len(runes) > 100 {
+		stem = string(runes[:100])
+	}
+	if stem == "" {
+		stem = "file"
+	}
+	storedName := fmt.Sprintf("%s_%d_%s%s", namePrefix, time.Now().UnixNano(), stem, ext)
+
+	src, err := file.Open()
+	if err != nil {
+		return "", "", 0, err
+	}
+	data, readErr := io.ReadAll(src)
+	_ = src.Close()
+	if readErr != nil {
+		return "", "", 0, readErr
+	}
+	if len(data) == 0 {
+		return "", "", 0, errors.New("空文件")
+	}
+
+	contentType := strings.TrimSpace(file.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	mode, publicBase, keyPrefix, backend := s.snapshot()
+	useS3 := mode == config.StorageTypeS3
+	if useS3 {
+		if backend == nil {
+			return "", "", 0, errors.New("对象存储未就绪，请检查管理后台「对象存储」配置")
+		}
+		if err := s.putBytesS3(backend, keyPrefix, category, storedName, contentType, data); err != nil {
+			return "", "", 0, err
+		}
+	} else {
+		if err := s.putBytesLocal(category, storedName, data); err != nil {
+			return "", "", 0, err
+		}
+	}
+
+	url := s.publicURL(useS3, publicBase, category, storedName)
+
+	// 登记媒体索引（category=files），后台「媒体库」可浏览/删除
+	storageType := config.StorageTypeLocal
+	if useS3 {
+		storageType = config.StorageTypeS3
+	}
+	uploader := parseUploaderID(category, namePrefix)
+	_ = s.upsertMediaRecord(category, storedName, url, int64(len(data)), contentType, storageType, uploader)
+
+	return url, origName, int64(len(data)), nil
+}
+
+// IsManagedFileURL 判断 URL 是否属于本站附件分类（/uploads/files/… 或公开对象存储前缀）。
+func (s *UploadStore) IsManagedFileURL(rawURL string) bool {
+	if s == nil {
+		return false
+	}
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return false
+	}
+	if strings.HasPrefix(rawURL, "/uploads/") {
+		rel := strings.TrimPrefix(rawURL, "/uploads/")
+		cat, name, ok := splitCategoryName(rel)
+		return ok && cat == UploadCategoryFiles && name != ""
+	}
+	_, publicBase, _, backend := s.snapshot()
+	if backend == nil || publicBase == "" {
+		return false
+	}
+	rel, ok := relativeUnderPublicBase(rawURL, publicBase)
+	if !ok {
+		return false
+	}
+	cat, name, ok := splitCategoryName(rel)
+	return ok && cat == UploadCategoryFiles && name != ""
+}
+
+// sanitizeUploadFileName 清理用户文件名，仅保留安全的展示名称（不含路径与控制字符）。
+func sanitizeUploadFileName(name string) string {
+	name = strings.TrimSpace(filepath.Base(strings.ReplaceAll(name, "\\", "/")))
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return "file"
+	}
+	runes := []rune(name)
+	if len(runes) > 255 {
+		runes = runes[:255]
+	}
+	return string(runes)
 }
 
 func (s *UploadStore) publicURL(useS3 bool, publicBase, category, filename string) string {

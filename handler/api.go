@@ -349,9 +349,13 @@ func (h *Handlers) APIAdminRestorePost(c *gin.Context) {
 // APIAdminPurgePost 永久删除回收站帖子
 func (h *Handlers) APIAdminPurgePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	attachments, _ := service.ListPostAttachments(uint(id))
 	if err := h.Post.Purge(uint(id)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	for _, a := range attachments {
+		h.Store.DeleteByURL(a.URL)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "帖子已永久删除"})
 }
@@ -1095,6 +1099,11 @@ func (h *Handlers) APIPostDetail(c *gin.Context) {
 		if n, err := service.CountEligibleBountyReplies(model.DB, post.ID, post.UserID); err == nil {
 			resp["bounty_eligible_reply_count"] = n
 		}
+	}
+	if attachments, err := service.ListPostAttachments(post.ID); err == nil {
+		resp["attachments"] = attachments
+	} else {
+		resp["attachments"] = []model.PostAttachment{}
 	}
 	c.JSON(http.StatusOK, resp)
 }

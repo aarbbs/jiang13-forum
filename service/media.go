@@ -24,6 +24,11 @@ type MediaItem struct {
 	ModifiedAt  time.Time `json:"modified_at"`
 	ContentType string    `json:"content_type"`
 	StorageType string    `json:"storage_type,omitempty"`
+	// 被哪篇帖子引用（附件与帖子图）
+	ReferencedPostID    uint   `json:"referenced_post_id,omitempty"`
+	ReferencedPostTitle string `json:"referenced_post_title,omitempty"`
+	// 引用来源：空/"" 表示帖子正文或附件；"comment" 表示来自评论
+	ReferencedVia string `json:"referenced_via,omitempty"`
 }
 
 // MediaListResult 媒体列表分页结果
@@ -40,6 +45,7 @@ var mediaCategories = []string{
 	UploadCategoryAvatars,
 	UploadCategoryPosts,
 	UploadCategorySite,
+	UploadCategoryFiles,
 }
 
 // ListMedia 从数据库索引列出媒体（上传/删除时维护；启动时会扫盘回填）
@@ -78,6 +84,7 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 		UploadCategoryAvatars: 0,
 		UploadCategoryPosts:   0,
 		UploadCategorySite:    0,
+		UploadCategoryFiles:   0,
 	}
 	type catCount struct {
 		Category string
@@ -137,6 +144,8 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 			StorageType: r.StorageType,
 		})
 	}
+	s.enrichFileReferences(files)
+	s.enrichPostImageReferences(files)
 
 	mode, _, _, _ := s.snapshot()
 	storageType := config.StorageTypeLocal
@@ -152,6 +161,116 @@ func (s *UploadStore) ListMedia(category, query string, page, size int) (*MediaL
 		StorageType:    storageType,
 		CategoryCounts: counts,
 	}, nil
+}
+
+// enrichFileReferences 回填附件（category=files）被哪篇帖子引用（帖子标题 + ID）。
+func (s *UploadStore) enrichFileReferences(items []MediaItem) {
+	if model.DB == nil || len(items) == 0 {
+		return
+	}
+	urls := make([]string, 0, len(items))
+	for _, it := range items {
+		if it.Category == UploadCategoryFiles && it.URL != "" {
+			urls = append(urls, it.URL)
+		}
+	}
+	if len(urls) == 0 {
+		return
+	}
+
+	type refRow struct {
+		URL    string
+		PostID uint
+		Title  string
+	}
+	var rows []refRow
+	if err := model.DB.Table("post_attachments").
+		Select("post_attachments.url, post_attachments.post_id, posts.title").
+		Joins("JOIN posts ON posts.id = post_attachments.post_id AND posts.deleted_at IS NULL").
+		Where("post_attachments.url IN ?", urls).
+		Scan(&rows).Error; err != nil {
+		return
+	}
+	refMap := make(map[string]refRow, len(rows))
+	for _, r := range rows {
+		refMap[r.URL] = r
+	}
+	for i := range items {
+		if r, ok := refMap[items[i].URL]; ok {
+			items[i].ReferencedPostID = r.PostID
+			items[i].ReferencedPostTitle = r.Title
+		}
+	}
+}
+
+// mediaURLStem 取媒体 URL 去除扩展名/查询后的主名（用于按原图+WebP 同主名反查引用）。
+func mediaURLStem(rawURL string) string {
+	u := strings.TrimSpace(rawURL)
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	ext := filepath.Ext(u)
+	if ext != "" {
+		u = u[:len(u)-len(ext)]
+	}
+	return u
+}
+
+// enrichPostImageReferences 反查帖子正文图（category=posts）被哪篇帖子引用。
+// 图片可能内嵌于帖子正文或评论正文，按“原图/WebP 同主名”匹配。
+func (s *UploadStore) enrichPostImageReferences(items []MediaItem) {
+	if model.DB == nil || len(items) == 0 {
+		return
+	}
+	// 去重主名
+	stemSet := make(map[string]bool)
+	for _, it := range items {
+		if it.Category == UploadCategoryPosts && it.URL != "" {
+			if stem := mediaURLStem(it.URL); stem != "" {
+				stemSet[stem] = true
+			}
+		}
+	}
+	if len(stemSet) == 0 {
+		return
+	}
+
+	type ref struct {
+		PostID uint
+		Title  string
+		Via    string
+	}
+	refMap := make(map[string]ref, len(stemSet))
+	for stem := range stemSet {
+		like := "%" + escapeLikePattern(stem) + "%"
+		var post model.Post
+		if err := model.DB.Select("id, title").
+			Where("content LIKE ? ESCAPE '\\'", like).
+			First(&post).Error; err == nil {
+			refMap[stem] = ref{PostID: post.ID, Title: post.Title}
+			continue
+		}
+		var comment model.Comment
+		if err := model.DB.Select("id, post_id").
+			Where("content LIKE ? ESCAPE '\\'", like).
+			First(&comment).Error; err == nil {
+			var p model.Post
+			if err := model.DB.Select("id, title").First(&p, comment.PostID).Error; err == nil {
+				refMap[stem] = ref{PostID: p.ID, Title: p.Title, Via: "comment"}
+			}
+		}
+	}
+
+	for i := range items {
+		if items[i].Category != UploadCategoryPosts {
+			continue
+		}
+		if r, ok := refMap[mediaURLStem(items[i].URL)]; ok {
+			items[i].ReferencedPostID = r.PostID
+			items[i].ReferencedPostTitle = r.Title
+			items[i].ReferencedVia = r.Via
+		}
+	}
 }
 
 // ListUserPostImages 列出当前用户历史上传的帖子图片（category=posts）
@@ -490,7 +609,7 @@ func (s *UploadStore) listMediaLocal(category string) ([]MediaItem, error) {
 				continue
 			}
 			ext := strings.ToLower(filepath.Ext(name))
-			if !allowedImageExt[ext] {
+			if cat != UploadCategoryFiles && !allowedImageExt[ext] {
 				continue
 			}
 			info, err := e.Info()
@@ -542,7 +661,7 @@ func (s *UploadStore) listMediaS3(category string) ([]MediaItem, error) {
 				continue
 			}
 			ext := strings.ToLower(filepath.Ext(name))
-			if !allowedImageExt[ext] {
+			if cat != UploadCategoryFiles && !allowedImageExt[ext] {
 				continue
 			}
 			out = append(out, MediaItem{
@@ -561,7 +680,7 @@ func (s *UploadStore) listMediaS3(category string) ([]MediaItem, error) {
 
 func validMediaCategory(cat string) bool {
 	switch cat {
-	case UploadCategoryAvatars, UploadCategoryPosts, UploadCategorySite:
+	case UploadCategoryAvatars, UploadCategoryPosts, UploadCategorySite, UploadCategoryFiles:
 		return true
 	default:
 		return false

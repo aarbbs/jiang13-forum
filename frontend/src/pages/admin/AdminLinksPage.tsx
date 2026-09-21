@@ -388,6 +388,9 @@ export default function AdminLinksPage() {
           password_min_len: 6,
           avatar_max_mb: 2,
           signature_max: 200,
+          post_file_allowed_exts: ['zip', 'rar', '7z', 'tar', 'gz', 'pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
+          post_file_max_count: 10,
+          post_file_max_mb: 10,
         };
       }
       const widgets = normalizeAsideWidgets(fl.aside_widgets).map(w => (

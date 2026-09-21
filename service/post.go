@@ -809,6 +809,9 @@ func (s *PostService) Purge(postID uint) error {
 		if err := tx.Where("post_id = ?", postID).Delete(&model.PostRevision{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("post_id = ?", postID).Delete(&model.PostAttachment{}).Error; err != nil {
+			return err
+		}
 		return tx.Unscoped().Delete(&post).Error
 	})
 }

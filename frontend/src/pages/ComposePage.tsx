@@ -4,8 +4,7 @@ import { Pencil } from 'lucide-react';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import type { Board } from '../api/types';
-import { isHtmlEmpty } from '../utils/postContent';
+import type { Board, PostAttachmentInput } from '../api/types';import { isHtmlEmpty } from '../utils/postContent';
 import { useForumLimits } from '../hooks/useForumLimits';
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
@@ -29,6 +28,7 @@ import { loginPath } from '../utils/authRedirect';
 import { useNoIndexSEO } from '../hooks/usePageSEO';
 import { parsePermalinkID, postPath } from '../utils/permalink';
 import { skipsModeration } from '../utils/userMeta';
+import { clearAllFeedCache } from '../utils/feedCache';
 import {
   clearComposeDraft,
   composeDraftHasContent,
@@ -90,6 +90,7 @@ export default function ComposePage() {
   const [pollNoEndTime, setPollNoEndTime] = useState(false);
   const [bountyPoints, setBountyPoints] = useState(0);
   const [lotteryWinners, setLotteryWinners] = useState(1);
+  const [attachments, setAttachments] = useState<PostAttachmentInput[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   /** 新建帖：板块列表是否已就绪（避免请求中误显空态） */
@@ -164,6 +165,12 @@ export default function ComposePage() {
               setPollEndsAt(defaultPollEndsAtLocal());
             }
           }
+          setAttachments((postData.attachments ?? []).map(a => ({
+            name: a.name,
+            url: a.url,
+            size: a.size,
+            content_type: a.content_type,
+          })));
 
           const windowHours = postData.post_edit_window_hours ?? 0;
           if (user.role !== 'admin' && windowHours > 0) {
@@ -391,17 +398,23 @@ export default function ComposePage() {
           : undefined,
         bounty_points: postType === 'bounty' ? bountyPoints : undefined,
         lottery_winner_count: postType === 'lottery' ? lotteryWinners : undefined,
+        attachments,
       };
       if (isEdit) {
         await api.updatePost(editId!, payload);
         notify.success(skipsModeration(user) ? '帖子已更新' : '已更新并重新提交审核');
         markSaved();
+        // 使帖子详情会话快照与列表缓存失效，返回查看页时重新拉取（含最新附件）
+        clearAllFeedCache();
+        window.dispatchEvent(new Event('posts-refresh'));
         nav(postPath(editId!, limits));
       } else {
         const res = await api.createPost(payload);
         clearComposeDraft();
         notify.success(res.message || (res.status === 'pending' ? '已提交审核' : '发帖成功'));
         markSaved();
+        clearAllFeedCache();
+        window.dispatchEvent(new Event('posts-refresh'));
         nav(postPath(res.post_id, limits));
       }
     } catch (e: unknown) {
@@ -435,6 +448,8 @@ export default function ComposePage() {
               content={content}
               onContentChange={setContent}
               limits={limits}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
             >
               <ComposeContextBar
                 isEdit={isEdit}

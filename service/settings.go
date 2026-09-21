@@ -27,6 +27,10 @@ const (
 	SettingPostTagsMax    = "post_tags_max"
 	SettingPostContentMax = "post_content_max"
 
+	SettingPostFileAllowedExts = "post_file_allowed_exts"
+	SettingPostFileMaxCount    = "post_file_max_count"
+	SettingPostFileMaxMB       = "post_file_max_mb"
+
 	SettingCommentMax = "comment_max"
 
 	SettingSearchKeywordMin = "search_keyword_min"
@@ -118,6 +122,9 @@ const (
 
 	// pageSizeAPIMax 单次列表请求条数硬上限（防客户端传超大 size），非后台可配项
 	pageSizeAPIMax = 100
+
+	// defaultPostFileAllowedExts 帖子附件默认允许的扩展名（逗号分隔，不含点）
+	defaultPostFileAllowedExts = "zip,rar,7z,tar,gz,pdf,txt,md,doc,docx,xls,xlsx,ppt,pptx"
 )
 
 // ForumLimits 论坛可配置限制（API 传输结构）
@@ -134,6 +141,10 @@ type ForumLimits struct {
 	PostTitleMax   int `json:"post_title_max"`
 	PostTagsMax    int `json:"post_tags_max"`
 	PostContentMax int `json:"post_content_max"`
+
+	PostFileAllowedExts []string `json:"post_file_allowed_exts"`
+	PostFileMaxCount    int      `json:"post_file_max_count"`
+	PostFileMaxMB       int      `json:"post_file_max_mb"`
 
 	CommentMax int `json:"comment_max"`
 
@@ -224,6 +235,10 @@ type ForumLimitsPublic struct {
 	AvatarMaxMB      int `json:"avatar_max_mb"`
 	SignatureMax     int `json:"signature_max"`
 
+	PostFileAllowedExts []string `json:"post_file_allowed_exts"`
+	PostFileMaxCount    int      `json:"post_file_max_count"`
+	PostFileMaxMB       int      `json:"post_file_max_mb"`
+
 	CommentEditWindowMinutes int `json:"comment_edit_window_minutes"`
 
 	OpenPostsInNewTab        bool `json:"open_posts_in_new_tab"`
@@ -269,6 +284,9 @@ var forumSettingDefs = []settingDef{
 	{SettingPostTitleMax, "128", 1, 512},
 	{SettingPostTagsMax, "256", 0, 512},
 	{SettingPostContentMax, "50000", 0, 0},
+
+	{SettingPostFileMaxCount, "10", 0, 100},
+	{SettingPostFileMaxMB, "10", 0, 200},
 
 	{SettingCommentMax, "5000", 1, 50000},
 
@@ -335,6 +353,10 @@ var storageSettingDefaults = map[string]string{
 	SettingStoragePrefix:         "",
 	SettingStorageForcePathStyle: "1",
 	SettingStorageImageDelivery:  ImageDeliveryWebP,
+}
+
+var postFileSettingDefaults = map[string]string{
+	SettingPostFileAllowedExts: defaultPostFileAllowedExts,
 }
 
 var friendLinkSettingDefaults = map[string]string{
@@ -566,6 +588,13 @@ func (s *ForumSettingsService) ensureDefaults() {
 			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
 		}
 	}
+	for key, val := range postFileSettingDefaults {
+		var count int64
+		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
+		if count == 0 {
+			model.DB.Create(&model.ForumSetting{Key: key, Value: val})
+		}
+	}
 	for key, val := range siteBrandingDefaults {
 		var count int64
 		model.DB.Model(&model.ForumSetting{}).Where("`key` = ?", key).Count(&count)
@@ -658,6 +687,10 @@ func (s *ForumSettingsService) Limits() ForumLimits {
 		PostTagsMax:    s.PostTagsMax(),
 		PostContentMax: s.PostContentMax(),
 
+		PostFileAllowedExts: s.PostFileAllowedExts(),
+		PostFileMaxCount:    s.PostFileMaxCount(),
+		PostFileMaxMB:       s.PostFileMaxMB(),
+
 		CommentMax: s.CommentMax(),
 
 		SearchKeywordMin: s.SearchKeywordMin(),
@@ -704,6 +737,10 @@ func (s *ForumSettingsService) PublicLimits() ForumLimitsPublic {
 		AvatarMaxMB:      limits.AvatarMaxMB,
 		SignatureMax:     limits.SignatureMax,
 
+		PostFileAllowedExts: limits.PostFileAllowedExts,
+		PostFileMaxCount:    limits.PostFileMaxCount,
+		PostFileMaxMB:       limits.PostFileMaxMB,
+
 		CommentEditWindowMinutes: limits.CommentEditWindowMinutes,
 
 		OpenPostsInNewTab:        limits.OpenPostsInNewTab,
@@ -748,6 +785,8 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		SettingPasswordMinLen:           in.PasswordMinLen,
 		SettingAvatarMaxMB:              in.AvatarMaxMB,
 		SettingSignatureMax:             in.SignatureMax,
+		SettingPostFileMaxCount:         in.PostFileMaxCount,
+		SettingPostFileMaxMB:            in.PostFileMaxMB,
 	}
 	if in.SearchKeywordMax > 0 && in.SearchKeywordMin > in.SearchKeywordMax {
 		return ErrInvalidSetting
@@ -756,6 +795,10 @@ func (s *ForumSettingsService) UpdateLimits(in ForumLimits) error {
 		if err := s.setInt(key, val); err != nil {
 			return err
 		}
+	}
+	exts := normalizeFileExtList(in.PostFileAllowedExts)
+	if err := s.setString(SettingPostFileAllowedExts, strings.Join(exts, ",")); err != nil {
+		return err
 	}
 	widgets := NormalizeAsideWidgets(in.AsideWidgets)
 	if len(widgets) == 0 {
@@ -847,6 +890,17 @@ func (s *ForumSettingsService) PostTitleMax() int   { return s.getInt(SettingPos
 func (s *ForumSettingsService) PostTagsMax() int    { return s.getInt(SettingPostTagsMax, 256) }
 func (s *ForumSettingsService) PostContentMax() int { return s.getInt(SettingPostContentMax, 50000) }
 func (s *ForumSettingsService) CommentMax() int     { return s.getInt(SettingCommentMax, 5000) }
+
+// PostFileAllowedExts 帖子附件允许的扩展名（小写、不含点）；空表示禁用附件上传
+func (s *ForumSettingsService) PostFileAllowedExts() []string {
+	return normalizeFileExts(s.getString(SettingPostFileAllowedExts, defaultPostFileAllowedExts))
+}
+
+// PostFileMaxCount 每个帖子允许的附件数量上限；0 表示不限
+func (s *ForumSettingsService) PostFileMaxCount() int { return s.getInt(SettingPostFileMaxCount, 10) }
+
+// PostFileMaxMB 单个附件大小上限（MB）；0 表示不限
+func (s *ForumSettingsService) PostFileMaxMB() int { return s.getInt(SettingPostFileMaxMB, 10) }
 
 func (s *ForumSettingsService) SearchKeywordMin() int { return s.getInt(SettingSearchKeywordMin, 1) }
 func (s *ForumSettingsService) SearchKeywordMax() int { return s.getInt(SettingSearchKeywordMax, 50) }
@@ -1999,4 +2053,40 @@ func (s *ForumSettingsService) ValidateTextLength(text string, max int, tooLongE
 		return tooLongErr
 	}
 	return nil
+}
+
+// normalizeFileExt 将扩展名规范为小写、不含点的形式（如 ".Zip" -> "zip"；无扩展名返回空串）
+func normalizeFileExt(ext string) string {
+	ext = strings.ToLower(strings.TrimSpace(ext))
+	ext = strings.TrimPrefix(ext, ".")
+	if ext == "" || strings.ContainsAny(ext, "/\\ ") {
+		return ""
+	}
+	return ext
+}
+
+// normalizeFileExts 解析逗号/空白/分号分隔的扩展名列表，规范为小写、不含点、去重
+func normalizeFileExts(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '，' || r == ';' || r == '；' || r == ' ' || r == '\t' || r == '\n'
+	}) {
+		e := normalizeFileExt(p)
+		if e == "" || seen[e] {
+			continue
+		}
+		seen[e] = true
+		out = append(out, e)
+	}
+	return out
+}
+
+// normalizeFileExtList 规范化扩展名切片
+func normalizeFileExtList(in []string) []string {
+	return normalizeFileExts(strings.Join(in, ","))
 }

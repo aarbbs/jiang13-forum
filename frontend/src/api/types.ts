@@ -136,6 +136,25 @@ export interface CommentRevision {
   editor?: User;
 }
 
+export interface PostAttachment {
+  id: number;
+  post_id: number;
+  user_id: number;
+  name: string;
+  url: string;
+  size: number;
+  content_type?: string;
+  created_at: string;
+}
+
+/** 发帖 / 编辑提交的附件（文件已上传） */
+export interface PostAttachmentInput {
+  name: string;
+  url: string;
+  size: number;
+  content_type?: string;
+}
+
 export interface PostDetailResponse {
   post: PostItem;
   comment_count: number;
@@ -148,6 +167,7 @@ export interface PostDetailResponse {
   post_edit_window_hours?: number;
   poll?: PollView;
   lottery?: PostLotteryView;
+  attachments?: PostAttachment[];
   /** 悬赏进行中：当前用户是否可取消悬赏 */
   bounty_can_refund?: boolean;
   bounty_refund_block_reason?: string;
@@ -247,9 +267,14 @@ export interface ForumLimits {
   password_min_len: number;
   avatar_max_mb: number;
   signature_max: number;
+  /** 帖子附件允许的扩展名（小写、不含点；空数组表示禁用） */
+  post_file_allowed_exts: string[];
+  /** 每个帖子允许的附件数量上限；0 表示不限 */
+  post_file_max_count: number;
+  /** 单个附件大小上限（MB）；0 表示不限 */
+  post_file_max_mb: number;
   open_posts_in_new_tab: boolean;
-  open_content_links_in_new_tab: boolean;
-  /** 右侧栏标签云 */
+  open_content_links_in_new_tab: boolean;  /** 右侧栏标签云 */
   aside_show_tag_cloud: boolean;
   /** 右侧栏最新评论 */
   aside_show_recent_comments: boolean;
@@ -289,6 +314,12 @@ export interface ForumLimitsPublic {
   password_min_len: number;
   avatar_max_mb: number;
   signature_max: number;
+  /** 帖子附件允许的扩展名（小写、不含点；空数组表示禁用） */
+  post_file_allowed_exts: string[];
+  /** 每个帖子允许的附件数量上限；0 表示不限 */
+  post_file_max_count: number;
+  /** 单个附件大小上限（MB）；0 表示不限 */
+  post_file_max_mb: number;
   open_posts_in_new_tab: boolean;
   open_content_links_in_new_tab: boolean;
   aside_show_tag_cloud: boolean;
@@ -572,7 +603,7 @@ export interface StorageConfig {
   image_delivery: 'webp' | 'original';
 }
 
-export type MediaCategory = 'avatars' | 'posts' | 'site';
+export type MediaCategory = 'avatars' | 'posts' | 'site' | 'files';
 
 export interface MediaItem {
   category: MediaCategory;
@@ -581,6 +612,11 @@ export interface MediaItem {
   size: number;
   modified_at: string;
   content_type: string;
+  /** 被哪篇帖子引用（附件与帖子图） */
+  referenced_post_id?: number;
+  referenced_post_title?: string;
+  /** 引用来源："" 为帖子正文/附件；"comment" 为评论 */
+  referenced_via?: string;
 }
 
 export interface MediaListResult {

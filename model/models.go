@@ -187,6 +187,18 @@ type Comment struct {
 	Liked          bool  `gorm:"-" json:"liked"`
 }
 
+// PostAttachment 帖子附件（真实文件在本地 uploads/files 或对象存储；供正文下方展示与下载）
+type PostAttachment struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	PostID      uint      `gorm:"index;not null" json:"post_id"`
+	UserID      uint      `gorm:"index;not null" json:"user_id"`
+	Name        string    `gorm:"size:255;not null" json:"name"` // 原始文件名（展示用）
+	URL         string    `gorm:"size:512;not null" json:"url"`  // 公开下载地址
+	Size        int64     `gorm:"not null;default:0" json:"size"`
+	ContentType string    `gorm:"size:64;default:''" json:"content_type"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // PostLike 帖子点赞
 type PostLike struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`

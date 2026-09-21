@@ -72,6 +72,15 @@ const SETTING_SECTIONS: SettingSection[] = [
     ],
   },
   {
+    id: 'file',
+    title: '附件上传',
+    summary: '帖子附件允许的类型、数量与大小；0 = 不限',
+    rows: [
+      { key: 'post_file_max_count', label: '每帖附件数量', unit: '个', hint: '0 = 不限', min: 0 },
+      { key: 'post_file_max_mb', label: '单个附件大小', unit: 'MB', hint: '0 = 不限', min: 0 },
+    ],
+  },
+  {
     id: 'search',
     title: '搜索与列表',
     summary: '关键词长度与首页每页条数',
@@ -1045,6 +1054,35 @@ export default function AdminSettingsPage() {
             </div>
             <div className="admin-card-body">
               <SettingTable sections={SETTING_SECTIONS} limits={limits} onChange={handleLimitChange} />
+              <section className="admin-settings-section" id="settings-file-exts">
+                <div className="admin-settings-section-head">
+                  <h3>允许的附件类型</h3>
+                  <p>以逗号分隔扩展名（不含点）；留空表示禁用帖子附件上传</p>
+                </div>
+                <div className="admin-settings-table" role="group" aria-label="允许的附件类型">
+                  <div className="admin-settings-row">
+                    <span className="admin-settings-row-label" id="limit-label-post_file_allowed_exts">
+                      扩展名列表
+                    </span>
+                    <div className="admin-settings-row-input">
+                      <Input
+                        id="limit-post_file_allowed_exts"
+                        value={(limits.post_file_allowed_exts ?? []).join(', ')}
+                        aria-labelledby="limit-label-post_file_allowed_exts"
+                        placeholder="zip, rar, 7z, pdf, docx"
+                        onChange={e => {
+                          const parts = e.target.value
+                            .split(/[,，;\s]+/)
+                            .map(s => s.replace(/^\./, '').toLowerCase())
+                            .filter(Boolean);
+                          setLimits(prev => prev ? { ...prev, post_file_allowed_exts: parts } : prev);
+                        }}
+                      />
+                    </div>
+                    <span className="admin-settings-row-hint">示例：zip, rar, 7z, pdf, docx</span>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
           <div className="admin-settings-bar">

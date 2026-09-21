@@ -411,14 +411,68 @@ func (h *Handlers) APIUploadPostImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "图片已上传", "url": url})
 }
 
+func (h *Handlers) APIUploadPostFile(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择文件"})
+		return
+	}
+	uid := h.currentUserID(c)
+	allowed := h.Settings.PostFileAllowedExts()
+	if len(allowed) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件上传未启用"})
+		return
+	}
+	ext := service.NormalizeFileExtForUpload(file.Filename)
+	extAllowed := false
+	for _, a := range allowed {
+		if strings.EqualFold(a, ext) {
+			extAllowed = true
+			break
+		}
+	}
+	if !extAllowed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的文件类型：" + ext})
+		return
+	}
+	maxMB := h.Settings.PostFileMaxMB()
+	if maxMB > 0 && file.Size > int64(maxMB)*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("文件不能超过 %dMB", maxMB)})
+		return
+	}
+	url, name, size, err := h.Store.SaveFile(file, service.UploadCategoryFiles, fmt.Sprintf("%d", uid))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	contentType := file.Header.Get("Content-Type")
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "文件已上传",
+		"url":          url,
+		"name":         name,
+		"size":         size,
+		"content_type": contentType,
+	})
+}
+
 func (h *Handlers) APICreatePost(c *gin.Context) {
 	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
 	title := c.PostForm("title")
 	content := c.PostForm("content")
 	tags := c.PostForm("tags")
 	postType := c.PostForm("post_type")
+	uid := h.currentUserID(c)
+	attachments, err := service.ParsePostAttachmentsJSON(c.PostForm("attachments"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := service.ValidatePostAttachments(h.Settings, h.Store, attachments); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	skip := h.skipsModeration(c)
-	post, err := h.Post.Create(h.currentUserID(c), uint(boardID), title, content, tags, postType, skip)
+	post, err := h.Post.Create(uid, uint(boardID), title, content, tags, postType, skip)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -429,11 +483,16 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 		c.PostForm("lottery_winner_count"),
 	)
 	if post.PostType == model.PostTypePoll || post.PostType == model.PostTypeBounty || post.PostType == model.PostTypeLottery {
-		if err := service.FinalizeSpecialPostCreate(post, h.currentUserID(c), extras); err != nil {
-			_ = h.Post.Delete(h.currentUserID(c), post.ID, true)
+		if err := service.FinalizeSpecialPostCreate(post, uid, extras); err != nil {
+			_ = h.Post.Delete(uid, post.ID, true)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+	}
+	if err := service.SyncPostAttachments(post.ID, uid, h.Store, attachments); err != nil {
+		_ = h.Post.Delete(uid, post.ID, true)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "附件保存失败：" + err.Error()})
+		return
 	}
 	msg := "发帖成功"
 	if post.Status == model.ContentStatusPending {
@@ -448,12 +507,26 @@ func (h *Handlers) APICreatePost(c *gin.Context) {
 func (h *Handlers) APIUpdatePost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	boardID, _ := strconv.ParseUint(c.PostForm("board_id"), 10, 64)
+	uid := h.currentUserID(c)
+	attachments, err := service.ParsePostAttachmentsJSON(c.PostForm("attachments"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := service.ValidatePostAttachments(h.Settings, h.Store, attachments); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	isAdmin := h.isAdmin(c)
 	skip := h.skipsModeration(c)
-	err := h.Post.Update(h.currentUserID(c), uint(id), isAdmin, skip,
+	err = h.Post.Update(uid, uint(id), isAdmin, skip,
 		c.PostForm("title"), c.PostForm("content"), c.PostForm("tags"), c.PostForm("post_type"), uint(boardID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := service.SyncPostAttachments(uint(id), uid, h.Store, attachments); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "附件保存失败：" + err.Error()})
 		return
 	}
 	// 非免审用户修改后重新进入审核

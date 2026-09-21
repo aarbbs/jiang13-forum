@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation, useNavigationType } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Star, Lock, MessageSquare, MessageSquareOff, Flag, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Star, Lock, MessageSquare, MessageSquareOff, Flag, MoreHorizontal, Paperclip, Download } from 'lucide-react';
 import FeaturedIcon from '@/components/FeaturedIcon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { notify } from '@/lib/notify';
 import { api } from '../api/client';
-import type { PostItem, Comment, ReportReason, PollView, PostLotteryView } from '../api/types';
+import type { PostItem, Comment, ReportReason, PollView, PostLotteryView, PostAttachment } from '../api/types';
 import { REPORT_REASON_OPTIONS } from '../utils/report';
 import CommentThreadList from '../components/CommentThreadList';
 import CommentBox, { type CommentSubmitData } from '../components/CommentBox';
@@ -70,6 +70,7 @@ type PostDetailSnapshot = {
   comments: Comment[];
   poll: PollView | null;
   lottery: PostLotteryView | null;
+  attachments: PostAttachment[];
   liked: boolean;
   favorited: boolean;
   canEdit: boolean;
@@ -86,9 +87,20 @@ function postDetailCacheKey(id: number) {
   return `post:${id}`;
 }
 
+function formatFileSize(bytes: number): string {
+  if (!bytes || bytes < 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let n = bytes;
+  let u = 0;
+  while (n >= 1024 && u < units.length - 1) {
+    n /= 1024;
+    u += 1;
+  }
+  return `${n.toFixed(n >= 100 || u === 0 ? 0 : 1)} ${units[u]}`;
+}
+
 /** 格式化剩余可编辑时间 */
-function formatEditRemaining(createdAt: string, windowHours: number): string {
-  if (windowHours <= 0) return '';
+function formatEditRemaining(createdAt: string, windowHours: number): string {  if (windowHours <= 0) return '';
   const deadline = new Date(createdAt).getTime() + windowHours * 3600_000;
   const ms = deadline - Date.now();
   if (ms <= 0) return '';
@@ -116,6 +128,7 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<PostItem | null>(initialSnap?.post ?? null);
   const [poll, setPoll] = useState<PollView | null>(initialSnap?.poll ?? null);
   const [lottery, setLottery] = useState<PostLotteryView | null>(initialSnap?.lottery ?? null);
+  const [attachments, setAttachments] = useState<PostAttachment[]>(initialSnap?.attachments ?? []);
   const [comments, setComments] = useState<Comment[]>(initialSnap?.comments ?? []);
   const [liked, setLiked] = useState(initialSnap?.liked ?? false);
   const [favorited, setFavorited] = useState(initialSnap?.favorited ?? false);
@@ -228,6 +241,7 @@ export default function PostDetailPage() {
     setPost(snap.post);
     setPoll(snap.poll);
     setLottery(snap.lottery);
+    setAttachments(snap.attachments ?? []);
     setLiked(snap.liked);
     setFavorited(snap.favorited);
     setCanEdit(snap.canEdit);
@@ -295,6 +309,7 @@ export default function PostDetailPage() {
           comments: commentsList,
           poll: detail.poll ?? null,
           lottery: detail.lottery ?? null,
+          attachments: detail.attachments ?? [],
           liked: detail.liked,
           favorited: detail.favorited,
           canEdit: detail.can_edit ?? false,
@@ -366,6 +381,7 @@ export default function PostDetailPage() {
       comments,
       poll,
       lottery,
+      attachments,
       liked,
       favorited,
       canEdit,
@@ -378,7 +394,7 @@ export default function PostDetailPage() {
       scrollTop: scrollTopRef.current,
     });
   }, [
-    post, comments, poll, lottery, liked, favorited, canEdit, isEdited,
+    post, comments, poll, lottery, attachments, liked, favorited, canEdit, isEdited,
     editBlockReason, editWindowHours, bountyCanRefund, bountyRefundBlockReason,
     bountyEligibleReplyCount, postId, loading,
   ]);
@@ -404,6 +420,7 @@ export default function PostDetailPage() {
       setPost(detail.post);
       setPoll(detail.poll ?? null);
       setLottery(detail.lottery ?? null);
+      setAttachments(detail.attachments ?? []);
       setBountyCanRefund(detail.bounty_can_refund ?? true);
       setBountyRefundBlockReason(detail.bounty_refund_block_reason ?? '');
       setBountyEligibleReplyCount(detail.bounty_eligible_reply_count ?? 0);
@@ -1122,6 +1139,32 @@ export default function PostDetailPage() {
           onRequestReply={scrollToCommentBox}
           onUnlocked={() => { void reloadPostContent(); }}
         />
+
+        {attachments.length > 0 && (
+          <div className="post-attachments">
+            <div className="post-attachments-title">
+              <Paperclip size={15} aria-hidden />
+              附件（{attachments.length}）
+            </div>
+            <ul className="post-attachments-list">
+              {attachments.map(a => (
+                <li key={a.id || a.url} className="post-attachment">
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="post-attachment-link"
+                    download={a.name}
+                  >
+                    <span className="post-attachment-name">{a.name}</span>
+                    <span className="post-attachment-size">{formatFileSize(a.size)}</span>
+                    <Download size={15} aria-hidden />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="post-detail-actions">
           <div className="post-detail-actions-primary">

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import ArticleEditor from '../ArticleEditor';
-import type { ForumLimitsPublic } from '../../api/types';
+import type { ForumLimitsPublic, PostAttachmentInput } from '../../api/types';
 import type { PostType } from './ComposeContextBar';
 
 interface Props {
@@ -10,13 +10,15 @@ interface Props {
   content: string;
   onContentChange: (content: string) => void;
   limits: ForumLimitsPublic;
+  attachments: PostAttachmentInput[];
+  onAttachmentsChange: (list: PostAttachmentInput[]) => void;
   /** 渲染于标题与编辑器之间的元信息条（如发布设置） */
   children?: ReactNode;
 }
 
 /**
- * 发帖页正文写作模块：标题输入框 + 富文本编辑器。
- * 受控组件，标题与正文状态由父级持有。
+ * 发帖页正文写作模块：标题输入框 + 富文本编辑器（附件入口在编辑器工具栏内）。
+ * 受控组件，标题、正文与附件状态由父级持有。
  */
 export default function ComposeDocument({
   postType,
@@ -25,6 +27,8 @@ export default function ComposeDocument({
   content,
   onContentChange,
   limits,
+  attachments,
+  onAttachmentsChange,
   children,
 }: Props) {
   return (
@@ -42,6 +46,9 @@ export default function ComposeDocument({
         value={content}
         onChange={onContentChange}
         placeholder="开始写作。按回车分段，选中文字后用工具栏设置格式。"
+        enableAttachments
+        attachments={attachments}
+        onAttachmentsChange={onAttachmentsChange}
       />
     </div>
   );
