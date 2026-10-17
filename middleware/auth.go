@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"git.iioio.com/freefire/jiang13-forum/model"
 	"git.iioio.com/freefire/jiang13-forum/service"
+	"gorm.io/gorm"
 )
 
 const (
@@ -62,17 +64,28 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		// 检查禁言
 		var user model.User
-		if err := model.DB.First(&user, claims.UserID).Error; err != nil || user.Banned {
+		if err := model.DB.First(&user, claims.UserID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 用户已删除，令牌作废
+				respondAuthExpired(c)
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器错误"})
+			}
+			c.Abort()
+			return
+		}
+		// 检查禁言
+		if user.Banned {
 			respondBanned(c)
 			c.Abort()
 			return
 		}
-		c.Set(CtxUserID, claims.UserID)
-		c.Set(CtxUsername, claims.Username)
-		c.Set(CtxRole, claims.Role)
-		m.auth.TouchLastAccess(claims.UserID)
+		// 身份与角色以数据库为准，降权/改名无需等待令牌过期即生效
+		c.Set(CtxUserID, user.ID)
+		c.Set(CtxUsername, user.Username)
+		c.Set(CtxRole, user.Role)
+		m.auth.TouchLastAccess(user.ID)
 		c.Next()
 	}
 }
