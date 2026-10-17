@@ -173,3 +173,52 @@ func TestRefundBountyAdminBypassWithReplies(t *testing.T) {
 		t.Fatalf("管理员应可强制退回，err=%v", err)
 	}
 }
+
+// 模拟并发：事务外读取到 open 后，悬赏已被其他请求处理
+func TestTransitionBountyTxRejectsStaleState(t *testing.T) {
+	db := setupBountyTestDB(t)
+	seedUser(t, db, 1, 0)
+	post := seedBountyPost(t, db, 1, 5)
+
+	if err := RefundBounty(post.ID, 1, false); err != nil {
+		t.Fatalf("首次退回应成功，err=%v", err)
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		return transitionBountyTx(tx, post.ID, 5, map[string]interface{}{
+			"bounty_status":     model.BountyStatusAwarded,
+			"bounty_comment_id": 1,
+		})
+	})
+	if !errors.Is(err, ErrBountyNotOpen) {
+		t.Fatalf("已退回的悬赏不应再次转换，err=%v", err)
+	}
+	var updated model.Post
+	if err := db.First(&updated, post.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if updated.BountyStatus != model.BountyStatusRefunded {
+		t.Fatalf("状态不应被覆盖，得到 %s", updated.BountyStatus)
+	}
+}
+
+func TestRefundBountyIfOpenStalePostRefundsOnce(t *testing.T) {
+	db := setupBountyTestDB(t)
+	seedUser(t, db, 1, 0)
+	post := seedBountyPost(t, db, 1, 7)
+	stale := post
+
+	for i := 0; i < 2; i++ {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			return RefundBountyIfOpen(tx, &stale)
+		}); err != nil {
+			t.Fatalf("第 %d 次调用不应报错，err=%v", i+1, err)
+		}
+	}
+	var author model.User
+	if err := db.First(&author, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if author.Points != 7 {
+		t.Fatalf("积分只应退回一次，余额=%d", author.Points)
+	}
+}
