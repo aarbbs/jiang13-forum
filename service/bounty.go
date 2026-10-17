@@ -85,13 +85,15 @@ func AwardBounty(postID, operatorID uint, isAdmin bool, commentID uint) error {
 	}
 	points := post.BountyPoints
 	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if _, err := AdjustPointsTx(tx, comment.UserID, points, model.PointReasonBountyAward, "post", postID, "悬赏采纳"); err != nil {
+		// 先以状态为条件抢占悬赏，防止并发采纳/退回重复发放积分
+		if err := transitionBountyTx(tx, postID, points, map[string]interface{}{
+			"bounty_status":     model.BountyStatusAwarded,
+			"bounty_comment_id": commentID,
+		}); err != nil {
 			return err
 		}
-		return tx.Model(&post).Updates(map[string]interface{}{
-			"bounty_status":      model.BountyStatusAwarded,
-			"bounty_comment_id":  commentID,
-		}).Error
+		_, err := AdjustPointsTx(tx, comment.UserID, points, model.PointReasonBountyAward, "post", postID, "悬赏采纳")
+		return err
 	})
 }
 
@@ -121,13 +123,15 @@ func RefundBounty(postID, operatorID uint, isAdmin bool) error {
 	}
 	points := post.BountyPoints
 	return model.DB.Transaction(func(tx *gorm.DB) error {
-		if _, err := AdjustPointsTx(tx, post.UserID, points, model.PointReasonBountyRefund, "post", postID, "悬赏退回"); err != nil {
-			return err
-		}
-		return tx.Model(&post).Updates(map[string]interface{}{
+		// 先以状态为条件抢占悬赏，防止并发采纳/退回重复发放积分
+		if err := transitionBountyTx(tx, postID, points, map[string]interface{}{
 			"bounty_status": model.BountyStatusRefunded,
 			"bounty_points": 0,
-		}).Error
+		}); err != nil {
+			return err
+		}
+		_, err := AdjustPointsTx(tx, post.UserID, points, model.PointReasonBountyRefund, "post", postID, "悬赏退回")
+		return err
 	})
 }
 
@@ -140,11 +144,32 @@ func RefundBountyIfOpen(tx *gorm.DB, post *model.Post) error {
 		return nil
 	}
 	points := post.BountyPoints
-	if _, err := AdjustPointsTx(tx, post.UserID, points, model.PointReasonBountyRefund, "post", post.ID, "删帖退回悬赏"); err != nil {
-		return err
-	}
-	return tx.Model(post).Updates(map[string]interface{}{
+	err := transitionBountyTx(tx, post.ID, points, map[string]interface{}{
 		"bounty_status": model.BountyStatusRefunded,
 		"bounty_points": 0,
-	}).Error
+	})
+	if errors.Is(err, ErrBountyNotOpen) {
+		// 已被并发采纳或退回，无需再退
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = AdjustPointsTx(tx, post.UserID, points, model.PointReasonBountyRefund, "post", post.ID, "删帖退回悬赏")
+	return err
+}
+
+// transitionBountyTx 仅当悬赏仍为 open 且积分未变时更新状态；
+// 未命中任何行说明已被其他请求处理，返回 ErrBountyNotOpen
+func transitionBountyTx(tx *gorm.DB, postID uint, points int, updates map[string]interface{}) error {
+	res := tx.Model(&model.Post{}).
+		Where("id = ? AND bounty_status = ? AND bounty_points = ?", postID, model.BountyStatusOpen, points).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return ErrBountyNotOpen
+	}
+	return nil
 }
